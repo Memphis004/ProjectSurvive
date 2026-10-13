@@ -115,6 +115,12 @@ secrets.json
 appsettings.*.local.json
 
 # ---------------------------------------------------------------------------
+# Python bytecode (agent-tooling scripts under .agents/)
+# ---------------------------------------------------------------------------
+__pycache__/
+*.pyc
+
+# ---------------------------------------------------------------------------
 # IDE
 # ---------------------------------------------------------------------------
 .idea/
@@ -124,5 +130,4 @@ appsettings.*.local.json
 # tracked dotnet project directory required by the GDD layout.
 *.swp
 *~
-!lib/Tests~/
 !lib/Tests~/
