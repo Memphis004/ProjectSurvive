@@ -17,7 +17,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **01** | **Core library & dotnet harness** | **DONE** — see [`docs/stages/01-report.md`](docs/stages/01-report.md) |
 | **02** | **Static data pipeline (Luban, protoc)** | **DONE** — see [`docs/stages/02-report.md`](docs/stages/02-report.md) |
 | **02b** | **Battle contract v1 (interfaces + fake + contract tests)** | **DONE** — see [`docs/stages/02b-report.md`](docs/stages/02b-report.md) |
-| 03 | Unity shell, first Web build, Thai text spike | not started |
+| **03** | **Unity shell, first Web build, Thai text spike** | **DONE** — see [`docs/stages/03-report.md`](docs/stages/03-report.md) |
 | 04 | Prototype data | not started |
 | 05 | Inventory domain | not started |
 | 06 | Shop, economy, run, scene flow | not started |
@@ -31,7 +31,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
-**Current state:** Stages 00–02. `lib/` is a real UPM package
+**Current state:** Stages 00–03. `lib/` is a real UPM package
 (`com.projectsurvive.core`) with six hand-written layer `.asmdef`s plus two
 generated ones, the vendored EcsLite, the deterministic `Shared`/`Infrastructure`
 primitives (`IRandomSource` / `Xoshiro128`, `RandomStreams`, `IClock` /
@@ -45,8 +45,19 @@ build metadata. Stage 02b added the **battle contract v1**
 `BattleSessionContractTests<TFactory>`. **164 xUnit tests pass** (57 from Stage 01,
 73 from Stage 02, 34 from Stage 02b). **No gameplay rule exists yet** — `Domain`,
 `Application`, `Simulation` and `Contracts` hold the battle *contract* but no
-combination/combat rule, and `tests/web/` and `UnityProject/` still hold only
-`.gitkeep` placeholders.
+combination/combat rule.
+
+Stage 03 built the **Unity shell** (`UnityProject/`, Unity `6000.3.9f1` + URP,
+referencing `lib/` as a local package): a composition root, three scenes
+(Boot / Title / ThaiTextSpike) built through the Editor API, a 7-probe smoke suite,
+and a WebGL2 build that a Playwright suite asserts on through page globals. It
+settled the Thai text question in [ADR 0008](docs/adr/0008-thai-text-ui-stack.md)
+(uGUI + TextMeshPro, **Static** baked font assets, 182 characters verified in the
+player). Evidence: 12/12 Unity EditMode, 5/5 PlayMode, 2/2 Playwright on the real
+build, `totalMissingGlyphs=0` in the browser. The two failures it caught are written
+down in [`llmwiki/gotchas/`](llmwiki/gotchas/): IL2CPP strips constructors only
+reflection can see, and TMP's pre-build processor empties **Dynamic** font assets at
+build time.
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
 `tools/gen.ps1` (Luban 5.1.0 + protoc 33.6) → generated C# + `.bytes` →

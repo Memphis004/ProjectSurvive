@@ -1,0 +1,15 @@
+{
+  "name": "projectsurvive-web-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright smoke tests for the ProjectSurvive WebGL build (Stage 03). Run through the Chrome channel so the browser matches tools/versions.lock.json -> browsers.",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0"
+  }
+}

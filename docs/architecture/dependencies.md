@@ -1,10 +1,16 @@
 # Dependency Matrix
 
-> Stage 00 (Discovery & Baseline) with the Stage 01 and Stage 02 re-verifications
-> folded in. Every version below was read from an **authoritative, re-checkable
-> source** (a package registry, a GitHub API response, or the installed tool on
-> this machine). Anything not yet confirmed is marked `Proposed` or `Unverified` —
-> it is **not** claimed as working.
+> Stage 00 (Discovery & Baseline) with the Stage 01, Stage 02, 02b and Stage 03
+> re-verifications folded in. Every version below was read from an **authoritative,
+> re-checkable source** (a package registry, a GitHub API response, or the installed
+> tool on this machine). Anything not yet confirmed is marked `Proposed` or
+> `Unverified` — it is **not** claimed as working.
+>
+> **Stage 03 closed the IL2CPP/Web question for the whole stack**: the WebGL player
+> builds, boots, resolves its VContainer graph, loads the Luban tables, round-trips
+> MessagePack through its source-generated formatter and Protobuf, and renders Thai
+> text with zero missing glyphs — asserted from the page by Playwright on the real
+> build. Rows below say so where it applies.
 
 ## Status legend
 
@@ -68,18 +74,18 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 
 | Package | Role | Source (re-verifiable) | Version | License | Transitive deps | IL2CPP/Web risk |
 | --- | --- | --- | --- | --- | --- | --- |
-| **VContainer** | DI / lifetimes | OpenUPM `jp.hadashikick.vcontainer` | `1.19.0` (commit `5401e5a7ebc4980a2b82141ffc26391a6547edd7`) | MIT | `com.unity.test-framework` (test asmdef only) | **Medium** — uses reflection for some registration paths; verify stripping |
-| **R3** | UI-level reactive state | OpenUPM `com.cysharp.r3` | `1.3.1` | MIT | `Microsoft.Bcl.TimeProvider` (netstandard) | **Medium** — async/observable; confirm AOT |
-| **UniTask** | async, cancellation | OpenUPM `com.cysharp.unitask` | `2.5.11` | MIT | none | **Medium** — WebGL single-thread: `UniTask` must not use `ThreadPool`; verify |
-| **MessagePack for C#** | save/checkpoint DTOs | `api.nuget.org/v3-flatcontainer/messagepack/index.json` / Unity UPM variant | NuGet latest **`3.1.12`**; UPM variant **TBD** | MIT | `MessagePack.Annotations`, `Microsoft.NET.StringTools`; **source generator** `MessagePack.SourceGenerator` | **High** — must use source generator (no dynamic resolver); verify AOT |
-| **Google.Protobuf** | external contracts only | `api.nuget.org/v3-flatcontainer/google.protobuf/index.json` | **`3.33.6`** — installed and compiling at Stage 02 (`protoc` 33.6 generates the matching runtime) | BSD-3-Clause | `System.Memory`, `System.Runtime.CompilerServices.Unsafe` | **Medium** — external contract uses only; keep off the hot path |
+| ~~**VContainer**~~ **Verified on Web at Stage 03** | DI / lifetimes | OpenUPM `jp.hadashikick.vcontainer`, resolved to `1.19.0` in `Packages/manifest.json` | `1.19.0` (commit `5401e5a7ebc4980a2b82141ffc26391a6547edd7`) | MIT | `com.unity.test-framework` (test asmdef only) | **Resolved, with a rule** — its reflected-constructor path *is* stripped by IL2CPP (the first Web build failed with `Type does not found injectable constructor, type: SystemClock`). Register with explicit factories, never `Register<TInterface, TImplementation>(Lifetime)`; see `llmwiki/gotchas/il2cpp-di-and-reflection.md` |
+| ~~**R3**~~ **Verified on Web at Stage 03** | UI-level reactive state | OpenUPM `com.cysharp.r3`, resolved to `1.3.1` | `1.3.1` | MIT | `Microsoft.Bcl.TimeProvider` (`8.0.0`, NuGet) | **Verified** — `r3.subscribe` probe (subscribe, receive, dispose, no post-dispose delivery) passes in the WebGL player |
+| ~~**UniTask**~~ **Verified on Web at Stage 03** | async, cancellation | OpenUPM `com.cysharp.unitask`, resolved to `2.5.11` | `2.5.11` | MIT | none | **Verified** — `unitask.cancellation` probe passes in the WebGL player; no `ThreadPool` use on the paths shipped so far |
+| ~~**MessagePack for C#**~~ **Verified on Web at Stage 03** | save/checkpoint DTOs | NuGet via NuGetForUnity: `Google.Protobuf`, `MessagePack`, `MessagePack.Annotations`, `MessagePackAnalyzer` in `UnityProject/Assets/packages.config` | **`3.1.12`** (annotations + analyzer + `Microsoft.NET.StringTools 17.11.4`) | MIT | **source generator** only; the dynamic resolver is not IL2CPP-safe | **Verified** — `messagepack.roundtrip` probe asserts the *generated* formatter exists and round-trips in the WebGL player (26 bytes) |
+| ~~**Google.Protobuf**~~ **Verified on Web at Stage 03** | external contracts only | NuGet via NuGetForUnity (`UnityProject/Assets/packages.config`) | **`3.33.6`** (`protoc` 33.6 generates the matching runtime) | BSD-3-Clause | `System.Memory`, `System.Runtime.CompilerServices.Unsafe` | **Verified** — `protobuf.roundtrip` probe round-trips an `AppInfo` in the WebGL player (87 bytes); keep off the hot path |
 | **protoc** | `.proto` → C# contract | installed `tools/vendor/protoc/33.6` | **`libprotoc 33.6`** — verified at Stage 02 | BSD-3-Clause | none (CLI) | **Low** — build-time only |
 | ~~**Luban**~~ **Verified at Stage 02** | CSV → generated readers + `.bytes` | installed `tools/vendor/luban/5.1.0` (downloaded from `github.com/focus-creative-games/luban/releases` and SHA-256-checked) | **`v5.1.0`** — CLI syntax verified against the real binary; generates all twelve tables | MIT | bundled CLI (needs the .NET 8 **runtime**) | **Low** — offline code-gen; output is plain C#. See `llmwiki/gotchas/luban-5-strict-and-tables.md` |
-| **Input System** | WASD / arrows / mouse | `packages.unity.com/com.unity.inputsystem` | template min **`1.12.0`** (registry has `1.20.1`) — **resolve with 6000.3 at Stage 03** | Unity Companion License | `com.unity.modules.*` | **Medium** — WebGL input backend |
-| **URP** | renderer | `packages.unity.com/com.unity.render-pipelines.universal` | template min **`17.0.1`** — **resolve with 6000.3 at Stage 03** | Unity Companion License | `com.unity.render-pipelines.core`, `com.unity.shadergraph` | **Medium** — WebGL2 feature subset |
-| **Unity Test Framework** | EditMode/PlayMode | `packages.unity.com/com.unity.test-framework` | template min **`1.4.2`** (registry has `1.4.6`) — **resolve with 6000.3 at Stage 03** | Unity Companion License | `com.unity.ext.nunit` | n/a (test-only) |
-| **uGUI + TextMeshPro** | UI (Stage 03 spike) | Unity package `com.unity.ugui` | ships with 6000.3 | Unity Companion License | TMP essentials (font atlas) | **Medium** — Thai glyph/shaping issues; Stage 03 spike |
-| **Playwright** | browser tests | `npm` (`@playwright/test`) | **pin at Stage 03** | Apache-2.0 | browser drivers (~large, cached locally, not committed) | n/a (test-only) |
+| **Input System** | WASD / arrows / mouse | resolved in `Packages/manifest.json` | **`1.20.1`** | Unity Companion License | `com.unity.modules.*` | **Low** — the player initialises it (`Input System module state changed to: Initialized`) in the Web build. No gameplay input is wired yet (Stage 04+) |
+| **URP** | renderer | resolved in `Packages/manifest.json` | **`17.3.0`** | Unity Companion License | `com.unity.render-pipelines.core`, `com.unity.shadergraph` | **Verified, with a note** — renders in the WebGL player; three hidden/diagnostic URP shaders (`Hidden/CoreSRP/CoreCopy`, `StencilDitherMaskSeed`, `HDRDebugView`) report "not supported on this GPU" on the headless ANGLE path. No visible-pass impact observed; revisit if a real GPU run disagrees |
+| **Unity Test Framework** | EditMode/PlayMode | resolved in `Packages/manifest.json` | **`1.6.0`** | Unity Companion License | `com.unity.ext.nunit` | n/a (test-only) |
+| **uGUI + TextMeshPro** | player UI | resolved in `Packages/manifest.json` | **`2.0.0`** | Unity Companion License | TMP essentials (font atlas) | **Verified, with two traps** — Thai renders with 0 missing glyphs in the player, but (a) TMP's pre-build processor empties Dynamic assets' tables at build time and (b) `TryAddCharacters`' return value cannot be trusted. See [ADR 0008](../adr/0008-thai-text-ui-stack.md) |
+| **Playwright** | browser tests | npm | **`1.64.0`** (`@playwright/test`, `tests/web/package.json`) | Apache-2.0 | none committed; the suite drives the **installed** Chrome (`channel: "chrome"`) rather than downloading a browser | n/a (test-only) |
 
 ### 2.3 Blocked / Unverified
 
@@ -90,7 +96,8 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 | ~~**EcsLite exact commit**~~ | **Resolved at Stage 01** — vendored at `d46f3b209ea163810823aeea7d2610d38ad6cdf8` (version string `2026.4.25`), recorded in `lib/third_party/ecslite/VENDOR.md` and `tools/versions.lock.json`, and asserted by a test. | — |
 | ~~**Luban CLI syntax**~~ | **Resolved at Stage 02** — the pinned 5.1.0 binary was driven directly (`--conf` / `-t` / `-c` / `-d` / `--strict` / `--errorFormat` / `-x key=value`) and the `__tables__.csv` registry format was read off its own loader; nothing was guessed. Recorded in `llmwiki/gotchas/luban-5-strict-and-tables.md`, asserted by twelve fixtures. | — |
 | **Firefox** | Not installed on this machine. | Install Firefox before the Stage 14 cross-browser run, or record Firefox as NOT RUN. |
-| **IL2CPP stripping / AOT behaviour** (MessagePack, Protobuf, R3, VContainer) | Cannot be proven without a real Web build. | Stage 03 first Web build. **Explicitly out of scope for Stage 00.** |
+| ~~**IL2CPP stripping / AOT behaviour** (MessagePack, Protobuf, R3, VContainer)~~ | **Resolved at Stage 03** — all four round-trip in a real WebGL2 player (see the probes above), and the one real failure (VContainer's reflected constructors) is written down with its rule in `llmwiki/gotchas/il2cpp-di-and-reflection.md`. | — |
+| **Release-build performance** | Stage 03 built and shipped only a **Development** build; its numbers are not evidence of shipped performance. | A Release build (`WebBuildPipeline.BuildWebRelease`) before any timing claim (ADR 0003). |
 | **IndexedDB flush method on Unity 6.3** | Not yet checked against 6.3 docs. | Stage 12. |
 | **Performance numbers** | Never measured. | Stage 03+ with a real browser build. |
 
@@ -117,17 +124,19 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 
 ## 4. Open questions carried into later stages
 
-1. Exact versions of `com.unity.inputsystem`, `com.unity.render-pipelines.universal`,
-   and `com.unity.test-framework` resolved by Unity `6000.3.9f1` at project
-   creation (Stage 03).
-2. Whether R3 / VContainer / MessagePack survive IL2CPP + Web stripping
-   (Stage 03).
-3. The `UI.MVP Lite` package identity (project owner).
+1. ~~Exact versions of `com.unity.inputsystem`, `com.unity.render-pipelines.universal`,
+   and `com.unity.test-framework` resolved by Unity `6000.3.9f1`~~ — **resolved at
+   Stage 03**: `1.20.1`, `17.3.0`, `1.6.0` (see §2.2 and `UnityProject/SETUP.md`).
+2. ~~Whether R3 / VContainer / MessagePack survive IL2CPP + Web stripping~~ —
+   **resolved at Stage 03** (see the probe results above and the two gotcha notes).
+3. The `UI.MVP Lite` package identity (project owner) — still open; ADR 0002
+   mandates a project-owned thin MVP until it is supplied.
 4. MessagePack's Unity UPM package name/version (Stage 12 — no save DTO exists yet).
 5. Whether `Xoshiro128` / `FixedTicker` behaviour is identical under WebGL's
-   32-bit wasm heap and an x64 desktop CPU (Stage 03 first Web build). The
-   generator deliberately uses only 32-bit operations, but that is a design
-   argument, not a measurement.
+   32-bit wasm heap and an x64 desktop CPU. Stage 03 proved the *shell* runs on
+   WebGL2 and that the config hash matches between Editor and player, but no
+   battle-tick hash comparison has been run: **still open**, and it is the one that
+   matters for replay determinism (Stage 07).
 
 ## 5. Re-verification
 

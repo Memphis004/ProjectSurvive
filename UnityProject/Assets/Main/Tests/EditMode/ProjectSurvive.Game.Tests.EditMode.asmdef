@@ -1,0 +1,42 @@
+{
+    "name": "ProjectSurvive.Game.Tests.EditMode",
+    "rootNamespace": "ProjectSurvive.Game.Tests.EditMode",
+    "references": [
+        "ProjectSurvive.Game.Infrastructure",
+        "ProjectSurvive.Game.Presentation",
+        "ProjectSurvive.Core.Shared",
+        "ProjectSurvive.Core.Domain",
+        "ProjectSurvive.Core.Application",
+        "ProjectSurvive.Core.Infrastructure",
+        "ProjectSurvive.Core.Contracts",
+        "ProjectSurvive.Core.Generated.Luban",
+        "ProjectSurvive.Core.Generated.Proto",
+        "Luban.Runtime",
+        "VContainer",
+        "R3.Unity",
+        "UniTask",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "R3.dll",
+        "MessagePack.dll",
+        "MessagePack.Annotations.dll",
+        "Google.Protobuf.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

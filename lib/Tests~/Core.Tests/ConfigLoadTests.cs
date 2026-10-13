@@ -31,7 +31,7 @@ namespace ProjectSurvive.Core.Tests
             Assert.Equal(5, config.Floors.Count);
             Assert.Equal(9, config.Waves.Count);
             Assert.Equal(5, config.ShopPool.Count);
-            Assert.Equal(33, config.Localization.Count);
+            Assert.Equal(36, config.Localization.Count);
         }
 
         [Fact]

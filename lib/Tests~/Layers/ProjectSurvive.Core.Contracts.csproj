@@ -1,17 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- Compiles exactly lib/Runtime/Contracts/**: standalone DTOs carrying only
-       MessagePack / Protobuf attributes. References no project layer. -->
+       MessagePack / Protobuf attributes. References no project layer.
+
+       MessagePack 3.1.12 is the version pinned in tools/versions.lock.json. It
+       is referenced for its SOURCE GENERATOR (MessagePackAnalyzer 3.1.12, pulled
+       in transitively): the dynamic resolver is reflection + Reflection.Emit and
+       is therefore not IL2CPP-compatible, which the Web build would only discover
+       at runtime (AGENTS rule 3). Stage 03 is the stage that first uses it, so
+       this is where the "proposed" pin is confirmed. -->
 
   <PropertyGroup>
     <AssemblyName>ProjectSurvive.Core.Contracts</AssemblyName>
     <RootNamespace>ProjectSurvive.Core.Contracts</RootNamespace>
-    <!-- Empty by design: the first DTOs arrive with the Stage 02 data pipeline. -->
-    <AllowEmptyLayer>true</AllowEmptyLayer>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="$(LibRuntimeDir)Contracts/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MessagePack" Version="3.1.12" />
   </ItemGroup>
 
 </Project>

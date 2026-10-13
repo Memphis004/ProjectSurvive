@@ -47,6 +47,11 @@ UnityProject/Packages/manifest.json.bak
 UnityProject/Assets/StreamingAssets/aa.meta
 UnityProject/Assets/StreamingAssets/aa/
 
+# Unity: the Test Framework writes a temporary scene next to the assets and does not
+# always clean it up (init scene for PlayMode runs). Never part of the project.
+UnityProject/Assets/InitTestScene*.unity
+UnityProject/Assets/InitTestScene*.unity.meta
+
 # Unity: known OS junk
 .DS_Store
 Thumbs.db
@@ -63,6 +68,14 @@ obj/
 # lib/Tests~ is outside Unity; its build output must never be committed
 lib/Tests~/**/bin/
 lib/Tests~/**/obj/
+
+# Unity writes .meta files next to the sources of a local package (file:../../lib).
+# They are engine-generated, machine-local identity for a folder of plain C# that
+# nothing references by GUID -- UnityProject's asmdefs reference lib by ASSEMBLY NAME
+# -- and Stage 02 already decided .meta is not part of lib's generated output. The
+# TRACKED .meta files that matter (the config .bytes in UnityProject) are kept on
+# purpose, see the note above.
+lib/**/*.meta
 
 # Test / coverage output
 [Tt]est[Rr]esult*/

@@ -1,0 +1,21 @@
+{
+    "name": "ProjectSurvive.Game.Infrastructure",
+    "rootNamespace": "ProjectSurvive.Game.Infrastructure",
+    "references": [
+        "ProjectSurvive.Core.Shared",
+        "ProjectSurvive.Core.Domain",
+        "ProjectSurvive.Core.Application",
+        "ProjectSurvive.Core.Infrastructure",
+        "ProjectSurvive.Core.Generated.Luban",
+        "Luban.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

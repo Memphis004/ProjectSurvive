@@ -1,12 +1,14 @@
 # ProjectSurvive — Architecture Overview
 
-> Status: Stage 02b (battle contract). This document describes the target
+> Status: Stage 03 (Unity shell, first Web build). This document describes the target
 > architecture and the decisions locked so far. Stage 01 put the layers, the
 > harness and the deterministic `Shared` primitives in place; Stage 02 added the
 > data pipeline (`data/` → Luban/protoc → `lib/Runtime/Generated`) and the
 > `IGameConfig` port; Stage 02b added the **battle contract** in `Domain` with a
-> fake implementation and an executable contract suite. No **gameplay rule**
-> (combo, shop, combat) is implemented yet.
+> fake implementation and an executable contract suite; Stage 03 put a real Unity
+> shell (`UnityProject/`) on top of the package, publishes a build to a browser, and
+> settles Thai text in [ADR 0008](../adr/0008-thai-text-ui-stack.md). No **gameplay
+> rule** (combo, shop, combat) is implemented yet.
 >
 > Source of truth for gameplay: [`docs/gdd/prototype-v0.3.md`](../gdd/prototype-v0.3.md).
 
@@ -88,6 +90,17 @@ Enforcement (implemented in Stage 01):
 - **Presentation is thin MVP.** A View holds no logic; a Presenter calls
   Application use cases only. See
   [`docs/adr/0002-thin-mvp-ui-approach.md`](../adr/0002-thin-mvp-ui-approach.md).
+- **The shell is testable from outside the Editor.** A WebGL build cannot run
+  Unity's test framework, so the player publishes its own verdicts as page globals
+  (`__projectSurviveSmoke`, `__projectSurviveScene`, `__projectSurviveThaiSpike`)
+  and Playwright asserts on them in the target browser. That gate is not optional: two
+  Stage 03 defects (stripped DI constructors, emptied font tables) were invisible to
+  Mono-based tests and only a real build exposed them. See
+  [`llmwiki/systems/unity-shell.md`](../../llmwiki/systems/unity-shell.md).
+- **One Editor per project.** Batch-mode tooling (`unity test`, `unity build`,
+  `tools/build-web.ps1`) requires the interactive Editor to be closed; with it open,
+  drive the same operations through its pipeline (`unity command`, detached jobs for
+  builds). `UnityProject/SETUP.md` §5 records both paths.
 
 ## 2b. The static data pipeline (Stage 02)
 

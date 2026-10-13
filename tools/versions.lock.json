@@ -1,7 +1,7 @@
 {
   "lockVersion": 1,
-  "updatedAt": "2026-10-13",
-  "updatedBy": "stage-00 discovery; stage-01 core library (EcsLite pin, dotnet harness); stage-02 static data pipeline (Luban + protoc pins, Luban CLI verified, Google.Protobuf compiling)",
+  "updatedAt": "2026-10-14",
+  "updatedBy": "stage-00 discovery; stage-01 core library (EcsLite pin, dotnet harness); stage-02 static data pipeline (Luban + protoc pins, Luban CLI verified, Google.Protobuf compiling); stage-03 Unity shell + first Web build (Unity packages resolved by 6000.3.9f1; VContainer/R3/UniTask/MessagePack/Protobuf proven in a WebGL2 player by tests/web; Playwright pinned)",
   "platform": "windows",
   "_comment": "Authoritative version lock. 'status' is one of verified | proposed | blocked | unverified. Only 'verified' entries were confirmed by running a command or reading an authoritative registry during Stage 00. See docs/architecture/dependencies.md.",
   "_vendoredToolsNote": "Offline toolchain for the data pipeline (tools/gen.ps1). The archives are NOT committed; tools/setup-tools.ps1 downloads each one, verifies 'sha256', and extracts it to 'installDir'. Both entries were confirmed by running the installed binary (see 'verifiedBy').",
@@ -99,7 +99,8 @@
       "version": "154.0.8037.98",
       "install": "user-local",
       "role": "primary",
-      "status": "verified"
+      "status": "verified",
+      "usedBy": "tests/web (Playwright smoke + Thai spike tests) against the served WebGL build"
     },
     {
       "name": "Microsoft Edge",
@@ -144,9 +145,10 @@
       "version": "1.19.0",
       "revision": "5401e5a7ebc4980a2b82141ffc26391a6547edd7",
       "license": "MIT",
-      "status": "proposed",
-      "il2cppWebRisk": "medium",
-      "note": "reflection in some registration paths; verify stripping in Stage 03"
+      "status": "verified",
+      "verifiedBy": "resolved by 6000.3.9f1 in UnityProject/Packages/manifest.json; container builds and resolves in a WebGL2 player on 2026-10-14 (tests/web, di.resolution probe)",
+      "il2cppWebRisk": "resolved-with-rule",
+      "note": "the reflected-constructor path IS stripped by IL2CPP (first Web build: 'Type does not found injectable constructor, type: SystemClock'). Register with explicit factories, never Register<TInterface, TImplementation>(Lifetime). See llmwiki/gotchas/il2cpp-di-and-reflection.md"
     },
     {
       "name": "R3",
@@ -157,8 +159,9 @@
       "version": "1.3.1",
       "revision": null,
       "license": "MIT",
-      "status": "proposed",
-      "il2cppWebRisk": "medium"
+      "status": "verified",
+      "verifiedBy": "resolved by 6000.3.9f1 in UnityProject/Packages/manifest.json; subscribe/dispose probe passes in a WebGL2 player on 2026-10-14 (tests/web, r3.subscribe)",
+      "il2cppWebRisk": "low"
     },
     {
       "name": "UniTask",
@@ -169,9 +172,10 @@
       "version": "2.5.11",
       "revision": null,
       "license": "MIT",
-      "status": "proposed",
-      "il2cppWebRisk": "medium",
-      "note": "WebGL single-thread: must not use ThreadPool; verify in Stage 03"
+      "status": "verified",
+      "verifiedBy": "resolved by 6000.3.9f1 in UnityProject/Packages/manifest.json; cancellation probe passes in a WebGL2 player on 2026-10-14 (tests/web, unitask.cancellation)",
+      "il2cppWebRisk": "low",
+      "note": "WebGL single-thread: no ThreadPool use on the paths shipped so far (boot/await/cancel). Re-check when background work appears (Stage 07+)"
     },
     {
       "name": "MessagePack for C#",
@@ -182,9 +186,10 @@
       "version": "3.1.12",
       "revision": null,
       "license": "MIT",
-      "status": "proposed",
-      "il2cppWebRisk": "high",
-      "note": "source generator ONLY; dynamic resolver is not IL2CPP-compatible. Unity UPM variant version TBD at Stage 01"
+      "status": "verified",
+      "verifiedBy": "installed through NuGetForUnity (UnityProject/Assets/packages.config: MessagePack, MessagePack.Annotations, MessagePackAnalyzer, Microsoft.NET.StringTools); the source-generated formatter is asserted and round-trips in a WebGL2 player on 2026-10-14 (tests/web, messagepack.roundtrip)",
+      "il2cppWebRisk": "resolved",
+      "note": "source generator ONLY; the dynamic resolver is not IL2CPP-compatible. The Unity UPM variant is therefore not used - NuGet packages are consumed through NuGetForUnity instead"
     },
     {
       "name": "Google.Protobuf",
@@ -196,9 +201,9 @@
       "revision": null,
       "license": "BSD-3-Clause",
       "status": "verified",
-      "verifiedBy": "`dotnet build lib/Tests~/ProjectSurvive.Core.sln` with PackageReference Google.Protobuf 3.33.6 on 2026-10-13",
-      "il2cppWebRisk": "medium",
-      "note": "3.34.0-rc1 in flight at time of check. Now compiled: proto/app.proto -> lib/Runtime/Generated/Proto/App.cs (protoc 33.6), the only copy in the repo. Web/IL2CPP behaviour still unproven (Stage 03)."
+      "verifiedBy": "`dotnet build lib/Tests~/ProjectSurvive.Core.sln` with PackageReference Google.Protobuf 3.33.6 on 2026-10-13; also installed through NuGetForUnity for the Unity player, where AppInfo round-trips in a WebGL2 player on 2026-10-14 (tests/web, protobuf.roundtrip)",
+      "il2cppWebRisk": "low",
+      "note": "3.34.0-rc1 in flight at time of check. Compiled from proto/app.proto -> lib/Runtime/Generated/Proto/App.cs (protoc 33.6), the only copy in the repo. Keep it off the hot path."
     },
     {
       "name": "Luban",
@@ -220,12 +225,13 @@
       "role": "WASD / arrows / mouse",
       "source": "https://packages.unity.com/com.unity.inputsystem",
       "distribution": "unity-registry",
-      "version": null,
+      "version": "1.20.1",
       "revision": null,
       "license": "Unity Companion License",
-      "status": "proposed",
-      "il2cppWebRisk": "medium",
-      "note": "bundled template minimum 1.12.0; resolve real version with 6000.3 at project creation (Stage 03)"
+      "status": "verified",
+      "verifiedBy": "resolved by 6000.3.9f1 in UnityProject/Packages/manifest.json; the module initialises in a WebGL2 player on 2026-10-14",
+      "il2cppWebRisk": "low",
+      "note": "no gameplay input is wired yet (Stage 04+); only initialisation is proven"
     },
     {
       "name": "Unity URP",
@@ -233,12 +239,13 @@
       "role": "renderer",
       "source": "https://packages.unity.com/com.unity.render-pipelines.universal",
       "distribution": "unity-registry",
-      "version": null,
+      "version": "17.3.0",
       "revision": null,
       "license": "Unity Companion License",
-      "status": "proposed",
-      "il2cppWebRisk": "medium",
-      "note": "bundled template minimum 17.0.1; resolve at Stage 03"
+      "status": "verified",
+      "verifiedBy": "resolved by 6000.3.9f1 in UnityProject/Packages/manifest.json; renders in a WebGL2 player on 2026-10-14",
+      "il2cppWebRisk": "low",
+      "note": "three hidden/diagnostic URP shaders (Hidden/CoreSRP/CoreCopy, StencilDitherMaskSeed, HDRDebugView) report 'not supported on this GPU' on the headless ANGLE path; no visible-pass impact observed"
     },
     {
       "name": "Unity Test Framework",
@@ -246,12 +253,13 @@
       "role": "EditMode / PlayMode tests",
       "source": "https://packages.unity.com/com.unity.test-framework",
       "distribution": "unity-registry",
-      "version": null,
+      "version": "1.6.0",
       "revision": null,
       "license": "Unity Companion License",
-      "status": "proposed",
+      "status": "verified",
+      "verifiedBy": "resolved by 6000.3.9f1 in UnityProject/Packages/manifest.json; 12 EditMode and 5 PlayMode tests pass on 2026-10-14",
       "il2cppWebRisk": "n/a",
-      "note": "bundled template minimum 1.4.2; resolve at Stage 03"
+      "note": "its results XML written via the Editor pipeline is unreliable (reports total 0 and drops one PlayMode case); read per-test results from the run response, or run the suite per filter"
     },
     {
       "name": "xUnit",
@@ -298,12 +306,27 @@
       "role": "browser tests against real Web build",
       "source": "https://www.npmjs.com/package/@playwright/test",
       "distribution": "npm",
-      "version": null,
+      "version": "1.64.0",
       "revision": null,
       "license": "Apache-2.0",
-      "status": "proposed",
+      "status": "verified",
+      "verifiedBy": "tests/web/package.json; 2 tests pass against the served WebGL build on 2026-10-14",
       "il2cppWebRisk": "n/a",
-      "note": "pin version at Stage 03; browser drivers cached outside the repo"
+      "note": "drives the installed Google Chrome (channel: \"chrome\") rather than a downloaded browser, so no browser download is needed and the run matches the browser recorded above"
+    },
+    {
+      "name": "Unity uGUI + TextMeshPro",
+      "id": "com.unity.ugui",
+      "role": "player-facing UI (ADR 0008)",
+      "source": "https://packages.unity.com/com.unity.ugui",
+      "distribution": "unity-registry",
+      "version": "2.0.0",
+      "revision": null,
+      "license": "Unity Companion License",
+      "status": "verified",
+      "verifiedBy": "resolved by 6000.3.9f1 in UnityProject/Packages/manifest.json; Thai text renders with 0 missing glyphs in a WebGL2 player on 2026-10-14 (tests/web, Thai spike test)",
+      "il2cppWebRisk": "resolved-with-rule",
+      "note": "font assets must be baked and frozen to AtlasPopulationMode.Static: TMP's pre-build processor empties Dynamic assets' tables at build time. See docs/adr/0008-thai-text-ui-stack.md and llmwiki/gotchas/tmp-font-assets-in-builds.md"
     },
     {
       "name": "UI.MVP Lite",
