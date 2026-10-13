@@ -85,9 +85,15 @@
     <var name="en" type="string"/>
   </bean>
 
-  <!-- Bag piece: opens ActiveSlots on the Board. Footprint is an explicit
-       cell list ("x,y" elements) so an empty shape and a duplicated cell are
-       both machine-checkable - see docs/adr/0005-data-pipeline-shape-and-format.md -->
+  <!-- Bag piece: opens ActiveSlots on the Board. `footprint` is a PICTURE of the
+       shape, one "row" element per line of the picture:
+
+           "XXX|XXX|XXX"  a 3x3 bag      "XXX"      a 1x3 pouch
+           "XX.|.XX"      the L-tromino  "XX|XX"    a 2x2 tome
+
+       'X' = the cell is part of the piece, '.' = empty. Parsed in Domain by
+       Footprint.TryParse, which normalises the shape to the origin.
+       See llmwiki/systems/data-schema.md and docs/adr/0009-footprint-picture-format.md. -->
   <bean name="Bag">
     <var name="id" type="string"/>
     <var name="name_key" type="string#ref=TbLocalization"/>
@@ -127,6 +133,10 @@
     <var name="weight" type="float"/>
     <var name="skill_id" type="string"/>
     <var name="tags" type="list#sep=|,string"/>
+    <!-- Which board cells the item occupies - the same picture syntax as Bag.
+         An item is placeable only where a bag covers every one of its cells, so
+         a 2x2 tome and a 2x1 familiar need this to be representable. -->
+    <var name="footprint" type="list#sep=|,string"/>
   </bean>
 
   <!-- Combo rule. Matching is by item TAG, so a rule covers a whole family. -->

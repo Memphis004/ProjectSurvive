@@ -1,7 +1,7 @@
 {
   "name": "footprint-malformed-cell",
   "stage": "semantic",
-  "why": "a footprint cell that is not \"x,y\" cannot be parsed into an offset",
+  "why": "a footprint picture contains a character that is neither X nor .",
   "expectedCodes": [
     "footprint.malformed_cell"
   ]

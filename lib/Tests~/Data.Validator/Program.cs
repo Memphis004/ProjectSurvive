@@ -18,7 +18,7 @@ namespace ProjectSurvive.Data.Validator
     /// <list type="number">
     /// <item>LOAD — <see cref="LubanGameConfig.Load"/> turns the .bytes into the
     /// domain snapshot. A failure here is already a validation failure (a table
-    /// missing, a malformed or duplicated footprint cell); it is reported with
+    /// missing, a ragged or malformed footprint picture); it is reported with
     /// the <c>ConfigLoadException.Code</c>.</item>
     /// <item>SEMANTIC — <see cref="ConfigValidator"/> applies the cross-table game
     /// rules.</item>

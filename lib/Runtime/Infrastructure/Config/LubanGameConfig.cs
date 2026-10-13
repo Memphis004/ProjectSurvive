@@ -134,6 +134,7 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                     Weight = row.Weight,
                     SkillId = row.SkillId,
                     Tags = row.Tags.ToArray(),
+                    Footprint = ParseFootprint("tbitem", row.Id, row.Footprint),
                 };
                 _items.Add(item.Id, item);
                 _itemList.Add(item);
@@ -358,15 +359,15 @@ namespace ProjectSurvive.Core.Infrastructure.Config
             return new LubanGameConfig(configHash, tables);
         }
 
-        private static Footprint ParseFootprint(string table, string rowId, IReadOnlyList<string> tokens)
+        private static Footprint ParseFootprint(string table, string rowId, IReadOnlyList<string> rows)
         {
-            if (Footprint.TryParse(tokens, out Footprint footprint, out string? error))
+            if (Footprint.TryParse(rows, out Footprint footprint, out string? error))
             {
                 return footprint;
             }
 
             throw new ConfigLoadException(error!, table + "['" + rowId + "'].footprint",
-                "footprint is invalid (" + error + "): '" + string.Join("|", tokens) + "'");
+                "footprint is invalid (" + error + "): '" + string.Join("|", rows) + "'");
         }
 
         private static bool TryGet<T>(Dictionary<string, T> source, string id, out T value)

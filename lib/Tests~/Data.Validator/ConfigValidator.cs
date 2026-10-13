@@ -155,6 +155,12 @@ namespace ProjectSurvive.Data.Validator
                 Check(item.Weight >= 0f, findings, "weight.negative", row + ".weight",
                     "weight must not be negative");
 
+                // An item is placeable only where a bag covers every one of its
+                // cells, so an item with no shape is content the shop sells and
+                // nothing can hold.
+                Check(!item.Footprint.IsEmpty, findings, "footprint.empty", row + ".footprint",
+                    "footprint has no cell");
+
                 if (Present(item.SkillId))
                 {
                     Check(config.TryGetSkill(item.SkillId, out _), findings, "item.skill_missing",
@@ -212,6 +218,19 @@ namespace ProjectSurvive.Data.Validator
 
         private static void ValidateSynergies(IGameConfig config, List<Finding> findings)
         {
+            // The tag vocabulary is whatever the item table carries: a synergy
+            // matching by tag, so a tag no item carries is a rule that can never
+            // fire. This is the check Stage 02 deliberately left open until the
+            // Stage 04 content defined the vocabulary.
+            var vocabulary = new HashSet<string>(StringComparer.Ordinal);
+            foreach (ItemConfig item in config.Items)
+            {
+                foreach (string tag in item.Tags)
+                {
+                    vocabulary.Add(tag);
+                }
+            }
+
             foreach (SynergyConfig synergy in config.Synergies)
             {
                 string row = Row("synergy", synergy.Id);
@@ -229,6 +248,14 @@ namespace ProjectSurvive.Data.Validator
 
                 Check(synergy.MaxStacks >= 1, findings, "synergy.max_stacks_invalid",
                     row + ".max_stacks", "max_stacks must be >= 1");
+
+                if (synergy.Kind != SynergyKind.BagArea)
+                {
+                    Check(vocabulary.Contains(synergy.TagA), findings, "synergy.tag_unknown",
+                        row + ".tag_a", "no item carries the tag '" + synergy.TagA + "'");
+                    Check(vocabulary.Contains(synergy.TagB), findings, "synergy.tag_unknown",
+                        row + ".tag_b", "no item carries the tag '" + synergy.TagB + "'");
+                }
             }
         }
 
@@ -276,6 +303,44 @@ namespace ProjectSurvive.Data.Validator
 
                 Check(recipe.ToTier <= maxTier, findings, "merge_recipe.tier_exceeds_max", row + ".to_tier",
                     "to_tier " + recipe.ToTier + " exceeds constant.max_tier " + maxTier);
+            }
+
+            // Every piece must be able to reach the maximum tier. A missing rung
+            // - the classic typo, one recipe short - strands a player holding two
+            // tier-2 copies of a piece with nothing left to merge them into.
+            var rungs = new HashSet<string>(StringComparer.Ordinal);
+            foreach (MergeRecipeConfig recipe in config.MergeRecipes)
+            {
+                if (Present(recipe.TargetId) && recipe.ToTier == recipe.FromTier + 1)
+                {
+                    rungs.Add(recipe.TargetId + "#" + recipe.FromTier);
+                }
+            }
+
+            foreach (BagConfig bag in config.Bags)
+            {
+                CheckLadder(bag.Id, "bag", rungs, maxTier, findings);
+            }
+
+            foreach (ItemConfig item in config.Items)
+            {
+                CheckLadder(item.Id, "item", rungs, maxTier, findings);
+            }
+        }
+
+        private static void CheckLadder(string id, string table, HashSet<string> rungs, int maxTier,
+            List<Finding> findings)
+        {
+            if (maxTier < 1 || !Present(id))
+            {
+                return;
+            }
+
+            for (int tier = 1; tier < maxTier; tier++)
+            {
+                Check(rungs.Contains(id + "#" + tier), findings, "merge_recipe.ladder_incomplete",
+                    Row(table, id) + ".merge",
+                    "no merge recipe takes '" + id + "' from tier " + tier + " to " + (tier + 1));
             }
         }
 
@@ -406,6 +471,14 @@ namespace ProjectSurvive.Data.Validator
                 Check(wave.SpawnIntervalSeconds > 0f, findings, "wave.spawn_interval_invalid",
                     row + ".spawn_interval_seconds", "spawn interval must be > 0");
 
+                // The last spawn has to fit inside the window, otherwise the wave
+                // silently promises more ghosts than it can ever deliver.
+                float needed = (wave.SpawnCount - 1) * wave.SpawnIntervalSeconds;
+                float window = wave.EndTimeSeconds - wave.StartTimeSeconds;
+                Check(needed <= window, findings, "wave.spawn_window_too_short", row,
+                    "spawn_count " + wave.SpawnCount + " at " + wave.SpawnIntervalSeconds
+                    + "s needs " + needed + "s but the window is " + window + "s");
+
                 floorsWithWaves.Add(wave.FloorId);
             }
 
@@ -472,6 +545,40 @@ namespace ProjectSurvive.Data.Validator
                     Row("floor", floor.Id) + ".shop_pool",
                     "no shop_pool entry with a positive weight covers floor index " + floor.Index);
             }
+
+            // Every piece must be obtainable. A bag or item that no shop_pool band
+            // offers - and that the starting loadout does not grant - could never
+            // enter a run, so it would be authored content nobody can ever see.
+            var offered = new HashSet<string>(StringComparer.Ordinal);
+            foreach (ShopPoolEntryConfig entry in config.ShopPool)
+            {
+                if (entry.Weight > 0 && Present(entry.OfferedId))
+                {
+                    offered.Add(entry.OfferedId);
+                }
+            }
+
+            foreach (BagConfig bag in config.Bags)
+            {
+                CheckPieceOffered(bag.Id, "bag", offered, findings);
+            }
+
+            foreach (ItemConfig item in config.Items)
+            {
+                CheckPieceOffered(item.Id, "item", offered, findings);
+            }
+        }
+
+        private static void CheckPieceOffered(string id, string table, HashSet<string> offered, List<Finding> findings)
+        {
+            if (!Present(id))
+            {
+                return;
+            }
+
+            Check(offered.Contains(id), findings, "shop_pool.piece_unreachable",
+                Row(table, id) + ".shop_pool",
+                "no shop_pool entry with a positive weight offers '" + id + "'");
         }
 
         // -- 13. localization --------------------------------------------------

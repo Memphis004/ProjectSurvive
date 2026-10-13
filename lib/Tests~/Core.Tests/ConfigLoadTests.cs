@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Infrastructure.Config;
 using ProjectSurvive.Data.Validator;
@@ -22,16 +23,17 @@ namespace ProjectSurvive.Core.Tests
         {
             LubanGameConfig config = ConfigFixture.Load();
 
+            // The Stage 04 prototype content: 3 bags + 11 items = 14 pieces.
             Assert.Equal(3, config.Bags.Count);
-            Assert.Equal(9, config.Items.Count);
-            Assert.Equal(4, config.Skills.Count);
+            Assert.Equal(11, config.Items.Count);
+            Assert.Equal(5, config.Skills.Count);
             Assert.Equal(5, config.Synergies.Count);
-            Assert.Equal(8, config.MergeRecipes.Count);
+            Assert.Equal(28, config.MergeRecipes.Count);
             Assert.Equal(4, config.Enemies.Count);
             Assert.Equal(5, config.Floors.Count);
             Assert.Equal(9, config.Waves.Count);
-            Assert.Equal(5, config.ShopPool.Count);
-            Assert.Equal(36, config.Localization.Count);
+            Assert.Equal(14, config.ShopPool.Count);
+            Assert.Equal(51, config.Localization.Count);
         }
 
         [Fact]
@@ -62,8 +64,10 @@ namespace ProjectSurvive.Core.Tests
             Assert.Equal(3, pierce.PierceCount);
 
             // Tags are a `list#sep=|` column, so this also covers list decoding.
+            // `weapon` is the tag the tome's same-row synergy matches on, so every
+            // arcane weapon must carry it.
             ItemConfig yant = ConfigFixture.Item(config, "item.kali_flame_yant");
-            Assert.Equal(new[] { "yant", "fire" }, yant.Tags);
+            Assert.Equal(new[] { "yant", "weapon", "fire" }, yant.Tags);
 
             EnemyConfig boss = ConfigFixture.Enemy(config, "enemy.pob");
             Assert.True(boss.IsBoss);
@@ -72,22 +76,44 @@ namespace ProjectSurvive.Core.Tests
         }
 
         [Fact]
-        public void Footprints_are_parsed_into_normalised_cell_sets()
+        public void Footprints_are_parsed_from_the_picture_into_normalised_cell_sets()
         {
             IGameConfig config = ConfigFixture.Load();
 
+            // "XXX|XXX|XXX"
             BagConfig cotton = ConfigFixture.Bag(config, "bag.raw_cotton_bag");
             Assert.Equal(9, cotton.Footprint.CellCount);
             Assert.Equal(3, cotton.Footprint.Width);
             Assert.Equal(3, cotton.Footprint.Height);
             Assert.True(cotton.Footprint.Contains(new CellOffset(2, 2)));
 
-            // The asymmetric shape the rotation rules will need: L-tromino.
+            // "X|X|X": a one-wide, three-tall pouch.
+            BagConfig pouch = ConfigFixture.Bag(config, "bag.yant_cloth_pouch");
+            Assert.Equal(3, pouch.Footprint.CellCount);
+            Assert.Equal(1, pouch.Footprint.Width);
+            Assert.Equal(3, pouch.Footprint.Height);
+
+            // "X.|X.|XX": the L-tetromino the rotation rules need.
             BagConfig basket = ConfigFixture.Bag(config, "bag.wicker_basket_l");
-            Assert.Equal(3, basket.Footprint.CellCount);
+            Assert.Equal(4, basket.Footprint.CellCount);
             Assert.Equal(2, basket.Footprint.Width);
-            Assert.Equal(2, basket.Footprint.Height);
-            Assert.False(basket.Footprint.Contains(new CellOffset(1, 1)));
+            Assert.Equal(3, basket.Footprint.Height);
+            Assert.True(basket.Footprint.Contains(new CellOffset(1, 2)));
+            Assert.False(basket.Footprint.Contains(new CellOffset(1, 0)));
+
+            // Items occupy board cells too: a 2x2 tome and a 2x1 familiar.
+            ItemConfig tome = ConfigFixture.Item(config, "item.spell_tome");
+            Assert.Equal(4, tome.Footprint.CellCount);
+            Assert.Equal(2, tome.Footprint.Width);
+            Assert.Equal(2, tome.Footprint.Height);
+
+            ItemConfig familiar = ConfigFixture.Item(config, "item.kuman_thong");
+            Assert.Equal(2, familiar.Footprint.CellCount);
+            Assert.Equal(2, familiar.Footprint.Width);
+            Assert.Equal(1, familiar.Footprint.Height);
+
+            ItemConfig charm = ConfigFixture.Item(config, "item.phra_amulet");
+            Assert.Equal(1, charm.Footprint.CellCount);
         }
 
         [Fact]
@@ -142,7 +168,8 @@ namespace ProjectSurvive.Core.Tests
         {
             Assert.Matches("^\\d+\\.\\d+\\.\\d+$", ProjectSurvive.Config.ConfigBuildMetadata.LubanVersion);
             Assert.StartsWith("5.1", ProjectSurvive.Config.ConfigBuildMetadata.LubanVersion, StringComparison.Ordinal);
-            Assert.Equal(1, ProjectSurvive.Config.ConfigBuildMetadata.SchemaVersion);
+            // Stage 04 added item.footprint, so the schema revision moved to 2.
+            Assert.Equal(2, ProjectSurvive.Config.ConfigBuildMetadata.SchemaVersion);
         }
 
         [Fact]
@@ -155,6 +182,107 @@ namespace ProjectSurvive.Core.Tests
             int findings = ValidatorProgram.Validate(RepoLayout.TestDataDir, expectedHash: null, json: true);
 
             Assert.Equal(0, findings);
+        }
+
+        // -- Stage 04 content invariants ----------------------------------------
+
+        [Fact]
+        public void Every_piece_reaches_the_maximum_tier_through_the_merge_recipes()
+        {
+            IGameConfig config = ConfigFixture.Load();
+            int maxTier = config.Constant.MaxTier;
+
+            var pieces = config.Bags.Select(bag => bag.Id)
+                .Concat(config.Items.Select(item => item.Id))
+                .ToList();
+
+            // The prototype is 3 bags + 11 items, and each of them must be able to
+            // reach tier 3: a missing rung strands a player holding two tier-2 copies.
+            Assert.Equal(14, pieces.Count);
+
+            foreach (string id in pieces)
+            {
+                for (int tier = 1; tier < maxTier; tier++)
+                {
+                    Assert.Contains(config.MergeRecipes, recipe =>
+                        recipe.TargetId == id && recipe.FromTier == tier && recipe.ToTier == tier + 1);
+                }
+            }
+        }
+
+        [Fact]
+        public void Every_piece_is_offered_by_the_shop_pool()
+        {
+            IGameConfig config = ConfigFixture.Load();
+            var offered = config.ShopPool
+                .Where(entry => entry.Weight > 0)
+                .Select(entry => entry.OfferedId)
+                .ToHashSet(StringComparer.Ordinal);
+
+            Assert.All(config.Bags, bag => Assert.Contains(bag.Id, offered));
+            Assert.All(config.Items, item => Assert.Contains(item.Id, offered));
+        }
+
+        [Fact]
+        public void Every_synergy_tag_is_carried_by_some_item()
+        {
+            // A synergy matches by tag, so a tag no item carries is a dead rule.
+            IGameConfig config = ConfigFixture.Load();
+            var vocabulary = config.Items.SelectMany(item => item.Tags).ToHashSet(StringComparer.Ordinal);
+
+            foreach (SynergyConfig synergy in config.Synergies.Where(s => s.Kind != SynergyKind.BagArea))
+            {
+                Assert.Contains(synergy.TagA, vocabulary);
+                Assert.Contains(synergy.TagB, vocabulary);
+            }
+        }
+
+        [Fact]
+        public void The_four_cast_behaviours_are_all_represented()
+        {
+            // The prototype must exercise projectile, pierce, aura and melee, or the
+            // battle code paths for one of them would ship untested.
+            IGameConfig config = ConfigFixture.Load();
+            var behaviours = config.Skills.Select(skill => skill.Behavior).ToHashSet();
+
+            Assert.Contains(SkillBehavior.Projectile, behaviours);
+            Assert.Contains(SkillBehavior.Pierce, behaviours);
+            Assert.Contains(SkillBehavior.Aura, behaviours);
+            Assert.Contains(SkillBehavior.Melee, behaviours);
+
+            // And the offering/familiar/curse pieces the combo rules need.
+            Assert.Contains(config.Items, item => item.Element == Element.Curse);
+            Assert.Contains(config.Items, item => item.Tags.Contains("familiar"));
+            Assert.Contains(config.Items, item => item.Tags.Contains("offering"));
+        }
+
+        [Fact]
+        public void At_least_one_piece_shape_is_asymmetric_so_rotation_is_meaningful()
+        {
+            // Stage 04 asks for one asymmetric shape on purpose: if every piece were
+            // a rectangle, "rotate 0/90/180/270" could never change the outcome and
+            // the Stage 05 rule would be untestable.
+            IGameConfig config = ConfigFixture.Load();
+
+            Assert.True(
+                config.Bags.Any(bag => IsChiral(bag.Footprint)) || config.Items.Any(item => IsChiral(item.Footprint)),
+                "no bag or item shape is distinguishable from its mirror image");
+
+            Assert.True(IsChiral(ConfigFixture.Bag(config, "bag.wicker_basket_l").Footprint));
+            Assert.False(IsChiral(ConfigFixture.Bag(config, "bag.raw_cotton_bag").Footprint));
+        }
+
+        /// <summary>True when mirroring the shape left-to-right yields a different set.</summary>
+        private static bool IsChiral(Footprint footprint)
+        {
+            var mirrored = new HashSet<CellOffset>();
+            foreach (CellOffset cell in footprint.Cells)
+            {
+                mirrored.Add(new CellOffset(footprint.Width - 1 - cell.X, cell.Y));
+            }
+
+            return mirrored.Count != footprint.CellCount
+                || footprint.Cells.Any(cell => !mirrored.Contains(cell));
         }
 
         // -- failure paths: the loader must throw, never invent a value --------

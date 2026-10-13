@@ -17,6 +17,7 @@ architecture docs.
 | System | Note | Stage | Status |
 | --- | --- | --- | --- |
 | Static data pipeline (Luban, protoc) | [`systems/data-schema.md`](systems/data-schema.md) | 02 | done |
+| Prototype content (14 pieces, tag vocabulary, tiers, floors, shop pool) | [`systems/data-schema.md`](systems/data-schema.md#the-stage-04-prototype-content) | 04 | done |
 | Battle contract v1 (interfaces, fake, contract tests) | [`systems/battle-contract.md`](systems/battle-contract.md) | 02b | done |
 | Unity shell (scenes, DI, smoke suite, WebGL build, browser tests) | [`systems/unity-shell.md`](systems/unity-shell.md) | 03 | done |
 | Bag / Board placement | *(folders ready, note pending)* | 05 | not started |
@@ -43,6 +44,8 @@ lands.
 | `TryAddCharacters`' return value is not coverage | [`gotchas/tmp-tryaddcharacters-lies.md`](gotchas/tmp-tryaddcharacters-lies.md) | A false return with the whole set "missing" usually means the face failed to load |
 | Luban 5.1 CLI: `--strict`, `__tables__.csv`, loader keys | [`gotchas/luban-5-strict-and-tables.md`](gotchas/luban-5-strict-and-tables.md) | Without `--strict` a broken `#ref` only warns and still exits 0; `#ref` cannot mean "optional" |
 | Thai text with TMP | [ADR 0008](../docs/adr/0008-thai-text-ui-stack.md) | Both stacks render Thai with 0 missing glyphs at 182-char coverage; the traps are in the asset and build pipeline, not the shaping |
+| A footprint picture cannot express a duplicated cell | [ADR 0009](../docs/adr/0009-footprint-picture-format.md) | The Stage 04 format makes that bug class unrepresentable; `footprint.duplicate_cell` no longer exists |
+| A charm's own buff has no data column yet | [ADR 0010](../docs/adr/0010-item-local-effects-deferred.md) | Its magnitude must land in `item`, never as a code constant, when Stage 05–07 lands its consumer |
 | Determinism scope | [`gotchas/determinism-scope.md`](gotchas/determinism-scope.md) | Guaranteed within one runtime only, not across browsers/CPUs |
 | EcsLite pool refs, liveness, DEBUG checks | [`gotchas/ecslite-pool-refs.md`](gotchas/ecslite-pool-refs.md) | A stale `ref`, or a Release build with sanitize checks compiled out |
 | `.unity` YAML is not hand-editable | *(pending)* | Scenes/prefabs are created via the Editor API only |

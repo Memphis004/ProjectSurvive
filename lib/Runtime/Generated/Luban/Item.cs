@@ -27,6 +27,7 @@ public sealed partial class Item : Luban.BeanBase
         Weight = _buf.ReadFloat();
         SkillId = _buf.ReadString();
         {int n0 = _buf.ReadSize(); Tags = new System.Collections.Generic.List<string>(n0);for(var i0 = 0 ; i0 < n0 ; i0++) { string _e0;  _e0 = _buf.ReadString(); Tags.Add(_e0);}}
+        {int n0 = _buf.ReadSize(); Footprint = new System.Collections.Generic.List<string>(n0);for(var i0 = 0 ; i0 < n0 ; i0++) { string _e0;  _e0 = _buf.ReadString(); Footprint.Add(_e0);}}
     }
 
     public static Item DeserializeItem(ByteBuf _buf)
@@ -45,6 +46,7 @@ public sealed partial class Item : Luban.BeanBase
     public readonly float Weight;
     public readonly string SkillId;
     public readonly System.Collections.Generic.List<string> Tags;
+    public readonly System.Collections.Generic.List<string> Footprint;
    
     public const int __ID__ = 2289459;
     public override int GetTypeId() => __ID__;
@@ -67,6 +69,7 @@ public sealed partial class Item : Luban.BeanBase
         + "weight:" + Weight + ","
         + "skillId:" + SkillId + ","
         + "tags:" + Luban.StringUtil.CollectionToString(Tags) + ","
+        + "footprint:" + Luban.StringUtil.CollectionToString(Footprint) + ","
         + "}";
     }
 }

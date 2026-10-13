@@ -1,0 +1,8 @@
+{
+  "name": "item-footprint-empty",
+  "stage": "semantic",
+  "why": "an item occupies no board cell at all, so no bag could ever hold it",
+  "expectedCodes": [
+    "footprint.empty"
+  ]
+}

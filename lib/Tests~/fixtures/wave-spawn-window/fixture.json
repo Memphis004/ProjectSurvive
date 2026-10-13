@@ -1,0 +1,8 @@
+{
+  "name": "wave-spawn-window",
+  "stage": "semantic",
+  "why": "30 spawns 3s apart need 87s but the wave window is only 60s",
+  "expectedCodes": [
+    "wave.spawn_window_too_short"
+  ]
+}

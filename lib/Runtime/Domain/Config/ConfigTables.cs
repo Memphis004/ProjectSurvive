@@ -92,7 +92,19 @@ namespace ProjectSurvive.Core.Domain.Config
         /// <summary>May be empty (charms, tomes, offerings).</summary>
         public string SkillId { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Free-form tags a <see cref="SynergyConfig"/> matches on. The vocabulary
+        /// the shipped data uses is listed in llmwiki/systems/data-schema.md; the
+        /// data validator rejects a synergy that names a tag no item carries.
+        /// </summary>
         public IReadOnlyList<string> Tags { get; set; } = new List<string>();
+
+        /// <summary>
+        /// The board cells this item occupies, in the same picture syntax as
+        /// <see cref="BagConfig.Footprint"/>. Never empty in shipped data: an item
+        /// with no shape could not be placed on a bag at all.
+        /// </summary>
+        public Footprint Footprint { get; set; } = Footprint.Empty;
     }
 
     /// <summary>A combo rule, matched by item tag.</summary>

@@ -1,8 +1,0 @@
-{
-  "name": "footprint-duplicate-cell",
-  "stage": "semantic",
-  "why": "the same cell appears twice in one footprint, so the shape is ambiguous",
-  "expectedCodes": [
-    "footprint.duplicate_cell"
-  ]
-}

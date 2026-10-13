@@ -19,10 +19,12 @@
         rules that span tables, notably everything Luban cannot check because an
         empty cell is legitimate there: duplicate ids across item/bag, missing
         optional references (skill_id, description_key, boss_enemy_id), empty or
-        duplicated footprint cells, cooldown below constant.min_cooldown_seconds,
-        non-sequential or over-max merge tiers, a shop-pool weight band that
-        leaves a floor with no usable entry, a floor with no wave, price <= 0,
-        and localization rows missing a language.
+        ragged footprint pictures, cooldown below constant.min_cooldown_seconds,
+        non-sequential or over-max merge tiers, a piece whose merge ladder is
+        incomplete, a shop-pool weight band that leaves a floor with no usable
+        entry, a piece no shop-pool band offers, a floor with no wave, a wave
+        whose spawns cannot fit its window, a synergy tag no item carries,
+        price <= 0, and localization rows missing a language.
 
     Exit code 0 = clean, 1 = violations, 2 = could not run (missing toolchain).
 

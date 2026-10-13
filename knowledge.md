@@ -18,7 +18,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **02** | **Static data pipeline (Luban, protoc)** | **DONE** — see [`docs/stages/02-report.md`](docs/stages/02-report.md) |
 | **02b** | **Battle contract v1 (interfaces + fake + contract tests)** | **DONE** — see [`docs/stages/02b-report.md`](docs/stages/02b-report.md) |
 | **03** | **Unity shell, first Web build, Thai text spike** | **DONE** — see [`docs/stages/03-report.md`](docs/stages/03-report.md) |
-| 04 | Prototype data | not started |
+| **04** | **Prototype data (14 pieces, 5 combos, 5 floors)** | **DONE** — see [`docs/stages/04-report.md`](docs/stages/04-report.md) |
 | 05 | Inventory domain | not started |
 | 06 | Shop, economy, run, scene flow | not started |
 | 07 | Battle core (headless) & bot sim | not started |
@@ -42,10 +42,10 @@ build metadata. Stage 02b added the **battle contract v1**
 (`Domain/Combat/Battle`: `IBattleSession`, `IBattleFrame`, `IBattleEventSource`,
 `BattleEventRing`, `BattleReplay`, the loadout/result/setup types), a deterministic
 `FakeBattleSession` in Application, and the executable
-`BattleSessionContractTests<TFactory>`. **164 xUnit tests pass** (57 from Stage 01,
-73 from Stage 02, 34 from Stage 02b). **No gameplay rule exists yet** — `Domain`,
-`Application`, `Simulation` and `Contracts` hold the battle *contract* but no
-combination/combat rule.
+`BattleSessionContractTests<TFactory>`. **186 xUnit tests pass** (57 Stage 01, 73
+Stage 02, 34 Stage 02b, 10 Stage 03, 12 Stage 04). **No gameplay rule exists yet** —
+`Domain`, `Application`, `Simulation` and `Contracts` hold the battle *contract* but
+no combination/combat rule.
 
 Stage 03 built the **Unity shell** (`UnityProject/`, Unity `6000.3.9f1` + URP,
 referencing `lib/` as a local package): a composition root, three scenes
@@ -55,9 +55,21 @@ settled the Thai text question in [ADR 0008](docs/adr/0008-thai-text-ui-stack.md
 (uGUI + TextMeshPro, **Static** baked font assets, 182 characters verified in the
 player). Evidence: 12/12 Unity EditMode, 5/5 PlayMode, 2/2 Playwright on the real
 build, `totalMissingGlyphs=0` in the browser. The two failures it caught are written
-down in [`llmwiki/gotchas/`](llmwiki/gotchas/): IL2CPP strips constructors only
-reflection can see, and TMP's pre-build processor empties **Dynamic** font assets at
-build time.
+down in [`llmwiki/gotchas/`](llmwiki/gotchas/):IL2CPP strips constructors only reflection can see, and TMP's pre-build processor
+empties **Dynamic** font assets at build time.
+
+Stage 04 filled `data/` with the **prototype content and nothing else** (no gameplay
+code): 14 pieces — 3 bags, 4 arcane weapons (one per cast behaviour), 3 charms, 1 tome,
+2 offerings, 1 familiar — every one of them merging to tier 3, the 5 GDD combo rules
+matched by a real **tag vocabulary**, 4 Thai ghosts (incl. the 2-phase Pob boss), the
+5-floor run with its wave timeline, a 14-row shop pool covering every piece, and 51
+localization rows (th + en). Bag and item shapes are a **picture string** parsed in
+Domain (`"XXX|XXX|XXX"`, `"X.|X.|XX"`) — the format the canonical GDD specifies, which
+supersedes the Stage 02 cell-token choice ([ADR 0009](docs/adr/0009-footprint-picture-format.md)).
+Five new cross-table rules came with it (item footprint, unknown tag, incomplete merge
+ladder, unreachable piece, wave spawn window), each proven by a real broken-data
+fixture; the chain is now **17 fixtures / 21 checks**.
+
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
 `tools/gen.ps1` (Luban 5.1.0 + protoc 33.6) → generated C# + `.bytes` →
@@ -203,4 +215,10 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
   is **unproven** — Stage 03.
 - IndexedDB flush method on Unity 6.3 — Stage 12.
 - Firefox not installed → cross-browser runs are NOT RUN until it is.
+- **Charm passives and offering consumable effects have no columns yet.**
+  `item` records a charm's tags but not its own buff magnitude, and an offering's
+  heal/bia/uses likewise. Deliberate at Stage 04
+  ([ADR 0010](docs/adr/0010-item-local-effects-deferred.md)): the consumers arrive in
+  Stage 05–07. **The numbers must land in `data/` when they do — never in code**
+  (rule 5).
 - **No performance number has been measured.** All budget figures are targets.

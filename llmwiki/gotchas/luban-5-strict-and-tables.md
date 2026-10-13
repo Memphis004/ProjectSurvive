@@ -71,6 +71,9 @@ one empty string. That is what makes `footprint=""` distinguishable from a
 malformed cell — and it is why the empty footprint is reported as
 `footprint.empty` rather than a parse error.
 
+The same applies to a footprint picture whose rows are all `.`: there is no
+covered cell, so it is `footprint.empty` too, not a valid zero-cell shape.
+
 ## Generated layout
 
 - `-c cs-bin` writes one `.cs` per bean plus `Tables.cs` and `Tb<Name>.cs`, all

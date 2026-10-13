@@ -4,8 +4,8 @@ namespace ProjectSurvive.Core.Domain.Config
 {
     /// <summary>
     /// A cell offset relative to a placement origin, in board cells.
-    /// <c>X</c> grows to the right, <c>Y</c> grows downwards, so a footprint
-    /// written as "0,0|1,0|0,1" reads exactly like it is authored in data/.
+    /// <c>X</c> grows to the right, <c>Y</c> grows downwards, so the first row of
+    /// a footprint picture is <c>Y = 0</c> and its leftmost cell is <c>X = 0</c>.
     /// </summary>
     public readonly struct CellOffset : IEquatable<CellOffset>
     {

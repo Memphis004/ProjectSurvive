@@ -176,21 +176,25 @@ namespace ProjectSurvive.Core.Tests
         }
 
         [Theory]
-        [InlineData("0,0|0,0", "footprint.duplicate_cell")]
-        [InlineData("0,1|0,1|1,1", "footprint.duplicate_cell")]
         [InlineData("", "footprint.empty")]
-        [InlineData("0", "footprint.malformed_cell")]
-        [InlineData("0,", "footprint.malformed_cell")]
-        [InlineData(",0", "footprint.malformed_cell")]
-        [InlineData("a,b", "footprint.malformed_cell")]
-        [InlineData("0,0|", "footprint.malformed_cell")]
-        public void A_malformed_footprint_is_rejected_with_a_reason(string cells, string expectedError)
+        [InlineData("...", "footprint.empty")]
+        [InlineData("..|..", "footprint.empty")]
+        [InlineData("#", "footprint.malformed_cell")]
+        [InlineData("Xx", "footprint.malformed_cell")]
+        [InlineData("X*", "footprint.malformed_cell")]
+        [InlineData("0,0", "footprint.malformed_cell")]
+        [InlineData("XX|X", "footprint.ragged_row")]
+        [InlineData("XXX|", "footprint.ragged_row")]
+        [InlineData("X||X", "footprint.ragged_row")]
+        public void A_broken_footprint_picture_is_rejected_with_a_reason(string cells, string expectedError)
         {
-            // An empty cell list is "no shape at all"; a single empty token would
-            // be a malformed cell instead, so the two cases stay distinguishable.
-            string[] tokens = cells.Length == 0 ? Array.Empty<string>() : cells.Split('|');
+            // No row at all, and a picture with no covered cell, are both "no shape";
+            // rows of different lengths are a ragged picture. A picture makes a
+            // duplicated cell unrepresentable, which is why Stage 04 replaced that
+            // finding with the ragged-row one.
+            string[] rows = cells.Length == 0 ? Array.Empty<string>() : cells.Split('|');
 
-            bool parsed = Footprint.TryParse(tokens, out Footprint footprint, out string? error);
+            bool parsed = Footprint.TryParse(rows, out Footprint footprint, out string? error);
 
             Assert.False(parsed);
             Assert.Equal(expectedError, error);
@@ -200,15 +204,29 @@ namespace ProjectSurvive.Core.Tests
         [Fact]
         public void A_footprint_is_normalised_to_the_origin()
         {
-            Assert.True(Footprint.TryParse(new[] { "2,3", "3,3", "2,4" }, out Footprint footprint, out _));
+            // ".X.|.XX" is the L-tromino drawn one column in, so normalising has to
+            // pull it back to x = 0.
+            Assert.True(Footprint.TryParse(new[] { ".X.", ".XX" }, out Footprint footprint, out _));
 
             Assert.Equal(3, footprint.CellCount);
             Assert.Equal(2, footprint.Width);
             Assert.Equal(2, footprint.Height);
             Assert.True(footprint.Contains(new CellOffset(0, 0)));
-            Assert.True(footprint.Contains(new CellOffset(1, 0)));
             Assert.True(footprint.Contains(new CellOffset(0, 1)));
-            Assert.False(footprint.Contains(new CellOffset(1, 1)));
+            Assert.True(footprint.Contains(new CellOffset(1, 1)));
+            Assert.False(footprint.Contains(new CellOffset(1, 0)));
+        }
+
+        [Fact]
+        public void An_item_with_no_footprint_cell_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Item(config, "item.mor_knife").Footprint = Footprint.Empty;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("footprint.empty", Codes(findings));
+            Assert.Contains("item['item.mor_knife'].footprint", Targets(findings));
         }
 
         // -- cooldowns ----------------------------------------------------------
@@ -322,6 +340,41 @@ namespace ProjectSurvive.Core.Tests
             Assert.Contains("merge_recipe.tier_exceeds_max", Codes(findings));
         }
 
+        [Fact]
+        public void A_piece_whose_merge_ladder_skips_a_rung_is_reported()
+        {
+            // Dropping the 2 -> 3 recipe strands two tier-2 copies with nothing to
+            // merge them into, which is the failure this rule exists for.
+            LubanGameConfig config = ConfigFixture.Load();
+            MergeRecipeConfig rung = config.MergeRecipes.First(recipe =>
+                recipe.ItemId == "item.mor_knife" && recipe.FromTier == 2);
+            rung.ItemId = string.Empty;
+            rung.BagId = "bag.raw_cotton_bag";
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("merge_recipe.ladder_incomplete", Codes(findings));
+            Assert.Contains("item['item.mor_knife'].merge", Targets(findings));
+        }
+
+        [Fact]
+        public void A_piece_no_shop_pool_entry_offers_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            foreach (ShopPoolEntryConfig entry in config.ShopPool)
+            {
+                if (entry.OfferedId == "item.boiled_egg")
+                {
+                    entry.ItemId = "item.red_soda";
+                }
+            }
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("shop_pool.piece_unreachable", Codes(findings));
+            Assert.Contains("item['item.boiled_egg'].shop_pool", Targets(findings));
+        }
+
         // -- prices and weights -------------------------------------------------
 
         [Fact]
@@ -416,6 +469,20 @@ namespace ProjectSurvive.Core.Tests
         }
 
         [Fact]
+        public void A_wave_whose_spawns_cannot_fit_its_window_is_reported()
+        {
+            // 30 spawns 3s apart need 87s of window; this wave only has 60s.
+            LubanGameConfig config = ConfigFixture.Load();
+            config.Waves[0].SpawnCount = 30;
+            config.Waves[0].SpawnIntervalSeconds = 3f;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("wave.spawn_window_too_short", Codes(findings));
+            Assert.Contains("wave['" + config.Waves[0].Id + "']", Targets(findings));
+        }
+
+        [Fact]
         public void A_wave_with_a_backwards_time_window_is_reported()
         {
             LubanGameConfig config = ConfigFixture.Load();
@@ -472,6 +539,20 @@ namespace ProjectSurvive.Core.Tests
             config.Synergies[1].TagB = string.Empty;
 
             Assert.Contains("synergy.tag_missing", Codes(ConfigValidator.Validate(config)));
+        }
+
+        [Fact]
+        public void A_synergy_naming_a_tag_no_item_carries_is_reported()
+        {
+            // The vocabulary is whatever the item table carries; a tag outside it
+            // means the combo can never be assembled.
+            LubanGameConfig config = ConfigFixture.Load();
+            config.Synergies[0].TagA = "tag_that_no_item_carries";
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("synergy.tag_unknown", Codes(findings));
+            Assert.Contains("synergy['" + config.Synergies[0].Id + "'].tag_a", Targets(findings));
         }
 
         [Fact]

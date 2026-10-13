@@ -116,6 +116,28 @@ ritual names are not presented as real practices (AGENTS #13).
 | ไข่ต้ม | `BoiledEgg` | Offering |
 | กุมารทอง | `KumanThong` (2×1) | Familiar |
 
+## Item tags (the `synergy` interface, Stage 04)
+
+A tag is a code identifier that lives in `data/tables/item.csv` and is matched by
+`data/tables/synergy.csv`. The full vocabulary, including which synergy reads each
+tag, is in [`systems/data-schema.md`](systems/data-schema.md#tag-vocabulary).
+
+| Thai | Tag | Notes |
+| --- | --- | --- |
+| อาวุธอาคม (ทุกชิ้น) | `weapon` | matched by the tome's same-row rule |
+| ตำราคาถา | `tome` | the tome's own tag |
+| ตะกรุด | `takrut` | |
+| ผ้ายันต์ / ยันต์ | `yant` | carried by the yant cloth and the waist yant |
+| คุณไสย | `curse` | carried by the familiar; the คุณไสย piece |
+| ของศักดิ์สิทธิ์ | `holy` | thread, amulet, waist yant, tiger fang |
+| ของเซ่น | `offering` | |
+| ภูติรับใช้ | `familiar` | |
+| ธาตุไฟ | `fire` | flavour today; nothing matches it yet |
+| มีดหมอ | `knife` | flavour |
+| สายสิญจน์ | `thread` | flavour |
+| พระเครื่อง | `amulet` | flavour |
+| เขี้ยวเสือ | `fang` | flavour |
+
 ## Scenes / flow
 
 | Thai | Code name | Notes |
