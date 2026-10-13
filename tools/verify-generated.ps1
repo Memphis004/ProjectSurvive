@@ -283,9 +283,15 @@ try {
         Add-Result 'tracked output committed' 'Optional' 'SKIP' '-SkipGit'
     }
     else {
+        # `*.meta` is excluded deliberately: Unity writes asset metadata next to
+        # Resources/Config/*.bytes, and whether the Unity project's metadata is
+        # committed is a Stage 03 question. Including it here would turn this
+        # check into a permanent false alarm and hide the case it exists for -
+        # generated output that was never committed.
         $git = Invoke-Native -FilePath 'git' -Arguments @(
             '-C', $script:Root, 'status', '--porcelain', '--',
-            'lib/Runtime/Generated', 'lib/Tests~/data', 'UnityProject/Assets/Main/Resources/Config'
+            'lib/Runtime/Generated', 'lib/Tests~/data', 'UnityProject/Assets/Main/Resources/Config',
+            ':(exclude)*.meta'
         )
         if ($git.Code -ne 0) {
             Add-Result 'tracked output committed' 'Optional' 'SKIP' 'git unavailable'
