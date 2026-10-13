@@ -152,7 +152,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -Configuratio
 | `gen.ps1` | `33 .cs, 12 .bytes`; configHash `0010A515D0704880A58B3912D11EA5D4FE96E6986337399CF40D39DEC1941114`; protoc → `App.cs`; `RESULT: OK` |
 | `validate-data.ps1` (ข้อมูลจริง) | `PASS 5 / FAIL 0`; rows: items 9, bags 3, skills 4, synergies 5, mergeRecipes 8, enemies 4, floors 5, waves 9, shopPool 5, localization 33 |
 | `validate-data.ps1` (โฟลเดอร์ไม่มี) | exit **1**, `[FAIL] data directory` — ยืนยันว่าประตูไม่ผ่านแบบเงียบ |
-| `verify-generated.ps1` | `PASS 8 / FAIL 0` — C# 34 ไฟล์, `.bytes` 12×2 ตรงกันทุกไฟล์, `App.cs` มีที่เดียว, hash ใน metadata ตรงกับตารางที่ generate ใหม่ |
+| `verify-generated.ps1` | `PASS 9 / FAIL 0 / WARN 0` — C# 34 ไฟล์, `.bytes` 12×2 ตรงกันทุกไฟล์, `App.cs` มีที่เดียว, hash ใน metadata ตรงกับตารางที่ generate ใหม่ |
 | `check-fixtures.ps1` | `PASS 16 / FAIL 0 / SKIP 0` — control 2 ข้อ + fixture 12 ชุด + toolchain/binary |
 | mutation test ของ `check-fixtures.ps1` | fixture ที่ถูกต้องแต่ประกาศ `stage=luban` → `[FAIL]`, exit 1 (ลบ fixture ชั่วคราวแล้ว) |
 | `dotnet test` | **130 passed, 0 failed** (Stage 01 = 57, Stage 02 เพิ่ม 73) |
@@ -160,6 +160,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -Configuratio
 | `tools/test.ps1` (Release) | ดูหัวข้อ 4.1 |
 | idempotency | sha256 รวมของ 35 `*.cs` + 24 `*.bytes` = `3e034c0953eb37693ac6078678f35097cf37b980df8539816d9413ec29069da6` **เท่ากันก่อนและหลัง** `gen.ps1` รอบที่สอง |
 | `git diff` หลัง commit แล้ว generate ใหม่ | **ว่าง** — และ `git status --porcelain` ไม่รายงานไฟล์ tracked ใด ๆ เปลี่ยน (หลัง commit `446cd2d` รัน `gen.ps1` อีกครั้ง) |
+
+`verify-generated.ps1` ไม่นับ `*.meta` (ไฟล์ที่ Unity เขียนเองข้าง `Resources/Config`
+ไม่ใช่ผลของ `gen.ps1`) — ก่อนแก้ check นี้ยังจับเคสจริงได้ (ตอนที่ generated ยังไม่
+commit รายงาน "39 uncommitted generated path(s)")
 
 log: `artifacts/` (ไม่ commit) — `artifacts/config/{gen-report,validate-data,verify-generated-report,check-fixtures-report}.json`,
 `artifacts/dotnet/{build,test,validate-data,verify-generated,check-fixtures}.log` และ `artifacts/dotnet/core-tests.trx`
@@ -234,7 +238,7 @@ Debug ให้ผลเหมือนกันทุกบรรทัด (`PA
 
 | # | Acceptance (Stage 02) | ผล | หลักฐาน |
 | --- | --- | --- | --- |
-| 1 | generate ซ้ำจาก input เดิมแล้ว `git diff` ว่าง | **PASS** | `verify-generated.ps1` (`PASS 8 / FAIL 0`) + sha256 รวมของ 35 `*.cs` + 24 `*.bytes` เท่ากันก่อน/หลัง `gen.ps1` รอบที่สอง (`3e034c09…`) และหลัง commit `446cd2d` รัน `gen.ps1` อีกครั้ง: `git diff` ว่าง, `git status --porcelain` ไม่มีไฟล์ tracked เปลี่ยน |
+| 1 | generate ซ้ำจาก input เดิมแล้ว `git diff` ว่าง | **PASS** | `verify-generated.ps1` (`PASS 9 / FAIL 0 / WARN 0`) + sha256 รวมของ 35 `*.cs` + 24 `*.bytes` เท่ากันก่อน/หลัง `gen.ps1` รอบที่สอง (`3e034c09…`) และหลัง commit `446cd2d` รัน `gen.ps1` อีกครั้ง: `git diff` ว่าง, `git status --porcelain` ไม่มีไฟล์ tracked เปลี่ยน |
 | 2 | fixture ที่ผิดต้อง fail | **PASS** | `check-fixtures.ps1` `PASS 16 / FAIL 0`: 5 ชุดถูกปฏิเสธโดย Luban (id ซ้ำ, `#ref` หาย, ค่าเกิน range, wave อ้างศัตรูที่ไม่มี), 7 ชุดถูกปฏิเสธโดย validator พร้อม finding code ตรงตามที่ประกาศ; control = ข้อมูลจริงผ่าน; และ mutation test ยืนยันว่าประตูตัวนี้ FAIL ได้จริง |
 | 3 | generated code compile ได้ และเทสต์ Core อ่านตารางตัวอย่างได้ | **PASS** | `dotnet build` 0 error 0 warning; 130/130 tests; `ConfigLoadTests` อ่านตารางจริงผ่าน generated reader (จำนวนแถว, lookup, `GetText` ไทย/อังกฤษ, footprint) |
 | 4 | ไม่มี stub ที่คืนค่าคงที่แทน config จริง | **PASS** | `LubanGameConfig.Load` throw `ConfigLoadException` (code: `config.table_missing` / `config.table_unreadable` / `footprint.*`) ไม่มี fallback; เทสต์ครอบทางล้มเหลว 4 กรณี (ตารางหาย, ไบต์ไม่ใช่ตาราง, ตารางสั้นเกิน, hash ว่าง) และ hash ใน metadata ต้องตรงกับ `.bytes` จริง (เทสต์ `Config_hash_matches_the_metadata_the_generator_wrote`) |
