@@ -1,7 +1,7 @@
 {
   "lockVersion": 1,
   "updatedAt": "2026-10-13",
-  "updatedBy": "stage-00 discovery",
+  "updatedBy": "stage-00 discovery; stage-01 core library (EcsLite pin, dotnet harness)",
   "platform": "windows",
   "_comment": "Authoritative version lock. 'status' is one of verified | proposed | blocked | unverified. Only 'verified' entries were confirmed by running a command or reading an authoritative registry during Stage 00. See docs/architecture/dependencies.md.",
 
@@ -24,6 +24,9 @@
     "dotnetSdk": {
       "versions": ["6.0.428", "9.0.311"],
       "targetForTests": "net9.0",
+      "targetForLibraries": "netstandard2.1",
+      "languageVersion": "9.0",
+      "note": "library projects mirror what Unity 6.3 compiles (C# 9 / netstandard2.1); see docs/adr/0004-dotnet-layer-enforcement.md",
       "status": "verified"
     },
     "dotnetRuntime": {
@@ -89,12 +92,14 @@
       "role": "battle/ECS simulation",
       "source": "https://github.com/Leopotam/ecslite",
       "distribution": "vendored-source",
-      "version": null,
-      "revision": null,
-      "license": "MIT (MIT-Red variant)",
-      "status": "proposed",
+      "vendoredPath": "lib/third_party/ecslite",
+      "version": "2026.4.25",
+      "revision": "d46f3b209ea163810823aeea7d2610d38ad6cdf8",
+      "license": "MIT (MIT-Red variant: extra restrictions beyond MIT)",
+      "status": "verified",
+      "verifiedBy": "vendored verbatim at the pinned commit; compiled by the dotnet harness on 2026-10-13 (tools/test.ps1)",
       "il2cppWebRisk": "low",
-      "note": "pin exact commit in lib/third_party/ecslite at Stage 01"
+      "note": "asmdef keeps upstream noEngineReferences:false - IL2CPP attribute blocks only; see lib/third_party/ecslite/VENDOR.md"
     },
     {
       "name": "VContainer",
@@ -223,7 +228,33 @@
       "license": "Apache-2.0",
       "status": "verified",
       "il2cppWebRisk": "n/a",
-      "note": "registry availability confirmed; not yet installed"
+      "note": "installed in lib/Tests~/Core.Tests and passing (Stage 01)"
+    },
+    {
+      "name": "Microsoft.NET.Test.Sdk",
+      "id": "Microsoft.NET.Test.Sdk",
+      "role": "dotnet test host",
+      "source": "https://api.nuget.org/v3-flatcontainer/microsoft.net.test.sdk/index.json",
+      "distribution": "nuget",
+      "version": "17.12.0",
+      "revision": null,
+      "license": "MIT",
+      "status": "verified",
+      "il2cppWebRisk": "n/a",
+      "note": "version taken from the installed dotnet 9.0.311 `dotnet new xunit` template; test-only"
+    },
+    {
+      "name": "xunit.runner.visualstudio",
+      "id": "xunit.runner.visualstudio",
+      "role": "xUnit runner for dotnet test",
+      "source": "https://api.nuget.org/v3-flatcontainer/xunit.runner.visualstudio/index.json",
+      "distribution": "nuget",
+      "version": "2.8.2",
+      "revision": null,
+      "license": "Apache-2.0",
+      "status": "verified",
+      "il2cppWebRisk": "n/a",
+      "note": "version taken from the installed dotnet 9.0.311 `dotnet new xunit` template; test-only"
     },
     {
       "name": "Playwright",

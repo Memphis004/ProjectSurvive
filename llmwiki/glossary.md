@@ -59,6 +59,12 @@ ritual names are not presented as real practices (AGENTS #13).
 | ดาเมจ | `Damage` | Never computed in a View |
 | cooldown | `Cooldown` | Has a minimum in `constant` |
 | fixed tick 30 Hz | `FixedTicker` | Battle simulation rate |
+| สายสุ่ม | `RandomStreamKind` | `Shop` / `Battle` / `Visual` — independent random streams |
+| แหล่งสุ่ม | `IRandomSource` | The only randomness port Core may use |
+| เครื่องสุ่ม | `Xoshiro128` | xoshiro128++ generator implementing `IRandomSource` |
+| ชุดสายสุ่มของรอบ | `RandomStreams` | Derives the three streams from one run seed |
+| นาฬิกา | `IClock` / `SystemClock` | Monotonic time port (Core) and its real implementation (Infrastructure) |
+| ผลลัพธ์แบบมีชนิด | `Result` / `Result<T>` / `Error` | Typed command outcome; `Error.Code` is a machine identifier, never player text |
 
 ## Enemies (Thai ghosts)
 
@@ -102,6 +108,14 @@ ritual names are not presented as real practices (AGENTS #13).
 | ผลรอบ | `Result` | Scene, ends the run |
 | รอบเล่น | `Run` | Lifetime scope |
 | บันทึก | `RunCheckpoint` | Saved only at Camp |
+
+## Error codes
+
+`Error.Code` values are stable lowercase identifiers, `noun.problem`, and the UI
+resolves them through localization as `error.<code>` (AGENTS.md rule 5 — no
+player-facing text in Core). Examples: `bag.overlap`, `shop.insufficient_bia`,
+`item.unknown_shape`, `floor.invalid`. Renaming a code is an API change: update
+the localization key in the same commit.
 
 ## Naming rules
 

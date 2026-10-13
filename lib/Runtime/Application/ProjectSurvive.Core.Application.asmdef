@@ -1,0 +1,17 @@
+{
+  "name": "ProjectSurvive.Core.Application",
+  "rootNamespace": "ProjectSurvive.Core.Application",
+  "references": [
+    "ProjectSurvive.Core.Shared",
+    "ProjectSurvive.Core.Domain"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

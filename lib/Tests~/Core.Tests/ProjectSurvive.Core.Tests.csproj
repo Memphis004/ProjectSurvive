@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    xUnit tests for the Core rule engine. Runs with `dotnet test`, outside Unity.
+    References every layer so the architecture guard tests can load the built
+    assemblies and inspect what they reference.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>ProjectSurvive.Core.Tests</AssemblyName>
+    <RootNamespace>ProjectSurvive.Core.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <!-- This project owns its own sources (lib/Tests~/Core.Tests/). -->
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Shared.csproj" />
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Domain.csproj" />
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Application.csproj" />
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Simulation.csproj" />
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Infrastructure.csproj" />
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Contracts.csproj" />
+    <ProjectReference Include="..\Layers\Leopotam.EcsLite.csproj" />
+  </ItemGroup>
+
+</Project>

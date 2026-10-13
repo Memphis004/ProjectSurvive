@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Compiles exactly lib/Runtime/Contracts/**: standalone DTOs carrying only
+       MessagePack / Protobuf attributes. References no project layer. -->
+
+  <PropertyGroup>
+    <AssemblyName>ProjectSurvive.Core.Contracts</AssemblyName>
+    <RootNamespace>ProjectSurvive.Core.Contracts</RootNamespace>
+    <!-- Empty by design: the first DTOs arrive with the Stage 02 data pipeline. -->
+    <AllowEmptyLayer>true</AllowEmptyLayer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(LibRuntimeDir)Contracts/**/*.cs" />
+  </ItemGroup>
+
+</Project>

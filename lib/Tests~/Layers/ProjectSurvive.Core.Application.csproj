@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Compiles exactly lib/Runtime/Application/**; may reference Shared + Domain. -->
+
+  <PropertyGroup>
+    <AssemblyName>ProjectSurvive.Core.Application</AssemblyName>
+    <RootNamespace>ProjectSurvive.Core.Application</RootNamespace>
+    <!-- Empty by design until Stage 05/06 (use cases). -->
+    <AllowEmptyLayer>true</AllowEmptyLayer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(LibRuntimeDir)Application/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="ProjectSurvive.Core.Shared.csproj" />
+    <ProjectReference Include="ProjectSurvive.Core.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

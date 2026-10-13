@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Compiles exactly lib/Runtime/Infrastructure/**: the implementations of the
+       Application/Shared ports. Engine-free, as the architecture requires. -->
+
+  <PropertyGroup>
+    <AssemblyName>ProjectSurvive.Core.Infrastructure</AssemblyName>
+    <RootNamespace>ProjectSurvive.Core.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(LibRuntimeDir)Infrastructure/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="ProjectSurvive.Core.Shared.csproj" />
+    <ProjectReference Include="ProjectSurvive.Core.Domain.csproj" />
+    <ProjectReference Include="ProjectSurvive.Core.Application.csproj" />
+  </ItemGroup>
+
+</Project>

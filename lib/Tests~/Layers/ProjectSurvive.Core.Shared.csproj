@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Compiles exactly lib/Runtime/Shared/**, as declared by
+       lib/Runtime/Shared/ProjectSurvive.Core.Shared.asmdef (no references). -->
+
+  <PropertyGroup>
+    <AssemblyName>ProjectSurvive.Core.Shared</AssemblyName>
+    <RootNamespace>ProjectSurvive.Core.Shared</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(LibRuntimeDir)Shared/**/*.cs" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Headless deterministic harness: runs the fixed-tick clock and the separated
+    random streams with no Unity and no rendering, and prints a fingerprint of
+    the resulting sequence. Stage 07 grows this into the bot simulation.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>ProjectSurvive.Sim</AssemblyName>
+    <RootNamespace>ProjectSurvive.Sim</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <!-- A console host may print; nothing here is a library. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Shared.csproj" />
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,8 +1,9 @@
 # ProjectSurvive — Architecture Overview
 
-> Status: Stage 00 (Discovery & Baseline). This document describes the target
-> architecture and the decisions locked so far. No game systems are implemented
-> yet — folders exist as placeholders only.
+> Status: Stage 01 (Core library & dotnet harness). This document describes the
+> target architecture and the decisions locked so far. Stage 01 put the layers,
+> the harness and the deterministic `Shared` primitives in place; no game rules
+> are implemented yet.
 >
 > Source of truth for gameplay: [`docs/gdd/prototype-v0.3.md`](../gdd/prototype-v0.3.md).
 
@@ -55,13 +56,24 @@ Arrows point from a layer to what it is allowed to reference.
 **`Domain`, `Application`, and `Simulation` must not use `UnityEngine`.**
 **`Domain` and `Simulation` must not use `R3`, `VContainer`, or any serializer.**
 
-Enforcement:
+Enforcement (implemented in Stage 01):
 
-- In Unity: one `.asmdef` per layer with explicit `references`, and
-  `noEngineReferences: true` where the layer must stay engine-free
-  (Stage 01).
-- In `dotnet`: separate `.csproj` per layer, or an architecture test. The exact
-  mechanism is chosen and recorded in an ADR during Stage 01.
+- **In Unity:** one `.asmdef` per layer in `lib/Runtime/<Layer>/` with explicit
+  `references` and `noEngineReferences: true`. The only assembly that keeps an
+  engine reference is the **vendored** `Leopotam.EcsLite`, whose IL2CPP
+  attribute blocks need Unity assemblies — kept byte-for-byte as upstream ships
+  it (see `lib/third_party/ecslite/VENDOR.md`).
+- **In `dotnet`:** one `.csproj` per layer in `lib/Tests~/Layers/`, each globbing
+  `lib/Runtime/<Layer>/**/*.cs`, so the harness and Unity compile one source set
+  and a wrong-direction reference is a compile error in both. Library projects
+  target `netstandard2.1` with `LangVersion 9.0` to mirror the Unity 6.3
+  compiler surface. Decision: [ADR 0004](../adr/0004-dotnet-layer-enforcement.md).
+- **Guard tests** (`lib/Tests~/Core.Tests/ArchitectureTests.cs`) assert what a
+  compiler cannot: that every `.asmdef` and `.csproj` matches the matrix above,
+  that no built assembly references `UnityEngine`/`UnityEditor`, that no
+  `lib/Runtime` source names `UnityEngine`, and that the rule engine avoids
+  `System.Random`, `DateTime.Now` and `Stopwatch` (AGENTS.md rule 6).
+- **Entry point:** `tools/test.ps1` (build → `dotnet test` → Sim determinism).
 
 ### Why these boundaries exist
 
@@ -135,16 +147,22 @@ Battle never reads UI positions and never recomputes combos itself.
 - UI framework is a thin, project-owned MVP until a concrete `UI.MVP Lite`
   package is identified — see ADR 0002.
 
-## 7. What is NOT here yet
+## 7. What is here, and what is not
 
-This stage deliberately ships **no game code**. Every `lib/`, `data/`, `proto/`,
-`tests/web/`, and `UnityProject/` directory currently holds only a `.gitkeep`.
+**Stage 01 landed the skeleton and the deterministic foundations:** the `lib/`
+UPM package, the six layer asmdefs, the vendored EcsLite, the `dotnet` harness
+(one project per layer + xUnit + a Sim console), and the `Shared` primitives
+(`IRandomSource` / `Xoshiro128` / `RandomStreams`, `IClock`, `FixedTicker`,
+`Result` / `Error`) with `SystemClock` as the `IClock` implementation.
+
+**`Domain`, `Application`, `Simulation` and `Contracts` are still empty.** No
+game rule, no data table, and no battle system exists yet; `data/`, `proto/`,
+`tests/web/` and `UnityProject/` still hold only `.gitkeep` files.
 
 Deferred to later stages:
 
 | Concern | Stage |
 | --- | --- |
-| `lib/` UPM package + asmdefs + dotnet harness | 01 |
 | Luban + protoc pipeline, `IGameConfig` | 02 |
 | Unity shell, first Web build, Thai text spike | 03 |
 | CombatLoadoutSnapshot / combo evaluation | 05–06 |

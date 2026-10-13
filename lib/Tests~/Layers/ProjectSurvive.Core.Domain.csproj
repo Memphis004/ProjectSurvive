@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Compiles exactly lib/Runtime/Domain/** and may reference Shared only.
+       A wrong-direction reference is a compile error here (and in Unity). -->
+
+  <PropertyGroup>
+    <AssemblyName>ProjectSurvive.Core.Domain</AssemblyName>
+    <RootNamespace>ProjectSurvive.Core.Domain</RootNamespace>
+    <!-- Empty by design until Stage 05 (inventory domain). -->
+    <AllowEmptyLayer>true</AllowEmptyLayer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(LibRuntimeDir)Domain/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="ProjectSurvive.Core.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,14 @@
+{
+  "name": "ProjectSurvive.Core.Shared",
+  "rootNamespace": "ProjectSurvive.Core.Shared",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

@@ -1,0 +1,17 @@
+{
+  "name": "com.projectsurvive.core",
+  "version": "0.1.0",
+  "displayName": "ProjectSurvive Core",
+  "description": "ProjectSurvive rule engine: Shared, Domain, Application, Simulation, Infrastructure and Contracts layers. Engine-free; testable with `dotnet test` (see lib/Tests~).",
+  "unity": "6000.3",
+  "author": {
+    "name": "ProjectSurvive",
+    "url": "https://github.com/Holdur/ProjectSurvive"
+  },
+  "keywords": [
+    "projectsurvive",
+    "core",
+    "domain"
+  ],
+  "dependencies": {}
+}

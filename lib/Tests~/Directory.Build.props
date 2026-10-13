@@ -1,0 +1,51 @@
+<Project>
+
+  <!--
+    Shared settings for every project of the dotnet harness (lib/Tests~).
+
+    The library projects here do NOT own their sources: each one globs the same
+    folder that the matching .asmdef in lib/Runtime/<Layer>/ compiles. That is the
+    point of this harness - `dotnet build` and Unity compile one source set, so a
+    green `dotnet test` is real evidence for the Unity compile. See
+    docs/adr/0004-dotnet-layer-enforcement.md.
+  -->
+
+  <PropertyGroup>
+    <!-- Unity-facing sources of the local UPM package (lib/). -->
+    <LibRuntimeDir>$(MSBuildThisFileDirectory)../Runtime/</LibRuntimeDir>
+    <LibThirdPartyDir>$(MSBuildThisFileDirectory)../third_party/</LibThirdPartyDir>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      Mirror what Unity 6.3 compiles: C# 9 on netstandard2.1. Anything the
+      harness accepts here is therefore also accepted by Unity, and code that
+      needs a newer language feature or a .NET 5+ API fails in the harness
+      instead of in the Editor. Test/Sim projects override the target framework.
+    -->
+    <LangVersion>9.0</LangVersion>
+    <TargetFramework>netstandard2.1</TargetFramework>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <IsPackable>false</IsPackable>
+    <NeutralLanguage>en</NeutralLanguage>
+
+    <!-- Layer projects opt in to their own <Compile> globs. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <!--
+    A glob that matches nothing would otherwise build an empty assembly in
+    silence. Layer projects that are still empty by design declare
+    <AllowEmptyLayer>true</AllowEmptyLayer>; every other project must match at
+    least one .cs file, so a typo in a source path fails the build.
+  -->
+  <Target Name="VerifyLayerSources" BeforeTargets="CoreCompile"
+          Condition="'@(Compile)' == '' and '$(AllowEmptyLayer)' != 'true'">
+    <Error Text="No .cs sources matched the source glob for $(MSBuildProjectName). Check the Compile glob and LibRuntimeDir / LibThirdPartyDir in lib/Tests~/Directory.Build.props." />
+  </Target>
+
+</Project>

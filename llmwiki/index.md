@@ -21,6 +21,7 @@ architecture docs.
 | Run & scene flow | *(pending)* | 06 | not started |
 | Battle simulation (EcsLite) | *(pending)* | 07 | not started |
 | 2.5D presentation | *(pending)* | 08 | not started |
+| Core foundation (RNG / clock / ticker / Result) | [ADR 0004](../docs/adr/0004-dotnet-layer-enforcement.md) + [`../docs/architecture/overview.md`](../docs/architecture/overview.md) | 01 | done |
 | Save / resume | *(pending)* | 12 | not started |
 
 Notes live in [`systems/`](systems/). Create one file per system as its stage
@@ -34,7 +35,8 @@ lands.
 | MessagePack dynamic resolver | *(pending)* | Not IL2CPP-compatible; source generator only |
 | Unity Editor FPS ≠ Web FPS | [`../docs/adr/0003-...`](../adr/0003-performance-baseline-machine-and-browser.md) | Only a real browser build counts |
 | Thai text with TMP | *(pending)* | Upper/lower vowels + tone marks misplace; Stage 03 spike |
-| Determinism scope | *(pending)* | Guaranteed within one runtime only, not across browsers/CPUs |
+| Determinism scope | [`gotchas/determinism-scope.md`](gotchas/determinism-scope.md) | Guaranteed within one runtime only, not across browsers/CPUs |
+| EcsLite pool refs, liveness, DEBUG checks | [`gotchas/ecslite-pool-refs.md`](gotchas/ecslite-pool-refs.md) | A stale `ref`, or a Release build with sanitize checks compiled out |
 | `.unity` YAML is not hand-editable | *(pending)* | Scenes/prefabs are created via the Editor API only |
 
 Notes live in [`gotchas/`](gotchas/).

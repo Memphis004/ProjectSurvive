@@ -14,7 +14,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | Stage | Title | Status |
 | --- | --- | --- |
 | **00** | **Discovery & Baseline** | **DONE** — see [`docs/stages/00-report.md`](docs/stages/00-report.md) |
-| 01 | Core library & dotnet harness | not started |
+| **01** | **Core library & dotnet harness** | **DONE** — see [`docs/stages/01-report.md`](docs/stages/01-report.md) |
 | 02 | Static data pipeline (Luban, protoc) | not started |
 | 03 | Unity shell, first Web build, Thai text spike | not started |
 | 04 | Prototype data | not started |
@@ -30,9 +30,14 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
-**Current state:** Stage 00 only. **No game systems are implemented** — every
-`lib/`, `data/`, `proto/`, `tests/web/`, and `UnityProject/` folder holds a
-`.gitkeep` placeholder.
+**Current state:** Stages 00–01. `lib/` is a real UPM package
+(`com.projectsurvive.core`) with six layer `.asmdef`s, the vendored EcsLite, and
+the deterministic `Shared`/`Infrastructure` primitives (`IRandomSource` /
+`Xoshiro128`, `RandomStreams`, `IClock` / `SystemClock`, `FixedTicker`,
+`Result` / `Error`) covered by 57 xUnit tests. **No game rule exists yet** —
+`Domain`, `Application`, `Simulation` and `Contracts` are still empty, and
+`data/`, `proto/`, `tests/web/`, `UnityProject/` still hold only `.gitkeep`
+placeholders.
 
 **Engine lock:** Unity **`6000.3.9f1`** (revision `7a9955a4f2fa`), Unity Personal
 license. Locked in [`tools/versions.lock.json`](tools/versions.lock.json).
@@ -65,10 +70,21 @@ pwsh -NoProfile -File tools/doctor.ps1
 
 # Clone setup (once, after cloning)
 git lfs install
+
+# Core rules: build + xUnit tests + Sim determinism checks — no Unity needed
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1
+pwsh -NoProfile -File tools/test.ps1 -Configuration Release
+
+# Focused runs
+dotnet test "lib/Tests~/ProjectSurvive.Core.sln" --filter FullyQualifiedName~Xoshiro128
+dotnet run --project "lib/Tests~/Sim/ProjectSurvive.Sim.csproj" -- --seed 12345 --trace 5
 ```
 
-New commands are added as their stage lands (`tools/test.ps1` at Stage 01,
-`tools/gen.ps1` at Stage 02, `tools/build-web.ps1` / `serve-web.mjs` at Stage 03).
+Exit codes are part of the contract: `0` = all required checks passed,
+`1` = a required check failed, `2` = the tool itself could not run.
+
+New commands are added as their stage lands (`tools/gen.ps1` at Stage 02,
+`tools/build-web.ps1` / `serve-web.mjs` at Stage 03).
 
 ---
 
@@ -78,10 +94,12 @@ New commands are added as their stage lands (`tools/test.ps1` at Stage 01,
 AGENTS.md              Master Prompt / permanent rules
 knowledge.md           ← you are here
 proto/                 external contracts (app.proto) — Stage 02
-lib/                   local UPM package: all game rules, no UnityEngine in Domain
+lib/                   local UPM package (com.projectsurvive.core): all game rules
   Runtime/{Shared,Domain,Application,Simulation,Infrastructure,Contracts,Generated}
-  third_party/ecslite/ vendored (MIT), no registry dependency
-  Tests~/              dotnet(xUnit Core.Tests + Sim console) — Stage 01
+                       one .asmdef per layer, all noEngineReferences: true
+  third_party/ecslite/ vendored Leopotam EcsLite (MIT-Red) at a pinned revision
+  Tests~/              dotnet harness: one csproj per layer + xUnit Core.Tests
+                       + Sim console (deterministic, headless)
 data/                  Luban tables, Defines, localization (th.csv, en.csv)
 docs/                  gdd/ architecture/ adr/ stages/ testing/ build/
 llmwiki/               index.md glossary.md systems/ gotchas/
@@ -130,8 +148,12 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
 
 - `UI.MVP Lite` package has **no repository** → project-owned thin MVP for now
   ([ADR 0002](docs/adr/0002-thin-mvp-ui-approach.md)).
-- Versions of VContainer, R3, UniTask, MessagePack, EcsLite, Luban "that work
-  with Unity 6.3" are **proposed, not verified** — confirmed in Stage 01/03.
+- Versions of VContainer, R3, UniTask, MessagePack, Luban "that work with
+  Unity 6.3" are **proposed, not verified** — confirmed in Stage 02/03.
+  (EcsLite is settled: vendored source at a pinned revision, Stage 01.)
+- Nothing in `lib/` has been compiled by Unity yet. The `dotnet` harness mirrors
+  the Unity compiler surface (C# 9 / netstandard2.1), but asmdef resolution
+  itself is only proven in Stage 03.
 - IL2CPP stripping/AOT behaviour of MessagePack, Protobuf, R3, VContainer on Web
   is **unproven** — Stage 03.
 - IndexedDB flush method on Unity 6.3 — Stage 12.

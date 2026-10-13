@@ -1,9 +1,10 @@
 # Dependency Matrix
 
-> Stage 00 (Discovery & Baseline). Every version below was read from an
-> **authoritative, re-checkable source** (a package registry, a GitHub API
-> response, or the installed tool on this machine). Anything not yet confirmed
-> is marked `Proposed` or `Unverified` — it is **not** claimed as working.
+> Stage 00 (Discovery & Baseline) with the Stage 01 re-verification folded in.
+> Every version below was read from an **authoritative, re-checkable source** (a
+> package registry, a GitHub API response, or the installed tool on this
+> machine). Anything not yet confirmed is marked `Proposed` or `Unverified` — it
+> is **not** claimed as working.
 
 ## Status legend
 
@@ -53,16 +54,17 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 | --- | --- | --- | --- | --- | --- | --- |
 | Unity Editor | Engine / build | installed `…/Hub/Editor/6000.3.9f1` | `6000.3.9f1` | Unity proprietary (Personal) | — | Low (it *is* the target) |
 | Web Build Support | WebGL2 export | `Editor/Data/PlaybackEngines/WebGLSupport` | ships with `6000.3.9f1` | Unity Companion License | Emscripten, Brotli | Low |
-| .NET SDK | Core tests + harness | `dotnet --list-sdks` | `9.0.311` (also `6.0.428`) | MIT (.NET Foundation) | — | n/a (build-time) |
+| .NET SDK | Core tests + harness | `dotnet --list-sdks` | `9.0.311` (also `6.0.428`); libraries target `netstandard2.1` + `LangVersion 9.0` to mirror Unity 6.3 | MIT (.NET Foundation) | — | n/a (build-time) |
 | Node.js | tooling + Playwright | `node --version` | `v25.6.1` | MIT | bundled npm | n/a (build-time) |
-| xUnit | Domain/Sim unit tests | `api.nuget.org/v3-flatcontainer/xunit/index.json` | latest stable **`2.9.3`** | Apache-2.0 (`github.com/xunit/xunit/license`) | `xunit.core`, `xunit.assert`, `xunit.analyzers` | n/a (not shipped) |
+| xUnit | Domain/Sim unit tests | `api.nuget.org/v3-flatcontainer/xunit/index.json` | **`2.9.3`** — installed and passing at Stage 01 | Apache-2.0 (`github.com/xunit/xunit/license`) | `xunit.core`, `xunit.assert`, `xunit.analyzers` | n/a (not shipped) |
+| Microsoft.NET.Test.Sdk / xunit.runner.visualstudio | `dotnet test` host + xUnit runner | versions taken from the installed `dotnet 9.0.311` `dotnet new xunit` template | **`17.12.0`** / **`2.8.2`** | MIT / Apache-2.0 | test host only | n/a (test-only) |
+| **EcsLite** (vendored) | Battle/ECS simulation | `github.com/Leopotam/ecslite`, copied into `lib/third_party/ecslite` | commit **`d46f3b209ea163810823aeea7d2610d38ad6cdf8`** (version string `2026.4.25`, 2026-04-25) | **MIT-Red** — MIT plus extra restrictions; see `lib/third_party/ecslite/LICENSE.md` | none (single-file-set library) | **Low** — pure C#, no reflection in the core; the only Unity usage is `#if`-guarded IL2CPP attributes |
 | Git LFS | binary asset storage | `git lfs version` | see doctor output | MIT | — | n/a |
 
 ### 2.2 Proposed (chosen but not yet installed / not yet proven on Web)
 
 | Package | Role | Source (re-verifiable) | Version | License | Transitive deps | IL2CPP/Web risk |
 | --- | --- | --- | --- | --- | --- | --- |
-| **EcsLite** | Battle/ECS simulation | `github.com/Leopotam/ecslite` (vendored to `lib/third_party/ecslite`) | repo `master` — **pin exact commit in Stage 01** | MIT (MIT-Red variant) | none (single-file library) | **Low** — pure C#, no reflection |
 | **VContainer** | DI / lifetimes | OpenUPM `jp.hadashikick.vcontainer` | `1.19.0` (commit `5401e5a7ebc4980a2b82141ffc26391a6547edd7`) | MIT | `com.unity.test-framework` (test asmdef only) | **Medium** — uses reflection for some registration paths; verify stripping |
 | **R3** | UI-level reactive state | OpenUPM `com.cysharp.r3` | `1.3.1` | MIT | `Microsoft.Bcl.TimeProvider` (netstandard) | **Medium** — async/observable; confirm AOT |
 | **UniTask** | async, cancellation | OpenUPM `com.cysharp.unitask` | `2.5.11` | MIT | none | **Medium** — WebGL single-thread: `UniTask` must not use `ThreadPool`; verify |
@@ -80,8 +82,8 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 | Item | Why blocked | What unblocks it |
 | --- | --- | --- |
 | **UI.MVP Lite package** | The GDD names `UI.MVP Lite` but **no repository/source has been supplied**. | Project owner provides the repo URL. Until then, ADR 0002 mandates a thin, project-owned MVP. |
-| **MessagePack Unity UPM variant version** | NuGet version is confirmed; the Unity-facing distribution (`com.cysharp.messagepack` / `MessagePack.Unity`) version is not. | Confirm the Unity package name + version at Stage 01 when save DTOs are introduced. |
-| **EcsLite exact commit** | Repo confirmed to exist; a specific revision is not yet pinned. | Pin the commit in `lib/third_party/ecslite/README` + `tools/versions.lock.json` at Stage 01. |
+| **MessagePack Unity UPM variant version** | NuGet version is confirmed; the Unity-facing distribution (`com.cysharp.messagepack` / `MessagePack.Unity`) version is not. **Still open after Stage 01**, which introduced no save DTOs. | Confirm the Unity package name + version when the first checkpoint DTO lands (Stage 12). |
+| ~~**EcsLite exact commit**~~ | **Resolved at Stage 01** — vendored at `d46f3b209ea163810823aeea7d2610d38ad6cdf8` (version string `2026.4.25`), recorded in `lib/third_party/ecslite/VENDOR.md` and `tools/versions.lock.json`, and asserted by a test. | — |
 | **Firefox** | Not installed on this machine. | Install Firefox before the Stage 14 cross-browser run, or record Firefox as NOT RUN. |
 | **IL2CPP stripping / AOT behaviour** (MessagePack, Protobuf, R3, VContainer) | Cannot be proven without a real Web build. | Stage 03 first Web build. **Explicitly out of scope for Stage 00.** |
 | **IndexedDB flush method on Unity 6.3** | Not yet checked against 6.3 docs. | Stage 12. |
@@ -89,8 +91,17 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 
 ## 3. Transitive dependency notes
 
-- **EcsLite** is a single-file library with no external dependencies — that is
-  why it is vendored (source in-tree) rather than referenced from a registry.
+- **EcsLite** is a single-file-set library with no external dependencies — that
+  is why it is vendored (source in-tree, `lib/third_party/ecslite`) rather than
+  referenced from a registry. It is **MIT-Red**, not plain MIT: the grant adds
+  restrictions on military use and on use by parties hostile to Russians. The
+  license text is vendored verbatim and the pinned revision is recorded in
+  `VENDOR.md`; an upgrade needs owner approval (AGENTS.md rule 2).
+- **EcsLite and Unity references:** upstream's `.asmdef` sets
+  `noEngineReferences: false` and is kept verbatim, because the `#if ENABLE_IL2CPP`
+  blocks use `Unity.IL2CPP.CompilerServices`. Outside Unity those blocks are
+  excluded, so the harness compiles it as pure BCL — verified by a guard test
+  rather than assumed.
 - **VContainer / R3 / UniTask / MessagePack** are pulled through OpenUPM
   (`https://package.openupm.com`) so that scoped registries pin them rather than
   resolving from a moving Git URL.
@@ -107,7 +118,11 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 2. Whether R3 / VContainer / MessagePack survive IL2CPP + Web stripping
    (Stage 03).
 3. The `UI.MVP Lite` package identity (project owner).
-4. MessagePack's Unity UPM package name/version (Stage 01).
+4. MessagePack's Unity UPM package name/version (Stage 12 — no save DTO exists yet).
+5. Whether `Xoshiro128` / `FixedTicker` behaviour is identical under WebGL's
+   32-bit wasm heap and an x64 desktop CPU (Stage 03 first Web build). The
+   generator deliberately uses only 32-bit operations, but that is a design
+   argument, not a measurement.
 
 ## 5. Re-verification
 
