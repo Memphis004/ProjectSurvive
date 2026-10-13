@@ -1,0 +1,71 @@
+{
+  "slot_map": {
+    "head": "face",
+    "hair": "hair",
+    "accessory": "accessory"
+  },
+  "ignore_slots": [
+    "base",
+    "body",
+    "eyes",
+    "brows",
+    "mouth",
+    "nose",
+    "eyeshadow",
+    "face_marking"
+  ],
+  "parts": {
+    "head_male_01": {
+      "text": "",
+      "note": "locked: head and neck stay exactly as in the base image; no slot changes the head"
+    },
+    "head_male_elder": {
+      "text": "",
+      "note": "locked: head and neck stay exactly as in the base image; no slot changes the head"
+    },
+    "head_female_01": {
+      "text": "",
+      "note": "locked: head and neck stay exactly as in the base image; no slot changes the head"
+    },
+    "hair_short": {
+      "text": "short black hair framing the face"
+    },
+    "hair_topknot": {
+      "text": "black hair gathered into a small topknot at the crown"
+    },
+    "hair_topknot_long": {
+      "text": "long black hair gathered into a high topknot with the ends falling down the back"
+    },
+    "hair_twin_tail": {
+      "text": "black hair tied into two low twin tails"
+    },
+    "hair_bald_beard": {
+      "text": "a bald head with a short grey beard"
+    },
+    "acc_jade_crown": {
+      "text": "a green jade crown on the head"
+    },
+    "acc_hairpin_silver": {
+      "text": "a silver hairpin in the hair"
+    },
+    "acc_gourd": {
+      "text": "a small gourd carried at the hip"
+    },
+    "acc_none": {
+      "text": "",
+      "note": "removal cannot be said affirmatively without fighting the KEEP sentence; pass free text instead"
+    },
+    "body_ink_white_f": {
+      "text": "pale white hanfu body layer in restrained grey ink folds, ink-wash trial layer",
+      "note": "ผู้ใช้ต้องรีวิว (layers trial import)"
+    },
+    "head_ink_female_01": {
+      "text": "head and neck layer for the ink trial female: face features, ears, neck, silver ear studs",
+      "note": "ผู้ใช้ต้องรีวิว (layers trial import)"
+    },
+    "hair_ink_loose_f": {
+      "text": "front hair layer: long black ink-wash hair swept into a side coil with one long loose strand; hairpin flowers ride with this layer",
+      "note": "ผู้ใช้ต้องรีวิว (layers trial import)"
+    }
+  }
+}

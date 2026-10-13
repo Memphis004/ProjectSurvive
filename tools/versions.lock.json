@@ -1,0 +1,263 @@
+{
+  "lockVersion": 1,
+  "updatedAt": "2026-10-13",
+  "updatedBy": "stage-00 discovery",
+  "platform": "windows",
+  "_comment": "Authoritative version lock. 'status' is one of verified | proposed | blocked | unverified. Only 'verified' entries were confirmed by running a command or reading an authoritative registry during Stage 00. See docs/architecture/dependencies.md.",
+
+  "engine": {
+    "unity": {
+      "product": "Unity 6.3 LTS",
+      "version": "6000.3.9f1",
+      "revision": "7a9955a4f2fa",
+      "branch": "6000.3/staging",
+      "installPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.3.9f1",
+      "license": "Unity Personal",
+      "status": "verified",
+      "verifiedBy": "Editor/Unity.exe VersionInfo + batchmode -quit exit code 0",
+      "requiredModules": ["WebGL"],
+      "otherEditorsPresent": ["2022.3.62f2"]
+    }
+  },
+
+  "toolchain": {
+    "dotnetSdk": {
+      "versions": ["6.0.428", "9.0.311"],
+      "targetForTests": "net9.0",
+      "status": "verified"
+    },
+    "dotnetRuntime": {
+      "latest": "Microsoft.NETCore.App 9.0.13",
+      "status": "verified"
+    },
+    "node": { "version": "v25.6.1", "status": "verified" },
+    "npm": { "version": "11.9.0", "status": "verified" },
+    "git": { "version": "2.55.0.windows.3", "status": "verified" },
+    "gitLfs": { "version": "3.7.1", "status": "verified", "note": "required for png/psd/fbx/wav/ogg; run `git lfs install` after cloning" },
+    "powershell": {
+      "windowsPowerShell": "5.1.26100.9444",
+      "pwsh": "7 (preview)",
+      "scriptTarget": "5.1+",
+      "status": "verified"
+    },
+    "python": { "version": null, "status": "unverified", "note": "not required yet; Luban CLI may want it" }
+  },
+
+  "hostMachine": {
+    "cpu": "Intel(R) Core(TM) i5-14400F",
+    "cores": 10,
+    "logicalProcessors": 16,
+    "ramBytes": 34186145792,
+    "gpu": "NVIDIA GeForce RTX 5060 Ti",
+    "gpuDriver": "32.0.16.1692",
+    "os": "Windows 11 10.0.26300 x64",
+    "referenceViewport": "1920x1080",
+    "status": "verified"
+  },
+
+  "browsers": [
+    {
+      "name": "Google Chrome",
+      "channel": "chromium",
+      "version": "154.0.8037.98",
+      "install": "user-local",
+      "role": "primary",
+      "status": "verified"
+    },
+    {
+      "name": "Microsoft Edge",
+      "channel": "chromium",
+      "version": "145.0.3800.70",
+      "install": "system",
+      "role": "fallback",
+      "status": "verified"
+    },
+    {
+      "name": "Mozilla Firefox",
+      "channel": "gecko",
+      "version": null,
+      "role": "required-by-gdd",
+      "status": "blocked",
+      "note": "not installed on the reference machine; cross-browser runs are NOT RUN until installed"
+    }
+  ],
+
+  "packages": [
+    {
+      "name": "EcsLite",
+      "id": "Leopotam.EcsLite",
+      "role": "battle/ECS simulation",
+      "source": "https://github.com/Leopotam/ecslite",
+      "distribution": "vendored-source",
+      "version": null,
+      "revision": null,
+      "license": "MIT (MIT-Red variant)",
+      "status": "proposed",
+      "il2cppWebRisk": "low",
+      "note": "pin exact commit in lib/third_party/ecslite at Stage 01"
+    },
+    {
+      "name": "VContainer",
+      "id": "jp.hadashikick.vcontainer",
+      "role": "DI / lifetimes",
+      "source": "https://package.openupm.com",
+      "distribution": "openupm",
+      "version": "1.19.0",
+      "revision": "5401e5a7ebc4980a2b82141ffc26391a6547edd7",
+      "license": "MIT",
+      "status": "proposed",
+      "il2cppWebRisk": "medium",
+      "note": "reflection in some registration paths; verify stripping in Stage 03"
+    },
+    {
+      "name": "R3",
+      "id": "com.cysharp.r3",
+      "role": "UI-level reactive state",
+      "source": "https://package.openupm.com",
+      "distribution": "openupm",
+      "version": "1.3.1",
+      "revision": null,
+      "license": "MIT",
+      "status": "proposed",
+      "il2cppWebRisk": "medium"
+    },
+    {
+      "name": "UniTask",
+      "id": "com.cysharp.unitask",
+      "role": "async + cancellation",
+      "source": "https://package.openupm.com",
+      "distribution": "openupm",
+      "version": "2.5.11",
+      "revision": null,
+      "license": "MIT",
+      "status": "proposed",
+      "il2cppWebRisk": "medium",
+      "note": "WebGL single-thread: must not use ThreadPool; verify in Stage 03"
+    },
+    {
+      "name": "MessagePack for C#",
+      "id": "MessagePack",
+      "role": "save / checkpoint DTOs",
+      "source": "https://api.nuget.org/v3-flatcontainer/messagepack/index.json",
+      "distribution": "nuget",
+      "version": "3.1.12",
+      "revision": null,
+      "license": "MIT",
+      "status": "proposed",
+      "il2cppWebRisk": "high",
+      "note": "source generator ONLY; dynamic resolver is not IL2CPP-compatible. Unity UPM variant version TBD at Stage 01"
+    },
+    {
+      "name": "Google.Protobuf",
+      "id": "Google.Protobuf",
+      "role": "external contracts only",
+      "source": "https://api.nuget.org/v3-flatcontainer/google.protobuf/index.json",
+      "distribution": "nuget",
+      "version": "3.33.6",
+      "revision": null,
+      "license": "BSD-3-Clause",
+      "status": "proposed",
+      "il2cppWebRisk": "medium",
+      "note": "3.34.0-rc1 in flight at time of check; latest stable observed 3.33.6"
+    },
+    {
+      "name": "Luban",
+      "id": "luban",
+      "role": "CSV -> generated readers + .bytes",
+      "source": "https://github.com/focus-creative-games/luban/releases",
+      "distribution": "standalone-cli",
+      "version": "5.1.0",
+      "revision": null,
+      "license": "MIT",
+      "status": "proposed",
+      "il2cppWebRisk": "low",
+      "note": "verify CLI syntax from installed binary at Stage 02; do not guess"
+    },
+    {
+      "name": "Unity Input System",
+      "id": "com.unity.inputsystem",
+      "role": "WASD / arrows / mouse",
+      "source": "https://packages.unity.com/com.unity.inputsystem",
+      "distribution": "unity-registry",
+      "version": null,
+      "revision": null,
+      "license": "Unity Companion License",
+      "status": "proposed",
+      "il2cppWebRisk": "medium",
+      "note": "bundled template minimum 1.12.0; resolve real version with 6000.3 at project creation (Stage 03)"
+    },
+    {
+      "name": "Unity URP",
+      "id": "com.unity.render-pipelines.universal",
+      "role": "renderer",
+      "source": "https://packages.unity.com/com.unity.render-pipelines.universal",
+      "distribution": "unity-registry",
+      "version": null,
+      "revision": null,
+      "license": "Unity Companion License",
+      "status": "proposed",
+      "il2cppWebRisk": "medium",
+      "note": "bundled template minimum 17.0.1; resolve at Stage 03"
+    },
+    {
+      "name": "Unity Test Framework",
+      "id": "com.unity.test-framework",
+      "role": "EditMode / PlayMode tests",
+      "source": "https://packages.unity.com/com.unity.test-framework",
+      "distribution": "unity-registry",
+      "version": null,
+      "revision": null,
+      "license": "Unity Companion License",
+      "status": "proposed",
+      "il2cppWebRisk": "n/a",
+      "note": "bundled template minimum 1.4.2; resolve at Stage 03"
+    },
+    {
+      "name": "xUnit",
+      "id": "xunit",
+      "role": "Domain / Simulation unit tests",
+      "source": "https://api.nuget.org/v3-flatcontainer/xunit/index.json",
+      "distribution": "nuget",
+      "version": "2.9.3",
+      "revision": null,
+      "license": "Apache-2.0",
+      "status": "verified",
+      "il2cppWebRisk": "n/a",
+      "note": "registry availability confirmed; not yet installed"
+    },
+    {
+      "name": "Playwright",
+      "id": "@playwright/test",
+      "role": "browser tests against real Web build",
+      "source": "https://www.npmjs.com/package/@playwright/test",
+      "distribution": "npm",
+      "version": null,
+      "revision": null,
+      "license": "Apache-2.0",
+      "status": "proposed",
+      "il2cppWebRisk": "n/a",
+      "note": "pin version at Stage 03; browser drivers cached outside the repo"
+    },
+    {
+      "name": "UI.MVP Lite",
+      "id": "unknown",
+      "role": "thin MVP UI",
+      "source": null,
+      "distribution": null,
+      "version": null,
+      "revision": null,
+      "license": null,
+      "status": "blocked",
+      "il2cppWebRisk": "unknown",
+      "note": "no repository supplied; project-owned thin MVP per ADR 0002 until provided"
+    }
+  ],
+
+  "policy": {
+    "engineUpgrade": "not allowed without explicit approval",
+    "dependencyUpgrade": "not allowed without explicit approval; record new revision here",
+    "webTarget": "WebGL2 single-threaded on desktop browsers",
+    "battleTickHz": 30,
+    "performanceClaimRule": "numbers must come from real measurements with machine + browser version recorded"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "hair": {
+    "updo": "gathered high on the crown in an elegant coiled updo, with two soft locks falling along her cheeks",
+    "loose_straight": "long, loose and straight, parted softly in the centre, falling freely over both shoulders and down her back in smooth silk-like strands",
+    "loose_waves": "long, loose and wavy, falling freely over both shoulders in soft glossy waves with a light centre part",
+    "bob": "cut to a sleek shoulder-length bob with straight side-swept bangs",
+    "high_ponytail": "a long high ponytail swaying behind her",
+    "half_up": "long and black, the top half gathered into a small neat knot, the rest falling loose down her back"
+  },
+  "face": {
+    "sweet": "a soft oval face with a gently tapered chin, large gentle almond eyes, slim softly arched eyebrows, a small refined nose and softly shaped rosy lips, with a faint warm smile",
+    "heart": "a heart-shaped face with a softly pointed chin, large bright almond eyes with long lashes, thin arched eyebrows, a small straight nose and full lips",
+    "mature": "a mature composed face with a slim oval shape, narrow elegant phoenix eyes, defined eyebrows, a high nose bridge and calm closed lips",
+    "cool": "a refined, aloof face with sharp elegant eyes, thin straight eyebrows, a high nose bridge and thin lips with a calm expression"
+  },
+  "outfit": {
+    "violet_gauze": "an alluring violet outfit in blue-leaning violet, lavender and lilac: a fitted lilac bodice with a scooped neckline and slender shoulder straps leaving her shoulders, collarbones and arms bare; a thin sheer pale-violet chiffon shawl draped loosely over her arms; fine silver filigree trim with small hanging tassels on the bodice; delicate silver chains at the waist; and a long flowing gauze skirt in soft layered violet with a very high side slit showing her bare outer thigh. The bodice and the hip layer under the gauze are solid opaque violet",
+    "white_hanfu": "an elegant modest pale white hanfu with a tailored overlapping crossed collar, a fitted opaque bodice, a high waist tied with a plain dark sash, a softly layered skirt and long wide flowing sleeves, in restrained grey ink folds",
+    "ruqun_blue": "a pale white ruqun with a short tailored cross-collar blouse fitted over the bust, a high-waisted softly pleated skirt, a narrow light-blue waist ribbon and delicate flowing long sleeves",
+    "black_gold": "a fitted black hanfu with a high mandarin collar, wide bishop sleeves, a brocade waist sash with fine gold trim and a flowing ankle-length skirt, fully opaque"
+  },
+  "pose": {
+    "clasped_waist": "standing relaxed with her body angled slightly, both hands held together gently at her waist",
+    "hand_on_chest": "standing relaxed with her body angled slightly, one hand resting lightly over her chest and the other arm lowered at her side, a wide sleeve flowing down",
+    "hands_behind": "standing gracefully with both hands held behind her back, her chest lifted slightly, her head tilted a little to one side",
+    "sleeve_lift": "standing with her body turned three-quarters to the left, one arm raised gently to shoulder height so the wide sleeve drapes down, the other hand resting at her waist",
+    "hair_tuck": "standing with her body angled slightly, one hand raised to tuck a lock of hair behind her ear, the other hand resting at her waist",
+    "look_back": "standing with her body turned three-quarters away and her face looking back over her shoulder toward the viewer, both arms lowered"
+  },
+  "accessory": {
+    "jade_flowers_ribbons": "a pair of white flower hairpins with small gold leaves clipped on both sides of her head, two long teal-green silk ribbons tied into her hair and flowing down past her shoulders, and matching drop earrings of green jade with gold fittings and a small pearl",
+    "silver_tassel": "a slender silver hairpin with small hanging tassels at the crown and long silver drop earrings",
+    "pearl_simple": "small round pearl stud earrings and a single slim jade hairpin",
+    "lavender_ribbon": "a long pale-lavender silk ribbon tied into her hair and flowing down her back, with small silver filigree drop earrings",
+    "minimal": "a single small silver hairpin and small simple silver ear studs"
+  }
+}

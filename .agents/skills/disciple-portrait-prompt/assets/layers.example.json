@@ -1,0 +1,45 @@
+{
+  "disciple": "d000",
+  "canvas": [
+    1024,
+    1536
+  ],
+  "key": {
+    "color": "#ff00ff",
+    "fuzziness": 40
+  },
+  "matting": {
+    "defringe": 3,
+    "decontaminate": {
+      "amount": 100,
+      "radius": 2
+    }
+  },
+  "parts": [
+    {
+      "id": "hair_back_topknot_long",
+      "slot": "hair_back",
+      "file": "d000_hair_back.png"
+    },
+    {
+      "id": "body_robe_azure",
+      "slot": "body",
+      "file": "d000_body.png"
+    },
+    {
+      "id": "head_male_01",
+      "slot": "head",
+      "file": "d000_head.png"
+    },
+    {
+      "id": "hair_front_topknot_long",
+      "slot": "hair_front",
+      "file": "d000_hair_front.png"
+    },
+    {
+      "id": "acc_jade_crown",
+      "slot": "accessory",
+      "file": "d000_accessory.png"
+    }
+  ]
+}

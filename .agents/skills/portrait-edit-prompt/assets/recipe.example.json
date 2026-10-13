@@ -1,0 +1,9 @@
+{
+  "banned_words": ["braid", "plait", "cornrow"],
+  "items": [
+    {"id": "d002", "seed": 520201, "base": "r9_base_d002.png", "pose": "@hand_on_chest"},
+    {"id": "d002", "seed": 520202, "base": "r9_base_d002.png", "ref": "d002_green_outfit_ref.jpg", "accessory": "@jade_flowers_ribbons", "ref_for": "accessory"},
+    {"id": "d002", "seed": 520203, "base": "r9_base_d002.png", "hair": "@updo", "accessory": "@silver_tassel"},
+    {"id": "d001", "seed": 520101, "base": "r9_base_d001.png", "ref": "r8_ref.jpg", "outfit": "@violet_gauze", "accessory": "@lavender_ribbon", "ref_for": "outfit"}
+  ]
+}

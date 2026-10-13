@@ -1,0 +1,139 @@
+# ProjectSurvive — Knowledge Base
+
+Thai-ghost-hunter survivor-like (Vampire Survivors style) with a grid **bag**
+inventory (inspired by *Backpack Immortal Tale*). Theme: a Thai folk
+ghost-doctor (`Mor`), 1 class, 2.5D. Target: **Web (WebGL2, single-thread) on
+desktop browsers.**
+
+This file is the fast on-ramp. Read it first, then follow the links.
+
+---
+
+## Status
+
+| Stage | Title | Status |
+| --- | --- | --- |
+| **00** | **Discovery & Baseline** | **DONE** — see [`docs/stages/00-report.md`](docs/stages/00-report.md) |
+| 01 | Core library & dotnet harness | not started |
+| 02 | Static data pipeline (Luban, protoc) | not started |
+| 03 | Unity shell, first Web build, Thai text spike | not started |
+| 04 | Prototype data | not started |
+| 05 | Inventory domain | not started |
+| 06 | Shop, economy, run, scene flow | not started |
+| 07 | Battle core (headless) & bot sim | not started |
+| 08 | Battle presentation 2.5D | not started |
+| 09 | Camp scene & bag UI | not started |
+| 10 | Full loop (vertical slice) | not started |
+| 11 | Thai ghost AI, Pob boss, balance | not started |
+| 12 | Save, resume, settings | not started |
+| 13 | Content complete & UX | not started |
+| 14 | Test harness & CI | not started |
+| 15 | Web release candidate | not started |
+
+**Current state:** Stage 00 only. **No game systems are implemented** — every
+`lib/`, `data/`, `proto/`, `tests/web/`, and `UnityProject/` folder holds a
+`.gitkeep` placeholder.
+
+**Engine lock:** Unity **`6000.3.9f1`** (revision `7a9955a4f2fa`), Unity Personal
+license. Locked in [`tools/versions.lock.json`](tools/versions.lock.json).
+
+---
+
+## Environment (verified 2026-10-13)
+
+| Tool | Version |
+| --- | --- |
+| OS | Windows 11 `10.0.26300` x64 |
+| Git / Git LFS | `2.55.0.windows.3` / run `tools/doctor.ps1` |
+| PowerShell | Windows PowerShell `5.1.26100.9444`; PowerShell `7` (preview) |
+| .NET SDK | `6.0.428`, `9.0.311` |
+| Node.js / npm | `v25.6.1` / `11.9.0` |
+| Unity Editor | `6000.3.9f1` + WebGL Build Support |
+| Browsers | Chrome `154.0.8037.98`; Edge `145.0.3800.70`; **Firefox not installed** |
+| Playwright | not installed (added Stage 03/14) |
+
+Reference machine for all performance work: Intel Core i5-14400F, 32 GB RAM,
+NVIDIA RTX 5060 Ti — see [ADR 0003](docs/adr/0003-performance-baseline-machine-and-browser.md).
+
+---
+
+## Commands
+
+```powershell
+# Environment + dependency health check (reliable exit code)
+pwsh -NoProfile -File tools/doctor.ps1
+
+# Clone setup (once, after cloning)
+git lfs install
+```
+
+New commands are added as their stage lands (`tools/test.ps1` at Stage 01,
+`tools/gen.ps1` at Stage 02, `tools/build-web.ps1` / `serve-web.mjs` at Stage 03).
+
+---
+
+## Repository map
+
+```text
+AGENTS.md              Master Prompt / permanent rules
+knowledge.md           ← you are here
+proto/                 external contracts (app.proto) — Stage 02
+lib/                   local UPM package: all game rules, no UnityEngine in Domain
+  Runtime/{Shared,Domain,Application,Simulation,Infrastructure,Contracts,Generated}
+  third_party/ecslite/ vendored (MIT), no registry dependency
+  Tests~/              dotnet(xUnit Core.Tests + Sim console) — Stage 01
+data/                  Luban tables, Defines, localization (th.csv, en.csv)
+docs/                  gdd/ architecture/ adr/ stages/ testing/ build/
+llmwiki/               index.md glossary.md systems/ gotchas/
+tools/                 versions.lock.json doctor.ps1 (+ gen/test/build/ci as stages land)
+tests/web/             Playwright specs — Stage 03+
+artifacts/             untracked logs/reports/screenshots
+UnityProject/          Unity shell — Stage 03
+```
+
+---
+
+## Architecture in one breath
+
+`Shared ← Domain ← Application ← Presentation`. `Simulation` uses
+`Shared/Domain/EcsLite`. `Infrastructure` implements Application ports.
+**Domain / Application / Simulation never touch `UnityEngine`; Domain and
+Simulation never touch R3, VContainer, or serializers.** Enforced by asmdef.
+
+Battle runs at a **fixed 30 Hz**, randomness only through `IRandomSource` with
+separate **shop / battle / visual** streams. Every mutating command is **atomic**
+and returns a **typed result**.
+
+Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
+
+---
+
+## Document links
+
+| Document | Purpose |
+| --- | --- |
+| [`AGENTS.md`](AGENTS.md) | Master Prompt + permanent rules for every stage |
+| [`docs/gdd/prototype-v0.3.md`](docs/gdd/prototype-v0.3.md) | **Canonical GDD** (v0.3 combined) |
+| [`docs/architecture/overview.md`](docs/architecture/overview.md) | Layers, data lifetimes, command/event flow |
+| [`docs/architecture/dependencies.md`](docs/architecture/dependencies.md) | Dependency matrix (Verified / Proposed / Blocked) |
+| [`tools/versions.lock.json`](tools/versions.lock.json) | Engine + tool version lock |
+| [`docs/adr/`](docs/adr/) | Architecture decision records |
+| [`llmwiki/index.md`](llmwiki/index.md) | Wiki index |
+| [`llmwiki/glossary.md`](llmwiki/glossary.md) | Code names ↔ Thai terms |
+| [`docs/stages/`](docs/stages/) | Per-stage reports |
+| [`docs/testing/`](docs/testing/) | Test strategy (fills in from Stage 01) |
+| [`docs/build/`](docs/build/) | Build instructions (fills in from Stage 03) |
+
+---
+
+## Known gaps carried forward
+
+- `UI.MVP Lite` package has **no repository** → project-owned thin MVP for now
+  ([ADR 0002](docs/adr/0002-thin-mvp-ui-approach.md)).
+- Versions of VContainer, R3, UniTask, MessagePack, EcsLite, Luban "that work
+  with Unity 6.3" are **proposed, not verified** — confirmed in Stage 01/03.
+- IL2CPP stripping/AOT behaviour of MessagePack, Protobuf, R3, VContainer on Web
+  is **unproven** — Stage 03.
+- IndexedDB flush method on Unity 6.3 — Stage 12.
+- Firefox not installed → cross-browser runs are NOT RUN until it is.
+- **No performance number has been measured.** All budget figures are targets.

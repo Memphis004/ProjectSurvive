@@ -1,0 +1,128 @@
+# ---------------------------------------------------------------------------
+# ProjectSurvive .gitignore
+# Unity + .NET + build artifacts. Keep secrets out of the repo.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Unity: build output and generated/local state (never commit)
+# ---------------------------------------------------------------------------
+UnityProject/[Bb]uild/
+UnityProject/[Bb]uilds/
+UnityProject/[Ll]ogs/
+UnityProject/[Uu]ser[Ss]ettings/
+UnityProject/[Mm]emoryCaptures/
+UnityProject/[Rr]ecordings/
+
+# Unity: auto-generated project files
+UnityProject/*.csproj
+UnityProject/*.unityproj
+UnityProject/*.sln
+UnityProject/*.suo
+UnityProject/*.user
+UnityProject/*.userprefs
+UnityProject/*.pidb
+UnityProject/*.booproj
+UnityProject/*.svd
+UnityProject/*.pdb
+UnityProject/*.mdb
+UnityProject/*.opendb
+UnityProject/*.VC.db
+UnityProject/.vsconfig
+UnityProject/.vs/
+
+# Unity: crash/report files
+UnityProject/sysinfo.txt
+UnityProject/*.stackdump
+UnityProject/*.crashreport
+UnityProject/crashlytics-build.properties
+
+# Unity: package manager local cache (UPM resolves from manifest.json)
+UnityProject/Library/
+UnityProject/Temp/
+UnityProject/Obj/
+UnityProject/Packages/packages-lock.json
+UnityProject/Packages/manifest.json.bak
+
+# Unity: Addressables / StreamingAssets build leftovers (added by tooling, not by hand)
+UnityProject/Assets/StreamingAssets/aa.meta
+UnityProject/Assets/StreamingAssets/aa/
+
+# Unity: known OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ---------------------------------------------------------------------------
+# .NET / dotnet
+# ---------------------------------------------------------------------------
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+# lib/Tests~ is outside Unity; its build output must never be committed
+lib/Tests~/**/bin/
+lib/Tests~/**/obj/
+
+# Test / coverage output
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coverlet.json
+coverage/
+.vs/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+
+# ---------------------------------------------------------------------------
+# Node (Playwright and tooling)
+# ---------------------------------------------------------------------------
+node_modules/
+tests/web/node_modules/
+tests/web/playwright-report/
+tests/web/test-results/
+.npm/
+npm-debug.log*
+yarn-error.log*
+
+# ---------------------------------------------------------------------------
+# artifacts/ : logs, reports, screenshots, traces (never commit, keep the folder)
+# NOTE: use artifacts/* (not artifacts/) so that !artifacts/.gitkeep can
+# re-include the placeholder - git cannot re-include a file under an excluded dir.
+# ---------------------------------------------------------------------------
+artifacts/*
+!artifacts/.gitkeep
+
+# ---------------------------------------------------------------------------
+# Generated code that must be reproducible from data/ + proto/, not hand-edited
+# (kept tracked so `verify-generated` can diff, but binaries are not)
+# ---------------------------------------------------------------------------
+lib/Runtime/Generated/**/*.bytes
+UnityProject/Assets/Main/Resources/Config/*.bytes
+
+# ---------------------------------------------------------------------------
+# Secrets / local environment
+# ---------------------------------------------------------------------------
+*.env
+.env.*
+!.env.example
+*.lic
+*.ulf
+*.ulf.bak
+secrets.json
+appsettings.*.local.json
+
+# ---------------------------------------------------------------------------
+# IDE
+# ---------------------------------------------------------------------------
+.idea/
+.vscode/
+!.vscode/settings.json.example
+# Editor/OS backup files (e.g. Program.cs~) - but NOT lib/Tests~, which is a
+# tracked dotnet project directory required by the GDD layout.
+*.swp
+*~
+!lib/Tests~/
+!lib/Tests~/
