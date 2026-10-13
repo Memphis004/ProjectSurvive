@@ -553,6 +553,108 @@ namespace ProjectSurvive.Core.Tests
             Assert.Equal(new[] { "lib/Runtime/Generated/Proto/App.cs" }, copies);
         }
 
+        // -------------------------------------------------------------------
+        // Battle contract (Stage 02b)
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// AGENTS rule 3 as applied to the battle contract: the interfaces in
+        /// <c>ProjectSurvive.Core.Domain.Combat.Battle</c> are the seam both
+        /// Application and Simulation implement against, so they must stay free of
+        /// any engine or ECS type. Application can use them, Simulation can
+        /// implement them, and neither drags its own dependencies into Domain.
+        /// </summary>
+        [Fact]
+        public void Battle_contract_types_reference_no_engine_or_ecs_types()
+        {
+            var forbiddenNamespaces = new[] { "UnityEngine", "UnityEditor", "Leopotam", "R3" };
+            var offenders = new List<string>();
+
+            Assembly domain = Assembly.Load(new AssemblyName("ProjectSurvive.Core.Domain"));
+            const string contractNamespace = "ProjectSurvive.Core.Domain.Combat.Battle";
+
+            foreach (Type type in domain.GetTypes())
+            {
+                if (!type.IsPublic && !type.IsNestedPublic)
+                {
+                    continue;
+                }
+
+                if (type.Namespace is null || !type.Namespace.StartsWith(contractNamespace, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                string owner = type.FullName ?? type.Name;
+
+                CollectForbiddenReferences(type.BaseType, owner, forbiddenNamespaces, offenders);
+                foreach (Type implemented in type.GetInterfaces())
+                {
+                    CollectForbiddenReferences(implemented, owner, forbiddenNamespaces, offenders);
+                }
+
+                foreach (FieldInfo field in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
+                {
+                    CollectForbiddenReferences(field.FieldType, owner, forbiddenNamespaces, offenders);
+                }
+
+                foreach (PropertyInfo property in type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
+                {
+                    CollectForbiddenReferences(property.PropertyType, owner, forbiddenNamespaces, offenders);
+                }
+
+                foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
+                {
+                    CollectForbiddenReferences(method.ReturnType, owner, forbiddenNamespaces, offenders);
+                    foreach (ParameterInfo parameter in method.GetParameters())
+                    {
+                        CollectForbiddenReferences(parameter.ParameterType, owner, forbiddenNamespaces, offenders);
+                    }
+                }
+            }
+
+            Assert.Empty(offenders);
+        }
+
+        private static void CollectForbiddenReferences(
+            Type? type, string owner, string[] forbiddenNamespaces, List<string> offenders)
+        {
+            if (type is null)
+            {
+                return;
+            }
+
+            if (type.HasElementType)
+            {
+                CollectForbiddenReferences(type.GetElementType(), owner, forbiddenNamespaces, offenders);
+                return;
+            }
+
+            if (type.IsGenericType && !type.IsGenericTypeDefinition)
+            {
+                CollectForbiddenReferences(type.GetGenericTypeDefinition(), owner, forbiddenNamespaces, offenders);
+                foreach (Type argument in type.GetGenericArguments())
+                {
+                    CollectForbiddenReferences(argument, owner, forbiddenNamespaces, offenders);
+                }
+            }
+
+            string? nameSpace = type.Namespace;
+            if (nameSpace is null)
+            {
+                return;
+            }
+
+            foreach (string forbidden in forbiddenNamespaces)
+            {
+                if (nameSpace == forbidden || nameSpace.StartsWith(forbidden + ".", StringComparison.Ordinal))
+                {
+                    offenders.Add(owner + " references " + type.FullName);
+                    return;
+                }
+            }
+        }
+
         private static IEnumerable<string> LibSourceFiles(params string[] relativeDirectories)
         {
             foreach (string relative in relativeDirectories)

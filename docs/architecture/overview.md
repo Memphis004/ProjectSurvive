@@ -1,10 +1,12 @@
 # ProjectSurvive — Architecture Overview
 
-> Status: Stage 02 (static data pipeline). This document describes the target
+> Status: Stage 02b (battle contract). This document describes the target
 > architecture and the decisions locked so far. Stage 01 put the layers, the
 > harness and the deterministic `Shared` primitives in place; Stage 02 added the
 > data pipeline (`data/` → Luban/protoc → `lib/Runtime/Generated`) and the
-> `IGameConfig` port. No **game rule** is implemented yet.
+> `IGameConfig` port; Stage 02b added the **battle contract** in `Domain` with a
+> fake implementation and an executable contract suite. No **gameplay rule**
+> (combo, shop, combat) is implemented yet.
 >
 > Source of truth for gameplay: [`docs/gdd/prototype-v0.3.md`](../gdd/prototype-v0.3.md).
 
@@ -167,6 +169,39 @@ At "depart for battle" the flow is:
 
 Battle never reads UI positions and never recomputes combos itself.
 
+## 4b. The battle contract (Stage 02b)
+
+The battle is reached through one seam, defined in `Domain` before the EcsLite
+implementation exists (Stage 07):
+
+```
+   Application ──►  Domain.Combat.Battle  ◄──  Simulation
+   (Run, Fake)      IBattleSession              (EcsLite, Stage 07)
+                    IBattleSessionFactory
+                    IBattleFrame / IBattleEventSource
+                    BattleSetup / BattleResult / BattleReplay
+```
+
+- The contract lives in `Domain`, not `Contracts`, because both Application and
+  Simulation may reference `Domain` and nothing else in common. It references no
+  EcsLite, `UnityEngine`, `R3` or serializer, guarded by
+  `ArchitectureTests.Battle_contract_types_reference_no_engine_or_ecs_types`.
+- `Step` advances one 30 Hz tick; `Submit` returns a typed `CommandResult`;
+  `TryGetResult` stays false while running. Duration and win condition come from
+  the floor table, never from code.
+- HP carries **across** floors: `BattleSetup.CurrentHp` in,
+  `BattleResult.FinalHp` out. The clear heal is Run's job.
+- `BattleEventRing` is the shared event stream: fixed capacity, strictly
+  increasing `Seq`, independent reader cursors, honest `dropped` reporting, zero
+  allocation. **Events are for presentation only** — rules read state, never the
+  event stream.
+- `FakeBattleSession` (Application) satisfies the contract without EcsLite, and
+  `BattleSessionContractTests<TFactory>` is the contract every factory must pass
+  (the fake today, EcsLite from Stage 07).
+
+Details: [`llmwiki/systems/battle-contract.md`](../../llmwiki/systems/battle-contract.md),
+[ADR 0007](../adr/0007-battle-contract-and-asmdef-placement.md).
+
 ## 5. Determinism rules
 
 - Battle simulation runs at a **fixed 30 Hz tick**.
@@ -200,17 +235,19 @@ the generated C# under `lib/Runtime/Generated/`, the config hash in build
 metadata, the `IGameConfig` port with its Infrastructure adapter, and four gate
 tools with twelve broken-data fixtures behind them.
 
-**`Domain`, `Application`, `Simulation` and `Contracts` hold no game rule yet.**
-The tables are loaded and validated, but nothing consumes them beyond the adapter
-and the validator; `tests/web/` and `UnityProject/` still hold only `.gitkeep`
-files.
+**Stage 02b landed the battle contract:** `Domain/Combat/Battle` (interfaces,
+`BattleEventRing`, `BattleReplay`, setup/result/loadout types), the
+`FakeBattleSession` in Application, and the executable
+`BattleSessionContractTests<TFactory>`. **No gameplay rule exists yet** — the
+contract is an interface, not a rule; `tests/web/` and `UnityProject/` still hold
+only `.gitkeep` files.
 
 Deferred to later stages:
 
 | Concern | Stage |
 | Unity shell, first Web build, Thai text spike | 03 |
-| CombatLoadoutSnapshot / combo evaluation | 05–06 |
-| Battle ECS world + spatial hash | 07 |
+| CombatLoadoutSnapshot produced by the resolver / combo evaluation | 05–06 |
+| Battle ECS world implementing `IBattleSession` + spatial hash | 07 |
 | 2.5D presentation | 08 |
 | Camp scene + bag UI | 09 |
 | Save / resume / settings | 12 |

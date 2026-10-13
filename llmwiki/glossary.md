@@ -66,6 +66,25 @@ ritual names are not presented as real practices (AGENTS #13).
 | นาฬิกา | `IClock` / `SystemClock` | Monotonic time port (Core) and its real implementation (Infrastructure) |
 | ผลลัพธ์แบบมีชนิด | `Result` / `Result<T>` / `Error` | Typed command outcome; `Error.Code` is a machine identifier, never player text |
 
+## Battle contract (Stage 02b)
+
+| Thai | Code name | Notes |
+| --- | --- | --- |
+| สนามรบ (หนึ่งชั้น) | `IBattleSession` | one running battle, driven tick by tick |
+| วงจรการต่อสู้ | `BattlePhase` | `Running` / `Won` / `Lost` / `Aborted` (1 reserved) |
+| เหตุผลจบชั้น | `BattleEndReason` | `SurvivedAllWaves` / `BossDefeated` / `PlayerDied` / `Timeout` / `Surrendered` |
+| ตัวสร้างสนามรบ | `IBattleSessionFactory` | creates a session from `BattleSetup`; config via constructor |
+| ตั้งค่าก่อนเข้าชั้น | `BattleSetup` | seed, floor, `CurrentHp`, loadout, dev flags |
+| ผลของชั้น | `BattleResult` | outcome, reason, `FinalHp`, kills, remaining consumables |
+| คำสั่งในสนามรบ | `BattleCommand` | surrender + dev cheats (typed `CommandResult`) |
+| อินพุตผู้เล่น | `PlayerInputFrame` | integer movement per tick (`FromAxis` normalises) |
+| เฟรมเรนเดอร์ | `IBattleFrame` / `RenderEntity` | per-tick presentation view |
+| HUD | `HudState` | HP/MP/currency/kills/timer (no level/XP) |
+| เหตุการณ์ต่อสู้ | `BattleEvent` / `BattleEventType` | **presentation only** — never decide rules from these |
+| วงแหวนเหตุการณ์ | `BattleEventRing` | fixed-capacity multi-reader stream, reports `dropped` |
+| ชุดรบที่แก้แล้ว | `CombatLoadoutSnapshot` | resolved build handed to the battle |
+| บันทึกเล่นซ้ำชั้น | `BattleReplay` | battle-level replay (`ReplayLog` = run-level) |
+
 ## Enemies (Thai ghosts)
 
 | Thai | Code name | Role |

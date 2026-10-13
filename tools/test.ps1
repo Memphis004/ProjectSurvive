@@ -382,7 +382,7 @@ if ($failedChecks.Count -gt 0) { $exitCode = 1 }
 
 if (-not $Json) {
     Write-Host ''
-    Write-Host 'ProjectSurvive - dotnet harness (Stage 01-02)' -ForegroundColor Cyan
+    Write-Host 'ProjectSurvive - dotnet harness (Stage 01-02b)' -ForegroundColor Cyan
     Write-Host ('=' * 72)
     foreach ($r in $script:Results) {
         $color = 'Gray'

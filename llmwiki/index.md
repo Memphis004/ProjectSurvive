@@ -5,6 +5,7 @@ not have to rediscover them. It complements, and never replaces, the GDD and the
 architecture docs.
 
 - Start here: [`../knowledge.md`](../knowledge.md)
+- Running log of landed stages: [`stage-log.md`](stage-log.md)
 - Thai ↔ code names: [`glossary.md`](glossary.md)
 - Rules engine: [`../docs/architecture/overview.md`](../docs/architecture/overview.md)
 - Dependency risk: [`../docs/architecture/dependencies.md`](../docs/architecture/dependencies.md)
@@ -16,6 +17,7 @@ architecture docs.
 | System | Note | Stage | Status |
 | --- | --- | --- | --- |
 | Static data pipeline (Luban, protoc) | [`systems/data-schema.md`](systems/data-schema.md) | 02 | done |
+| Battle contract v1 (interfaces, fake, contract tests) | [`systems/battle-contract.md`](systems/battle-contract.md) | 02b | done |
 | Bag / Board placement | *(folders ready, note pending)* | 05 | not started |
 | Combo evaluation | *(pending)* | 05–06 | not started |
 | Shop / economy | *(pending)* | 06 | not started |

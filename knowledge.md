@@ -16,6 +16,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **00** | **Discovery & Baseline** | **DONE** — see [`docs/stages/00-report.md`](docs/stages/00-report.md) |
 | **01** | **Core library & dotnet harness** | **DONE** — see [`docs/stages/01-report.md`](docs/stages/01-report.md) |
 | **02** | **Static data pipeline (Luban, protoc)** | **DONE** — see [`docs/stages/02-report.md`](docs/stages/02-report.md) |
+| **02b** | **Battle contract v1 (interfaces + fake + contract tests)** | **DONE** — see [`docs/stages/02b-report.md`](docs/stages/02b-report.md) |
 | 03 | Unity shell, first Web build, Thai text spike | not started |
 | 04 | Prototype data | not started |
 | 05 | Inventory domain | not started |
@@ -37,10 +38,15 @@ primitives (`IRandomSource` / `Xoshiro128`, `RandomStreams`, `IClock` /
 `SystemClock`, `FixedTicker`, `Result` / `Error`), and the Stage 02 data pipeline:
 twelve Luban tables under `data/`, generated C# under `lib/Runtime/Generated/`,
 the `IGameConfig` port with its Infrastructure adapter, and the config hash in
-build metadata. **130 xUnit tests pass** (57 of them from Stage 01). **No game
-rule exists yet** — `Domain`, `Application`, `Simulation` and `Contracts` still
-hold no rule, and `tests/web/` and `UnityProject/` still hold only `.gitkeep`
-placeholders.
+build metadata. Stage 02b added the **battle contract v1**
+(`Domain/Combat/Battle`: `IBattleSession`, `IBattleFrame`, `IBattleEventSource`,
+`BattleEventRing`, `BattleReplay`, the loadout/result/setup types), a deterministic
+`FakeBattleSession` in Application, and the executable
+`BattleSessionContractTests<TFactory>`. **164 xUnit tests pass** (57 from Stage 01,
+73 from Stage 02, 34 from Stage 02b). **No gameplay rule exists yet** — `Domain`,
+`Application`, `Simulation` and `Contracts` hold the battle *contract* but no
+combination/combat rule, and `tests/web/` and `UnityProject/` still hold only
+`.gitkeep` placeholders.
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
 `tools/gen.ps1` (Luban 5.1.0 + protoc 33.6) → generated C# + `.bytes` →
@@ -156,6 +162,7 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
 | [`tools/versions.lock.json`](tools/versions.lock.json) | Engine + tool version lock |
 | [`docs/adr/`](docs/adr/) | Architecture decision records |
 | [`llmwiki/systems/data-schema.md`](llmwiki/systems/data-schema.md) | **Static data schema + pipeline commands** |
+| [`llmwiki/systems/battle-contract.md`](llmwiki/systems/battle-contract.md) | **Battle contract v1 — the interface between the battle and the rest** |
 | [`llmwiki/index.md`](llmwiki/index.md) | Wiki index |
 | [`llmwiki/glossary.md`](llmwiki/glossary.md) | Code names ↔ Thai terms |
 | [`docs/stages/`](docs/stages/) | Per-stage reports |
