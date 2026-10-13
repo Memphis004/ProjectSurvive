@@ -4,7 +4,9 @@
   "references": [
     "ProjectSurvive.Core.Shared",
     "ProjectSurvive.Core.Domain",
-    "ProjectSurvive.Core.Application"
+    "ProjectSurvive.Core.Application",
+    "ProjectSurvive.Core.Generated.Luban",
+    "Luban.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

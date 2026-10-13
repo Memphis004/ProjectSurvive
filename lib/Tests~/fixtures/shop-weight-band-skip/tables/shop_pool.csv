@@ -1,0 +1,6 @@
+##,id,floor_min,floor_max,item_id,bag_id,weight
+,shop_pool.kali_flame_yant,1,2,item.kali_flame_yant,,30
+,shop_pool.phra_amulet,1,2,item.phra_amulet,,25
+,shop_pool.raw_cotton_bag,1,2,,bag.raw_cotton_bag,15
+,shop_pool.takrut_tone,1,2,item.takrut_tone,,20
+,shop_pool.spell_tome,3,2,item.spell_tome,,10

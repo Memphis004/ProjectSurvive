@@ -15,6 +15,9 @@
       4. `dotnet test` (xUnit) with a .trx result file written to artifacts/
       5. Sim determinism, at process level: the same seed must print the same
          fingerprint twice, and a different seed must print a different one
+      6. Static data pipeline (Stage 02): the generated tables validate, the
+         generated code is reproducible from data/ + proto/, and every broken
+         fixture under lib/Tests~/fixtures is rejected for the right reason
 
     Exit codes (same contract as tools/doctor.ps1):
         0 = every REQUIRED check passed
@@ -29,6 +32,11 @@
 
 .PARAMETER NoSim
     Run build + tests only, skipping the Sim checks (useful when iterating).
+
+.PARAMETER NoPipeline
+    Skip the Stage 02 static-data gates (validate-data, verify-generated,
+    check-fixtures). They are the slow part of this harness: verify-generated
+    regenerates the whole data set and check-fixtures runs twelve of them.
 
 .PARAMETER Json
     Also emit the machine-readable report to stdout.
@@ -46,6 +54,7 @@ param(
     [string]$Configuration = 'Debug',
     [uint32]$Seed = 20261013,
     [switch]$NoSim,
+    [switch]$NoPipeline,
     [switch]$Json,
     [switch]$NoWrite
 )
@@ -294,6 +303,74 @@ else {
 }
 
 # ---------------------------------------------------------------------------
+# 6. Static data pipeline (Stage 02)
+# ---------------------------------------------------------------------------
+# Each of these is a tool in its own right (`tools/<name>.ps1`); the harness runs
+# them because they are the stage's acceptance gates and nobody should have to
+# remember three commands. Every one of them is a process with its own exit code,
+# so a failure is reported with the tool's own report in artifacts/.
+function Invoke-Tool {
+    param([Parameter(Mandatory)][string]$Script, [string[]]$Arguments = @())
+    $path = Join-Path $PSScriptRoot $Script
+    if (-not (Test-Path -LiteralPath $path)) {
+        return [pscustomobject]@{ Missing = $true; Ok = $false; Code = -1; Output = "$Script not found" }
+    }
+
+    $run = Invoke-Native 'powershell' (@(
+            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $path
+        ) + $Arguments + @('-NoWrite'))
+
+    return [pscustomobject]@{ Missing = $false; Ok = $run.Ok; Code = $run.Code; Output = $run.Output }
+}
+
+if ($NoPipeline) {
+    Add-Result 'data: generated tables validate' 'Required' 'SKIP' 'disabled with -NoPipeline'
+    Add-Result 'data: generated code is reproducible' 'Required' 'SKIP' 'disabled with -NoPipeline'
+    Add-Result 'data: broken fixtures are rejected' 'Required' 'SKIP' 'disabled with -NoPipeline'
+}
+else {
+    $validate = Invoke-Tool 'validate-data.ps1' @('-DataDir', (Join-Path $script:Root 'lib\Tests~\data'))
+    Write-Artifact 'validate-data.log' $validate.Output
+    if ($validate.Missing) {
+        Add-Result 'data: generated tables validate' 'Required' 'FAIL' 'tools/validate-data.ps1 is missing'
+    }
+    elseif ($validate.Ok) {
+        Add-Result 'data: generated tables validate' 'Required' 'PASS' 'no findings'
+    }
+    else {
+        Add-Result 'data: generated tables validate' 'Required' 'FAIL' (
+            "exit {0}; see artifacts/dotnet/validate-data.log" -f $validate.Code)
+    }
+
+    $verify = Invoke-Tool 'verify-generated.ps1'
+    Write-Artifact 'verify-generated.log' $verify.Output
+    if ($verify.Missing) {
+        Add-Result 'data: generated code is reproducible' 'Required' 'FAIL' 'tools/verify-generated.ps1 is missing'
+    }
+    elseif ($verify.Ok) {
+        Add-Result 'data: generated code is reproducible' 'Required' 'PASS' 'regeneration reproduces the tracked output'
+    }
+    else {
+        Add-Result 'data: generated code is reproducible' 'Required' 'FAIL' (
+            "exit {0}; see artifacts/dotnet/verify-generated.log" -f $verify.Code)
+    }
+
+    $fixtures = Invoke-Tool 'check-fixtures.ps1'
+    Write-Artifact 'check-fixtures.log' $fixtures.Output
+    $fixtureCount = @($fixtures.Output -split "`r?`n" | Where-Object { $_ -match '^\s*\[PASS\] fixture:' }).Count
+    if ($fixtures.Missing) {
+        Add-Result 'data: broken fixtures are rejected' 'Required' 'FAIL' 'tools/check-fixtures.ps1 is missing'
+    }
+    elseif ($fixtures.Ok) {
+        Add-Result 'data: broken fixtures are rejected' 'Required' 'PASS' ("{0} fixture(s) rejected" -f $fixtureCount)
+    }
+    else {
+        Add-Result 'data: broken fixtures are rejected' 'Required' 'FAIL' (
+            "exit {0}; see artifacts/dotnet/check-fixtures.log" -f $fixtures.Code)
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
 $failedChecks = @($script:Results | Where-Object { $_.Status -eq 'FAIL' -and $_.Level -eq 'Required' })
@@ -305,7 +382,7 @@ if ($failedChecks.Count -gt 0) { $exitCode = 1 }
 
 if (-not $Json) {
     Write-Host ''
-    Write-Host 'ProjectSurvive - dotnet harness (Stage 01)' -ForegroundColor Cyan
+    Write-Host 'ProjectSurvive - dotnet harness (Stage 01-02)' -ForegroundColor Cyan
     Write-Host ('=' * 72)
     foreach ($r in $script:Results) {
         $color = 'Gray'
@@ -331,13 +408,14 @@ if (-not $Json) {
 
 $report = [pscustomobject]@{
     tool          = 'test.ps1'
-    stage         = '01'
+    stage         = '01-02'
     generatedAt   = (Get-Date).ToString('o')
     machine       = $env:COMPUTERNAME
     root          = $script:Root
     configuration = $Configuration
     seed          = $Seed
     simChecked    = (-not $NoSim)
+    pipelineChecked = (-not $NoPipeline)
     exitCode      = $exitCode
     testSummary   = $testSummary
     summary       = [pscustomobject]@{

@@ -1,0 +1,8 @@
+{
+  "name": "footprint-malformed-cell",
+  "stage": "semantic",
+  "why": "a footprint cell that is not \"x,y\" cannot be parsed into an offset",
+  "expectedCodes": [
+    "footprint.malformed_cell"
+  ]
+}

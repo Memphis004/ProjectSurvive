@@ -18,6 +18,28 @@
 
   <PropertyGroup>
     <!--
+      Every project under lib/Tests~ shares a directory with its siblings
+      (seven projects live in Layers/), and MSBuild's default obj/ is relative
+      to the PROJECT DIRECTORY - so all of them would write the same
+      obj/project.assets.json and the last restore would win. That silently
+      drops package references (it cost us Google.Protobuf in Stage 02), so each
+      project gets a private intermediate directory keyed by project name.
+      Output (bin/) stays shared, which is fine: assembly names are unique.
+    -->
+    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+
+    <!--
+      Exclude build output from the item globs explicitly. The SDK only excludes
+      the CURRENT intermediate/output path, so an older obj/ (from before the
+      per-project path above, or a differently-named configuration) would be
+      globbed as source and produce "duplicate AssemblyTitleAttribute" errors.
+    -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj\**;bin\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
       Mirror what Unity 6.3 compiles: C# 9 on netstandard2.1. Anything the
       harness accepts here is therefore also accepted by Unity, and code that
       needs a newer language feature or a .NET 5+ API fails in the harness

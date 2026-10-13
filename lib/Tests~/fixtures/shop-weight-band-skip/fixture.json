@@ -1,0 +1,8 @@
+{
+  "name": "shop-weight-band-skip",
+  "stage": "semantic",
+  "why": "every band stops at floor 2, so the weighted roll has no entry for floors 3-5",
+  "expectedCodes": [
+    "shop_pool.weight_total_not_usable"
+  ]
+}

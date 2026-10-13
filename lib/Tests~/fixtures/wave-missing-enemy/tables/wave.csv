@@ -1,0 +1,10 @@
+##,id,floor_id,enemy_id,start_time_seconds,end_time_seconds,spawn_count,spawn_interval_seconds,is_elite
+,wave.forest_1.a,floor.forest_1,enemy.ghost,0,60,30,2.0,false
+,wave.forest_2.a,floor.forest_2,enemy.wandering_spirit,0,30,20,1.5,false
+,wave.forest_2.b,floor.forest_2,enemy.krasue,30,60,10,3.0,false
+,wave.forest_3.a,floor.forest_3,enemy.krasue,0,25,16,2.0,false
+,wave.forest_3.b,floor.forest_3,enemy.nang_tani,25,60,3,10.0,true
+,wave.forest_4.a,floor.forest_4,enemy.wandering_spirit,0,20,24,1.0,false
+,wave.forest_4.b,floor.forest_4,enemy.krasue,20,45,14,2.0,false
+,wave.forest_4.c,floor.forest_4,enemy.nang_tani,45,60,2,10.0,true
+,wave.forest_5.boss,floor.forest_5,enemy.pob,0,90,1,90.0,true

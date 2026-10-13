@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Compiles EXACTLY lib/Runtime/Generated/Proto/**, which is protoc output
+    produced by tools/gen.ps1 from proto/ and must never be hand-edited
+    (AGENTS rule 4). proto/app.proto is the only input, so App.cs is the only
+    generated file and it lives here - nowhere else.
+
+    Google.Protobuf 3.33.6 is the version pinned in tools/versions.lock.json,
+    matched to protoc 33.6 (the same protobuf release). This is the stage that
+    first uses it, so the harness is where the "proposed" pin gets confirmed.
+
+    Generated code is not ours: warnings are not errors, nullable annotations off.
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>ProjectSurvive.Core.Generated.Proto</AssemblyName>
+    <RootNamespace>ProjectSurvive.Core.Generated.Proto</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(LibRuntimeDir)Generated/Proto/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.33.6" />
+  </ItemGroup>
+
+</Project>

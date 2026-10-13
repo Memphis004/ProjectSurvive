@@ -101,6 +101,7 @@ artifacts/*
 # ---------------------------------------------------------------------------
 lib/Runtime/Generated/**/*.bytes
 UnityProject/Assets/Main/Resources/Config/*.bytes
+lib/Tests~/data/*.bytes
 
 # ---------------------------------------------------------------------------
 # Secrets / local environment
@@ -119,6 +120,14 @@ appsettings.*.local.json
 # ---------------------------------------------------------------------------
 __pycache__/
 *.pyc
+
+# ---------------------------------------------------------------------------
+# Pinned external CLI toolchain (Luban, protoc): NOT committed.
+# tools/setup-tools.ps1 downloads each archive by pinned URL + SHA-256 and
+# extracts it here, so a fresh clone reproduces the exact same binaries.
+# See tools/versions.lock.json -> vendoredTools.
+# ---------------------------------------------------------------------------
+tools/vendor/
 
 # ---------------------------------------------------------------------------
 # IDE

@@ -1,0 +1,8 @@
+{
+  "name": "cooldown-below-minimum",
+  "stage": "semantic",
+  "why": "a base cooldown below constant.min_cooldown_seconds (0.2) is illegal before any combo",
+  "expectedCodes": [
+    "skill.cooldown_below_minimum"
+  ]
+}

@@ -1,0 +1,10 @@
+##,id,category,name_key,description_key,tier,element,price,weight,skill_id,tags
+,item.kali_flame_yant,ArcaneWeapon,item.kali_flame_yant.name,item.kali_flame_yant.desc,1,Fire,10,0.8,skill.fire_bolt,yant|fire
+,item.takrut_tone,ArcaneWeapon,item.takrut_tone.name,,1,None,9,0.4,skill.knife_thrust,takrut
+,item.mor_knife,ArcaneWeapon,item.mor_knife.name,,1,None,0,0.7,skill.knife_thrust,knife
+,item.sai_sin_thread,ArcaneWeapon,item.sai_sin_thread.name,,1,None,8,0.5,skill.thread_pierce,thread
+,item.phra_amulet,Charm,item.phra_amulet.name,,1,None,9,0.3,,holy|amulet
+,item.waist_yant,Charm,item.waist_yant.name,,1,None,7,0.2,,yant|holy
+,item.spell_tome,SpellTome,item.spell_tome.name,item.spell_tome.desc,1,None,13,1.2,,tome
+,item.red_soda,Offering,item.red_soda.name,,1,None,6,0.4,,offering
+,item.kuman_thong,Familiar,item.kuman_thong.name,,1,Curse,14,0.6,skill.curse_wave,familiar|curse

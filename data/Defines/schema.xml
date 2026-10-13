@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ProjectSurvive static data schema (Stage 02).
+
+  Verified against the INSTALLED Luban 5.1.0 CLI, not guessed:
+    * `<module name="">` holds enums + beans; the table registry lives in
+      __tables__.csv with `type: "table"` (Luban 5.x supports per-file schema
+      types: XmlSchemaLoader for .xml, ExcelSchemaLoader for .csv).
+    * Enum:   <enum name="E"><var name="A" value="1"/></enum>
+    * Bean:   <bean name="B"><var name="f" type="..."/></bean>
+    * Types:  int | float | bool | string | EnumName
+              list#sep=|,Type      (CSV cell holds elements separated by '|')
+              Base#ref=TbX         (referential integrity; needs the strict flag)
+              int#(range=[a,b])    (Luban value validator)
+    * The generated namespace comes from target.topModule ("ProjectSurvive.Config").
+
+  Balance NUMBERS live in the CSV tables under data/tables/, never here.
+-->
+<module name="">
+
+  <!-- ===================================================================== -->
+  <!-- Enums (stable identifiers; string ids in the tables, ints on the wire) -->
+  <!-- ===================================================================== -->
+  <enum name="Element">
+    <var name="None" value="0"/>
+    <var name="Fire" value="1"/>
+    <var name="Curse" value="2"/>
+  </enum>
+
+  <enum name="ItemCategory">
+    <var name="Bag" value="1"/>
+    <var name="ArcaneWeapon" value="2"/>
+    <var name="Charm" value="3"/>
+    <var name="SpellTome" value="4"/>
+    <var name="Offering" value="5"/>
+    <var name="Familiar" value="6"/>
+  </enum>
+
+  <enum name="SkillBehavior">
+    <var name="Projectile" value="1"/>
+    <var name="Pierce" value="2"/>
+    <var name="Aura" value="3"/>
+    <var name="Melee" value="4"/>
+  </enum>
+
+  <enum name="EnemyRole">
+    <var name="Filler" value="1"/>
+    <var name="Fast" value="2"/>
+    <var name="Elite" value="3"/>
+    <var name="Boss" value="4"/>
+  </enum>
+
+  <enum name="MovePattern">
+    <var name="Chase" value="1"/>
+    <var name="Charge" value="2"/>
+    <var name="Stationary" value="3"/>
+  </enum>
+
+  <enum name="SynergyKind">
+    <var name="AdjacentPair" value="1"/>
+    <var name="SameRow" value="2"/>
+    <var name="BagArea" value="3"/>
+  </enum>
+
+  <enum name="SynergyStat">
+    <var name="Cooldown" value="1"/>
+    <var name="Damage" value="2"/>
+    <var name="AttackSpeed" value="3"/>
+    <var name="Debuff" value="4"/>
+  </enum>
+
+  <enum name="Language">
+    <var name="Th" value="1"/>
+    <var name="En" value="2"/>
+  </enum>
+
+  <!-- ===================================================================== -->
+  <!-- Beans                                                                -->
+  <!-- ===================================================================== -->
+
+  <!-- Localization: the ONLY source of player-facing text (AGENTS rule 5). -->
+  <bean name="Localization">
+    <var name="key" type="string"/>
+    <var name="th" type="string"/>
+    <var name="en" type="string"/>
+  </bean>
+
+  <!-- Bag piece: opens ActiveSlots on the Board. Footprint is an explicit
+       cell list ("x,y" elements) so an empty shape and a duplicated cell are
+       both machine-checkable - see docs/adr/0005-data-pipeline-shape-and-format.md -->
+  <bean name="Bag">
+    <var name="id" type="string"/>
+    <var name="name_key" type="string#ref=TbLocalization"/>
+    <var name="tier" type="int#(range=[1,3])"/>
+    <var name="price" type="int"/>
+    <var name="weight" type="float"/>
+    <var name="footprint" type="list#sep=|,string"/>
+  </bean>
+
+  <!-- Cast behaviour of an arcane weapon / familiar. -->
+  <bean name="Skill">
+    <var name="id" type="string"/>
+    <var name="name_key" type="string#ref=TbLocalization"/>
+    <var name="behavior" type="SkillBehavior"/>
+    <var name="element" type="Element"/>
+    <var name="cooldown_seconds" type="float"/>
+    <var name="mp_cost" type="int"/>
+    <var name="damage" type="int"/>
+    <var name="projectile_speed" type="float"/>
+    <var name="range" type="float"/>
+    <var name="pierce_count" type="int"/>
+    <var name="projectile_count" type="int"/>
+  </bean>
+
+  <!-- Every non-bag item. `skill_id` is empty for passive pieces, so it is a
+       plain string: Luban's ref validator rejects an EMPTY cell, and "no skill"
+       is a legitimate value. tools/validate-data.ps1 checks every non-empty
+       skill_id / description_key against the target table instead. -->
+  <bean name="Item">
+    <var name="id" type="string"/>
+    <var name="category" type="ItemCategory"/>
+    <var name="name_key" type="string#ref=TbLocalization"/>
+    <var name="description_key" type="string"/>
+    <var name="tier" type="int#(range=[1,3])"/>
+    <var name="element" type="Element"/>
+    <var name="price" type="int"/>
+    <var name="weight" type="float"/>
+    <var name="skill_id" type="string"/>
+    <var name="tags" type="list#sep=|,string"/>
+  </bean>
+
+  <!-- Combo rule. Matching is by item TAG, so a rule covers a whole family. -->
+  <bean name="Synergy">
+    <var name="id" type="string"/>
+    <var name="name_key" type="string#ref=TbLocalization"/>
+    <var name="kind" type="SynergyKind"/>
+    <var name="tag_a" type="string"/>
+    <var name="tag_b" type="string"/>
+    <var name="stat" type="SynergyStat"/>
+    <var name="value_percent" type="float"/>
+    <var name="max_stacks" type="int#(range=[1,5])"/>
+  </bean>
+
+  <!-- Merge is same-id + tier+1, max tier from `constant`. A recipe targets an
+       item OR a bag; exactly one of the two ids is set and both are validated by
+       tools/validate-data.ps1 (a `#ref` cannot express "one of two, the other
+       empty" because an empty ref cell is an error). -->
+  <bean name="MergeRecipe">
+    <var name="id" type="string"/>
+    <var name="item_id" type="string"/>
+    <var name="bag_id" type="string"/>
+    <var name="from_tier" type="int#(range=[1,3])"/>
+    <var name="to_tier" type="int#(range=[1,3])"/>
+  </bean>
+
+  <bean name="Enemy">
+    <var name="id" type="string"/>
+    <var name="name_key" type="string#ref=TbLocalization"/>
+    <var name="role" type="EnemyRole"/>
+    <var name="max_hp" type="int"/>
+    <var name="move_speed" type="float"/>
+    <var name="contact_damage" type="int"/>
+    <var name="attack_cooldown_seconds" type="float"/>
+    <var name="move_pattern" type="MovePattern"/>
+    <var name="is_elite" type="bool"/>
+    <var name="is_boss" type="bool"/>
+    <var name="boss_phase2_hp_percent" type="float"/>
+  </bean>
+
+  <!-- `index` is the 1-based run order of the floor. The shop pool bands and the
+       "every floor has a wave" rule are checked against it, so it must be
+       explicit rather than inferred from the id string. -->
+  <bean name="Floor">
+    <var name="id" type="string"/>
+    <var name="index" type="int#(range=[1,20])"/>
+    <var name="name_key" type="string#ref=TbLocalization"/>
+    <var name="duration_seconds" type="float"/>
+    <var name="is_boss" type="bool"/>
+    <!-- Empty for a normal floor; checked by tools/validate-data.ps1 when set. -->
+    <var name="boss_enemy_id" type="string"/>
+  </bean>
+
+  <bean name="Wave">
+    <var name="id" type="string"/>
+    <var name="floor_id" type="string#ref=TbFloor"/>
+    <var name="enemy_id" type="string#ref=TbEnemy"/>
+    <var name="start_time_seconds" type="float"/>
+    <var name="end_time_seconds" type="float"/>
+    <var name="spawn_count" type="int"/>
+    <var name="spawn_interval_seconds" type="float"/>
+    <var name="is_elite" type="bool"/>
+  </bean>
+
+  <!-- A shop pool row offers ONE item or ONE bag, weighted, over a floor range.
+       Exactly one of item_id / bag_id is set (checked by validate-data.ps1). -->
+  <bean name="ShopPool">
+    <var name="id" type="string"/>
+    <var name="floor_min" type="int"/>
+    <var name="floor_max" type="int"/>
+    <var name="item_id" type="string"/>
+    <var name="bag_id" type="string"/>
+    <var name="weight" type="int"/>
+  </bean>
+
+  <!-- Singleton rows (mode=one). -->
+  <bean name="Economy">
+    <var name="start_bia" type="int"/>
+    <var name="shop_slot_count" type="int"/>
+    <var name="refresh_base_cost" type="int"/>
+    <var name="refresh_cost_increment" type="int"/>
+    <var name="sell_back_percent" type="int"/>
+    <var name="heal_percent_on_clear" type="int"/>
+    <var name="chest_slots" type="int"/>
+  </bean>
+
+  <bean name="Constant">
+    <var name="board_width" type="int"/>
+    <var name="board_height" type="int"/>
+    <var name="min_cooldown_seconds" type="float"/>
+    <var name="max_speed_penalty_percent" type="int"/>
+    <var name="pickup_radius" type="float"/>
+    <var name="max_hp" type="int"/>
+    <var name="max_mp" type="int"/>
+    <var name="focus_per_second" type="float"/>
+    <var name="move_speed" type="float"/>
+    <var name="max_tier" type="int#(range=[1,3])"/>
+  </bean>
+
+</module>

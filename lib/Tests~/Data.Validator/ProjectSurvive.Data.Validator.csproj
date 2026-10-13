@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Semantic validation of the generated config tables (Stage 02).
+
+    It reads the .bytes from lib/Tests~/data, turns them into the domain snapshot
+    through the Infrastructure adapter, and applies the cross-table game rules
+    Luban cannot express. tools/validate-data.ps1 drives it from the shell and
+    tools/verify-generated.ps1 uses it as the post-generation smoke check.
+
+    It also runs as a library: ProjectSurvive.Core.Tests references this project
+    so the rule set and the fixture expectations are tested in one place.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>ProjectSurvive.Data.Validator</AssemblyName>
+    <RootNamespace>ProjectSurvive.Data.Validator</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Domain.csproj" />
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,8 @@
+{
+  "name": "floor-without-wave",
+  "stage": "semantic",
+  "why": "floor 6 is in the ladder but no wave spawns anything on it",
+  "expectedCodes": [
+    "wave.floor_without_wave"
+  ]
+}

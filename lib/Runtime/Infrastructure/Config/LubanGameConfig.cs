@@ -1,0 +1,419 @@
+using System;
+using System.Collections.Generic;
+using Luban;
+using ProjectSurvive.Core.Domain.Config;
+using GeneratedTables = ProjectSurvive.Config.Tables;
+
+namespace ProjectSurvive.Core.Infrastructure.Config
+{
+    /// <summary>
+    /// <see cref="IGameConfig"/> over the Luban-generated <c>ProjectSurvive.Config</c>
+    /// tables. This is the single place where generated rows are read; everything
+    /// upstream of it works with domain types (AGENTS rule 3, ADR 0006).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The adapter never invents a value. A table that cannot be read, a missing
+    /// singleton row, or a malformed footprint all raise
+    /// <see cref="ConfigLoadException"/> - there is no "return a constant instead"
+    /// path, which is what the Stage 02 acceptance criterion forbids.
+    /// </para>
+    /// <para>
+    /// It is engine-free on purpose: the caller supplies
+    /// <paramref name="readTable"/>, which maps a Luban table name ("tbitem") to
+    /// its raw bytes. In Unity that comes from <c>Resources/Config/*.bytes</c>; in
+    /// the dotnet harness and the data validator it comes from
+    /// <c>lib/Tests~/data/</c> on disk. Nothing here touches
+    /// <c>Application.streamingAssetsPath</c> (AGENTS rule 9).
+    /// </para>
+    /// </remarks>
+    public sealed class LubanGameConfig : IGameConfig
+    {
+        /// <summary>Luban's generated loader key for each table, in report order.</summary>
+        public static readonly string[] TableNames =
+        {
+            "tblocalization",
+            "tbbag",
+            "tbskill",
+            "tbitem",
+            "tbsynergy",
+            "tbmergerecipe",
+            "tbenemy",
+            "tbfloor",
+            "tbwave",
+            "tbshoppool",
+            "tbeconomy",
+            "tbconstant",
+        };
+
+        private readonly Dictionary<string, BagConfig> _bags = new Dictionary<string, BagConfig>(StringComparer.Ordinal);
+        private readonly Dictionary<string, ItemConfig> _items = new Dictionary<string, ItemConfig>(StringComparer.Ordinal);
+        private readonly Dictionary<string, SkillConfig> _skills = new Dictionary<string, SkillConfig>(StringComparer.Ordinal);
+        private readonly Dictionary<string, EnemyConfig> _enemies = new Dictionary<string, EnemyConfig>(StringComparer.Ordinal);
+        private readonly Dictionary<string, FloorConfig> _floors = new Dictionary<string, FloorConfig>(StringComparer.Ordinal);
+        private readonly Dictionary<string, LocalizationEntry> _localization = new Dictionary<string, LocalizationEntry>(StringComparer.Ordinal);
+
+        private readonly List<BagConfig> _bagList = new List<BagConfig>();
+        private readonly List<ItemConfig> _itemList = new List<ItemConfig>();
+        private readonly List<SkillConfig> _skillList = new List<SkillConfig>();
+        private readonly List<SynergyConfig> _synergyList = new List<SynergyConfig>();
+        private readonly List<MergeRecipeConfig> _mergeRecipeList = new List<MergeRecipeConfig>();
+        private readonly List<EnemyConfig> _enemyList = new List<EnemyConfig>();
+        private readonly List<FloorConfig> _floorList = new List<FloorConfig>();
+        private readonly List<WaveConfig> _waveList = new List<WaveConfig>();
+        private readonly List<ShopPoolEntryConfig> _shopPoolList = new List<ShopPoolEntryConfig>();
+        private readonly List<LocalizationEntry> _localizationList = new List<LocalizationEntry>();
+
+        private LubanGameConfig(string configHash, GeneratedTables tables)
+        {
+            ConfigHash = configHash;
+
+            ProjectSurvive.Config.TbLocalization localization = tables.TbLocalization;
+            foreach (ProjectSurvive.Config.Localization row in localization.DataList)
+            {
+                var entry = new LocalizationEntry { Key = row.Key, Th = row.Th, En = row.En };
+                if (_localization.ContainsKey(entry.Key))
+                {
+                    // Luban's table index already makes a duplicate key an error;
+                    // this guard exists so the adapter can never silently drop a
+                    // row if that ever stops being true.
+                    throw new ConfigLoadException(ConfigError.DuplicateLocalizationKey, "tblocalization",
+                        "duplicate localization key '" + entry.Key + "'");
+                }
+
+                _localization.Add(entry.Key, entry);
+                _localizationList.Add(entry);
+            }
+
+            foreach (ProjectSurvive.Config.Bag row in tables.TbBag.DataList)
+            {
+                var bag = new BagConfig
+                {
+                    Id = row.Id,
+                    NameKey = row.NameKey,
+                    Tier = row.Tier,
+                    Price = row.Price,
+                    Weight = row.Weight,
+                    Footprint = ParseFootprint("tbbag", row.Id, row.Footprint),
+                };
+                _bags.Add(bag.Id, bag);
+                _bagList.Add(bag);
+            }
+
+            foreach (ProjectSurvive.Config.Skill row in tables.TbSkill.DataList)
+            {
+                var skill = new SkillConfig
+                {
+                    Id = row.Id,
+                    NameKey = row.NameKey,
+                    Behavior = (SkillBehavior)row.Behavior,
+                    Element = (Element)row.Element,
+                    CooldownSeconds = row.CooldownSeconds,
+                    MpCost = row.MpCost,
+                    Damage = row.Damage,
+                    ProjectileSpeed = row.ProjectileSpeed,
+                    Range = row.Range,
+                    PierceCount = row.PierceCount,
+                    ProjectileCount = row.ProjectileCount,
+                };
+                _skills.Add(skill.Id, skill);
+                _skillList.Add(skill);
+            }
+
+            foreach (ProjectSurvive.Config.Item row in tables.TbItem.DataList)
+            {
+                var item = new ItemConfig
+                {
+                    Id = row.Id,
+                    Category = (ItemCategory)row.Category,
+                    NameKey = row.NameKey,
+                    DescriptionKey = row.DescriptionKey,
+                    Tier = row.Tier,
+                    Element = (Element)row.Element,
+                    Price = row.Price,
+                    Weight = row.Weight,
+                    SkillId = row.SkillId,
+                    Tags = row.Tags.ToArray(),
+                };
+                _items.Add(item.Id, item);
+                _itemList.Add(item);
+            }
+
+            foreach (ProjectSurvive.Config.Synergy row in tables.TbSynergy.DataList)
+            {
+                _synergyList.Add(new SynergyConfig
+                {
+                    Id = row.Id,
+                    NameKey = row.NameKey,
+                    Kind = (SynergyKind)row.Kind,
+                    TagA = row.TagA,
+                    TagB = row.TagB,
+                    Stat = (SynergyStat)row.Stat,
+                    ValuePercent = row.ValuePercent,
+                    MaxStacks = row.MaxStacks,
+                });
+            }
+
+            foreach (ProjectSurvive.Config.MergeRecipe row in tables.TbMergeRecipe.DataList)
+            {
+                _mergeRecipeList.Add(new MergeRecipeConfig
+                {
+                    Id = row.Id,
+                    ItemId = row.ItemId,
+                    BagId = row.BagId,
+                    FromTier = row.FromTier,
+                    ToTier = row.ToTier,
+                });
+            }
+
+            foreach (ProjectSurvive.Config.Enemy row in tables.TbEnemy.DataList)
+            {
+                var enemy = new EnemyConfig
+                {
+                    Id = row.Id,
+                    NameKey = row.NameKey,
+                    Role = (EnemyRole)row.Role,
+                    MaxHp = row.MaxHp,
+                    MoveSpeed = row.MoveSpeed,
+                    ContactDamage = row.ContactDamage,
+                    AttackCooldownSeconds = row.AttackCooldownSeconds,
+                    MovePattern = (MovePattern)row.MovePattern,
+                    IsElite = row.IsElite,
+                    IsBoss = row.IsBoss,
+                    BossPhase2HpPercent = row.BossPhase2HpPercent,
+                };
+                _enemies.Add(enemy.Id, enemy);
+                _enemyList.Add(enemy);
+            }
+
+            foreach (ProjectSurvive.Config.Floor row in tables.TbFloor.DataList)
+            {
+                var floor = new FloorConfig
+                {
+                    Id = row.Id,
+                    Index = row.Index,
+                    NameKey = row.NameKey,
+                    DurationSeconds = row.DurationSeconds,
+                    IsBoss = row.IsBoss,
+                    BossEnemyId = row.BossEnemyId,
+                };
+                _floors.Add(floor.Id, floor);
+                _floorList.Add(floor);
+            }
+
+            foreach (ProjectSurvive.Config.Wave row in tables.TbWave.DataList)
+            {
+                _waveList.Add(new WaveConfig
+                {
+                    Id = row.Id,
+                    FloorId = row.FloorId,
+                    EnemyId = row.EnemyId,
+                    StartTimeSeconds = row.StartTimeSeconds,
+                    EndTimeSeconds = row.EndTimeSeconds,
+                    SpawnCount = row.SpawnCount,
+                    SpawnIntervalSeconds = row.SpawnIntervalSeconds,
+                    IsElite = row.IsElite,
+                });
+            }
+
+            foreach (ProjectSurvive.Config.ShopPool row in tables.TbShopPool.DataList)
+            {
+                _shopPoolList.Add(new ShopPoolEntryConfig
+                {
+                    Id = row.Id,
+                    FloorMin = row.FloorMin,
+                    FloorMax = row.FloorMax,
+                    ItemId = row.ItemId,
+                    BagId = row.BagId,
+                    Weight = row.Weight,
+                });
+            }
+
+            ProjectSurvive.Config.TbConstant constant = tables.TbConstant;
+            Constant = new ConstantConfig
+            {
+                BoardWidth = constant.BoardWidth,
+                BoardHeight = constant.BoardHeight,
+                MinCooldownSeconds = constant.MinCooldownSeconds,
+                MaxSpeedPenaltyPercent = constant.MaxSpeedPenaltyPercent,
+                PickupRadius = constant.PickupRadius,
+                MaxHp = constant.MaxHp,
+                MaxMp = constant.MaxMp,
+                FocusPerSecond = constant.FocusPerSecond,
+                MoveSpeed = constant.MoveSpeed,
+                MaxTier = constant.MaxTier,
+            };
+
+            ProjectSurvive.Config.TbEconomy economy = tables.TbEconomy;
+            Economy = new EconomyConfig
+            {
+                StartBia = economy.StartBia,
+                ShopSlotCount = economy.ShopSlotCount,
+                RefreshBaseCost = economy.RefreshBaseCost,
+                RefreshCostIncrement = economy.RefreshCostIncrement,
+                SellBackPercent = economy.SellBackPercent,
+                HealPercentOnClear = economy.HealPercentOnClear,
+                ChestSlots = economy.ChestSlots,
+            };
+        }
+
+        public string ConfigHash { get; }
+
+        public ConstantConfig Constant { get; }
+
+        public EconomyConfig Economy { get; }
+
+        public IReadOnlyList<BagConfig> Bags => _bagList;
+
+        public IReadOnlyList<ItemConfig> Items => _itemList;
+
+        public IReadOnlyList<SkillConfig> Skills => _skillList;
+
+        public IReadOnlyList<SynergyConfig> Synergies => _synergyList;
+
+        public IReadOnlyList<MergeRecipeConfig> MergeRecipes => _mergeRecipeList;
+
+        public IReadOnlyList<EnemyConfig> Enemies => _enemyList;
+
+        public IReadOnlyList<FloorConfig> Floors => _floorList;
+
+        public IReadOnlyList<WaveConfig> Waves => _waveList;
+
+        public IReadOnlyList<ShopPoolEntryConfig> ShopPool => _shopPoolList;
+
+        public IReadOnlyList<LocalizationEntry> Localization => _localizationList;
+
+        public bool TryGetBag(string id, out BagConfig value) => TryGet(_bags, id, out value);
+
+        public bool TryGetItem(string id, out ItemConfig value) => TryGet(_items, id, out value);
+
+        public bool TryGetSkill(string id, out SkillConfig value) => TryGet(_skills, id, out value);
+
+        public bool TryGetEnemy(string id, out EnemyConfig value) => TryGet(_enemies, id, out value);
+
+        public bool TryGetFloor(string id, out FloorConfig value) => TryGet(_floors, id, out value);
+
+        public bool TryGetLocalization(string key, out LocalizationEntry value) =>
+            TryGet(_localization, key, out value);
+
+        public string GetText(string key, Language language)
+        {
+            if (!_localization.TryGetValue(key, out LocalizationEntry entry))
+            {
+                throw new KeyNotFoundException("localization key '" + key + "' does not exist");
+            }
+
+            string text = entry.For(language);
+            return string.IsNullOrEmpty(text) ? entry.For(language == Language.En ? Language.Th : Language.En) : text;
+        }
+
+        /// <summary>
+        /// Builds the config from raw table bytes.
+        /// </summary>
+        /// <param name="readTable">
+        /// Maps a Luban table name (see <see cref="TableNames"/>) to its raw bytes.
+        /// Must return non-null for every requested table.
+        /// </param>
+        /// <param name="configHash">SHA-256 over exactly those bytes; see tools/gen.ps1.</param>
+        /// <exception cref="ConfigLoadException">
+        /// A table is missing, the loader threw, or a mapped value is malformed.
+        /// </exception>
+        public static LubanGameConfig Load(Func<string, byte[]> readTable, string configHash)
+        {
+            if (readTable is null)
+            {
+                throw new ArgumentNullException(nameof(readTable));
+            }
+
+            if (string.IsNullOrEmpty(configHash))
+            {
+                throw new ArgumentException("configHash must be set", nameof(configHash));
+            }
+
+            GeneratedTables tables;
+            try
+            {
+                tables = new GeneratedTables(name =>
+                {
+                    byte[]? bytes = readTable(name);
+                    if (bytes is null)
+                    {
+                        throw new ConfigLoadException(ConfigError.TableMissing, name,
+                            "table '" + name + "' was not provided");
+                    }
+
+                    return new ByteBuf(bytes);
+                });
+            }
+            catch (ConfigLoadException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                throw new ConfigLoadException(ConfigError.TableUnreadable, "tables",
+                    "Luban failed to read the tables: " + exception.Message, exception);
+            }
+
+            return new LubanGameConfig(configHash, tables);
+        }
+
+        private static Footprint ParseFootprint(string table, string rowId, IReadOnlyList<string> tokens)
+        {
+            if (Footprint.TryParse(tokens, out Footprint footprint, out string? error))
+            {
+                return footprint;
+            }
+
+            throw new ConfigLoadException(error!, table + "['" + rowId + "'].footprint",
+                "footprint is invalid (" + error + "): '" + string.Join("|", tokens) + "'");
+        }
+
+        private static bool TryGet<T>(Dictionary<string, T> source, string id, out T value)
+        {
+            if (string.IsNullOrEmpty(id))
+            {
+                value = default!;
+                return false;
+            }
+
+            return source.TryGetValue(id, out value!);
+        }
+    }
+
+    /// <summary>Machine-readable config failure codes.</summary>
+    public static class ConfigError
+    {
+        public const string TableMissing = "config.table_missing";
+        public const string TableUnreadable = "config.table_unreadable";
+        public const string DuplicateLocalizationKey = "localization.duplicate_key";
+    }
+
+    /// <summary>
+    /// Raised when the generated config cannot be turned into a usable snapshot.
+    /// <see cref="Code"/> is a stable identifier (never player text) so the data
+    /// validator can report it without parsing a message.
+    /// </summary>
+    public sealed class ConfigLoadException : Exception
+    {
+        public ConfigLoadException(string code, string target, string message)
+            : base(message)
+        {
+            Code = code;
+            Target = target;
+        }
+
+        public ConfigLoadException(string code, string target, string message, Exception innerException)
+            : base(message, innerException)
+        {
+            Code = code;
+            Target = target;
+        }
+
+        /// <summary>Stable failure identifier, e.g. <c>footprint.duplicate_cell</c>.</summary>
+        public string Code { get; }
+
+        /// <summary>Where the failure is, e.g. <c>tbbag['bag.x'].footprint</c>.</summary>
+        public string Target { get; }
+    }
+}

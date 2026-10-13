@@ -1,0 +1,16 @@
+{
+  "name": "ProjectSurvive.Core.Generated.Proto",
+  "rootNamespace": "ProjectSurvive.Core.Generated.Proto",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Google.Protobuf.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

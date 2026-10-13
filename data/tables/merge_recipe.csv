@@ -1,0 +1,9 @@
+##,id,item_id,bag_id,from_tier,to_tier
+,merge.kali_flame_yant.1_2,item.kali_flame_yant,,1,2
+,merge.kali_flame_yant.2_3,item.kali_flame_yant,,2,3
+,merge.mor_knife.1_2,item.mor_knife,,1,2
+,merge.mor_knife.2_3,item.mor_knife,,2,3
+,merge.raw_cotton_bag.1_2,,bag.raw_cotton_bag,1,2
+,merge.raw_cotton_bag.2_3,,bag.raw_cotton_bag,2,3
+,merge.yant_cloth_pouch.1_2,,bag.yant_cloth_pouch,1,2
+,merge.yant_cloth_pouch.2_3,,bag.yant_cloth_pouch,2,3

@@ -1,10 +1,10 @@
 # Dependency Matrix
 
-> Stage 00 (Discovery & Baseline) with the Stage 01 re-verification folded in.
-> Every version below was read from an **authoritative, re-checkable source** (a
-> package registry, a GitHub API response, or the installed tool on this
-> machine). Anything not yet confirmed is marked `Proposed` or `Unverified` — it
-> is **not** claimed as working.
+> Stage 00 (Discovery & Baseline) with the Stage 01 and Stage 02 re-verifications
+> folded in. Every version below was read from an **authoritative, re-checkable
+> source** (a package registry, a GitHub API response, or the installed tool on
+> this machine). Anything not yet confirmed is marked `Proposed` or `Unverified` —
+> it is **not** claimed as working.
 
 ## Status legend
 
@@ -40,6 +40,9 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 | Browser (Chromium, alt) | Microsoft Edge `145.0.3800.70` | `VersionInfo.ProductVersion` |
 | Browser (Gecko) | **not installed** | filesystem |
 | Playwright | **not installed** (expected — added at Stage 03/14) | `npx playwright --version` |
+| Luban CLI | **`5.1.0`** (`df34215d2e22035073d1af83d44e3ac0744dc3b3`), installed at `tools/vendor/luban/5.1.0` by `tools/setup-tools.ps1` | `Luban.exe --version` |
+| protoc CLI | **`libprotoc 33.6`**, installed at `tools/vendor/protoc/33.6` by `tools/setup-tools.ps1` | `protoc.exe --version` |
+| 7-Zip | needed once, to unpack the Luban `.7z` release archive | `tools/setup-tools.ps1` |
 | CPU | Intel Core i5-14400F (10C / 16T) | `Win32_Processor` |
 | RAM | 31.8 GiB (34,186,145,792 bytes) | `Win32_ComputerSystem` |
 | GPU | NVIDIA GeForce RTX 5060 Ti, driver `32.0.16.1692` | `Win32_VideoController` |
@@ -69,8 +72,9 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 | **R3** | UI-level reactive state | OpenUPM `com.cysharp.r3` | `1.3.1` | MIT | `Microsoft.Bcl.TimeProvider` (netstandard) | **Medium** — async/observable; confirm AOT |
 | **UniTask** | async, cancellation | OpenUPM `com.cysharp.unitask` | `2.5.11` | MIT | none | **Medium** — WebGL single-thread: `UniTask` must not use `ThreadPool`; verify |
 | **MessagePack for C#** | save/checkpoint DTOs | `api.nuget.org/v3-flatcontainer/messagepack/index.json` / Unity UPM variant | NuGet latest **`3.1.12`**; UPM variant **TBD** | MIT | `MessagePack.Annotations`, `Microsoft.NET.StringTools`; **source generator** `MessagePack.SourceGenerator` | **High** — must use source generator (no dynamic resolver); verify AOT |
-| **Google.Protobuf** | external contracts only | `api.nuget.org/v3-flatcontainer/google.protobuf/index.json` | latest stable observed **`3.33.6`** (`3.34.0-rc1` in flight) | BSD-3-Clause | `System.Memory`, `System.Runtime.CompilerServices.Unsafe` | **Medium** — external contract uses only; keep off the hot path |
-| **Luban** | CSV → generated readers + `.bytes` | `github.com/focus-creative-games/luban/releases` | latest **`v5.1.0`** | MIT | bundled CLI (needs .NET) | **Low** — offline code-gen; output is plain C# |
+| **Google.Protobuf** | external contracts only | `api.nuget.org/v3-flatcontainer/google.protobuf/index.json` | **`3.33.6`** — installed and compiling at Stage 02 (`protoc` 33.6 generates the matching runtime) | BSD-3-Clause | `System.Memory`, `System.Runtime.CompilerServices.Unsafe` | **Medium** — external contract uses only; keep off the hot path |
+| **protoc** | `.proto` → C# contract | installed `tools/vendor/protoc/33.6` | **`libprotoc 33.6`** — verified at Stage 02 | BSD-3-Clause | none (CLI) | **Low** — build-time only |
+| ~~**Luban**~~ **Verified at Stage 02** | CSV → generated readers + `.bytes` | installed `tools/vendor/luban/5.1.0` (downloaded from `github.com/focus-creative-games/luban/releases` and SHA-256-checked) | **`v5.1.0`** — CLI syntax verified against the real binary; generates all twelve tables | MIT | bundled CLI (needs the .NET 8 **runtime**) | **Low** — offline code-gen; output is plain C#. See `llmwiki/gotchas/luban-5-strict-and-tables.md` |
 | **Input System** | WASD / arrows / mouse | `packages.unity.com/com.unity.inputsystem` | template min **`1.12.0`** (registry has `1.20.1`) — **resolve with 6000.3 at Stage 03** | Unity Companion License | `com.unity.modules.*` | **Medium** — WebGL input backend |
 | **URP** | renderer | `packages.unity.com/com.unity.render-pipelines.universal` | template min **`17.0.1`** — **resolve with 6000.3 at Stage 03** | Unity Companion License | `com.unity.render-pipelines.core`, `com.unity.shadergraph` | **Medium** — WebGL2 feature subset |
 | **Unity Test Framework** | EditMode/PlayMode | `packages.unity.com/com.unity.test-framework` | template min **`1.4.2`** (registry has `1.4.6`) — **resolve with 6000.3 at Stage 03** | Unity Companion License | `com.unity.ext.nunit` | n/a (test-only) |
@@ -84,6 +88,7 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 | **UI.MVP Lite package** | The GDD names `UI.MVP Lite` but **no repository/source has been supplied**. | Project owner provides the repo URL. Until then, ADR 0002 mandates a thin, project-owned MVP. |
 | **MessagePack Unity UPM variant version** | NuGet version is confirmed; the Unity-facing distribution (`com.cysharp.messagepack` / `MessagePack.Unity`) version is not. **Still open after Stage 01**, which introduced no save DTOs. | Confirm the Unity package name + version when the first checkpoint DTO lands (Stage 12). |
 | ~~**EcsLite exact commit**~~ | **Resolved at Stage 01** — vendored at `d46f3b209ea163810823aeea7d2610d38ad6cdf8` (version string `2026.4.25`), recorded in `lib/third_party/ecslite/VENDOR.md` and `tools/versions.lock.json`, and asserted by a test. | — |
+| ~~**Luban CLI syntax**~~ | **Resolved at Stage 02** — the pinned 5.1.0 binary was driven directly (`--conf` / `-t` / `-c` / `-d` / `--strict` / `--errorFormat` / `-x key=value`) and the `__tables__.csv` registry format was read off its own loader; nothing was guessed. Recorded in `llmwiki/gotchas/luban-5-strict-and-tables.md`, asserted by twelve fixtures. | — |
 | **Firefox** | Not installed on this machine. | Install Firefox before the Stage 14 cross-browser run, or record Firefox as NOT RUN. |
 | **IL2CPP stripping / AOT behaviour** (MessagePack, Protobuf, R3, VContainer) | Cannot be proven without a real Web build. | Stage 03 first Web build. **Explicitly out of scope for Stage 00.** |
 | **IndexedDB flush method on Unity 6.3** | Not yet checked against 6.3 docs. | Stage 12. |
@@ -128,9 +133,16 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 
 ```powershell
 # Full environment + dependency re-check with a reliable exit code
-pwsh -NoProfile -File tools/doctor.ps1
-# or
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/doctor.ps1
+
+# Pinned CLI toolchain: download (by SHA-256) and probe both binaries
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/setup-tools.ps1
+
+# The whole data pipeline, including "a fresh generation matches what is committed"
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1
 ```
 
 `tools/versions.lock.json` stores the pinned strings this document references.
+Its `vendoredTools` array holds the URL, SHA-256 and probe command for each
+archive that `tools/setup-tools.ps1` installs into `tools/vendor/` (never
+committed).

@@ -1,0 +1,54 @@
+// ProjectSurvive external contract (Stage 02).
+//
+// Scope: the messages a game client and any future backend/telemetry endpoint
+// must agree on. It is deliberately tiny — the prototype's own persistence is
+// MessagePack checkpoints (Stage 12); Protobuf is used only at external
+// boundaries (AGENTS rule 3).
+//
+// Generated output: lib/Runtime/Generated/Proto/App.cs (exactly one copy; see
+// tools/gen.ps1). Never hand-edit that file — edit this .proto and regenerate.
+
+syntax = "proto3";
+
+package projectsurvive.api.v1;
+
+option csharp_namespace = "ProjectSurvive.Core.Generated.Proto";
+
+// Where a build is running. Kept explicit so a report is unambiguous.
+enum Platform {
+  PLATFORM_UNSPECIFIED = 0;
+  PLATFORM_WEB = 1;
+  PLATFORM_EDITOR = 2;
+}
+
+// Identity of a running build: what it is, over which balance data.
+message AppInfo {
+  string app_version = 1;
+  // SHA-256 of the generated config tables; see ConfigBuildMetadata.ConfigHash.
+  string config_hash = 2;
+  Platform platform = 3;
+  string locale = 4;
+}
+
+// First message a client sends when it reaches a backend.
+message ClientHello {
+  AppInfo app = 1;
+}
+
+// Reply to ClientHello. Accepted=false means "stop, update first".
+message ServerHello {
+  bool accepted = 1;
+  string min_app_version = 2;
+  // Localization key, never raw player-facing text (AGENTS rule 5).
+  string message_key = 3;
+}
+
+// Outcome of one run, reported after RunCompleted.
+message RunReport {
+  string run_id = 1;
+  string config_hash = 2;
+  uint32 seed = 3;
+  int32 highest_floor = 4;
+  bool completed = 5;
+  int64 duration_ms = 6;
+}

@@ -15,7 +15,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | --- | --- | --- |
 | **00** | **Discovery & Baseline** | **DONE** — see [`docs/stages/00-report.md`](docs/stages/00-report.md) |
 | **01** | **Core library & dotnet harness** | **DONE** — see [`docs/stages/01-report.md`](docs/stages/01-report.md) |
-| 02 | Static data pipeline (Luban, protoc) | not started |
+| **02** | **Static data pipeline (Luban, protoc)** | **DONE** — see [`docs/stages/02-report.md`](docs/stages/02-report.md) |
 | 03 | Unity shell, first Web build, Thai text spike | not started |
 | 04 | Prototype data | not started |
 | 05 | Inventory domain | not started |
@@ -30,14 +30,21 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
-**Current state:** Stages 00–01. `lib/` is a real UPM package
-(`com.projectsurvive.core`) with six layer `.asmdef`s, the vendored EcsLite, and
-the deterministic `Shared`/`Infrastructure` primitives (`IRandomSource` /
-`Xoshiro128`, `RandomStreams`, `IClock` / `SystemClock`, `FixedTicker`,
-`Result` / `Error`) covered by 57 xUnit tests. **No game rule exists yet** —
-`Domain`, `Application`, `Simulation` and `Contracts` are still empty, and
-`data/`, `proto/`, `tests/web/`, `UnityProject/` still hold only `.gitkeep`
+**Current state:** Stages 00–02. `lib/` is a real UPM package
+(`com.projectsurvive.core`) with six hand-written layer `.asmdef`s plus two
+generated ones, the vendored EcsLite, the deterministic `Shared`/`Infrastructure`
+primitives (`IRandomSource` / `Xoshiro128`, `RandomStreams`, `IClock` /
+`SystemClock`, `FixedTicker`, `Result` / `Error`), and the Stage 02 data pipeline:
+twelve Luban tables under `data/`, generated C# under `lib/Runtime/Generated/`,
+the `IGameConfig` port with its Infrastructure adapter, and the config hash in
+build metadata. **130 xUnit tests pass** (57 of them from Stage 01). **No game
+rule exists yet** — `Domain`, `Application`, `Simulation` and `Contracts` still
+hold no rule, and `tests/web/` and `UnityProject/` still hold only `.gitkeep`
 placeholders.
+
+**Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
+`tools/gen.ps1` (Luban 5.1.0 + protoc 33.6) → generated C# + `.bytes` →
+`IGameConfig`. See [`llmwiki/systems/data-schema.md`](llmwiki/systems/data-schema.md).
 
 **Engine lock:** Unity **`6000.3.9f1`** (revision `7a9955a4f2fa`), Unity Personal
 license. Locked in [`tools/versions.lock.json`](tools/versions.lock.json).
@@ -71,9 +78,17 @@ pwsh -NoProfile -File tools/doctor.ps1
 # Clone setup (once, after cloning)
 git lfs install
 
-# Core rules: build + xUnit tests + Sim determinism checks — no Unity needed
+# Core: build + xUnit tests + Sim determinism + the Stage 02 data gates — no Unity needed
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -NoPipeline   # skip the slow data gates
 pwsh -NoProfile -File tools/test.ps1 -Configuration Release
+
+# Static data pipeline (one-time setup downloads Luban + protoc into tools/vendor/)
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/setup-tools.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/gen.ps1            # data/ + proto/ -> generated
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/validate-data.ps1  # game rules over the .bytes
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-generated.ps1   # regeneration is identical
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/check-fixtures.ps1     # broken data is rejected
 
 # Focused runs
 dotnet test "lib/Tests~/ProjectSurvive.Core.sln" --filter FullyQualifiedName~Xoshiro128
@@ -83,8 +98,8 @@ dotnet run --project "lib/Tests~/Sim/ProjectSurvive.Sim.csproj" -- --seed 12345 
 Exit codes are part of the contract: `0` = all required checks passed,
 `1` = a required check failed, `2` = the tool itself could not run.
 
-New commands are added as their stage lands (`tools/gen.ps1` at Stage 02,
-`tools/build-web.ps1` / `serve-web.mjs` at Stage 03).
+New commands are added as their stage lands (`tools/build-web.ps1` /
+`serve-web.mjs` at Stage 03).
 
 ---
 
@@ -98,12 +113,16 @@ lib/                   local UPM package (com.projectsurvive.core): all game rul
   Runtime/{Shared,Domain,Application,Simulation,Infrastructure,Contracts,Generated}
                        one .asmdef per layer, all noEngineReferences: true
   third_party/ecslite/ vendored Leopotam EcsLite (MIT-Red) at a pinned revision
+    Generated/{Luban,Proto}/   machine output (Luban readers, protoc App.cs) - never edited
+  third_party/luban-runtime/ vendored Luban C# runtime used by the generated readers
   Tests~/              dotnet harness: one csproj per layer + xUnit Core.Tests
-                       + Sim console (deterministic, headless)
-data/                  Luban tables, Defines, localization (th.csv, en.csv)
+                       + Sim console + Data.Validator + fixtures/ (broken data)
+data/                  Luban tables, Defines, localization (th + en in one table)
 docs/                  gdd/ architecture/ adr/ stages/ testing/ build/
-llmwiki/               index.md glossary.md systems/ gotchas/
-tools/                 versions.lock.json doctor.ps1 (+ gen/test/build/ci as stages land)
+llmwiki/               index.md glossary.md systems/ (data-schema) gotchas/
+tools/                 versions.lock.json doctor.ps1 setup-tools.ps1 gen.ps1
+                       validate-data.ps1 verify-generated.ps1 check-fixtures.ps1 test.ps1
+                       vendor/ (downloaded CLI toolchain, never committed)
 tests/web/             Playwright specs — Stage 03+
 artifacts/             untracked logs/reports/screenshots
 UnityProject/          Unity shell — Stage 03
@@ -136,6 +155,7 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
 | [`docs/architecture/dependencies.md`](docs/architecture/dependencies.md) | Dependency matrix (Verified / Proposed / Blocked) |
 | [`tools/versions.lock.json`](tools/versions.lock.json) | Engine + tool version lock |
 | [`docs/adr/`](docs/adr/) | Architecture decision records |
+| [`llmwiki/systems/data-schema.md`](llmwiki/systems/data-schema.md) | **Static data schema + pipeline commands** |
 | [`llmwiki/index.md`](llmwiki/index.md) | Wiki index |
 | [`llmwiki/glossary.md`](llmwiki/glossary.md) | Code names ↔ Thai terms |
 | [`docs/stages/`](docs/stages/) | Per-stage reports |
@@ -148,9 +168,16 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
 
 - `UI.MVP Lite` package has **no repository** → project-owned thin MVP for now
   ([ADR 0002](docs/adr/0002-thin-mvp-ui-approach.md)).
-- Versions of VContainer, R3, UniTask, MessagePack, Luban "that work with
-  Unity 6.3" are **proposed, not verified** — confirmed in Stage 02/03.
-  (EcsLite is settled: vendored source at a pinned revision, Stage 01.)
+- Versions of VContainer, R3, UniTask and MessagePack "that work with Unity 6.3"
+  are **proposed, not verified** — confirmed in Stage 03. (EcsLite is settled:
+  vendored source at a pinned revision, Stage 01. Luban 5.1.0 and protoc 33.6
+  are settled: pinned, installed by SHA-256, and exercised end to end, Stage 02.)
+- Generated code and the `.bytes` payloads are only ever **compiled outside Unity**
+  so far. That `.bytes` in `Resources/Config` load in a real Web build, and that
+  the asmdef graph resolves as the csprojs do, is proven at Stage 03.
+- The data schema has **no versioned migration story** yet: `SchemaVersion` in
+  `ConfigBuildMetadata.g.cs` is bumped by hand in `tools/gen.ps1`, and no save
+  format reads these tables yet (Stage 12).
 - Nothing in `lib/` has been compiled by Unity yet. The `dotnet` harness mirrors
   the Unity compiler surface (C# 9 / netstandard2.1), but asmdef resolution
   itself is only proven in Stage 03.

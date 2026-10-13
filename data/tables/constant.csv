@@ -1,0 +1,2 @@
+##,board_width,board_height,min_cooldown_seconds,max_speed_penalty_percent,pickup_radius,max_hp,max_mp,focus_per_second,move_speed,max_tier
+,9,7,0.2,40,1.5,100,50,5.0,4.0,3

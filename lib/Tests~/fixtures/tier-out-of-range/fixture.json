@@ -1,0 +1,6 @@
+{
+  "name": "tier-out-of-range",
+  "stage": "luban",
+  "why": "item.tier is 4 but the schema declares int#(range=[1,3])",
+  "expectedCodes": []
+}

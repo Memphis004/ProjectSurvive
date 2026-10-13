@@ -1,9 +1,43 @@
 {
   "lockVersion": 1,
   "updatedAt": "2026-10-13",
-  "updatedBy": "stage-00 discovery; stage-01 core library (EcsLite pin, dotnet harness)",
+  "updatedBy": "stage-00 discovery; stage-01 core library (EcsLite pin, dotnet harness); stage-02 static data pipeline (Luban + protoc pins, Luban CLI verified, Google.Protobuf compiling)",
   "platform": "windows",
   "_comment": "Authoritative version lock. 'status' is one of verified | proposed | blocked | unverified. Only 'verified' entries were confirmed by running a command or reading an authoritative registry during Stage 00. See docs/architecture/dependencies.md.",
+  "_vendoredToolsNote": "Offline toolchain for the data pipeline (tools/gen.ps1). The archives are NOT committed; tools/setup-tools.ps1 downloads each one, verifies 'sha256', and extracts it to 'installDir'. Both entries were confirmed by running the installed binary (see 'verifiedBy').",
+  "vendoredTools": [
+    {
+      "name": "luban",
+      "version": "5.1.0",
+      "sourceRevision": "df34215d2e22035073d1af83d44e3ac0744dc3b3",
+      "url": "https://github.com/focus-creative-games/luban/releases/download/v5.1.0/Luban.7z",
+      "archiveType": "7z",
+      "sha256": "BAC9A1B8D69CFEAA7EF1D8C67B34A007324D1CD158E0B14294521B3879BA5213",
+      "installDir": "tools/vendor/luban/5.1.0",
+      "probeFile": "Luban/Luban.exe",
+      "probeArgument": "--version",
+      "probeExpect": "5.1.0",
+      "license": "MIT",
+      "requires": ".NET 8 runtime (framework-dependent net8.0 build); 7-Zip to unpack",
+      "status": "verified",
+      "verifiedBy": "`Luban.exe --version` -> 'Luban 5.1.0+df34215d2e22035073d1af83d44e3ac0744dc3b3' on 2026-10-13"
+    },
+    {
+      "name": "protoc",
+      "version": "33.6",
+      "url": "https://github.com/protocolbuffers/protobuf/releases/download/v33.6/protoc-33.6-win64.zip",
+      "archiveType": "zip",
+      "sha256": "96A83B8EE942F1046F079C43657CC09FD41F37A4E349DDB0E8BA5064C48BB5FF",
+      "installDir": "tools/vendor/protoc/33.6",
+      "probeFile": "bin/protoc.exe",
+      "probeArgument": "--version",
+      "probeExpect": "33.6",
+      "license": "BSD-3-Clause",
+      "note": "matched to Google.Protobuf 3.33.6 (the runtime pinned in 'packages'); protobuf release v33.6 ships the 3.33.6 runtime",
+      "status": "verified",
+      "verifiedBy": "`protoc.exe --version` -> 'libprotoc 33.6' on 2026-10-13"
+    }
+  ],
 
   "engine": {
     "unity": {
@@ -161,9 +195,10 @@
       "version": "3.33.6",
       "revision": null,
       "license": "BSD-3-Clause",
-      "status": "proposed",
+      "status": "verified",
+      "verifiedBy": "`dotnet build lib/Tests~/ProjectSurvive.Core.sln` with PackageReference Google.Protobuf 3.33.6 on 2026-10-13",
       "il2cppWebRisk": "medium",
-      "note": "3.34.0-rc1 in flight at time of check; latest stable observed 3.33.6"
+      "note": "3.34.0-rc1 in flight at time of check. Now compiled: proto/app.proto -> lib/Runtime/Generated/Proto/App.cs (protoc 33.6), the only copy in the repo. Web/IL2CPP behaviour still unproven (Stage 03)."
     },
     {
       "name": "Luban",
@@ -174,9 +209,10 @@
       "version": "5.1.0",
       "revision": null,
       "license": "MIT",
-      "status": "proposed",
+      "status": "verified",
+      "verifiedBy": "`Luban.exe --version` -> 'Luban 5.1.0+df34215d2e22035073d1af83d44e3ac0744dc3b3' plus a real generation of data/ on 2026-10-13 (tools/gen.ps1)",
       "il2cppWebRisk": "low",
-      "note": "verify CLI syntax from installed binary at Stage 02; do not guess"
+      "note": "pinned CLI under tools/vendor/luban/5.1.0 (tools/setup-tools.ps1). CLI syntax verified against the real binary, never guessed: `-t client -c cs-bin -d bin --strict --errorFormat json -x outputCodeDir=... -x outputDataDir=...`. --strict is required - without it a failing #ref/range validator only warns and still exits 0."
     },
     {
       "name": "Unity Input System",

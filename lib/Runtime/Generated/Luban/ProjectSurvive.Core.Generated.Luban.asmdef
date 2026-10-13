@@ -1,0 +1,16 @@
+{
+  "name": "ProjectSurvive.Core.Generated.Luban",
+  "rootNamespace": "ProjectSurvive.Config",
+  "references": [
+    "Luban.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

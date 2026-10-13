@@ -15,6 +15,7 @@ architecture docs.
 
 | System | Note | Stage | Status |
 | --- | --- | --- | --- |
+| Static data pipeline (Luban, protoc) | [`systems/data-schema.md`](systems/data-schema.md) | 02 | done |
 | Bag / Board placement | *(folders ready, note pending)* | 05 | not started |
 | Combo evaluation | *(pending)* | 05–06 | not started |
 | Shop / economy | *(pending)* | 06 | not started |
@@ -34,6 +35,7 @@ lands.
 | WebGL2 is single-threaded | *(pending)* | Allocation in hot paths causes GC hitches; pooling is mandatory |
 | MessagePack dynamic resolver | *(pending)* | Not IL2CPP-compatible; source generator only |
 | Unity Editor FPS ≠ Web FPS | [`../docs/adr/0003-...`](../adr/0003-performance-baseline-machine-and-browser.md) | Only a real browser build counts |
+| Luban 5.1 CLI: `--strict`, `__tables__.csv`, loader keys | [`gotchas/luban-5-strict-and-tables.md`](gotchas/luban-5-strict-and-tables.md) | Without `--strict` a broken `#ref` only warns and still exits 0; `#ref` cannot mean "optional" |
 | Thai text with TMP | *(pending)* | Upper/lower vowels + tone marks misplace; Stage 03 spike |
 | Determinism scope | [`gotchas/determinism-scope.md`](gotchas/determinism-scope.md) | Guaranteed within one runtime only, not across browsers/CPUs |
 | EcsLite pool refs, liveness, DEBUG checks | [`gotchas/ecslite-pool-refs.md`](gotchas/ecslite-pool-refs.md) | A stale `ref`, or a Release build with sanitize checks compiled out |

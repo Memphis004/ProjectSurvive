@@ -29,6 +29,18 @@
     <ProjectReference Include="..\Layers\ProjectSurvive.Core.Infrastructure.csproj" />
     <ProjectReference Include="..\Layers\ProjectSurvive.Core.Contracts.csproj" />
     <ProjectReference Include="..\Layers\Leopotam.EcsLite.csproj" />
+
+    <!-- Generated code + its runtime, so the guard tests can load the built
+         assemblies and prove Domain/Application/Simulation never reference them. -->
+    <ProjectReference Include="..\Layers\Luban.Runtime.csproj" />
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Generated.Luban.csproj" />
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Generated.Proto.csproj" />
+
+    <!-- The data validator is an Exe, and its rule set is referenced as a
+         library here on purpose: tools/validate-data.ps1 and these tests then
+         run ONE implementation of every rule, so a rule can never pass in CI
+         and fail in the pipeline (or the reverse). -->
+    <ProjectReference Include="..\Data.Validator\ProjectSurvive.Data.Validator.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,6 @@
+##,id,index,name_key,duration_seconds,is_boss,boss_enemy_id
+,floor.forest_1,1,floor.forest_1.name,60,false,
+,floor.forest_2,2,floor.forest_2.name,60,false,
+,floor.forest_3,3,floor.forest_3.name,60,false,
+,floor.forest_4,4,floor.forest_4.name,60,false,
+,floor.forest_5,5,floor.forest_5.name,90,true,enemy.pob

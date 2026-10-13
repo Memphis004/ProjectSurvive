@@ -1,0 +1,34 @@
+##,key,th,en
+,item.kali_flame_yant.name,ยันต์เพลิงกาลี,Kali Flame Yant
+,item.kali_flame_yant.desc,ยันต์ที่ลุกเป็นไฟเผาผีร้าย,A yant that burns with fire
+,item.takrut_tone.name,ตะกรุดโทน,Takrut Tone
+,item.mor_knife.name,มีดหมอ,Mor Knife
+,item.sai_sin_thread.name,สายสิญจน์,Sai Sin Thread
+,item.phra_amulet.name,พระเครื่อง,Phra Amulet
+,item.waist_yant.name,ผ้ายันต์คาดเอว,Waist Yant
+,item.spell_tome.name,ตำราพระเวท,Spell Tome
+,item.spell_tome.desc,ตำราที่ขยายพลังอาคมในแถวเดียวกัน,A tome that empowers arcane weapons in its row
+,item.red_soda.name,น้ำแดง,Red Soda
+,item.kuman_thong.name,กุมารทอง,Kuman Thong
+,bag.raw_cotton_bag.name,ย่ามผ้าดิบ,Raw Cotton Bag
+,bag.yant_cloth_pouch.name,ถุงผ้ายันต์,Yant Cloth Pouch
+,bag.wicker_basket_l.name,ตะกร้าหวายรูปตัว L,Wicker Basket L
+,skill.fire_bolt.name,คาถาเพลิงกาลี,Kali Flame Bolt
+,skill.curse_wave.name,คลื่นคุณไสย,Curse Wave
+,skill.knife_thrust.name,ฟันมีดหมอ,Mor Knife Thrust
+,skill.thread_pierce.name,สายสิญจน์ทะลุ,Sai Sin Pierce
+,synergy.takrut_yant_cooldown.name,ตะกรุดหนุนผ้ายันต์,Takrut Yant Bond
+,synergy.tome_row_damage.name,ตำราหนุนอาคม,Tome Row Surge
+,synergy.curse_holy_debuff.name,คุณไสยปะทะของศักดิ์สิทธิ์,Curse Meets the Sacred
+,synergy.red_soda_familiar_speed.name,น้ำแดงเลี้ยงกุมาร,Red Soda Offering
+,synergy.bag_area_bonus.name,อานุภาพย่ามพิเศษ,Special Bag Aura
+,enemy.wandering_spirit.name,วิญญาณเร่ร่อน,Wandering Spirit
+,enemy.krasue.name,กระสือ,Krasue
+,enemy.nang_tani.name,นางตานี,Nang Tani
+,enemy.pob.name,ปอบ,Pob
+,floor.forest_1.name,ป่าช้าวัดร้าง ชั้น 1,Graveyard Forest F1
+,floor.forest_2.name,ป่าช้าวัดร้าง ชั้น 2,Graveyard Forest F2
+,floor.forest_3.name,ป่าช้าวัดร้าง ชั้น 3,Graveyard Forest F3
+,floor.forest_4.name,ป่าช้าวัดร้าง ชั้น 4,Graveyard Forest F4
+,floor.forest_5.name,ป่าช้าวัดร้าง ชั้น 5,Pob's Hollow
+,ui.generic.ok,ตกลง,OK

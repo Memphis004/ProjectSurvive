@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Compiles the vendored Luban C# runtime (lib/third_party/luban-runtime/src/**)
+    that lib/third_party/luban-runtime/Luban.Runtime.asmdef compiles inside Unity.
+    Assembly and root namespace match upstream so `using Luban;` works in both
+    builds, and the generated config code resolved by the same types.
+
+    Third-party, unmodified code: warnings are not treated as errors and nullable
+    annotations are off, because fixing either would mean editing vendored
+    sources. See lib/third_party/luban-runtime/VENDOR.md.
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>Luban.Runtime</AssemblyName>
+    <RootNamespace>Luban</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Nullable>disable</Nullable>
+    <!-- ByteBuf.cs reads little-endian values through pointers, exactly as
+         upstream ships it; the Unity asmdef sets allowUnsafeCode for the same
+         reason. Editing the vendored source to avoid this is not our call. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(LibThirdPartyDir)luban-runtime/src/**/*.cs" />
+  </ItemGroup>
+
+</Project>

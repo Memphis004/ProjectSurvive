@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Compiles EXACTLY lib/Runtime/Generated/Luban/**, which is machine output
+    produced by tools/gen.ps1 from data/ and must never be hand-edited
+    (AGENTS rule 4). The Compile glob is deliberately narrow so the generated
+    config code cannot leak into another assembly.
+
+    Generated code is not ours: warnings are not errors and nullable annotations
+    are off, matching what Unity compiles for the same sources.
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>ProjectSurvive.Core.Generated.Luban</AssemblyName>
+    <RootNamespace>ProjectSurvive.Config</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(LibRuntimeDir)Generated/Luban/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="Luban.Runtime.csproj" />
+  </ItemGroup>
+
+</Project>

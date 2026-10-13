@@ -1,0 +1,8 @@
+{
+  "name": "merge-tier-skip",
+  "stage": "semantic",
+  "why": "a merge recipe goes from tier 1 straight to tier 3 (GDD: exactly +1)",
+  "expectedCodes": [
+    "merge_recipe.tier_not_sequential"
+  ]
+}

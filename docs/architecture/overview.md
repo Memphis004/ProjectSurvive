@@ -1,9 +1,10 @@
 # ProjectSurvive — Architecture Overview
 
-> Status: Stage 01 (Core library & dotnet harness). This document describes the
-> target architecture and the decisions locked so far. Stage 01 put the layers,
-> the harness and the deterministic `Shared` primitives in place; no game rules
-> are implemented yet.
+> Status: Stage 02 (static data pipeline). This document describes the target
+> architecture and the decisions locked so far. Stage 01 put the layers, the
+> harness and the deterministic `Shared` primitives in place; Stage 02 added the
+> data pipeline (`data/` → Luban/protoc → `lib/Runtime/Generated`) and the
+> `IGameConfig` port. No **game rule** is implemented yet.
 >
 > Source of truth for gameplay: [`docs/gdd/prototype-v0.3.md`](../gdd/prototype-v0.3.md).
 
@@ -79,10 +80,48 @@ Enforcement (implemented in Stage 01):
 
 - **Generated types never leak into Domain.** Luban rows are read through an
   `IGameConfig` adapter implemented in Infrastructure. Domain sees plain domain
-  types, not generated ones.
+  types, not generated ones — enforced by a reflection guard test over the built
+  assemblies plus the domain/generated enum parity test. Decision:
+  [ADR 0006](../adr/0006-config-port-and-generated-code-isolation.md).
 - **Presentation is thin MVP.** A View holds no logic; a Presenter calls
   Application use cases only. See
   [`docs/adr/0002-thin-mvp-ui-approach.md`](../adr/0002-thin-mvp-ui-approach.md).
+
+## 2b. The static data pipeline (Stage 02)
+
+```
+   data/                                  (the ONLY place a balance number lives)
+     Defines/schema.xml        enums + beans
+     Defines/__tables__.csv    table registry
+     tables/*.csv              one file per table
+     localization/*.csv        every player-facing string, th + en
+          │
+          │  tools/gen.ps1   (Luban 5.1.0 --strict, protoc 33.6; cwd-independent)
+          ▼
+   lib/Runtime/Generated/Luban/**/*.cs    tracked  →  compiled by Unity + dotnet harness
+   lib/Runtime/Generated/Proto/App.cs      tracked  →  protoc contract, one copy only
+   lib/Tests~/data/*.bytes                 generated →  dotnet tests + Data.Validator
+   UnityProject/Assets/Main/Resources/Config/*.bytes   generated →  the Web build
+          │
+          ▼
+   ProjectSurvive.Core.Infrastructure.LubanGameConfig : IGameConfig   (Domain port)
+          │
+          ▼
+   Domain / Application / Simulation      (plain domain types, no generated code)
+```
+
+Rules and conventions: [`llmwiki/systems/data-schema.md`](../../llmwiki/systems/data-schema.md).
+Decisions: [ADR 0005](../adr/0005-data-pipeline-shape-and-format.md),
+[ADR 0006](../adr/0006-config-port-and-generated-code-isolation.md).
+
+| Gate | Tool | What it proves |
+| --- | --- | --- |
+| generate | `tools/gen.ps1` | Luban + protoc accept `data/`; writes code, both byte sets, the config hash |
+| validate | `tools/validate-data.ps1` | the cross-table game rules hold (`lib/Tests~/Data.Validator`) |
+| reproduce | `tools/verify-generated.ps1` | a fresh generation matches what is committed, byte for byte |
+| reject | `tools/check-fixtures.ps1` | every deliberately broken fixture under `lib/Tests~/fixtures` fails, for the declared reason |
+
+All four run inside `tools/test.ps1` (`-NoPipeline` skips them).
 
 ## 3. Three data lifetimes
 
@@ -155,15 +194,20 @@ UPM package, the six layer asmdefs, the vendored EcsLite, the `dotnet` harness
 (`IRandomSource` / `Xoshiro128` / `RandomStreams`, `IClock`, `FixedTicker`,
 `Result` / `Error`) with `SystemClock` as the `IClock` implementation.
 
-**`Domain`, `Application`, `Simulation` and `Contracts` are still empty.** No
-game rule, no data table, and no battle system exists yet; `data/`, `proto/`,
-`tests/web/` and `UnityProject/` still hold only `.gitkeep` files.
+**Stage 02 landed the data pipeline:** twelve tables under `data/`, the pinned
+Luban 5.1.0 + protoc 33.6 toolchain (downloaded by SHA-256 into `tools/vendor`),
+the generated C# under `lib/Runtime/Generated/`, the config hash in build
+metadata, the `IGameConfig` port with its Infrastructure adapter, and four gate
+tools with twelve broken-data fixtures behind them.
+
+**`Domain`, `Application`, `Simulation` and `Contracts` hold no game rule yet.**
+The tables are loaded and validated, but nothing consumes them beyond the adapter
+and the validator; `tests/web/` and `UnityProject/` still hold only `.gitkeep`
+files.
 
 Deferred to later stages:
 
 | Concern | Stage |
-| --- | --- |
-| Luban + protoc pipeline, `IGameConfig` | 02 |
 | Unity shell, first Web build, Thai text spike | 03 |
 | CombatLoadoutSnapshot / combo evaluation | 05–06 |
 | Battle ECS world + spatial hash | 07 |
