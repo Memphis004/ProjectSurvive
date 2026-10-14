@@ -21,8 +21,8 @@ architecture docs.
 | Battle contract v1 (interfaces, fake, contract tests) | [`systems/battle-contract.md`](systems/battle-contract.md) | 02b | done |
 | Unity shell (scenes, DI, smoke suite, WebGL build, browser tests) | [`systems/unity-shell.md`](systems/unity-shell.md) | 03 | done |
 | WebGL payload size (profiles, measurement, per-assembly attribution) | [`../docs/build/size-baseline.md`](../docs/build/size-baseline.md) | 03b | done |
-| Bag / Board placement | *(folders ready, note pending)* | 05 | not started |
-| Combo evaluation | *(pending)* | 05–06 | not started |
+| Bag / Board placement, editing commands, undo/lock | [`systems/backpack.md`](systems/backpack.md) | 05 | done |
+| Combo (synergy) evaluation + bag → battle loadout | [`systems/backpack.md#6-combos--synergyevaluator`](systems/backpack.md#6-combos--synergyevaluator) | 05 | done |
 | Shop / economy | *(pending)* | 06 | not started |
 | Run & scene flow | *(pending)* | 06 | not started |
 | Battle simulation (EcsLite) | *(pending)* | 07 | not started |
@@ -49,6 +49,11 @@ lands.
 | Thai text with TMP | [ADR 0008](../docs/adr/0008-thai-text-ui-stack.md) | Both stacks render Thai with 0 missing glyphs at 182-char coverage; the traps are in the asset and build pipeline, not the shaping |
 | A footprint picture cannot express a duplicated cell | [ADR 0009](../docs/adr/0009-footprint-picture-format.md) | The Stage 04 format makes that bug class unrepresentable; `footprint.duplicate_cell` no longer exists |
 | A charm's own buff has no data column yet | [ADR 0010](../docs/adr/0010-item-local-effects-deferred.md) | Its magnitude must land in `item`, never as a code constant, when Stage 05–07 lands its consumer |
+| Synergies are resolved into the loadout, not inside the battle | [`systems/backpack.md`](systems/backpack.md#7-bag--battle-loadoutresolver) | The battle reads one `CombatLoadoutSnapshot`; recomputing combos there would let two resolvers disagree and would run per tick |
+| Tiers do not change weight or price | [ADR 0013](../docs/adr/0013-weight-speed-penalty-curve.md), [ADR 0014](../docs/adr/0014-backpack-editing-undo-and-placement-ownership.md) | `item`/`bag` carry one `weight` and one `price`; merging to tier 3 is stronger, not heavier or more valuable — a data-model gap, not a rule |
+| A bag move can be refused because of the *other* bag | [ADR 0014](../docs/adr/0014-backpack-editing-undo-and-placement-ownership.md) | Two bags can both cover one item; the command is refused whole rather than auto-relocating the item, so the Stage 09 UI has to name the item |
+| `SameRow` and `SameColumn` are different rules, not one “same line” rule | [ADR 0015](../docs/adr/0015-same-line-synergy-kinds.md) | The GDD's table says *row*; widening the shipped kind would silently strengthen a balance rule |
+| `validate-data.ps1` defaults to `data/`, which has no `.bytes` | [ADR 0001](../docs/adr/0001-repository-and-artifact-conventions.md) | Generated tables are published to `lib/Tests~/data`; call it with `-DataDir "lib/Tests~/data"` or it reports `table_missing` |
 | Determinism scope | [`gotchas/determinism-scope.md`](gotchas/determinism-scope.md) | Guaranteed within one runtime only, not across browsers/CPUs |
 | EcsLite pool refs, liveness, DEBUG checks | [`gotchas/ecslite-pool-refs.md`](gotchas/ecslite-pool-refs.md) | A stale `ref`, or a Release build with sanitize checks compiled out |
 | A published battle frame only survives until the next tick | [ADR 0012](../docs/adr/0012-prev-cur-frame-double-buffer.md) | `Entities` / `PreviousEntities` are two slots reused in place; copy before the next `Step`, and `Prev` is one tick deep, not history |

@@ -666,6 +666,12 @@ namespace ProjectSurvive.Data.Validator
             Check(constant.MaxSpeedPenaltyPercent is >= 0 and <= 100, findings,
                 "constant.max_speed_penalty_invalid", "constant.max_speed_penalty_percent",
                 "max_speed_penalty_percent must be within 0..100");
+
+            // Stage 05 reads the slope; a zero slope would silently disable the
+            // weight penalty, which is a balance hole rather than a valid choice.
+            Check(constant.WeightSpeedPercentPerUnit >= 1, findings,
+                "constant.weight_speed_slope_invalid", "constant.weight_speed_percent_per_unit",
+                "weight_speed_percent_per_unit must be >= 1, was " + constant.WeightSpeedPercentPerUnit);
         }
     }
 }

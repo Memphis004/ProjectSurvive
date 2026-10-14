@@ -57,11 +57,14 @@ namespace ProjectSurvive.Core.Tests
                     new[] { "ProjectSurvive.Core.Shared", "ProjectSurvive.Core.Domain", "Leopotam.EcsLite" }
                 },
                 {
+                    // Stage 05 added Contracts: the save DTOs are reached "through an
+                    // adapter in Infrastructure only" (GDD), and the backpack snapshot
+                    // codec is that adapter. Domain still sees no serializer.
                     "Infrastructure",
                     new[]
                     {
                         "ProjectSurvive.Core.Shared", "ProjectSurvive.Core.Domain", "ProjectSurvive.Core.Application",
-                        "ProjectSurvive.Core.Generated.Luban", "Luban.Runtime",
+                        "ProjectSurvive.Core.Contracts", "ProjectSurvive.Core.Generated.Luban", "Luban.Runtime",
                     }
                 },
                 { "Contracts", Array.Empty<string>() },
@@ -89,7 +92,8 @@ namespace ProjectSurvive.Core.Tests
                     new[]
                     {
                         "ProjectSurvive.Core.Shared.csproj", "ProjectSurvive.Core.Domain.csproj",
-                        "ProjectSurvive.Core.Application.csproj", "ProjectSurvive.Core.Generated.Luban.csproj",
+                        "ProjectSurvive.Core.Application.csproj", "ProjectSurvive.Core.Contracts.csproj",
+                        "ProjectSurvive.Core.Generated.Luban.csproj",
                         "Luban.Runtime.csproj",
                     }
                 },

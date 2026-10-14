@@ -60,6 +60,7 @@
     <var name="AdjacentPair" value="1"/>
     <var name="SameRow" value="2"/>
     <var name="BagArea" value="3"/>
+    <var name="SameColumn" value="4"/>
   </enum>
 
   <enum name="SynergyStat">
@@ -228,6 +229,10 @@
     <var name="board_height" type="int"/>
     <var name="min_cooldown_seconds" type="float"/>
     <var name="max_speed_penalty_percent" type="int"/>
+    <!-- Percent of move speed lost per unit of bag weight. Stage 04 authored only
+         the cap (max_speed_penalty_percent); the slope its consumer needs landed
+         here with Stage 05 (AGENTS rule 5 - no balance number in code). -->
+    <var name="weight_speed_percent_per_unit" type="int"/>
     <var name="pickup_radius" type="float"/>
     <var name="max_hp" type="int"/>
     <var name="max_mp" type="int"/>

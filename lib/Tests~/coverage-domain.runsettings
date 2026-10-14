@@ -1,0 +1,18 @@
+<RunSettings>
+  <!--
+    Coverage settings for the Stage 05 acceptance measurement ("coverage of the
+    Backpack rules >= 85 %"). The bag/board/synergy rules live in
+    ProjectSurvive.Core.Domain, so the measurement targets that assembly
+    explicitly instead of relying on the collector's default module list.
+  -->
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[ProjectSurvive.Core.Domain]*</Include>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

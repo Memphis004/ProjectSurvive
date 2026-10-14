@@ -51,11 +51,21 @@ namespace ProjectSurvive.Core.Domain.Config
         Stationary = 3,
     }
 
+    /// <summary>
+    /// How a <c>synergy</c> rule decides that two pieces are connected.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="SameRow"/> and <see cref="SameColumn"/> are the two halves of the GDD's
+    /// "แถวเดียวกัน" (the same line) condition; which one a rule uses is authored per row in
+    /// <c>data/tables/synergy.csv</c> (ADR 0015). Values are the data schema's numbers and
+    /// must stay in step with <c>data/Defines/schema.xml</c>.
+    /// </remarks>
     public enum SynergyKind
     {
         AdjacentPair = 1,
         SameRow = 2,
         BagArea = 3,
+        SameColumn = 4,
     }
 
     public enum SynergyStat

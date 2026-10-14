@@ -138,6 +138,35 @@ tag, is in [`systems/data-schema.md`](systems/data-schema.md#tag-vocabulary).
 | พระเครื่อง | `amulet` | flavour |
 | เขี้ยวเสือ | `fang` | flavour |
 
+## Bag rules (Stage 05)
+
+| Thai | Code name | Kind | Notes |
+| --- | --- | --- | --- |
+| ชิ้นส่วน (ย่ามหรือไอเทม) | `Piece` | Domain | `PieceKind.Bag` / `PieceKind.Item` |
+| ชิ้นส่วนย่ามที่ถือครอง | `BagPiece` / `BagPieceInstance` | Domain | Opens `ActiveSlot`s; no bonus of its own |
+| ชิ้นไอเทมที่ถือครอง | `ItemInstance` | Domain | Must be fully covered by bags |
+| รหัสถาวรของชิ้น | `DefId` | Identity | `item.mor_knife`, `bag.raw_cotton_bag` |
+| รหัสชิ้นในรอบนี้ | `InstanceId` | Identity | Unique, never reused, starts at 1 |
+| ที่จับชิ้นของ | `PieceRef` | Identity | `PieceKind` + `InstanceId`; `Move`/`Merge`/`Recycle` address by this |
+| รูปทรงการวาง | `Footprint` | Domain | A *set* of `CellOffset`; authored as a picture (`"XX.|.XX"`) |
+| การหมุน | `Rotation` | Domain | `Degrees0/90/180/270`, quarter turns clockwise |
+| ย่ามทับกัน | `BagOverlap` | Error | `inventory.bag_overlap` |
+| ไอเทมหลุดพื้นที่ใช้งาน | `ItemStranded` | Error | `inventory.item_stranded` — refuses the whole command |
+| ย้ายชิ้นของ | `Move` | Command | Chest ⇄ board, and within the board |
+| หมุนชิ้นของ | `Rotate` | Command | One quarter turn in place (board only) |
+| เก็บของเข้าหีบ | `TransferToChest` | Command | Refused when the chest is full |
+| ถวายคืนศาล (ทิ้งของ) | `Recycle` | Command | `floor(base price × sell_back_percent / 100)` |
+| ย้อนกลับ | `Undo` | Command | Restores the previous snapshot |
+| สแนปช็อตย่าม | `BackpackSnapshot` | Data | The undo/checkpoint unit; MessagePack bytes via `IBackpackSnapshotCodec` |
+| ตัวแก้ไขย่าม | `BackpackEditor` | Domain | Owns every command; `Backpack` owns state |
+| โบนัสพื้นที่ย่าม | `BagArea` | synergy kind | Fires for any item sitting on a bag |
+| อยู่ในแถว/คอลัมน์เดียวกัน | `SameRow` / `SameColumn` | synergy kind | Two halves of the GDD's “แถวเดียวกัน” (ADR 0015) |
+| กำลังเสื่อม | `Debuff` | synergy stat | Applies to **both** pieces |
+| ความเร็วโจมตี | `AttackSpeed` | synergy stat | A positive percent *shortens* the cooldown |
+| ลดความเร็วจากน้ำหนัก | `WeightPenalty` | Stat | Linear slope, capped; chest pieces weigh nothing |
+| ตัวประเมินคอมโบ | `SynergyEvaluator` | Domain | One pass; counts distinct partners, capped by `max_stacks` |
+| ตัวแปลงย่ามเป็นชุดรบ | `LoadoutResolver` | Domain | Produces the Battle v1 `CombatLoadoutSnapshot`, cached on `Backpack.Revision` |
+
 ## Scenes / flow
 
 | Thai | Code name | Notes |
@@ -158,11 +187,18 @@ player-facing text in Core). Examples: `bag.overlap`, `shop.insufficient_bia`,
 `item.unknown_shape`, `floor.invalid`. Renaming a code is an API change: update
 the localization key in the same commit.
 
+The Stage 05 inventory codes are `inventory.` + `unknown_piece`, `wrong_zone`,
+`out_of_board`, `bag_overlap`, `item_not_covered`, `item_overlap`, `item_stranded`,
+`chest_full`, `locked`, `nothing_to_undo`, `merge_mismatch`, `merge_not_item`,
+`merge_max_tier`, `not_on_board` (`Domain/Inventory/Identity.cs`).
+
 ## Naming rules
 
 - `PascalCase` for types/commands/events, `camelCase` for locals.
-- Commands are verbs: `PurchaseItem`, `SellItem`, `RefreshShop`, `PlaceBag`,
-  `MoveItem`, `RotateItem`, `MergeItems`, `StartFloor`.
+- Commands are verbs. Landed so far: `Move`, `Rotate`, `TransferToChest`, `Merge`,
+  `Recycle`, `Undo`, `Reset`, `SetLocked` (Stage 05) — the method names are the command
+  names, so the glossary no longer lists invented spellings (`PlaceBag`, `MoveItem`).
+  Still to come: `PurchaseItem`, `SellItem`, `RefreshShop`, `StartFloor`.
 - Events are past-tense facts: `WalletChanged`, `InventoryChanged`,
   `ShopStockChanged`, `LoadoutChanged`, `FloorCompleted`, `RunCompleted`.
 - Thai text never appears in identifiers — only in `data/localization/*.csv`.

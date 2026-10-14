@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace ProjectSurvive.Core.Domain.Config
@@ -21,7 +22,7 @@ namespace ProjectSurvive.Core.Domain.Config
     /// rotation (Stage 05) work on.
     /// </para>
     /// </remarks>
-    public sealed class Footprint
+    public sealed class Footprint : IEquatable<Footprint>
     {
         private readonly CellOffset[] _cells;
         private readonly int _width;
@@ -140,6 +141,70 @@ namespace ProjectSurvive.Core.Domain.Config
             return true;
         }
 
+        /// <summary>
+        /// Builds a footprint from an arbitrary cell set, normalised exactly the
+        /// way <see cref="TryParse"/> normalises a picture.
+        /// </summary>
+        /// <remarks>
+        /// Used by rotation (Stage 05): turning a shape 90 degrees moves the
+        /// covered cells, and re-normalising is what makes the result a board
+        /// shape again instead of one that drifts off its own origin. A cell is
+        /// covered at most once, so duplicates are collapsed - a footprint is a
+        /// <i>set</i> of cells, which is what placement, overlap and rotation all
+        /// operate on. Never throws: an empty or null input gives
+        /// <see cref="Empty"/>, the same "covers nothing" value a picture of dots
+        /// produces.
+        /// </remarks>
+        public static Footprint FromCells(IReadOnlyList<CellOffset>? cells)
+        {
+            if (cells is null || cells.Count == 0)
+            {
+                return Empty;
+            }
+
+            int minX = int.MaxValue;
+            int minY = int.MaxValue;
+            int maxX = int.MinValue;
+            int maxY = int.MinValue;
+
+            var set = new HashSet<CellOffset>();
+            for (int i = 0; i < cells.Count; i++)
+            {
+                CellOffset cell = cells[i];
+                if (!set.Add(cell))
+                {
+                    continue;
+                }
+
+                if (cell.X < minX) { minX = cell.X; }
+                if (cell.Y < minY) { minY = cell.Y; }
+                if (cell.X > maxX) { maxX = cell.X; }
+                if (cell.Y > maxY) { maxY = cell.Y; }
+            }
+
+            if (set.Count == 0)
+            {
+                return Empty;
+            }
+
+            var normalised = new CellOffset[set.Count];
+            int index = 0;
+            foreach (CellOffset cell in set)
+            {
+                normalised[index++] = new CellOffset(cell.X - minX, cell.Y - minY);
+            }
+
+            // Canonical order (top row first, left to right): two equal cell sets
+            // must produce byte-identical footprints, because a rotated shape ends
+            // up in a snapshot and a hash (inventory determinism).
+            Array.Sort(normalised, CompareCells);
+
+            return new Footprint(normalised, maxX - minX + 1, maxY - minY + 1);
+        }
+
+        private static int CompareCells(CellOffset left, CellOffset right) =>
+            left.Y != right.Y ? left.Y.CompareTo(right.Y) : left.X.CompareTo(right.X);
+
         public bool Contains(CellOffset cell)
         {
             for (int i = 0; i < _cells.Length; i++)
@@ -152,6 +217,64 @@ namespace ProjectSurvive.Core.Domain.Config
 
             return false;
         }
+
+        /// <summary>
+        /// Structural equality: two footprints are the same shape when they cover the same
+        /// cells in the same normalised frame.
+        /// </summary>
+        /// <remarks>
+        /// A footprint <i>is</i> a value, and rotation makes that matter: rotating a shape
+        /// produces a new instance with the same cells as another rotation would, and a
+        /// checker asking "is this piece's shape the shape its rotation implies?" must not
+        /// be answered by object identity.
+        /// </remarks>
+        public bool Equals(Footprint? other)
+        {
+            if (other is null || ReferenceEquals(this, other))
+            {
+                return ReferenceEquals(this, other);
+            }
+
+            if (_cells.Length != other._cells.Length
+                || _width != other._width
+                || _height != other._height)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < _cells.Length; i++)
+            {
+                if (_cells[i] != other._cells[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <inheritdoc />
+        public override bool Equals(object? obj) => obj is Footprint other && Equals(other);
+
+        /// <inheritdoc />
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = ((_width * 397) ^ _height) * 397;
+                for (int i = 0; i < _cells.Length; i++)
+                {
+                    hash = (hash * 397) ^ _cells[i].GetHashCode();
+                }
+
+                return hash;
+            }
+        }
+
+        public static bool operator ==(Footprint? left, Footprint? right) =>
+            left is null ? right is null : left.Equals(right);
+
+        public static bool operator !=(Footprint? left, Footprint? right) => !(left == right);
 
         /// <summary>The character that marks a covered cell in a footprint picture.</summary>
         public const char FilledCell = 'X';

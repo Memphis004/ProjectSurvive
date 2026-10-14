@@ -16,6 +16,8 @@ order" view.
 
 | 04 | 2026-10-14 | **Prototype data, `data/` only**: 14 pieces (3 bags, 4 arcane weapons one per cast behaviour, 3 charms, 1 tome, 2 offerings, 1 familiar) each merging to tier 3, a real tag vocabulary behind the 5 GDD combo rules, 4 enemies + 2-phase Pob, the 5-floor run with its wave timeline, a 14-row shop pool, 51 localization rows; `item.footprint` column; the **footprint picture format** (`XX.|.XX`, parsed in Domain) per [ADR 0009](../docs/adr/0009-footprint-picture-format.md); rules for item footprint / unknown tag / incomplete merge ladder / unreachable piece / wave spawn window; fixtures 12 → 17 | [`04-report`](../docs/stages/04-report.md) |
 
+| 05 | 2026-10-14 | **Bag rules, no Unity UI yet**: `Domain/Inventory` — `Board` (9×7 with bag/item owner maps), `Chest` (10), `PieceInstance`/`BagPieceInstance`/`ItemInstance` with `DefId` ≠ `InstanceId`, `PieceRef` handles, `Footprint` rotation + normalisation, `Backpack` (state + `Revision`) and `BackpackEditor` (atomic `Move`/`Rotate`/`TransferToChest`/`Merge`/`Recycle`/`Undo`/`Reset`/`SetLocked`, typed `Result` + `InventoryError.*`); `SynergyEvaluator` (adjacency counted once per pair, row **and** column kinds, power decay both ways, bag-area bonus, cooldown floor) and `LoadoutResolver` → the **Battle v1** `CombatLoadoutSnapshot` cached on the backpack revision; MessagePack snapshot undo through a `Contracts` DTO; `constant.weight_speed_percent_per_unit` added ([ADR 0013](../docs/adr/0013-weight-speed-penalty-curve.md)), editing/ownership [ADR 0014](../docs/adr/0014-backpack-editing-undo-and-placement-ownership.md), `SameColumn` kind [ADR 0015](../docs/adr/0015-same-line-synergy-kinds.md); `SchemaVersion` 2 → 3 | [`05-report`](../docs/stages/05-report.md) |
+
 ## Notes carried forward
 
 - **Stage 02b was amended after Stage 04** (2026-10-14) to give `IBattleFrame` a
@@ -26,7 +28,10 @@ order" view.
   and GDD DoD lines moved together; no gameplay number changed.
 - Stage 02b is an insertion between the original Stage 02 and Stage 03. It does
   not change `data/` and does not open Unity.
-- No gameplay rule (combo, shop, combat) exists yet; the battle *contract* does.
+- **Stage 05 is the first gameplay rule set**: the bag rules and the combo rules exist and
+  are measured (105 dotnet cases, 90.92 % of the backpack rule set, 9 EditMode cases).
+  What still does not exist: the shop/economy flow, the run/scene flow, and the battle
+  simulation itself — the *contract* it implements has existed since Stage 02b.
 - Determinism is guaranteed within one runtime only (see the scope gotcha).
 - `lib/` is now compiled twice: by `dotnet` (lib/Tests~) and by Unity as the local
   package `com.projectsurvive.core`. A change to a rule-engine file must keep both

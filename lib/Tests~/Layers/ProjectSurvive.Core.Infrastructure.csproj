@@ -16,6 +16,9 @@
     <ProjectReference Include="ProjectSurvive.Core.Shared.csproj" />
     <ProjectReference Include="ProjectSurvive.Core.Domain.csproj" />
     <ProjectReference Include="ProjectSurvive.Core.Application.csproj" />
+    <!-- The save DTOs. The GDD says Contracts is reached "through an adapter in
+         Infrastructure", which is what MessagePackBackpackSnapshotCodec is (Stage 05). -->
+    <ProjectReference Include="ProjectSurvive.Core.Contracts.csproj" />
     <!-- The config adapter is the ONLY consumer of generated rows (ADR 0006). -->
     <ProjectReference Include="ProjectSurvive.Core.Generated.Luban.csproj" />
     <!-- The generated Tables ctor takes a Func<string, ByteBuf>, so the adapter

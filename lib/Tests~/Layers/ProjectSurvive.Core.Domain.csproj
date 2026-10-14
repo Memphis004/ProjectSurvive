@@ -6,8 +6,6 @@
   <PropertyGroup>
     <AssemblyName>ProjectSurvive.Core.Domain</AssemblyName>
     <RootNamespace>ProjectSurvive.Core.Domain</RootNamespace>
-    <!-- Empty by design until Stage 05 (inventory domain). -->
-    <AllowEmptyLayer>true</AllowEmptyLayer>
   </PropertyGroup>
 
   <ItemGroup>

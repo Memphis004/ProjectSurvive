@@ -19,7 +19,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **02b** | **Battle contract v1 (interfaces + fake + contract tests)** | **DONE** — see [`docs/stages/02b-report.md`](docs/stages/02b-report.md) |
 | **03** | **Unity shell, first Web build, Thai text spike** | **DONE** — see [`docs/stages/03-report.md`](docs/stages/03-report.md) |
 | **04** | **Prototype data (14 pieces, 5 combos, 5 floors)** | **DONE** — see [`docs/stages/04-report.md`](docs/stages/04-report.md) |
-| 05 | Inventory domain | not started |
+| **05** | **Inventory domain (bag rules, combos, loadout)** | **DONE** — see [`docs/stages/05-report.md`](docs/stages/05-report.md) |
 | 06 | Shop, economy, run, scene flow | not started |
 | 07 | Battle core (headless) & bot sim | not started |
 | 08 | Battle presentation 2.5D | not started |
@@ -31,7 +31,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
-**Current state:** Stages 00–03. `lib/` is a real UPM package
+**Current state:** Stages 00–05. `lib/` is a real UPM package
 (`com.projectsurvive.core`) with six hand-written layer `.asmdef`s plus two
 generated ones, the vendored EcsLite, the deterministic `Shared`/`Infrastructure`
 primitives (`IRandomSource` / `Xoshiro128`, `RandomStreams`, `IClock` /
@@ -47,10 +47,11 @@ build metadata. Stage 02b added the **battle contract v1**
 `Entities` and `PreviousEntities` so Stage 08 interpolates between two ticks through
 the one port it is allowed to read, and exactly one `IBattleFrame` implementation is
 allowed (the fake and Stage 07 share it, enforced by a reflection test).
-**194 xUnit tests pass** (57 Stage 01, 73
-Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04). **No gameplay rule exists yet** —
-`Domain`, `Application`, `Simulation` and `Contracts` hold the battle *contract* but
-no combination/combat rule.
+**341 xUnit tests pass** (57 Stage 01, 73
+Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05).
+The bag rules and the combo rules are real code now; the shop/economy flow, the
+run/scene flow and the battle *simulation* are still absent — `Domain/Combat/Battle` and
+`Application` hold the battle **contract** (v1) that Stage 07 implements.
 
 Stage 03 built the **Unity shell** (`UnityProject/`, Unity `6000.3.9f1` + URP,
 referencing `lib/` as a local package): a composition root, three scenes
@@ -74,6 +75,26 @@ supersedes the Stage 02 cell-token choice ([ADR 0009](docs/adr/0009-footprint-pi
 Five new cross-table rules came with it (item footprint, unknown tag, incomplete merge
 ladder, unreachable piece, wave spawn window), each proven by a real broken-data
 fixture; the chain is now **17 fixtures / 21 checks**.
+
+Stage 05 built the **bag rules** — no UI, no Unity, still no battle sim. `Domain/Inventory`
+now holds `Board` (9×7, with a bag-owner and an item-owner map per cell), `Chest` (10),
+the piece instances whose permanent `DefId` is separate from the run's `InstanceId`,
+footprint **rotation with re-normalisation**, the `Backpack` aggregate (state + `Revision`)
+and `BackpackEditor` (atomic `Move`/`Rotate`/`TransferToChest`/`Merge`/`Recycle`/`Undo`/
+`Reset`/`SetLocked`, every one returning a typed `Result` and a stable `inventory.*`
+code). Undo and “คืนสภาพตอนเข้าศาลา” are **MessagePack snapshots** encoded by an
+Infrastructure adapter over a `Contracts` DTO, so the rule engine still never sees a
+serializer. `SynergyEvaluator` applies the five GDD combo rules to a layout (adjacency
+counted once per pair, row **and** column kinds, decay on both pieces, the bag-area bonus)
+and `LoadoutResolver` turns the layout into the **Battle v1** `CombatLoadoutSnapshot`,
+cached on `Backpack.Revision` so combos are recomputed only when the set changes. The
+weight → speed rule got its curve ([ADR 0013](docs/adr/0013-weight-speed-penalty-curve.md),
+5 % per unit capped at 40 %, both from `constant`), the editing/ownership rules are
+[ADR 0014](docs/adr/0014-backpack-editing-undo-and-placement-ownership.md), and the
+“row or column” ambiguity is settled by [ADR 0015](docs/adr/0015-same-line-synergy-kinds.md).
+Confidence comes from 105 dotnet cases over the **real** tables — including a 10 000-command
+randomized invariant run — **90.92 %** line coverage of the backpack rule set, and 9 Unity
+EditMode cases that place real pieces and hand a loadout to the battle contract.
 
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
@@ -120,7 +141,9 @@ pwsh -NoProfile -File tools/test.ps1 -Configuration Release
 # Static data pipeline (one-time setup downloads Luban + protoc into tools/vendor/)
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/setup-tools.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/gen.ps1            # data/ + proto/ -> generated
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/validate-data.ps1  # game rules over the .bytes
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/validate-data.ps1 -DataDir "lib/Tests~/data"
+                                                                             # ^ game rules over the .bytes
+                                                                             #   (generated tables live here, not in data/)
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-generated.ps1   # regeneration is identical
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/check-fixtures.ps1     # broken data is rejected
 
@@ -135,6 +158,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 -SizePro
                                                                                              # ^ a measured size configuration;
                                                                                              #   baseline | strip-high | optimize-size | minimal
 node tools/serve-web.mjs --port 8080          # then, in tests/web: npx playwright test
+
+# Coverage of the bag rules (Stage 05 acceptance: >= 85 % of Domain/Inventory + Footprint)
+dotnet test "lib/Tests~/Core.Tests/ProjectSurvive.Core.Tests.csproj" --collect:"XPlat Code Coverage" `
+  --settings "lib/Tests~/coverage-domain.runsettings" --results-directory artifacts/coverage-05
+node tools/coverage-report.mjs artifacts/coverage-05/*/coverage.cobertura.xml "Inventory/" "Config/Footprint.cs"
 
 # Size: what does a build weigh, and which assembly is inside the .wasm
 node tools/measure-web-size.mjs --dir UnityProject/Builds/Web --label mine   # raw / gzip -9 / Brotli q11
@@ -211,6 +239,7 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
 | [`docs/adr/`](docs/adr/) | Architecture decision records |
 | [`llmwiki/systems/data-schema.md`](llmwiki/systems/data-schema.md) | **Static data schema + pipeline commands** |
 | [`llmwiki/systems/battle-contract.md`](llmwiki/systems/battle-contract.md) | **Battle contract v1 — the interface between the battle and the rest** |
+| [`llmwiki/systems/backpack.md`](llmwiki/systems/backpack.md) | **Bag/board rules, editing commands, combos, bag → battle loadout** |
 | [`llmwiki/index.md`](llmwiki/index.md) | Wiki index |
 | [`llmwiki/glossary.md`](llmwiki/glossary.md) | Code names ↔ Thai terms |
 | [`docs/stages/`](docs/stages/) | Per-stage reports |
@@ -246,4 +275,12 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
   ([ADR 0010](docs/adr/0010-item-local-effects-deferred.md)): the consumers arrive in
   Stage 05–07. **The numbers must land in `data/` when they do — never in code**
   (rule 5).
+- **A piece's weight and price do not depend on its tier.** `item`/`bag` carry one
+  `weight` and one `price`, so merging to tier 3 makes a piece stronger without making it
+  heavier or more valuable ([ADR 0013](docs/adr/0013-weight-speed-penalty-curve.md),
+  [ADR 0014](docs/adr/0014-backpack-editing-undo-and-placement-ownership.md)). If either
+  should scale, the column has to land in `data/` first — never as a code constant.
+- **`tools/validate-data.ps1`'s default `-DataDir` is `data/`, which holds no `.bytes`.**
+  Always pass `-DataDir "lib/Tests~/data"` (the pipeline's generated tables). Running it
+  bare reports twelve `config.table_missing` findings that are not data bugs.
 - **No performance number has been measured.** All budget figures are targets.

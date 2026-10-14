@@ -237,6 +237,7 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                 BoardHeight = constant.BoardHeight,
                 MinCooldownSeconds = constant.MinCooldownSeconds,
                 MaxSpeedPenaltyPercent = constant.MaxSpeedPenaltyPercent,
+                WeightSpeedPercentPerUnit = constant.WeightSpeedPercentPerUnit,
                 PickupRadius = constant.PickupRadius,
                 MaxHp = constant.MaxHp,
                 MaxMp = constant.MaxMp,

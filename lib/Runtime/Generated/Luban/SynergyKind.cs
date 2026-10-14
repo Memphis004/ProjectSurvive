@@ -16,6 +16,7 @@ namespace ProjectSurvive.Config
         AdjacentPair = 1,
         SameRow = 2,
         BagArea = 3,
+        SameColumn = 4,
     }
 
 } 

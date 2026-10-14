@@ -267,6 +267,12 @@ namespace ProjectSurvive.Core.Domain.Config
 
         public int MaxSpeedPenaltyPercent { get; set; }
 
+        /// <summary>
+        /// Percent of move speed lost per unit of carried weight, before
+        /// <see cref="MaxSpeedPenaltyPercent"/> clamps it (Stage 05).
+        /// </summary>
+        public int WeightSpeedPercentPerUnit { get; set; }
+
         public float PickupRadius { get; set; }
 
         public int MaxHp { get; set; }

@@ -169,7 +169,7 @@ namespace ProjectSurvive.Core.Tests
             Assert.Matches("^\\d+\\.\\d+\\.\\d+$", ProjectSurvive.Config.ConfigBuildMetadata.LubanVersion);
             Assert.StartsWith("5.1", ProjectSurvive.Config.ConfigBuildMetadata.LubanVersion, StringComparison.Ordinal);
             // Stage 04 added item.footprint, so the schema revision moved to 2.
-            Assert.Equal(2, ProjectSurvive.Config.ConfigBuildMetadata.SchemaVersion);
+            Assert.Equal(3, ProjectSurvive.Config.ConfigBuildMetadata.SchemaVersion);
         }
 
         [Fact]

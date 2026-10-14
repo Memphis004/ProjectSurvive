@@ -5,6 +5,7 @@
     "ProjectSurvive.Core.Shared",
     "ProjectSurvive.Core.Domain",
     "ProjectSurvive.Core.Application",
+    "ProjectSurvive.Core.Contracts",
     "ProjectSurvive.Core.Generated.Luban",
     "Luban.Runtime"
   ],

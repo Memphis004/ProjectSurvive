@@ -20,6 +20,7 @@ public sealed partial class Constant : Luban.BeanBase
         BoardHeight = _buf.ReadInt();
         MinCooldownSeconds = _buf.ReadFloat();
         MaxSpeedPenaltyPercent = _buf.ReadInt();
+        WeightSpeedPercentPerUnit = _buf.ReadInt();
         PickupRadius = _buf.ReadFloat();
         MaxHp = _buf.ReadInt();
         MaxMp = _buf.ReadInt();
@@ -37,6 +38,7 @@ public sealed partial class Constant : Luban.BeanBase
     public readonly int BoardHeight;
     public readonly float MinCooldownSeconds;
     public readonly int MaxSpeedPenaltyPercent;
+    public readonly int WeightSpeedPercentPerUnit;
     public readonly float PickupRadius;
     public readonly int MaxHp;
     public readonly int MaxMp;
@@ -58,6 +60,7 @@ public sealed partial class Constant : Luban.BeanBase
         + "boardHeight:" + BoardHeight + ","
         + "minCooldownSeconds:" + MinCooldownSeconds + ","
         + "maxSpeedPenaltyPercent:" + MaxSpeedPenaltyPercent + ","
+        + "weightSpeedPercentPerUnit:" + WeightSpeedPercentPerUnit + ","
         + "pickupRadius:" + PickupRadius + ","
         + "maxHp:" + MaxHp + ","
         + "maxMp:" + MaxMp + ","
