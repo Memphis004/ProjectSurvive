@@ -211,6 +211,12 @@ implementation exists (Stage 07):
 - `FakeBattleSession` (Application) satisfies the contract without EcsLite, and
   `BattleSessionContractTests<TFactory>` is the contract every factory must pass
   (the fake today, EcsLite from Stage 07).
+- `IBattleFrame` hands out the frame as a **Prev/Cur pair** (`Entities` +
+  `PreviousEntities`), because the battle ticks at 30 Hz while Presentation renders
+  faster and may read nothing but this port. `BattleFrameBuffer` is the *only*
+  implementation — the fake and the Stage 07 simulation publish through the same
+  class, and a reflection test fails if a second one appears
+  ([ADR 0012](../adr/0012-prev-cur-frame-double-buffer.md)).
 
 Details: [`llmwiki/systems/battle-contract.md`](../../llmwiki/systems/battle-contract.md),
 [ADR 0007](../adr/0007-battle-contract-and-asmdef-placement.md).

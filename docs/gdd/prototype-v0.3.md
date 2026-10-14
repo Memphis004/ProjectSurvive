@@ -629,7 +629,7 @@ Acceptance:
 - รันได้โดยไม่มี Scene
 - benchmark ที่ ~300 ศัตรู + 500 กระสุน บันทึกเวลาต่อ tick และ GC alloc ต่อ tick (เป้าคือ 0) บน .NET
 - ไม่สัญญา bitwise determinism ข้าม browser หรือ CPU
-- implement `IBattleSession` / `IBattleSessionFactory` และผ่าน `BattleSessionContractTests<TFactory>` ทุกข้อ; ใช้ `BattleEventRing` และ `BattleFrameBuffer` ร่วมกับ fake
+- implement `IBattleSession` / `IBattleSessionFactory` และผ่าน `BattleSessionContractTests<TFactory>` ทุกข้อ; ใช้ `BattleEventRing` และ `BattleFrameBuffer` ร่วมกับ fake; ห้าม implement `IBattleFrame` เอง — `BattleFrameBuffer` ต้องเป็น implementation เดียว (บังคับด้วย architecture test)
 ```
 
 ### Stage 08: Battle Presentation 2.5D
@@ -654,7 +654,7 @@ Acceptance:
 - HUD ไม่ subscribe ตำแหน่งทุก entity
 - ออก Battle แล้ว ECS world และ subscription ถูก dispose
 - PlayMode: เข้า Battle แล้ว tick 10 วินาทีไม่มี exception
-- Presentation อ่านเฉพาะ `IBattleFrame` / `IBattleEventSource` และห้ามใช้ event ตัดสิน logic; span ของ `Entities` ถูก copy ก่อน `Step`/`Submit` ครั้งถัดไป
+- Presentation อ่านเฉพาะ `IBattleFrame` / `IBattleEventSource` และห้ามใช้ event ตัดสิน logic; span ของ `Entities`/`PreviousEntities` ถูก copy ก่อน `Step`/`Submit` ครั้งถัดไป
 ```
 
 ### Stage 09: ศาลาพัก (ร้าน และ UI จัดย่าม)

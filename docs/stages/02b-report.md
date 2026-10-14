@@ -167,3 +167,100 @@ Zero-alloc test (`GC.GetAllocatedBytesForCurrentThread`) ผ่านทั้�
 
 **สรุป:** Stage 02b ปิดทุก Acceptance ที่พิสูจน์ได้โดยไม่ต้องเปิด Unity (ด้วยหลักฐานที่
 รันซ้ำได้) ส่วนข้อที่ต้องใช้ Unity ถูกทำเครื่องหมาย **NOT RUN** อย่างชัดเจน
+
+---
+
+## 8. ภาคผนวก — Prev/Cur frame double buffer (ADR 0012, ลงหลัง Stage 04)
+
+ลงวันที่ 2026-10-14 หลัง Stage 04 เป็นการ**แก้ของเดิม + เพิ่มของใหม่**ในสัญญา 02b
+โดยไม่แตะ `data/` และไม่แตะบาลานซ์
+
+### 8.1 สาเหตุ
+
+GDD Stage 08 กำหนดว่า `BattleSimulationRunner` ต้อง "fixed-step accumulator
+(TickDelta, MaxStepsPerFrame) + interpolate Prev→Cur ด้วย alpha" ขณะที่
+"Presentation อ่านเฉพาะ `IBattleFrame` / `IBattleEventSource`" — การจะ interpolate
+ต้องเห็นสอง tick พร้อมกัน แต่ `IBattleFrame` เดิมมี span เดียว และ `BattleFrameBuffer`
+เดิมเป็นอาร์เรย์เดียวที่ clear แล้วเติมใหม่ทุก tick จึงทำไม่ได้ และ Stage 07 ก็ถูก
+กำหนดไว้แล้วว่าต้องใช้ `BattleFrameBuffer` ร่วมกับ fake (ไม่ใช่ implement เอง)
+
+### 8.2 สิ่งที่แก้ และสิ่งที่เพิ่ม
+
+1. **แก้ตำแหน่ง/การอ้างอิง (ของเดิม)** — ตรวจแล้วว่า namespace จริงคือ
+   `ProjectSurvive.Core.Domain.Combat.Battle` (ตรงกับ asmdef ที่ขึ้นต้น `Core` และ
+   ตรงกับที่ Stage 05 อ้างถึง `CombatLoadoutSnapshot`) และวางไฟล์จริงที่
+   `lib/Runtime/Domain/Combat/Battle/` ตาม layout ของ ADR 0007 — **ไม่ต้องย้ายไฟล์
+   ไม่ต้องแก้ namespace** บันทึกการตรวจซ้ำไว้ใน ADR 0012 §5 (ไม่ใช่การเดา แต่มี
+   reflection test ยืนยัน namespace อยู่แล้ว)
+2. **เพิ่ม `IBattleFrame.PreviousEntities`** — สัญญามีคู่ Prev/Cur; `Entities` คงชื่อ
+   เดิมและยังหมายถึง tick ที่เฟรมนั้นบรรยาย (ข้อความใน GDD Stage 08 และเทสต์เดิม
+   จึงยังถูกต้อง)
+3. **`BattleFrameBuffer` เป็น double buffer จริง** — สองสล็อต ขนาดคงที่
+   `MaxRenderEntities`, `BeginFrame`/`SetHud`/`Add`/`Publish()` โดย `Publish()`
+   สลับ reference ของสองสล็อต (ไม่ copy entity) → หลัง publish: `Entities` = tick
+   ที่เพิ่ง simulate, `PreviousEntities` = tick ก่อนหน้าโดย count ยังครบ
+4. **`HudState` ไม่ double buffer โดยเจตนา** — copy ทับทุก tick เพราะไม่มีอะไร
+   interpolate ค่า HUD; จึงระบุชัดว่าช่วงระหว่าง `BeginFrame` กับ `Publish` ค่า Hud
+   อาจนำหน้า `Tick`/`Entities` ได้หนึ่ง tick (อ่านเฟรมระหว่าง tick เท่านั้น)
+5. **`Tick` ผูกกับเฟรมที่ publish แล้ว** — ตั้งค่าใน `Publish` (ไม่ใช่ `BeginFrame`)
+   เพื่อให้ `Tick` ตรงกับ `Entities` เสมอ และเฟรมที่กำลังประกอบมองไม่เห็น
+6. **หนึ่ง implementation เท่านั้น** — `FakeBattleSession` เปลี่ยนไปเรียก `Publish()`;
+   Stage 07 ต้องใช้ type นี้ตัวเดียวกัน ห้าม implement `IBattleFrame` เอง
+
+### 8.3 ไฟล์สำคัญที่เปลี่ยน
+
+| ไฟล์ | การเปลี่ยน |
+| --- | --- |
+| `lib/Runtime/Domain/Combat/Battle/IBattleFrame.cs` | + `PreviousEntities` (คู่ Prev/Cur) |
+| `lib/Runtime/Domain/Combat/Battle/BattleFrameBuffer.cs` | เขียนใหม่เป็น double buffer + `Publish()` |
+| `lib/Runtime/Application/Battle/Fake/FakeBattleSession.cs` | `BuildFrame()` เรียก `_frame.Publish()` |
+| `lib/Tests~/Core.Tests/Battle/BattleFrameBufferTests.cs` | ใหม่ — 6 เคส |
+| `lib/Tests~/Core.Tests/Battle/BattleSessionContractTests.cs` | +1 เคสคู่ Prev/Cur, ขยายเคส render cap |
+| `lib/Tests~/Core.Tests/ArchitectureTests.cs` | + `Battle_frame_has_exactly_one_implementation` |
+| `docs/adr/0012-prev-cur-frame-double-buffer.md` | ใหม่ |
+| `llmwiki/systems/battle-contract.md`, `llmwiki/index.md`, `llmwiki/stage-log.md`, `knowledge.md`, `docs/architecture/overview.md` | ปรับข้อ 6 (Frames) และเพิ่ม gotcha/ลิงก์ |
+| GDD (ฉบับรวมที่ root + `docs/gdd/prototype-v0.3.md`) | ข้อ 10 ของ 02b, DoD Stage 07, patch Stage 08 (prev→cur) |
+
+### 8.4 คำสั่งที่รันจริง และผล
+
+```powershell
+dotnet build "lib/Tests~/ProjectSurvive.Core.sln" -c Debug   -v q -nologo
+dotnet test  "lib/Tests~/ProjectSurvive.Core.sln" -c Debug   --nologo
+dotnet test  "lib/Tests~/ProjectSurvive.Core.sln" -c Debug   --no-build --filter "..."
+tools/test.ps1
+dotnet build "lib/Tests~/ProjectSurvive.Core.sln" -c Release -v q -nologo
+dotnet test  "lib/Tests~/ProjectSurvive.Core.sln" -c Release --no-build --nologo
+```
+
+| คำสั่ง | ผลจริง |
+| --- | --- |
+| `dotnet build` (Debug) | Build succeeded — 0 warning, 0 error |
+| `dotnet test` (Debug) | **Passed! 194 / 194**, 0 failed, 0 skipped (จาก 186) |
+| filter 8 เคสใหม่ | ผ่านครบทั้ง 6 เคสของ `BattleFrameBufferTests`, เคส contract `The_previous_frame_is_the_one_the_tick_before_published` (bind กับ fake) และ `Battle_frame_has_exactly_one_implementation` |
+| `tools/test.ps1` | **PASS 10 / FAIL 0 / WARN 0 → RESULT: OK** (dotnet test 194 passed; Sim determinism digest คงที่; data gates: tables validate, regeneration reproducible, 17 fixtures ถูก reject) |
+| `dotnet build` / `dotnet test` (Release) | Build succeeded 0 warning; **194 / 194** |
+
+### 8.5 สิ่งที่ไม่ได้ทดสอบและเหตุผล
+
+1. **คอมไพล์ใน Unity — NOT RUN** — ไม่มี Editor/license ในสโคป การเปลี่ยนครั้งนี้ไม่
+   เพิ่ม asmdef/ไฟล์นอกโฟลเดอร์เดิม แต่การ resolve จริงยังพิสูจน์ได้ที่ Stage 03/05
+   ขึ้นไป การเพิ่ม member ใน `IBattleFrame` จะทำให้ implementation อื่นพังตอน
+   compile ซึ่งเป็นเจตนา (มีเทสต์บังคับจำนวน implementation แล้ว)
+2. **ยังไม่มี Presentation จริง** — เทสต์ยืนยันสัญญา Prev/Cur ผ่าน `IBattleSession`
+   แล้ว แต่การ interpolate ด้วย alpha จริงเป็นของ Stage 08 (ยังไม่เริ่ม)
+3. **zero-alloc ยืนยันบน .NET** (`GC.GetAllocatedBytesForCurrentThread`) ไม่ใช่ใน
+   WebGL — เช่นเดียวกับข้อ 5.2 ของรายงานหลัก
+
+### 8.6 Acceptance ของภาคผนวก
+
+| # | Acceptance | ผล | หลักฐาน |
+| --- | --- | --- | --- |
+| 1 | namespace/พาธตรงของจริง และบันทึกใน ADR | **PASS** | ตรวจ grep ทั้ง repo; ADR 0012 §5 |
+| 2 | `IBattleFrame` มีคู่ Prev/Cur | **PASS** | `IBattleFrame.cs`; contract suite case ใหม่ผ่านกับ fake |
+| 3 | `BattleFrameBuffer` เป็น double buffer ความจุคงที่ ไม่ allocate | **PASS** | `BattleFrameBufferTests` (สลับ Prev/Cur, ปิด cap, zero-alloc) |
+| 4 | Hud เป็น struct เดี่ยว copy ทับ (ไม่ double buffer) | **PASS** | `Hud_is_one_snapshot_overwritten_each_tick` + XML doc |
+| 5 | Fake และ Stage 07 ใช้ type เดียว; ห้าม implement ซ้ำ | **PASS** (ฝั่ง fake) / **NOT RUN** (ฝั่ง EcsLite ยังไม่มี — มีเทสต์รออยู่) | `Battle_frame_has_exactly_one_implementation` ผ่าน = มี implementation เดียวคือ `BattleFrameBuffer` |
+| 6 | `dotnet test` ผ่านทั้ง Debug/Release | **PASS** | 194/194, 0 warning |
+
+**สรุปภาคผนวก:** ข้อที่พิสูจน์ได้โดยไม่เปิด Unity ผ่านครบ; ฝั่ง EcsLite (Stage 07)
+ถูกผูกด้วยเทสต์ไว้แล้วและยัง **NOT RUN** จนกว่า Stage 07 จะลง

@@ -616,6 +616,39 @@ namespace ProjectSurvive.Core.Tests
             Assert.Empty(offenders);
         }
 
+        /// <summary>
+        /// ADR 0012: exactly one <c>IBattleFrame</c> implementation exists. The fake
+        /// (Application) and the EcsLite simulation (Simulation, Stage 07) both
+        /// publish through <c>BattleFrameBuffer</c>, so a Presentation validated
+        /// against the fake cannot meet different frame behaviour from the real
+        /// battle. A second implementation fails here instead of in playtest.
+        /// </summary>
+        [Fact]
+        public void Battle_frame_has_exactly_one_implementation()
+        {
+            Assembly domain = Assembly.Load(new AssemblyName("ProjectSurvive.Core.Domain"));
+            Type frame = domain.GetType(
+                "ProjectSurvive.Core.Domain.Combat.Battle.IBattleFrame", throwOnError: true)!;
+
+            var implementations = new List<string>();
+            foreach (string name in LibAssemblies)
+            {
+                Assembly assembly = Assembly.Load(new AssemblyName(name));
+                foreach (Type type in assembly.GetTypes())
+                {
+                    if (type.IsAbstract || type.IsInterface || !frame.IsAssignableFrom(type))
+                    {
+                        continue;
+                    }
+
+                    implementations.Add(type.FullName ?? type.Name);
+                }
+            }
+
+            Assert.Equal(
+                new[] { "ProjectSurvive.Core.Domain.Combat.Battle.BattleFrameBuffer" }, implementations);
+        }
+
         private static void CollectForbiddenReferences(
             Type? type, string owner, string[] forbiddenNamespaces, List<string> offenders)
         {

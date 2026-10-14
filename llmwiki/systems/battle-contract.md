@@ -105,13 +105,42 @@ through `Read(..., out int dropped)` — the loss is reported, never hidden.
 
 ## 6. Frames
 
-`IBattleFrame` exposes `Tick`, `Hud` and `Entities`. `Entities` is a
-`ReadOnlySpan<RenderEntity>` that is **valid only until the next `Step` or
-`Submit`** — copy anything you need to keep. `HudState` names its fields after the
-Luban columns (`hp`, `mp`, `currency`) and has no Level/XP/input-inversion field.
+`IBattleFrame` exposes `Tick`, `Hud`, `Entities` (Cur) and `PreviousEntities`
+(Prev). Both spans are `ReadOnlySpan<RenderEntity>` and are **valid only until the
+next `Step` or `Submit`** — copy anything you need to keep. `HudState` names its
+fields after the Luban columns (`hp`, `mp`, `currency`) and has no
+Level/XP/input-inversion field.
 
-`BattleFrameBuffer` is the reusable implementation; `Entities.Length` never
-exceeds `BattleConstants.MaxRenderEntities` (1024).
+Why a pair: the battle ticks at 30 Hz while rendering runs faster, so Stage 08's
+`BattleSimulationRunner` interpolates `Prev` → `Cur` with its own alpha
+(`accumulator / TickDelta`). Presentation reads only this port, so both ends of the
+pair have to be on it.
+
+`BattleFrameBuffer` is **the** implementation (ADR 0012) and provides both slots:
+
+```
+   BeginFrame(tick) -> SetHud(hud) -> Add(entity)… -> Publish()
+                                                        │
+                          swaps the two slots: written becomes Cur,
+                          the old Cur becomes Prev with its count intact
+```
+
+- Two fixed slots of at most `BattleConstants.MaxRenderEntities` (1024); a frame
+  that would exceed the cap stops at it, because the frame is a *view* and never the
+  source of truth.
+- `Prev` is the **immediately preceding** tick, not history, and is empty on a
+  session's first frame. It is only meaningful *between* ticks — the next tick
+  writes over that slot in place.
+- `HudState` is deliberately **not** double-buffered: a HUD is a single by-value
+  snapshot overwritten each tick, so between `BeginFrame` and `Publish` it can run a
+  tick ahead of `Tick` / `Entities`.
+- One writer (the session's tick), any number of readers, one thread, no
+  synchronization — the Web target is single-threaded.
+- Publishing and reading allocate nothing once the buffer is constructed, and the
+  fake and the Stage 07 EcsLite session must both use this same class. There is
+  exactly one `IBattleFrame` implementation and
+  `ArchitectureTests.Battle_frame_has_exactly_one_implementation` fails if a second
+  appears.
 
 ## 7. Determinism and replay
 

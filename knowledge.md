@@ -42,8 +42,13 @@ build metadata. Stage 02b added the **battle contract v1**
 (`Domain/Combat/Battle`: `IBattleSession`, `IBattleFrame`, `IBattleEventSource`,
 `BattleEventRing`, `BattleReplay`, the loadout/result/setup types), a deterministic
 `FakeBattleSession` in Application, and the executable
-`BattleSessionContractTests<TFactory>`. **186 xUnit tests pass** (57 Stage 01, 73
-Stage 02, 34 Stage 02b, 10 Stage 03, 12 Stage 04). **No gameplay rule exists yet** —
+`BattleSessionContractTests<TFactory>`. Its amendment (ADR 0012) turned
+`BattleFrameBuffer` into a **Prev/Cur double buffer** — `IBattleFrame` carries
+`Entities` and `PreviousEntities` so Stage 08 interpolates between two ticks through
+the one port it is allowed to read, and exactly one `IBattleFrame` implementation is
+allowed (the fake and Stage 07 share it, enforced by a reflection test).
+**194 xUnit tests pass** (57 Stage 01, 73
+Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04). **No gameplay rule exists yet** —
 `Domain`, `Application`, `Simulation` and `Contracts` hold the battle *contract* but
 no combination/combat rule.
 

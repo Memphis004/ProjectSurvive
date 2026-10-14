@@ -239,6 +239,35 @@ namespace ProjectSurvive.Core.Tests
             session.Step(PlayerInputFrame.Idle);
 
             Assert.InRange(session.Frame.Entities.Length, 0, BattleConstants.MaxRenderEntities);
+            Assert.InRange(session.Frame.PreviousEntities.Length, 0, BattleConstants.MaxRenderEntities);
+        }
+
+        /// <summary>
+        /// The frame is a Prev/Cur pair so Presentation can interpolate between two
+        /// ticks (Stage 08). The concrete obligation: after step N, the previous
+        /// frame is the frame that step N-1 published.
+        /// </summary>
+        [Fact]
+        public void The_previous_frame_is_the_one_the_tick_before_published()
+        {
+            IBattleSession session = CreateFactory().Create(CreateSetup(false));
+
+            session.Step(PlayerInputFrame.Idle);
+
+            // A reader must copy a span before the next Step - the contract says so,
+            // and there is no other way to hold on to a frame's values.
+            RenderEntity[] before = session.Frame.Entities.ToArray();
+            long tickBefore = session.Frame.Tick;
+
+            session.Step(PlayerInputFrame.Idle);
+            IBattleFrame frame = session.Frame;
+
+            Assert.Equal(tickBefore + 1, frame.Tick);
+            Assert.Equal(before.Length, frame.PreviousEntities.Length);
+            for (int i = 0; i < before.Length; i++)
+            {
+                Assert.Equal(before[i], frame.PreviousEntities[i]);
+            }
         }
 
         [Fact]

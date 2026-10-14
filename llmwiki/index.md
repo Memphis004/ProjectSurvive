@@ -51,6 +51,8 @@ lands.
 | A charm's own buff has no data column yet | [ADR 0010](../docs/adr/0010-item-local-effects-deferred.md) | Its magnitude must land in `item`, never as a code constant, when Stage 05–07 lands its consumer |
 | Determinism scope | [`gotchas/determinism-scope.md`](gotchas/determinism-scope.md) | Guaranteed within one runtime only, not across browsers/CPUs |
 | EcsLite pool refs, liveness, DEBUG checks | [`gotchas/ecslite-pool-refs.md`](gotchas/ecslite-pool-refs.md) | A stale `ref`, or a Release build with sanitize checks compiled out |
+| A published battle frame only survives until the next tick | [ADR 0012](../docs/adr/0012-prev-cur-frame-double-buffer.md) | `Entities` / `PreviousEntities` are two slots reused in place; copy before the next `Step`, and `Prev` is one tick deep, not history |
+| There is only one `IBattleFrame` implementation | [ADR 0012](../docs/adr/0012-prev-cur-frame-double-buffer.md) | The fake and the EcsLite session must share `BattleFrameBuffer`, or the presentation validated against the fake stops predicting the real battle |
 | `.unity` YAML is not hand-editable | *(pending)* | Scenes/prefabs are created via the Editor API only |
 
 Notes live in [`gotchas/`](gotchas/).

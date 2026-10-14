@@ -494,6 +494,95 @@ Acceptance:
 - ไม่มี stub ที่คืนค่าคงที่แทน config จริง
 ```
 
+### Stage 02b: Battle Contract v1 (แทรกระหว่าง Stage 02 และ 03)
+```text
+บริบท: Stage 02 Static Data Pipeline เสร็จแล้ว สเตจนี้สร้าง "สัญญา" ระหว่าง Battle กับระบบอื่น + Fake + contract tests
+ยังไม่ implement EcsLite. อ่าน AGENTS.md/knowledge.md, llmwiki/index.md, llmwiki/stage-log.md, ADR เรื่อง ECS ก่อน
+
+ตำแหน่งและการอ้างอิง (ตาม asmdef ของ v0.3):
+- Interface/struct ทั้งหมด → lib/Runtime/Domain/Combat/Battle/ (namespace ProjectSurvive.Domain.Combat.Battle)
+  เหตุผล: Application (SceneFlow) ต้องเรียกใช้ และ Simulation (EcsLite) ต้อง implement ได้ ซึ่งทั้งคู่อ้าง Domain ได้
+- ห้ามวางใน Contracts (asmdef นั้นสงวนไว้สำหรับ Save/Proto DTO)
+- ห้ามอ้าง EcsLite, UnityEngine, R3, VContainer, UniTask
+- IRandomSource ให้ใช้ตัวที่มีอยู่แล้วจาก Stage 01/02 (ถ้าอยู่ผิด layer จน Simulation อ้างไม่ได้ ให้ย้ายไป Shared + เขียน ADR)
+
+ขอบเขตตาม GDD v0.3:
+- ไม่มี level-up/blessing/XP ใน prototype → ห้ามสร้าง
+- Run 5 ชั้น (ชั้นปกติ 4 + บอสปอบ 1); ชั้นปกติ 60s รอดครบ = ชนะ; ชั้นบอส 90s ต้องฆ่าบอส ถ้าหมดเวลา = แพ้
+- ระยะเวลาและเงื่อนไขชนะอ่านจาก Luban (stage/wave/constant) ห้าม hardcode
+- HP ต่อเนื่องข้ามชั้น: Battle รับ CurrentHp และคืน FinalHp; การฟื้น 15% หลังผ่านชั้นเป็นหน้าที่ Run domain ไม่ใช่ Battle
+
+ไฟล์ที่ต้องสร้าง (อ้างอิงร่างโค้ดที่แนบ โดยมีการแก้ดังนี้):
+1. BattleConstants: TickRate=30, MaxStepsPerFrame=4, InputAxisScale=1000, EventRingCapacity=4096, MaxRenderEntities=1024
+   (ตัด MaxBlessingOffer)
+2. BattlePhase: Running=0, Won=2, Lost=3, Aborted=4 (เว้นค่า 1 ไว้สำหรับ AwaitingChoice ในอนาคต)
+3. BattleEndReason: None, SurvivedAllWaves, BossDefeated, PlayerDied, Timeout, Surrendered
+4. PlayerInputFrame (เหมือนร่างเดิม)
+5. BattleCommand/BattleCommandKind: Surrender, DevKillAll, DevGodMode(Arg 0/1), DevWinNow, DevLoseNow
+   CommandResult: Ok, RejectedWrongPhase, RejectedInvalidArg, RejectedNotAllowed
+6. EntityRef (เหมือนเดิม)
+7. BattleEventType: WaveStarted, EnemySpawned, EnemyKilled, ProjectileFired, DamageDealt, PlayerDamaged,
+   PlayerHealed, StatusApplied, StatusExpired, PickupSpawned, PickupCollected, TelegraphStarted, TelegraphEnded,
+   CorpseConsumed (ปอบกินศพ: Value=HP ที่ฟื้น), BossPhaseChanged, TimeWarning, BattleEnded (Value=BattleEndReason)
+   BattleEventFlags: None, Critical, Elite, Boss
+8. BattleEvent struct + IBattleEventSource.Read(ref cursor, Span, out dropped) (เหมือนเดิม)
+9. RenderEntity (เหมือนเดิม), HudState: Hp, MaxHp, Mp, MaxMp, Currency (ใช้ชื่อตาม Luban), Kills,
+   ElapsedTicks, FloorDurationTicks, WaveIndex, BossHp, BossMaxHp (ตัด Level/Xp/InputInverted)
+10. IBattleFrame: Tick, Hud, Entities (Cur) + PreviousEntities (Prev) — double buffer สลับทุก tick เพื่อ interpolate (ตัด BlessingOffer); อายุ span ใช้ได้จนกว่าจะเรียก Step/Submit ครั้งถัดไป
+11. PlayerStatBlock, WeaponLoadout, SummonLoadout, ConsumableLoadout, CombatLoadoutSnapshot
+    (ถ้า Domain มีโครงของ CombatLoadoutSnapshot อยู่แล้ว ให้ใช้ของเดิมและปรับให้ตรงสัญญา ห้ามสร้างซ้ำ)
+12. BattleSetup: Seed (battle RNG stream), StageId, DifficultyId, FloorIndex(1-based), IsBossFloor,
+    CurrentHp, Loadout, DevCheatsAllowed (ตัด PlayerLevel/PlayerXp)
+13. BattleResult: Outcome, EndReason, SurvivedTicks, FinalHp, CurrencyEarned, Kills, RemainingConsumables
+14. IBattleSession: Phase, Tick, Step(in input), Submit(in cmd), Frame, Events, TryGetResult, ComputeStateHash
+    IBattleSessionFactory.Create(BattleSetup) โดย config tables ส่งผ่าน constructor ของ factory
+
+Implementation ใน stage นี้:
+A. BattleEventRing (Domain/Combat/Battle): ขนาดคงที่, Seq เพิ่มขึ้นเรื่อยๆ, หลาย reader ใช้ cursor แยกกัน, รายงาน dropped, zero-alloc
+B. FakeBattleSession + Factory → lib/Runtime/Application/Battle/Fake/
+   options: WinAtTick, LoseAtTick, TimeoutAtTick, DummyEntityCount (เดินเป็นวง), DamagePerSecond
+   emit: WaveStarted, EnemySpawned/Killed, PlayerDamaged, BattleEnded; deterministic ผ่าน IRandomSource
+C. BattleReplay: setup + input ทุก tick + (tick, command) → เล่นซ้ำผ่าน factory ใดก็ได้แล้วเทียบ ComputeStateHash
+   ให้ออกแบบเป็นส่วนย่อยที่ ReplayLog ของ Stage 06 นำไปรวมได้ (ห้ามซ้ำซ้อนกับ ReplayLog)
+D. Contract test suite แบบ abstract: BattleSessionContractTests<TFactory> (xUnit) ตรวจ:
+   - Step() เมื่อ Phase != Running ไม่เพิ่ม Tick
+   - Surrender → Aborted + EndReason=Surrendered; Submit หลังจบ → RejectedWrongPhase
+   - Dev command เมื่อ DevCheatsAllowed=false → RejectedNotAllowed
+   - ชั้นบอสหมดเวลา → Lost + Timeout; ชั้นปกติรอดครบ → Won + SurvivedAllWaves
+   - TryGetResult=false ระหว่าง Running และ true หลังจบ; FinalHp ≤ MaxHp และ ≥ 0
+   - replay round-trip ได้ hash เท่ากัน
+   - Event Seq ต่อเนื่อง; อ่านไม่ทันแล้ว dropped > 0 โดย state ยังถูกต้อง
+   - Entities.Length ≤ MaxRenderEntities; FromAxis normalize/clamp ถูกต้อง
+   - Step() ไม่ allocate หลัง warm-up (GC.GetAllocatedBytesForCurrentThread)
+E. Architecture test (reflection): public type ใน Domain.Combat.Battle ต้องไม่อ้าง namespace Leopotam/EcsLite/UnityEngine/R3
+
+เอกสาร: llmwiki/systems/battle-contract.md (ตารางความหมาย DefId/Value ของแต่ละ event, อายุ span,
+กฎ "event ใช้แค่ VFX/เสียง/UI ห้ามใช้ตัดสิน logic"), ADR "Battle contract v1 + ตำแหน่ง asmdef", อัปเดต stage-log
+
+DoD: dotnet test ผ่าน; contract suite ผ่านกับ Fake ทุกข้อ; compile ใน Unity ได้โดยไม่มี warning ใหม่;
+architecture test ผ่าน; อัปเดต DoD ของ Stage 05/06/07/08/10/11/12 ใน docs ตามรายการแพตช์ที่แนบ
+
+```
+
+### Fix
+```
+[แก้ของเดิม]
+ตำแหน่งและการอ้างอิง:
+- Interface/struct ทั้งหมด → namespace ProjectSurvive.Core.Domain.Combat.Battle
+  (แก้จาก ProjectSurvive.Domain.Combat.Battle เดิม ให้ตรงกับ asmdef "Core" ที่ใช้จริงในโปรเจกต์
+  และตรงกับที่ Stage 05 อ้างถึง LoadoutResolver)
+- วางไฟล์ในโฟลเดอร์ Domain ที่มีอยู่แล้วภายใต้ lib/ ตาม layout จริงของโปรเจกต์
+  (ถ้า root ไม่ใช่ lib/Runtime/Domain/Combat/Battle/ ให้ agent ปรับ path ให้ตรงของจริงแล้วบันทึกใน ADR)
+
+[เพิ่มใหม่ ต่อจากข้อ A. BattleEventRing]
+A2. BattleFrameBuffer (Domain/Combat/Battle): concrete implementation ของ IBattleFrame
+    - double-buffer ของ RenderEntity[] (Prev/Cur สลับกันทุก tick) ความจุคงที่ MaxRenderEntities
+    - เขียนได้ฝั่งเดียว (Simulation/Fake เป็นคนเขียน) อ่านได้หลายฝั่ง (Presentation) โดยไม่ allocate
+    - Hud เป็น struct เดี่ยวที่ถูก copy ทับทุก tick (ไม่ใช่ double-buffer เพราะไม่ต้อง interpolate)
+    - ทั้ง FakeBattleSession และ EcsBattleSimulation (Stage 07) ต้องใช้ type นี้ตัวเดียวกัน
+      ห้าม implement IBattleFrame แยกกันคนละแบบ
+```
+
 ### Stage 03: Unity Shell, Web Build แรก และ Thai Text Spike
 
 ```text
@@ -520,6 +609,24 @@ Acceptance:
 - มี ADR เรื่อง UI ภาษาไทย
 - ไม่มี Missing Script หรือ DI ที่ resolve ไม่ได้
 ```
+
+ทำ Stage 03b เท่านั้น: Web Build Size Baseline
+
+1. เพิ่ม tools/build-web.ps1 -Profile Release (ไม่ใช่ Development) และเก็บ Development ไว้เทียบ
+2. ตั้งค่าเพื่อลดขนาด: IL2CPP, Managed Stripping สูงสุดที่ใช้ได้, Strip Engine Code, ปิด debug symbols
+   และ exception support เท่าที่ Unity 6.3 อนุญาต (ตรวจเอกสาร ห้ามเดาชื่อ setting), optimize for size
+3. ดึง Build Report แล้วทำ docs/build/size-baseline.md:
+   ขนาด .wasm .data .framework.js .loader.js ทั้งแบบไม่บีบอัดและบีบอัด,
+   assembly และ asset ใหญ่สุด 20 อันดับ, ผลก่อนและหลังการแก้แต่ละครั้ง
+4. ทำ A/B: build ที่ถอด package ทีละตัว (MessagePack, Protobuf, R3, VContainer, UniTask)
+   เพื่อหาว่าตัวไหนทำ .wasm โตผิดปกติ
+5. ห้ามเพิ่ม YooAsset หรือ Addressables ใน Stage นี้
+
+Acceptance:
+- มีตารางขนาดจากการวัดจริง
+- รายงาน PASS / FAIL / NOT RUN เทียบเป้า initial < 30 MiB (เป้าใช้งาน < 15 MiB)
+- ระบุสาเหตุหลักของขนาด .wasm
+
 
 ### Stage 04: ข้อมูลของ Prototype
 
@@ -561,6 +668,9 @@ Acceptance:
    โบนัสชนิดเดียวกันบวกกัน; cooldown มีค่าต่ำสุด; ไม่มีคอมโบวน; คำนวณใหม่เมื่อชุดเปลี่ยนเท่านั้น
 8. LoadoutResolver → `ProjectSurvive.Core.Domain.Combat.Battle.CombatLoadoutSnapshot` (สัญญา Battle v1 จาก Stage 02b; ไม่ขึ้นกับลำดับการวน dictionary)
 9. BackpackEditor: undo และ Reset (กลับสภาพตอนเข้าศาลา) ด้วย MessagePack snapshot, Lock
++ Loadout resolver ต้องคืน CombatLoadoutSnapshot ตามสัญญา Domain.Combat.Battle (ห้ามสร้าง type ซ้ำ)
++ เทสต์: synergy ที่ active ถูกคำนวณเข้าไปใน WeaponLoadout แล้ว (Battle ห้ามคำนวณ synergy ซ้ำ)
++ เทสต์: ย่ามเหมือนกัน → snapshot เหมือนกันทุก field (deterministic)
 
 Tests ขั้นต่ำ:
 - หมุน 4 ครั้งกลับรูปเดิม; รูปทรงไม่สมมาตรหมุนและ normalize ถูกต้อง
@@ -590,6 +700,10 @@ Acceptance:
 5. CompleteFloor ให้รางวัลได้ครั้งเดียว (settlement ID) พร้อมฟื้น HP 15%
 6. SceneId, SceneFlow state machine, Command/Event, ReplayLog (command + seed)
 7. initial loadout: ย่ามผ้าดิบ + ยันต์เพลิงกาลี + 15 เบี้ย
++ SceneFlow รับ IBattleSessionFactory ผ่าน port/DI; scripted run ใช้ FakeBattleSessionFactory
++ RunSession.ApplyBattleResult(BattleResult): อัปเดต HP/เงิน/consumable แล้วฟื้น HP 15% ของ MaxHp (ไม่เกิน Max) เมื่อชนะ
++ ReplayLog ใช้ BattleReplay ของ 02b เป็นส่วนย่อย (ห้ามเขียนกลไก replay ซ้ำ)
++ เทสต์: run 5 ชั้นด้วย Fake (ชนะ 4 + บอส) จบที่ Result; Fake timeout ชั้นบอส → Defeat
 
 Tests:
 - seed และ state เดิมให้สินค้าเดิม; เปิดร้านซ้ำไม่เปลี่ยน stock; refresh เปลี่ยนสถานะ RNG และคิดราคาถูก
@@ -619,6 +733,17 @@ Acceptance:
 5. event buffer ให้ Presentation ดึงไปใช้; ไม่อ้าง GameObject, Camera, UI หรือ Unity Physics
 6. pool entity และ array; ไม่ allocate ใน Tick หลัง warm-up
 7. Sim/: bot เดินหนีแบบ kiting และตัดสินใจร้าน/ย่ามแบบ greedy; tools/sim.ps1 --seeds 200 → artifacts/balance.csv
++ BattleSimulation (EcsLite) ต้อง implement IBattleSession + IBattleSessionFactory
+
++ ต้องผ่าน BattleSessionContractTests ชุดเดียวกับ Fake ห้ามแก้หรือข้ามเทสต์เพื่อให้ผ่าน
+
+  (ถ้าสัญญาผิดจริง ให้เขียน ADR แล้วแก้สัญญาพร้อม Fake ก่อน)
+
++ Event buffer ใช้ BattleEventRing ของ 02b; type ของ EcsLite ห้ามหลุดออกนอก lib/Runtime/Simulation
+
++ Bot sim เรียกผ่าน IBattleSession เท่านั้น
+
++ Benchmark ~300 ศัตรู + 500 กระสุน: บันทึก avg/p95 ms ต่อ tick; GC alloc ต่อ tick = 0 หลัง warm-up
 
 Tests:
 - เคลื่อนที่ถูกตาม tick; cooldown และ MP ไม่ร่ายเกินกติกา
@@ -629,7 +754,7 @@ Acceptance:
 - รันได้โดยไม่มี Scene
 - benchmark ที่ ~300 ศัตรู + 500 กระสุน บันทึกเวลาต่อ tick และ GC alloc ต่อ tick (เป้าคือ 0) บน .NET
 - ไม่สัญญา bitwise determinism ข้าม browser หรือ CPU
-- implement `IBattleSession` / `IBattleSessionFactory` และผ่าน `BattleSessionContractTests<TFactory>` ทุกข้อ; ใช้ `BattleEventRing` และ `BattleFrameBuffer` ร่วมกับ fake
+- implement `IBattleSession` / `IBattleSessionFactory` และผ่าน `BattleSessionContractTests<TFactory>` ทุกข้อ; ใช้ `BattleEventRing` และ `BattleFrameBuffer` ร่วมกับ fake; ห้าม implement `IBattleFrame` เอง — `BattleFrameBuffer` ต้องเป็น implementation เดียว (บังคับด้วย architecture test)
 ```
 
 ### Stage 08: Battle Presentation 2.5D
@@ -647,6 +772,13 @@ Acceptance:
 5. ใช้ CombatLoadoutSnapshot จริง; แสดงคาถาตามไอเทมที่ติดตั้ง
 6. floating damage number แบบ pool; RNG ภาพแยกจาก RNG เกม
 7. ไม่ Instantiate/Destroy ต่อเนื่องหลัง pool warm-up
++ Presentation อ้างได้แค่ namespace Domain.Combat.Battle ห้ามอ้าง asmdef Simulation (เพิ่ม architecture test)
+
++ BattleSimulationRunner: fixed-step accumulator (TickDelta, MaxStepsPerFrame) + interpolate Prev→Cur ด้วย alpha โดยอ่านคู่จาก `IBattleFrame.PreviousEntities` / `IBattleFrame.Entities`
+
++ HUD/VFX/Audio มี event cursor ของตัวเอง; ถ้า dropped > 0 ให้ log ใน dev build แต่ห้ามทำให้ state เพี้ยน
+
++ พัฒนา UI กับ Fake ได้ก่อนต่อเข้ากับ sim จริง (สลับผ่าน LifetimeScope)
 
 Acceptance:
 - เล่นชั้น 1 จนชนะหรือแพ้ได้ใน Web
@@ -654,7 +786,7 @@ Acceptance:
 - HUD ไม่ subscribe ตำแหน่งทุก entity
 - ออก Battle แล้ว ECS world และ subscription ถูก dispose
 - PlayMode: เข้า Battle แล้ว tick 10 วินาทีไม่มี exception
-- Presentation อ่านเฉพาะ `IBattleFrame` / `IBattleEventSource` และห้ามใช้ event ตัดสิน logic; span ของ `Entities` ถูก copy ก่อน `Step`/`Submit` ครั้งถัดไป
+- Presentation อ่านเฉพาะ `IBattleFrame` / `IBattleEventSource` และห้ามใช้ event ตัดสิน logic; span ของ `Entities`/`PreviousEntities` ถูก copy ก่อน `Step`/`Submit` ครั้งถัดไป
 ```
 
 ### Stage 09: ศาลาพัก (ร้าน และ UI จัดย่าม)
@@ -694,6 +826,9 @@ Acceptance:
 4. Result: Victory และ Defeat พร้อมสรุปชั้นที่ไปถึงและผีที่ปราบ; Restart สร้าง Run ใหม่ ไม่คง state จากรอบก่อน
 5. SceneLoader รับ transition ได้ทีละรายการ พร้อม fade และ loading/error recovery ขั้นต่ำ
 6. DevMenu (dev build เท่านั้น): อมตะ, เพิ่มเบี้ย, ข้ามชั้น, spawn ผี ตั้งชื่อ test-only ให้ชัดเจน
++ DevMenu ส่งคำสั่งผ่าน BattleCommand (DevKillAll/DevGodMode/DevWinNow/DevLoseNow) เท่านั้น
+  และให้ DevCheatsAllowed=false ใน release (มีเทสต์ยืนยัน)
++ dispose IBattleSession ทุกครั้งที่ออกจาก SceneBattle; เทสต์ 20 loop ต้องไม่มี session ค้าง
 
 Acceptance:
 - เล่นตั้งแต่เริ่มจนชนะและแพ้ได้
@@ -717,6 +852,9 @@ Acceptance:
    การโจมตีแรงทุกแบบต้องมี telegraph ที่อ่านออก
 3. พารามิเตอร์ทั้งหมดมาจาก enemy และ skill ใน data
 4. ศัตรูแต่ละชนิดต้องมีพฤติกรรมที่ผู้เล่นแยกออกได้
++ Telegraph ของนางตานีส่งผ่าน TelegraphStarted/Ended; ปอบกินศพส่ง CorpseConsumed; การเปลี่ยนเฟสส่ง BossPhaseChanged
++ ถ้าต้องเพิ่ม event type ใหม่ ให้เพิ่มต่อท้าย enum เท่านั้น แล้วอัปเดต battle-contract.md + เทสต์
++ sim 200 seed รันผ่าน IBattleSession และรายงานสัดส่วน EndReason (PlayerDied/Timeout/BossDefeated)
 
 Tests: เทสต์ Core ราย behavior เช่น ทิศ input สลับตามเวลาที่กำหนด, เฟส 2 เริ่มที่ HP% ที่กำหนด
 
@@ -745,6 +883,8 @@ Acceptance:
    reload ไม่ทำให้สุ่มร้านใหม่
 5. version validation, corrupt-save handling และ backup; เมื่อ run จบให้ล้าง active checkpoint
 6. Settings: เสียง, ภาษา TH/EN (สลับทันทีผ่าน R3), ความเร็วเริ่มต้น
++ ไม่บันทึกสถานะกลางการต่อสู้: ถ้า reload ระหว่าง Battle ให้กลับไปที่ checkpoint ศาลาพักล่าสุด
+  (battle seed อยู่ใน checkpoint จึงได้ battle เดิมซ้ำ) และมีเทสต์ยืนยันพฤติกรรมนี้
 
 Tests: round-trip, schema เก่า (fixture), schema ใหม่กว่าที่รองรับ, config mismatch, payload ขาดหรือเสีย,
 เขียนแข่งกัน, storage ใช้ไม่ได้
@@ -792,6 +932,8 @@ Acceptance:
    build → web tests
 6. ไม่ให้ Unity สอง process ใช้ project directory เดียวกันพร้อมกัน; แยก job ที่ต้องใช้ license ออกจาก pure validation
 7. ตรวจว่า release build ไม่มี harness API
++ tools/test.ps1 รายงานผล contract suite แยกบรรทัดสำหรับ Fake และ BattleSimulation
++ Web harness (dev build) expose phase/tick/endReason จาก IBattleSession ให้ Playwright ตรวจได้
 
 Acceptance:
 - ci.ps1 คืน exit code ≠ 0 เมื่อ required check ล้มเหลว

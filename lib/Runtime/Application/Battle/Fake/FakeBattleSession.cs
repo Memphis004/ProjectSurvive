@@ -491,6 +491,11 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
                     health,
                     flags));
             }
+
+            // Swap Prev/Cur: this tick becomes the current frame and the previous
+            // one stays readable for interpolation. Publishing here (rather than
+            // per Add) is what keeps a half-built frame invisible to a reader.
+            _frame.Publish();
         }
 
         private HudState BuildHud()
