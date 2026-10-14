@@ -152,7 +152,7 @@ authored sprite sorting order in `BattleWorldMap`. The camera question the GDD l
 by measurement — **orthographic** at 50°, near÷far scale 1.000 against perspective's 0.832
 ([ADR 0018](docs/adr/0018-battle-camera-projection.md)). Evidence: a **Release WebGL player in
 Chrome** plays floor 1 to `Won / SurvivedAllWaves` — 1800 ticks, 0 dropped ticks, 0 views created
-after the pool's 1793-view warm-up, 0 dropped events; 413 xUnit, 47 Unity EditMode (15 new
+after the pool's 1793-view warm-up, 0 dropped events; 413 xUnit, 48 Unity EditMode (15 new
 presentation cases), 4 PlayMode (scene start, 10 s of ticks, teardown, re-entry) and 4 Playwright
 cases pass. See [`llmwiki/systems/battle-presentation.md`](llmwiki/systems/battle-presentation.md)
 and the [report](docs/stages/08-report.md) — which also records a build trap worth knowing: a

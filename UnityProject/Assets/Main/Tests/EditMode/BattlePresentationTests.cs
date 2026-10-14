@@ -12,8 +12,10 @@ using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Simulation.Battle;
 using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Infrastructure;
+using ProjectSurvive.Core.Shared;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
+using ProjectSurvive.Game.Presentation.Battle.Vfx;
 using R3;
 using UnityEditor;
 using UnityEngine;
@@ -361,6 +363,56 @@ namespace ProjectSurvive.Game.Tests.EditMode
             presenter.Dispose();
             speed.Dispose();
             state.Dispose();
+        }
+
+        // -------------------------------------------------------------------
+        // The VFX: a damage event becomes a number, and the pool never grows
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// Requirement 6: "floating damage number แบบ pool". A hit must produce a label, the
+        /// label must live its lifetime and no longer, and a wave's worth of hits must recycle
+        /// the pool rather than create anything (AGENTS rule 8: no allocation on the hot path).
+        /// </summary>
+        [Test]
+        public void A_damage_event_becomes_a_pooled_number_and_the_pool_never_grows()
+        {
+            var root = new GameObject("vfx-root");
+            _temporary.Add(root);
+
+            var pool = new FloatingDamagePool(root.transform, null, new RandomStreams(Seed).Visual, 50f);
+            _owned.Add(pool);
+
+            int capacity = pool.Capacity;
+            Assert.That(capacity, Is.EqualTo(BattleViewCaps.DamageNumbers));
+            Assert.That(pool.ActiveCount, Is.Zero, "a warmed pool shows nothing until something is hit");
+
+            pool.OnBattleEvent(Hit(BattleEventType.DamageDealt, 1f, 2f, 7));
+            pool.OnBattleEvent(Hit(BattleEventType.PlayerDamaged, 0f, 0f, 3));
+
+            Assert.That(pool.ActiveCount, Is.EqualTo(2), "each hit must put one number on screen");
+
+            // An event the pool does not draw (and a hit that dealt nothing) adds nothing.
+            pool.OnBattleEvent(Hit(BattleEventType.EnemyKilled, 1f, 1f, 0));
+            pool.OnBattleEvent(Hit(BattleEventType.WaveStarted, 0f, 0f, 5));
+
+            Assert.That(pool.ActiveCount, Is.EqualTo(2), "only damage is drawn");
+
+            // A wave's worth of hits: the pool recycles, it does not grow.
+            for (int i = 0; i < BattleViewCaps.DamageNumbers * 8; i++)
+            {
+                pool.OnBattleEvent(Hit(BattleEventType.DamageDealt, i * 0.25f, i * 0.1f, 1 + (i % 200)));
+            }
+
+            Assert.That(pool.Capacity, Is.EqualTo(capacity), "the number pool grew during a fight");
+            Assert.That(pool.ActiveCount, Is.LessThanOrEqualTo(capacity));
+
+            // A number that has lived its lifetime is gone, and ticking an empty pool is free.
+            pool.Tick(BattleViewCaps.DamageNumberLifetimeSeconds + 0.01f);
+            Assert.That(pool.ActiveCount, Is.Zero, "a number outlived its lifetime");
+
+            pool.Tick(1f);
+            Assert.That(pool.ActiveCount, Is.Zero);
         }
 
         [Test]
@@ -736,6 +788,16 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
             return null;
         }
+
+        /// <summary>One "something was hit" event, in the shape the session publishes.</summary>
+        private static BattleEvent Hit(BattleEventType type, float x, float y, int amount) =>
+            new BattleEvent(
+                seq: 0,
+                type: type,
+                entity: new EntityRef(1, 1),
+                value: amount,
+                x: x,
+                y: y);
 
         private static string RepositoryRoot() =>
             Path.GetFullPath(Path.Combine(Application.dataPath, "..", ".."));

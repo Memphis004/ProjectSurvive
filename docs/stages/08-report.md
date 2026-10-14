@@ -122,7 +122,7 @@ leaving it to a cast at the call site would make the guarantee a convention. The
 | `Presentation/Battle/Vfx/FloatingDamagePool.cs` | pooled damage numbers on the visual RNG |
 | `Presentation/Battle/BattleViewCaps.cs`, `BattleViewScope.cs` | structural bounds; owned disposables |
 | `Assets/Main/Scripts/Editor/BattleCameraProbe.cs` | the ADR 0018 measurement + menu item |
-| `Assets/Main/Tests/EditMode/BattlePresentationTests.cs` | 15 tests: the seam, the copy, the pools, the HUD, the bag |
+| `Assets/Main/Tests/EditMode/BattlePresentationTests.cs` | 15 tests: the seam, the copy, the pools, the bag, the HUD, and one hit → one pooled number |
 | `Assets/Main/Tests/PlayMode/BattlePlayModeTests.cs` | 4 tests: scene start, 10 s of ticks, teardown, re-entry |
 | `tests/web/battle.spec.ts` | the browser playthrough of floor 1 |
 | `lib/Runtime/.../IBattleSession.cs`, `Fake/FakeBattleSession.cs` | `IDisposable` on the contract |
@@ -145,7 +145,7 @@ localization count, 51 → 64).
 cd lib/Tests~ ; dotnet test ProjectSurvive.Core.sln -c Release --nologo
 
 # Unity Editor suites (MCP pipeline)
-run_tests --mode editor                 # 47 tests incl. the 15 presentation ones
+run_tests --mode editor                 # 48 tests incl. the 15 presentation ones
 run_tests --mode playmode --async_tests --filter Battle     # 4 battle scene tests
 
 # The ADR 0018 measurement (Editor menu)
@@ -162,7 +162,7 @@ cd tests/web ; npx playwright test          # battle.spec.ts + smoke.spec.ts
 | Gate | Result | Artifact |
 | --- | --- | --- |
 | `dotnet test` (lib/, Release) | **413 / 413 passed**, 497 ms | §3 command; console |
-| EditMode (Unity, all) | **47 / 47 passed**, 4.13 s — 15 of them `BattlePresentationTests` | MCP result payload; log below |
+| EditMode (Unity, all) | **48 / 48 passed**, 3.36 s — 15 of them `BattlePresentationTests` | MCP result payload; log below |
 | PlayMode (`filter Battle`) | **4 / 4 passed**, 7.92 s | `artifacts/stage08/playmode-editmode-testresults.xml` |
 | WebGL build (Release, CLI) | **Succeeded** — 64,071,218 bytes, **0 errors, 1 warning**, 154.7 s, 4 scenes incl. Battle | `artifacts/unity-build-web.log`, `artifacts/stage08/build-info-release.json`, `build-report-release.json` |
 | Browser suite (Release player, Chrome, 127.0.0.1:8080) | **4 / 4 passed** (2 battle + 2 smoke) | `artifacts/stage08/playwright-final-release.log` |
@@ -206,11 +206,11 @@ not of the Stage 08 code.
 - **The camera measurement on other browsers/GPUs.** ADR 0018's numbers come from the Editor probe at
   1280×720 on the recorded machine. The *relative* result (a parallel projection has no scale
   gradient) is geometry, not hardware, but no second browser was measured.
-- **A damage number appearing in the browser.** `damageNumbers` is published, and the mid-floor sample
-  read 0 — the labels live 0.75 s, so a 5-second sample says nothing either way, and the sampled
-  moment had no fresh damage event. The pool is exercised in the PlayMode floor run and its RNG
-  isolation is asserted (`A_rendered_floor_hashes_the_same_as_an_unrendered_one`), but **no test
-  asserts that a damage event becomes a visible label**; that assertion is the one I would add next.
+- **A damage number *appearing on screen* in the browser.** `damageNumbers` is published, and the
+  mid-floor sample read 0 — the labels live 0.75 s, so a 5-second sample says nothing either way.
+  What *is* asserted is that a damage event becomes a label at the right place with the right text
+  and colour, and that the label pool never grows (`A_damage_event_becomes_a_pooled_number_and_the_pool_never_grows`);
+  that the label is legible on screen is not asserted anywhere.
 - **Audio.** `BattleEventChannel.Audio` exists and reads at its own pace, with no listener: silent in
   Stage 08 by design.
 - **The dev session in a browser.** `_useDevBattle` is exercised in the Editor only; the shipped scene
@@ -258,6 +258,13 @@ published by `BattleSceneDirector`, matching how `TitleView` and `ThaiSpikeRepor
 themselves) — but the shape of the trap is that a browser test can only observe what a scene
 *volunteers*, so a new scene needs both.
 
+**A green test run is not proof the new test ran.** The first run of the damage-number test reported
+`14 passed` and `success: true` — Unity ran the *previously compiled* test assembly, because the new
+test had a compile error (`BattleEventType.EnemyDied` does not exist) and nothing in the payload said
+so. The count was the tell, not the verdict: check that a newly added test appears by name (or watch
+`compilationFailed` in the console) before believing a suite result. Worth knowing because the same
+run shape is what a CI gate would report.
+
 **Risks carried into Stage 09/10.** The Battle scene is a one-floor scene: `BattleViewScene.Begin` is
 called once per visit, and Stage 10's “reuse the scene for floor N+1” will call it again (the floor,
 the pool and the art are idempotent; the session is replaced). The HUD mirrors `startingBia +
@@ -281,7 +288,7 @@ of what the player walked in with.
 | 10 | ปุ่มความเร็ว 1x/2x; HUD timeline มี marker elite และบอส | **PASS** | `Speed_control_toggles_between_one_and_two_and_the_presenter_labels_it`; `Timeline_marks_the_elite_window_and_the_boss_window_from_the_tables`; `timelineMarkers: 1` in the browser |
 | 11 | event cursor ของตัวเอง; dropped > 0 ให้ log ใน dev build แต่ state ต้องไม่เพี้ยน | **PASS** | `BattleEventPump` (one cursor per channel, `DroppedTotal`); `droppedEvents: 0` in the browser; no listener can affect state (events are one-way) |
 | 12 | พัฒนา UI กับ Fake ได้ก่อนต่อ sim จริง (สลับผ่าน LifetimeScope) | **PASS** | `BattleSceneScope._useDevBattle` ↔ `DevBattleSessionBinding`; the shipped scene has it off, and nothing else in the scene changes |
-| 13 | floating damage number แบบ pool; RNG ภาพแยกจาก RNG เกม | **PASS (with a gap)** | `FloatingDamagePool` (48 pooled labels, `RandomStreams.Visual`, cached text); `A_rendered_floor_hashes_the_same_as_an_unrendered_one` proves rendering cannot move the battle — but a *label appearing on a damage event* is not asserted (§5) |
+| 13 | floating damage number แบบ pool; RNG ภาพแยกจาก RNG เกม | **PASS** | `A_damage_event_becomes_a_pooled_number_and_the_pool_never_grows` (a hit → one label, non-damage events ignored, 384 hits recycle the 48-label pool, a label dies at its lifetime) + `A_rendered_floor_hashes_the_same_as_an_unrendered_one` (rendering cannot move the battle); the labels' jitter comes from `RandomStreams.Visual` and `int.ToString()` is cached |
 | 14 | Compile through; no new unexplained warning | **PASS** | Release build `Succeeded`, 0 errors, 1 pre-existing warning (§4) |
-| 15 | Tests added/adjusted and actually run | **PASS** | 413 dotnet + 47 EditMode (15 new) + 4 PlayMode (4 new) + 4 browser (2 new), all green |
+| 15 | Tests added/adjusted and actually run | **PASS** | 413 dotnet + 48 EditMode (15 new) + 4 PlayMode (4 new) + 4 browser (2 new), all green |
 | 16 | Docs + test commands updated; report recorded | **PASS** | this file, ADR 0018, `llmwiki/systems/battle-presentation.md`, the gotcha note, `llmwiki/index.md`, `stage-log.md` |
