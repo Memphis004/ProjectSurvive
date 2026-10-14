@@ -1,3 +1,5 @@
+using System;
+
 namespace ProjectSurvive.Core.Domain.Combat.Battle
 {
     /// <summary>
@@ -17,8 +19,16 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
     /// sequence of <see cref="Step"/>/<see cref="Submit"/> calls produce the same
     /// <see cref="ComputeStateHash"/> within one runtime (AGENTS rule 6).
     /// </para>
+    /// <para>
+    /// <see cref="IDisposable"/> is part of the contract since Stage 08. A session owns
+    /// whatever it built to run (the EcsLite world and its pools, the event ring, the frame
+    /// slots), and the GDD's lifetime rule — "leaving Battle disposes the ECS world" — can
+    /// only be a property of the seam if the seam can be disposed. Leaving it to a cast at
+    /// the call site would make the guarantee a convention, and the one call site that
+    /// forgot would leak a world per floor.
+    /// </para>
     /// </remarks>
-    public interface IBattleSession
+    public interface IBattleSession : IDisposable
     {
         /// <summary>Current lifecycle phase.</summary>
         BattlePhase Phase { get; }

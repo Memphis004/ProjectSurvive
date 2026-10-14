@@ -1,7 +1,10 @@
 using System;
 using System.Globalization;
 using System.IO;
+using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Presentation;
+using ProjectSurvive.Game.Presentation.Battle;
+using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.Thai;
 using TMPro;
 using UnityEditor;
@@ -18,6 +21,11 @@ using UnityEngine.UIElements;
 using FontAsset = UnityEngine.TextCore.Text.FontAsset;
 using Font = UnityEngine.Font;
 using Object = UnityEngine.Object;
+
+// UnityEngine.UI and UnityEngine.UIElements both declare Image and Button. The shell's
+// runtime UI is uGUI, so those names mean the uGUI types everywhere in this file.
+using Image = UnityEngine.UI.Image;
+using Button = UnityEngine.UI.Button;
 
 namespace ProjectSurvive.Game.Editor
 {
@@ -57,6 +65,9 @@ namespace ProjectSurvive.Game.Editor
         public const string BootScenePath = ScenesFolder + "/Boot.unity";
         public const string TitleScenePath = ScenesFolder + "/Title.unity";
         public const string SpikeScenePath = ScenesFolder + "/ThaiTextSpike.unity";
+
+        /// <summary>The Stage 08 battle scene.</summary>
+        public const string BattleScenePath = ScenesFolder + "/Battle.unity";
 
         private const string SourceFontFile = FontsFolder + "/Sarabun-Regular.ttf";
 
@@ -102,6 +113,29 @@ namespace ProjectSurvive.Game.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("ProjectSurvive: Boot, Title and ThaiTextSpike scenes created and added to build settings.");
+        }
+
+        /// <summary>
+        /// Creates the Stage 08 battle scene and refreshes the build list.
+        /// </summary>
+        /// <remarks>
+        /// Its own menu item rather than a fourth call inside Stage 03's, so re-running the
+        /// Stage 03 setup on an older checkout cannot silently rewrite the battle scene, and
+        /// so the scene that a stage owns is the scene that stage's menu item builds. Run the
+        /// Stage 03 items first on a fresh clone: this one reuses the URP assets, the runtime
+        /// theme and the baked font they create.
+        /// </remarks>
+        [MenuItem("ProjectSurvive/Stage 08/3. Create Battle scene", priority = 102)]
+        public static void CreateBattleSceneAndConfigure()
+        {
+            EnsureFolder(ScenesFolder);
+
+            CreateBattleScene();
+            ConfigureBuildSettings();
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("ProjectSurvive: Battle scene created and added to build settings.");
         }
 
         // ------------------------------------------------------------------
@@ -569,6 +603,11 @@ namespace ProjectSurvive.Game.Editor
             SetBool(boot, "_continueToTitleScene", true);
             SetString(boot, "_titleSceneName", "Title");
 
+            // `?scene=Battle` is how a browser test reaches the battle without playing through
+            // the camp. It is an allow-list, not a router: only the scenes named here can be
+            // requested from a URL.
+            SetStringArray(boot, "_urlSceneOverrides", new[] { "ThaiTextSpike", "Battle" });
+
             EditorSceneManager.SaveScene(scene, BootScenePath);
         }
 
@@ -638,12 +677,274 @@ namespace ProjectSurvive.Game.Editor
 
         private static void ConfigureBuildSettings()
         {
-            EditorBuildSettings.scenes = new[]
+            var scenes = new System.Collections.Generic.List<EditorBuildSettingsScene>
             {
                 new EditorBuildSettingsScene(BootScenePath, true),
                 new EditorBuildSettingsScene(TitleScenePath, true),
                 new EditorBuildSettingsScene(SpikeScenePath, true),
             };
+
+            // The battle scene joins the list only once it exists, so a Stage 03-only checkout
+            // keeps a build list of scenes that are really there.
+            if (File.Exists(BattleScenePath))
+            {
+                scenes.Add(new EditorBuildSettingsScene(BattleScenePath, true));
+            }
+
+            EditorBuildSettings.scenes = scenes.ToArray();
+        }
+
+        // ------------------------------------------------------------------
+        // Stage 08: the Battle scene
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Builds the 2.5D battle scene: the scope that picks the battle, the tilted camera,
+        /// the pooled view root, the runner, and the HUD.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Everything here is created through the Editor API (AGENTS rule 11) — no
+        /// hand-written <c>.unity</c> YAML — so the scene is reproducible from the menu item and
+        /// reviewable as code. The serialized references the runtime needs (the view root, the
+        /// camera, the HUD and the font) are wired through <c>SerializedProperty</c> rather than
+        /// by guessing at file ids.
+        /// </para>
+        /// <para>
+        /// The camera is authored at the Stage 08 decision: see
+        /// <c>docs/adr/0018-battle-camera-projection.md</c>. The projection is stored on the
+        /// runner's settings as well, so a scene can flip it without editing this file, and the
+        /// rig re-applies it at runtime either way.
+        /// </para>
+        /// </remarks>
+        private static void CreateBattleScene()
+        {
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            (TMP_FontAsset font, _) = EnsureFontAssets();
+
+            var scopeObject = new GameObject("Battle");
+            BattleSceneScope scope = scopeObject.AddComponent<BattleSceneScope>();
+            BattleSceneDirector director = scopeObject.AddComponent<BattleSceneDirector>();
+
+            Camera camera = CreateBattleCamera();
+            CreateEventSystem();
+
+            var viewRoot = new GameObject("ViewRoot");
+
+            Canvas canvas = CreateCanvas(out GameObject canvasObject);
+            BattleHudView hud = BuildBattleHud(canvas, canvasObject, font, scope);
+
+            var runnerObject = new GameObject("BattleRunner");
+            BattleSimulationRunner runner = runnerObject.AddComponent<BattleSimulationRunner>();
+
+            SetObjectReference(runner, "_viewSettings.ViewRoot", viewRoot.transform);
+            SetObjectReference(runner, "_viewSettings.Camera", camera);
+            SetObjectReference(runner, "_viewSettings.Hud", hud);
+            SetObjectReference(runner, "_viewSettings.Font", font);
+            SetEnum(runner, "_viewSettings.Projection", (int)BattleProjection.Orthographic);
+
+            SetObjectReference(director, "_scope", scope);
+            SetObjectReference(director, "_runner", runner);
+
+            EditorSceneManager.SaveScene(scene, BattleScenePath);
+        }
+
+        /// <summary>
+        /// The battle camera: a 50° tilt that follows the player.
+        /// </summary>
+        /// <remarks>
+        /// The camera itself is built by <see cref="BattleCameraProbe.CreateAuthoredCamera"/>, which
+        /// poses it with <c>BattleCameraRig</c> — the same rig that re-poses it on the first frame
+        /// of a battle. One factory rather than two copies of the arithmetic means the scene an
+        /// artist opens is the scene the game runs, and the camera the ADR's experiment measured is
+        /// the camera the scene ships.
+        /// </remarks>
+        private static Camera CreateBattleCamera() => BattleCameraProbe.CreateAuthoredCamera();
+
+        /// <summary>
+        /// The battle HUD: health, focus, bia, the clock, the wave cursor, the spells the
+        /// loadout resolved to, the timeline bar with its elite and boss markers, and the
+        /// 1×/2× button.
+        /// </summary>
+        private static BattleHudView BuildBattleHud(
+            Canvas canvas, GameObject canvasObject, TMP_FontAsset font, BattleSceneScope scope)
+        {
+            var canvasRect = (RectTransform)canvas.transform;
+
+            RectTransform topLeft = CreateUiRect(
+                canvasRect, "StatusPanel", new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(32f, -32f), new Vector2(440f, 260f));
+
+
+            TMP_Text floorLabel = CreateUiText(topLeft, "FloorLabel", new Vector2(0f, -8f), new Vector2(420f, 44f), 30f, font);
+            TMP_Text hpCaption = CreateUiText(topLeft, "HpCaption", new Vector2(0f, -60f), new Vector2(200f, 32f), 22f, font);
+            TMP_Text hpValue = CreateUiText(topLeft, "HpValue", new Vector2(210f, -60f), new Vector2(200f, 32f), 22f, font);
+            RectTransform hpBar = CreateUiBar(topLeft, "HpBar", new Vector2(0f, -96f), new Vector2(420f, 18f), new Color(0.85f, 0.28f, 0.30f, 1f));
+            TMP_Text manaCaption = CreateUiText(topLeft, "ManaCaption", new Vector2(0f, -124f), new Vector2(200f, 32f), 22f, font);
+            TMP_Text manaValue = CreateUiText(topLeft, "ManaValue", new Vector2(210f, -124f), new Vector2(200f, 32f), 22f, font);
+            RectTransform manaBar = CreateUiBar(topLeft, "ManaBar", new Vector2(0f, -160f), new Vector2(420f, 18f), new Color(0.42f, 0.72f, 0.95f, 1f));
+            TMP_Text killsValue = CreateUiText(topLeft, "KillsValue", new Vector2(0f, -196f), new Vector2(420f, 32f), 22f, font);
+
+            RectTransform topRight = CreateUiRect(
+                canvasRect, "ResourcePanel", new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-32f, -32f), new Vector2(420f, 260f));
+
+            TMP_Text biaCaption = CreateUiText(topRight, "BiaCaption", new Vector2(0f, -8f), new Vector2(200f, 32f), 22f, font);
+            TMP_Text biaValue = CreateUiText(topRight, "BiaValue", new Vector2(0f, -40f), new Vector2(200f, 40f), 30f, font);
+            TMP_Text timeCaption = CreateUiText(topRight, "TimeCaption", new Vector2(210f, -8f), new Vector2(200f, 32f), 22f, font);
+            TMP_Text timeValue = CreateUiText(topRight, "TimeValue", new Vector2(210f, -40f), new Vector2(200f, 40f), 30f, font);
+            TMP_Text waveCaption = CreateUiText(topRight, "WaveCaption", new Vector2(0f, -92f), new Vector2(200f, 32f), 22f, font);
+            TMP_Text waveValue = CreateUiText(topRight, "WaveValue", new Vector2(210f, -92f), new Vector2(200f, 32f), 22f, font);
+
+            // The boss bar appears only on a boss floor; the presenter tells the view when.
+            RectTransform bossRoot = CreateUiRect(
+                topRight, "BossPanel", new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(0f, -140f), new Vector2(420f, 70f));
+            TMP_Text bossCaption = CreateUiText(bossRoot, "BossCaption", Vector2.zero, new Vector2(200f, 32f), 22f, font);
+            RectTransform bossBar = CreateUiBar(bossRoot, "BossBar", new Vector2(0f, -34f), new Vector2(420f, 16f), new Color(0.85f, 0.32f, 0.34f, 1f));
+
+            RectTransform speedObject = CreateUiRect(
+                canvasRect, "SpeedButton", new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-32f, -300f), new Vector2(160f, 64f));
+            Image speedBackground = speedObject.gameObject.AddComponent<Image>();
+            speedBackground.color = new Color(0.16f, 0.17f, 0.22f, 0.9f);
+            Button speedButton = speedObject.gameObject.AddComponent<Button>();
+            speedButton.targetGraphic = speedBackground;
+            TMP_Text speedLabel = CreateUiText(
+                speedObject, "SpeedLabel", Vector2.zero, new Vector2(160f, 64f), 28f, font,
+                TextAlignmentOptions.Center);
+
+            RectTransform bottom = CreateUiRect(
+                canvasRect, "TimelinePanel", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 32f), new Vector2(1400f, 170f));
+
+            TMP_Text timelineCaption = CreateUiText(bottom, "TimelineCaption", new Vector2(0f, -6f), new Vector2(700f, 30f), 20f, font);
+            RectTransform track = CreateUiRect(
+                bottom, "TimelineTrack", new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(0f, -44f), new Vector2(1380f, 26f));
+            Image trackImage = track.gameObject.AddComponent<Image>();
+            trackImage.color = new Color(0.12f, 0.13f, 0.17f, 0.85f);
+
+            // Markers stretch across the track and are positioned by their anchors, so the bar
+            // needs no per-frame layout maths: the view writes anchorMin/anchorMax and moves on.
+            RectTransform timelineMarkers = CreateUiRect(
+                track, "Markers", Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
+            timelineMarkers.anchorMin = Vector2.zero;
+            timelineMarkers.anchorMax = Vector2.one;
+            timelineMarkers.offsetMin = Vector2.zero;
+            timelineMarkers.offsetMax = Vector2.zero;
+
+            RectTransform playhead = CreateUiRect(
+                track, "Playhead", Vector2.zero, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6f, 0f));
+            playhead.anchorMin = new Vector2(0f, 0f);
+            playhead.anchorMax = new Vector2(0f, 1f);
+            playhead.offsetMin = Vector2.zero;
+            playhead.offsetMax = Vector2.zero;
+            Image playheadImage = playhead.gameObject.AddComponent<Image>();
+            playheadImage.color = new Color(0.95f, 0.95f, 0.98f, 0.9f);
+
+            TMP_Text spellsCaption = CreateUiText(bottom, "SpellsCaption", new Vector2(0f, -76f), new Vector2(1380f, 28f), 20f, font);
+            TMP_Text spellsValue = CreateUiText(bottom, "SpellsValue", new Vector2(0f, -106f), new Vector2(1380f, 28f), 22f, font);
+
+            TMP_Text statusLabel = CreateUiText(
+                canvasRect, "StatusLabel", new Vector2(-600f, 120f), new Vector2(1200f, 90f), 56f, font,
+                TextAlignmentOptions.Center);
+            statusLabel.gameObject.SetActive(false);
+
+            BattleTimelineView timeline = track.gameObject.AddComponent<BattleTimelineView>();
+            SetObjectReference(timeline, "_track", timelineMarkers);
+            SetObjectReference(timeline, "_playhead", playhead);
+
+            BattleHudView hud = canvasObject.AddComponent<BattleHudView>();
+            SetObjectReference(hud, "_scope", scope);
+            SetObjectReference(hud, "_floorLabel", floorLabel);
+            SetObjectReference(hud, "_hpCaption", hpCaption);
+            SetObjectReference(hud, "_hpValue", hpValue);
+            SetObjectReference(hud, "_manaCaption", manaCaption);
+            SetObjectReference(hud, "_manaValue", manaValue);
+            SetObjectReference(hud, "_biaCaption", biaCaption);
+            SetObjectReference(hud, "_biaValue", biaValue);
+            SetObjectReference(hud, "_timeCaption", timeCaption);
+            SetObjectReference(hud, "_timeValue", timeValue);
+            SetObjectReference(hud, "_waveCaption", waveCaption);
+            SetObjectReference(hud, "_waveValue", waveValue);
+            SetObjectReference(hud, "_killsValue", killsValue);
+            SetObjectReference(hud, "_spellsCaption", spellsCaption);
+            SetObjectReference(hud, "_spellsValue", spellsValue);
+            SetObjectReference(hud, "_timelineCaption", timelineCaption);
+            SetObjectReference(hud, "_bossCaption", bossCaption);
+            SetObjectReference(hud, "_statusLabel", statusLabel);
+            SetObjectReference(hud, "_speedLabel", speedLabel);
+            SetObjectReference(hud, "_hpBar", hpBar);
+            SetObjectReference(hud, "_manaBar", manaBar);
+            SetObjectReference(hud, "_bossBar", bossBar);
+            SetObjectReference(hud, "_bossRoot", bossRoot.gameObject);
+            SetObjectReference(hud, "_speedButton", speedButton);
+            SetObjectReference(hud, "_timeline", timeline);
+
+            return hud;
+        }
+
+        /// <summary>Creates an empty UI rectangle (a panel or a track) at an anchored position.</summary>
+        private static RectTransform CreateUiRect(
+            RectTransform parent, string name, Vector2 anchor, Vector2 pivot,
+            Vector2 anchoredPosition, Vector2 size)
+        {
+            var gameObject = new GameObject(name, typeof(RectTransform));
+            var rect = (RectTransform)gameObject.transform;
+            rect.SetParent(parent, worldPositionStays: false);
+            rect.anchorMin = anchor;
+            rect.anchorMax = anchor;
+            rect.pivot = pivot;
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = size;
+            return rect;
+        }
+
+        /// <summary>A label inside a panel, laid out from the panel's top-left corner.</summary>
+        private static TMP_Text CreateUiText(
+            RectTransform parent, string name, Vector2 anchoredPosition, Vector2 size, float fontSize,
+            TMP_FontAsset font, TextAlignmentOptions alignment = TextAlignmentOptions.TopLeft)
+        {
+            RectTransform rect = CreateUiRect(
+                parent, name, new Vector2(0f, 1f), new Vector2(0f, 1f), anchoredPosition, size);
+
+            TextMeshProUGUI label = rect.gameObject.AddComponent<TextMeshProUGUI>();
+            label.font = font;
+            label.fontSize = fontSize;
+            label.color = Color.white;
+            label.alignment = alignment;
+            label.text = string.Empty;
+            return label;
+        }
+
+        /// <summary>
+        /// Creates a track and its fill, and returns the fill.
+        /// </summary>
+        /// <remarks>
+        /// The fill is a rectangle anchored to the track's left edge, so the HUD sets a bar by
+        /// writing <c>anchorMax.x</c> and no sprite asset is needed anywhere in the UI.
+        /// </remarks>
+        private static RectTransform CreateUiBar(
+            RectTransform parent, string name, Vector2 anchoredPosition, Vector2 size, Color fillColour)
+        {
+            RectTransform track = CreateUiRect(
+                parent, name, new Vector2(0f, 1f), new Vector2(0f, 1f), anchoredPosition, size);
+            Image trackImage = track.gameObject.AddComponent<Image>();
+            trackImage.color = new Color(0f, 0f, 0f, 0.5f);
+
+            RectTransform fill = CreateUiRect(
+                track, "Fill", new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
+            fill.anchorMin = Vector2.zero;
+            fill.anchorMax = Vector2.one;
+            fill.pivot = new Vector2(0f, 0.5f);
+            fill.offsetMin = Vector2.zero;
+            fill.offsetMax = Vector2.zero;
+
+            Image fillImage = fill.gameObject.AddComponent<Image>();
+            fillImage.color = fillColour;
+            return fill;
         }
 
         // ------------------------------------------------------------------
@@ -744,6 +1045,27 @@ namespace ProjectSurvive.Game.Editor
         {
             SerializedProperty property = FindProperty(target, fieldName);
             property.intValue = value;
+            property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>Sets an enum field by its index. Enum indices are the authored order.</summary>
+        private static void SetEnum(Object target, string fieldName, int index)
+        {
+            SerializedProperty property = FindProperty(target, fieldName);
+            property.enumValueIndex = index;
+            property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>Replaces a string-array field, e.g. the Boot scene's scene allow-list.</summary>
+        private static void SetStringArray(Object target, string fieldName, string[] values)
+        {
+            SerializedProperty property = FindProperty(target, fieldName);
+            property.arraySize = values.Length;
+            for (int i = 0; i < values.Length; i++)
+            {
+                property.GetArrayElementAtIndex(i).stringValue = values[i];
+            }
+
             property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 

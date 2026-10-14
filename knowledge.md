@@ -22,7 +22,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **05** | **Inventory domain (bag rules, combos, loadout)** | **DONE** — see [`docs/stages/05-report.md`](docs/stages/05-report.md) |
 | **06** | **Shop, economy, run, scene flow** | **DONE** — see [`docs/stages/06-report.md`](docs/stages/06-report.md) |
 | **07** | **Battle core (headless) & bot sim** | **DONE** — see [`docs/stages/07-report.md`](docs/stages/07-report.md) |
-| 08 | Battle presentation 2.5D | not started |
+| **08** | **Battle presentation 2.5D** | **DONE** — see [`docs/stages/08-report.md`](docs/stages/08-report.md) |
 | 09 | Camp scene & bag UI | not started |
 | 10 | Full loop (vertical slice) | not started |
 | 11 | Thai ghost AI, Pob boss, balance | not started |
@@ -31,7 +31,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
-**Current state:** Stages 00–07. `lib/` is a real UPM package
+**Current state:** Stages 00–08. `lib/` is a real UPM package
 (`com.projectsurvive.core`) with six hand-written layer `.asmdef`s plus two
 generated ones, the vendored EcsLite, the deterministic `Shared`/`Infrastructure`
 primitives (`IRandomSource` / `Xoshiro128`, `RandomStreams`, `IClock` /
@@ -57,7 +57,8 @@ through `IBattleSessionFactory`.
 
 Stage 03 built the **Unity shell** (`UnityProject/`, Unity `6000.3.9f1` + URP,
 referencing `lib/` as a local package): a composition root, three scenes
-(Boot / Title / ThaiTextSpike) built through the Editor API, a 7-probe smoke suite,
+(Boot / Title / ThaiTextSpike — Stage 08 added the fourth, Battle) built through the Editor API,
+a 7-probe smoke suite,
 and a WebGL2 build that a Playwright suite asserts on through page globals. It
 settled the Thai text question in [ADR 0008](docs/adr/0008-thai-text-ui-stack.md)
 (uGUI + TextMeshPro, **Static** baked font assets, 182 characters verified in the
@@ -139,6 +140,24 @@ kill's `enemy.drop_value`, `constant.magnet_speed` — so none was invented in c
 the applying skill's own damage, a pickup collects instantly and pays `0` (which is why a run earns no
 bia in battle and no build can grow after the first camp), and each gap names the column Stage 11 adds
 ([ADR 0017](docs/adr/0017-ecslite-battle-simulation.md)).
+
+Stage 08 put that battle **on screen and in a browser**. `Assets/Main/Scenes/Battle.unity` is
+authored through the Editor API like the other scenes; `Presentation/Battle/**` reads the battle
+through `IBattleFrame` / `IBattleEventSource` and is **forbidden to name the simulation assembly**
+(an EditMode test, not a convention). A fixed-step accumulator (`FixedTicker`, 30 Hz, capped
+`MaxStepsPerFrame`) steps the session and copies the frame before anything can step again; the
+view then interpolates `PreviousEntities → Entities` with the accumulator's leftover alpha, binds
+pooled `SpriteRenderer` views through `BattleRenderBridge`, and maps `(x, y) → (x, 0, y)` with an
+authored sprite sorting order in `BattleWorldMap`. The camera question the GDD left open is closed
+by measurement — **orthographic** at 50°, near÷far scale 1.000 against perspective's 0.832
+([ADR 0018](docs/adr/0018-battle-camera-projection.md)). Evidence: a **Release WebGL player in
+Chrome** plays floor 1 to `Won / SurvivedAllWaves` — 1800 ticks, 0 dropped ticks, 0 views created
+after the pool's 1793-view warm-up, 0 dropped events; 413 xUnit, 47 Unity EditMode (15 new
+presentation cases), 4 PlayMode (scene start, 10 s of ticks, teardown, re-entry) and 4 Playwright
+cases pass. See [`llmwiki/systems/battle-presentation.md`](llmwiki/systems/battle-presentation.md)
+and the [report](docs/stages/08-report.md) — which also records a build trap worth knowing: a
+size-profile build persists player settings, and the Release player it poisoned halted at boot with
+`Uncaught undefined` ([gotcha](llmwiki/gotchas/webgl-size-profile-settings-residue.md)).
 
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →

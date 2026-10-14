@@ -27,7 +27,7 @@ architecture docs.
 | Shop / economy (wallet, `shop_pool`, stock per camp, re-roll ladder) | [`systems/run-shop.md`](systems/run-shop.md) | 06 | done |
 | Run & scene flow (phase machine, commands, settlement, `ReplayLog`) | [`systems/run-shop.md`](systems/run-shop.md) | 06 | done |
 | Battle simulation (EcsLite) | [`systems/battle-simulation.md`](systems/battle-simulation.md) | 07 | done |
-| 2.5D presentation | *(pending)* | 08 | not started |
+| 2.5D battle presentation (scene, clocks, pools, HUD, camera) | [`systems/battle-presentation.md`](systems/battle-presentation.md) | 08 | done |
 | Core foundation (RNG / clock / ticker / Result) | [ADR 0004](../docs/adr/0004-dotnet-layer-enforcement.md) + [`../docs/architecture/overview.md`](../docs/architecture/overview.md) | 01 | done |
 | Save / resume | *(pending)* | 12 | not started |
 
@@ -67,6 +67,11 @@ lands.
 | Elemental status re-uses the applying skill's damage | [ADR 0017](../docs/adr/0017-ecslite-battle-simulation.md) | It is an interim rule, not balance: the `status` table Stage 11 adds is what replaces it |
 | The shared contract suite assumes an idle player can survive | [ADR 0017](../docs/adr/0017-ecslite-battle-simulation.md) | `RunToEnd` never moves, so the EcsLite derived class supplies HP + a churning load through the benchmark knobs; do not "fix" a failing contract case by relaxing it |
 | There is only one `IBattleFrame` implementation | [ADR 0012](../docs/adr/0012-prev-cur-frame-double-buffer.md) | The fake and the EcsLite session must share `BattleFrameBuffer`, or the presentation validated against the fake stops predicting the real battle |
+| A size-profile build leaves its player settings behind | [`gotchas/webgl-size-profile-settings-residue.md`](gotchas/webgl-size-profile-settings-residue.md) | `WebSizeProfiles.ApplyAndPersist` persists `exceptionSupport: None` + stripping High; the next Release build inherits them and halts at boot with `Uncaught undefined` (no message — that is what exceptions-off looks like) |
+| A scene must publish its own name | [`systems/unity-shell.md`](systems/unity-shell.md) | `__projectSurviveScene` is the only way a browser test observes a handover; a scene that forgets looks like a boot failure |
+| A destroyed Unity object is not a `null` reference | [`systems/battle-presentation.md`](systems/battle-presentation.md#11-facts-that-cost-time-to-learn) | Scene unload destroys the pooled renderers before `OnDestroy` releases them, so `view != null` passes and the next line throws; compare through the `UnityEngine.Object` operator |
+| The view must copy the frame before the next `Step` | [ADR 0012](../docs/adr/0012-prev-cur-frame-double-buffer.md), [`systems/battle-presentation.md`](systems/battle-presentation.md#3-the-frame-copy-is-not-optional) | `BattleFrameSnapshot` is that copy, and it is taken inside the frame that stepped — rendering a live span is rendering a slot being overwritten |
+| Pool size is per kind, the frame cap is per frame | [`systems/battle-presentation.md`](systems/battle-presentation.md#5-pooling-nothing-is-created-after-warm-up-and-that-is-measured) | 1793 pooled views against `MaxRenderEntities` 1024: the pool must be the larger or a legal frame asks for a view that does not exist |
 | `.unity` YAML is not hand-editable | *(pending)* | Scenes/prefabs are created via the Editor API only |
 
 Notes live in [`gotchas/`](gotchas/).

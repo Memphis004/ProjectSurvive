@@ -29,8 +29,14 @@ namespace ProjectSurvive.Game.Presentation
     /// loading is a run-level concern (Stage 06); inventing one now would be a
     /// lifetime decision made without the run flow it has to serve.
     /// </para>
+    /// <para>
+    /// Not sealed since Stage 08: <c>BattleSceneScope</c> derives from it, so the Battle
+    /// scene inherits everything the shell binds (config, clock, localization, UI state)
+    /// and adds only what a battle needs. A scene that starts from nothing but this class
+    /// would otherwise keep a parent/child pair of scopes in step by hand.
+    /// </para>
     /// </remarks>
-    public sealed class RootLifetimeScope : LifetimeScope
+    public class RootLifetimeScope : LifetimeScope
     {
         /// <summary>
         /// Table bytes come from <c>Resources/Config</c>. Kept behind the

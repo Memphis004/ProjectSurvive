@@ -37,8 +37,12 @@ Two details that cost real debugging time:
   `passed:false` and the parse error. A browser test then fails on a value instead
   of timing out on a missing global.
 - `SceneBoot` accepts `?scene=<name>` for an allow-listed scene
-  (`SceneBoot._urlSceneOverrides`). It is the only way a page can reach the Thai
-  spike, whose numbers are only meaningful in a real player.
+  (`SceneBoot._urlSceneOverrides` — `ThaiTextSpike` and, since Stage 08, `Battle`).
+  It is the only way a page can reach the Thai spike or the arena directly.
+- A scene that is on screen says so: `TitleView`, `ThaiSpikeReporter` and
+  `BattleSceneDirector` each publish `__projectSurviveScene` for their own scene, so
+  a handover is observable from a browser test. A scene that forgets to will look
+  like a boot failure to Playwright, not like a missing assertion.
 
 ## Environment facts that shape the tooling
 

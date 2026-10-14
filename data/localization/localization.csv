@@ -50,3 +50,16 @@
 ,floor.forest_3.name,ป่าช้าวัดร้าง ชั้น 3,Graveyard Forest F3
 ,floor.forest_4.name,ป่าช้าวัดร้าง ชั้น 4,Graveyard Forest F4
 ,floor.forest_5.name,ป่าช้าวัดร้าง ชั้น 5,Pob's Hollow
+,hud.hp,ชีวิต,HP
+,hud.mp,พลังอาคม,MP
+,hud.bia,เบี้ย,Bia
+,hud.time,เวลา,Time
+,hud.wave,ระลอก,Wave
+,hud.boss,บอส,Boss
+,hud.elite,ตัวพิเศษ,Elite
+,hud.speed,ความเร็ว,Speed
+,hud.spells,คาถาที่ติดตั้ง,Equipped spells
+,hud.timeline,ไทม์ไลน์ชั้น,Floor timeline
+,hud.end.win,ชนะชั้นนี้,Floor cleared
+,hud.end.lose,แพ้แล้ว,Defeated
+,hud.end.aborted,ออกจากชั้น,Left the floor

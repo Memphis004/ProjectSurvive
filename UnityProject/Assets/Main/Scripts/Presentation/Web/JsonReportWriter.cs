@@ -73,6 +73,19 @@ namespace ProjectSurvive.Game.Presentation.Web
             return this;
         }
 
+        /// <summary>
+        /// Starts an object-valued property, e.g. <c>"orthographic"</c>. Its members are written
+        /// with the same calls as the enclosing object's; <see cref="EndObject"/> closes it.
+        /// </summary>
+        public JsonReportWriter BeginObjectProperty(string name)
+        {
+            WriteName(name);
+            _sb.Append('{');
+            _enclosingHasItems.Push(_hasItems);
+            _hasItems = false;
+            return this;
+        }
+
         /// <summary>Ends the array opened by <see cref="BeginArrayProperty"/>.</summary>
         public JsonReportWriter EndArray()
         {

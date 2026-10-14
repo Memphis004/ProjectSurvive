@@ -225,6 +225,17 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
         }
 
         /// <inheritdoc />
+        /// <summary>
+        /// Releases the session. The fake owns no unmanaged state — the contract's ring and
+        /// frame buffer are plain managed objects — so this exists because
+        /// <see cref="IBattleSession"/> requires it and because a caller must be able to treat
+        /// the fake and the EcsLite session identically (which is the point of the fake).
+        /// </summary>
+        public void Dispose()
+        {
+            // Nothing to release: the fake allocates on the GC heap only.
+        }
+
         public uint ComputeStateHash()
         {
             uint hash = 2166136261u;

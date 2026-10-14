@@ -234,7 +234,17 @@ Details: [`llmwiki/systems/battle-contract.md`](../../llmwiki/systems/battle-con
 
 - Unity 6.3 + URP; 2.5D (2D sprites on a low-poly 3D set).
 - **Scenes and prefabs are created through the Unity Editor API** (or a verified
-  template), never by hand-writing `.unity` YAML.
+  template), never by hand-writing `.unity` YAML. Four scenes ship: Boot, Title,
+  ThaiTextSpike and — since Stage 08 — Battle. `SceneBoot` reaches an allow-listed
+  scene from the page URL (`?scene=<name>`), which is how a browser test enters the
+  battle without playing through the camp.
+- A scene that is on screen publishes its own name as `__projectSurviveScene`; a
+  WebGL player cannot run Unity's test framework, so a browser test can only see what
+  a scene volunteers.
+- The battle's 2.5D rules (orthographic at a 50° tilt, authored sprite sorting order,
+  one pooled view per published entity, the frame copied before the next tick) are in
+  [ADR 0018](../adr/0018-battle-camera-projection.md) and
+  [`llmwiki/systems/battle-presentation.md`](../../llmwiki/systems/battle-presentation.md).
 - UI language decision (uGUI + TMP vs UI Toolkit) is deferred to the Stage 03
   Thai text spike.
 - UI framework is a thin, project-owned MVP until a concrete `UI.MVP Lite`
@@ -267,7 +277,7 @@ Deferred to later stages:
 | Unity shell, first Web build, Thai text spike | 03 |
 | CombatLoadoutSnapshot produced by the resolver / combo evaluation | 05–06 |
 | Battle ECS world implementing `IBattleSession` + spatial hash | 07 |
-| 2.5D presentation | 08 |
+| 2.5D presentation | 08 — **landed**, see [`../stages/08-report.md`](../stages/08-report.md) |
 | Camp scene + bag UI | 09 |
 | Save / resume / settings | 12 |
 | Playwright harness + CI | 14 |

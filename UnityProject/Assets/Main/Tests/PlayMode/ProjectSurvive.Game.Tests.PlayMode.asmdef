@@ -4,6 +4,9 @@
     "references": [
         "ProjectSurvive.Game.Infrastructure",
         "ProjectSurvive.Game.Presentation",
+        "ProjectSurvive.Game.Battle",
+        "ProjectSurvive.Core.Simulation",
+        "Leopotam.EcsLite",
         "ProjectSurvive.Core.Shared",
         "ProjectSurvive.Core.Domain",
         "ProjectSurvive.Core.Application",

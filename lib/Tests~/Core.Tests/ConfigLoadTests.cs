@@ -33,7 +33,10 @@ namespace ProjectSurvive.Core.Tests
             Assert.Equal(5, config.Floors.Count);
             Assert.Equal(9, config.Waves.Count);
             Assert.Equal(14, config.ShopPool.Count);
-            Assert.Equal(51, config.Localization.Count);
+
+            // 51 Stage 04 rows + the 13 Stage 08 HUD labels (hud.*). The count is
+            // pinned so a table that silently loses rows fails here.
+            Assert.Equal(64, config.Localization.Count);
         }
 
         [Fact]

@@ -14,5 +14,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Main/Scenes/ThaiTextSpike.unity
     guid: 17b7e5394dfb55143b45e6e7b694c4d3
+  - enabled: 1
+    path: Assets/Main/Scenes/Battle.unity
+    guid: 075a93e159d8611428da5fb7944e0945
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

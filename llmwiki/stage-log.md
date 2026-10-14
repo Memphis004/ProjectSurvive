@@ -22,8 +22,24 @@ order" view.
 
 | 07 | 2026-10-15 | **Battle core (EcsLite, headless) + bot sim**: `lib/Runtime/Simulation/Battle` — `EcsBattleSimulation` + `EcsBattleSessionFactory` implementing the Stage 02b contract, `BattleContext` (pre-resolved wave timeline, per-tick queues, counters), `BattleArena` (structural bounds), 14 components, 14 systems in the GDD's order (`WaveSpawn → LoadTest → PlayerMove → EnemySteer → AutoCast → ProjectileMove → SpatialHash → Collision → DamageStatus → Death → Drop → Pickup → FloorEnd → FramePublish`), a uniform-grid spatial hash, `BattleDefIds`; the frame and the event ring are the **shared** `BattleFrameBuffer`/`BattleEventRing` (single-`IBattleFrame`-implementation test); `lib/Tests~/Sim` grew a kiting bot + greedy camp policy (`tools/sim.ps1 --seeds 200 → artifacts/balance.csv`) and an acceptance-load benchmark; [ADR 0017](../docs/adr/0017-ecslite-battle-simulation.md) records the tick/backlog/pause policy, the def-id mapping, the auto-cast rule, and the three numbers `data/` does not have yet (status magnitude, `enemy.drop_value`, magnet speed) | [`07-report`](../docs/stages/07-report.md) |
 
+| 08 | 2026-10-15 | **Battle presentation 2.5D, played in a browser**: `Assets/Main/Scenes/Battle.unity` (authored by `ProjectSetup`, build index 3) + `Presentation/Battle/**` (25 files) — `BattleSimulationRunner` (fixed-step accumulator at 30 Hz, capped `MaxStepsPerFrame`, dropped-tick counter, interpolation alpha, `OnApplicationPause` reset) over `BattleFrameSnapshot` (the Prev/Cur copy taken inside the frame that stepped) and `BattleViewScene` (`BattlePlaceholderArt` generated sprites, `EntityViewPool` 1793 views warmed with an `CreatedAfterWarmup` counter, `BattleRenderBridge`, `BattleWorldMap` `(x,y)→(x,0,y)` + authored sorting order, `BattleCameraRig` 50°, `FloatingDamagePool` 48 labels on the visual RNG, HUD state/presenter/view/timeline, `BattleEventPump` with one cursor per channel) ; `Battle/BattleSceneScope` (composition root, `_useDevBattle` fake↔EcsLite switch), `BattleSceneDirector`, `BattleRunSource` (the run's real `CombatLoadoutSnapshot`); `BattleInputAdapter` + `BattleSpeed` 1×/2×; `IBattleSession : IDisposable`; 13 `hud.*` localization rows; [ADR 0018](../docs/adr/0018-battle-camera-projection.md) (**orthographic**, near÷far sprite scale 1.000 vs perspective 0.832, from `artifacts/stage08/camera-projection.json`); `Presentation` still may not name `Core.Simulation` (EditMode test). Evidence: a **Release WebGL player in Chrome plays floor 1 to `Won / SurvivedAllWaves`** — 1800 ticks, 0 dropped ticks, `viewsGrownDuringPlay: 0` of 1793, 0 dropped events, kills 20; 413 xUnit + 47 EditMode (15 new) + 4 PlayMode + 4 Playwright (2 new) green | [`08-report`](../docs/stages/08-report.md) |
+
 ## Notes carried forward
 
+- **A size-profile build poisons the next one** (2026-10-15). `WebSizeProfiles.ApplyAndPersist`
+  *persists* `exceptionSupport: None` + stripping High, and a later `tools/build-web.ps1
+  -Configuration Release` inherits them: the player halts in the boot scene with `Uncaught
+  undefined` (no message — that is what exception support off looks like) while the build reports
+  `0 errors`. Stage 03's browser gate was a Development build and Stage 03b only measured bytes,
+  so a Release player had never been opened in a browser before Stage 08 — where it cost an hour.
+  Read `build-report.json → sizeSettings` before trusting a build's configuration:
+  [`gotchas/webgl-size-profile-settings-residue.md`](gotchas/webgl-size-profile-settings-residue.md).
+- **A scene must publish its own name** (`__projectSurviveScene`), or a browser test sees a boot
+  failure instead of a missing assertion. `SceneBoot`'s `?scene=` allow-list and the scene marker
+  are two halves of the same feature; Stage 08 needed both for `Battle`.
+- **Re-running `ProjectSetup`'s scene-authoring step re-creates the scenes**, so `EditorSceneManager`
+  assigns fresh fileIDs and `Title.unity`/`ThaiTextSpike.unity` show a ~520-line diff that means
+  nothing. Commit it with that said, or change the step to patch instead of recreate.
 - **Stage 02b was amended after Stage 04** (2026-10-14) to give `IBattleFrame` a
   Prev/Cur pair (`Entities` + `PreviousEntities`) and to make `BattleFrameBuffer` a
   real double buffer — [ADR 0012](../docs/adr/0012-prev-cur-frame-double-buffer.md).
