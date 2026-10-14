@@ -396,6 +396,106 @@ namespace ProjectSurvive.Core.Domain.Inventory
             return Result.Ok(new RecycleOutcome(piece, instance.DefId, payout));
         }
 
+        /// <summary>How many copies of <paramref name="itemId"/> the run holds, board and chest.</summary>
+        public int CountOf(string itemId)
+        {
+            if (string.IsNullOrEmpty(itemId))
+            {
+                return 0;
+            }
+
+            int count = 0;
+            IReadOnlyList<ItemInstance> items = _backpack.Items;
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (string.Equals(items[i].ItemId, itemId, StringComparison.Ordinal))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        /// <summary>True when <see cref="Consume"/> would remove <paramref name="count"/> copies.</summary>
+        public bool CanConsume(string itemId, int count) => count <= 0 || CountOf(itemId) >= count;
+
+        /// <summary>
+        /// Removes <paramref name="count"/> copies of an item because they were used
+        /// during a floor (an offering the battle spent).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This is <b>not</b> a player edit: it is not pushed to undo (undo must not
+        /// resurrect a used offering), and the bag lock — which exists to stop a stray
+        /// drag during a battle — does not stop the battle reporting what it used.
+        /// </para>
+        /// <para>
+        /// Which copy disappears is fixed: chest slots first (lowest slot), then board
+        /// pieces in canonical position order, so two runs with the same history lose
+        /// the same instances. Nothing is removed when the run does not hold that many.
+        /// </para>
+        /// </remarks>
+        public Result<int> Consume(string itemId, int count)
+        {
+            if (count < 0)
+            {
+                return Result.Fail<int>(InventoryError.NotEnoughPieces, ErrorKind.Validation);
+            }
+
+            if (count == 0)
+            {
+                return Result.Ok(0);
+            }
+
+            if (string.IsNullOrEmpty(itemId))
+            {
+                return Result.Fail<int>(InventoryError.UnknownPiece, ErrorKind.NotFound);
+            }
+
+            var chosen = new List<ItemInstance>(count);
+
+            for (int slot = 0; slot < _backpack.Chest.SlotCount && chosen.Count < count; slot++)
+            {
+                PieceRef reference = _backpack.Chest[slot];
+                if (!reference.IsItem)
+                {
+                    continue;
+                }
+
+                if (_backpack.TryGetItem(reference.InstanceId, out ItemInstance? item)
+                    && item is not null
+                    && string.Equals(item.ItemId, itemId, StringComparison.Ordinal))
+                {
+                    chosen.Add(item);
+                }
+            }
+
+            if (chosen.Count < count)
+            {
+                List<ItemInstance> board = _backpack.OrderedBoardItems();
+                for (int i = 0; i < board.Count && chosen.Count < count; i++)
+                {
+                    if (string.Equals(board[i].ItemId, itemId, StringComparison.Ordinal))
+                    {
+                        chosen.Add(board[i]);
+                    }
+                }
+            }
+
+            if (chosen.Count < count)
+            {
+                return Result.Fail<int>(InventoryError.NotEnoughPieces, ErrorKind.Insufficient);
+            }
+
+            for (int i = 0; i < chosen.Count; i++)
+            {
+                _backpack.RemovePiece(chosen[i]);
+            }
+
+            return Result.Ok(chosen.Count);
+        }
+
         private void PushUndo()
         {
             _undo.Add(EncodeCurrent());

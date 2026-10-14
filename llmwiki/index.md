@@ -23,8 +23,8 @@ architecture docs.
 | WebGL payload size (profiles, measurement, per-assembly attribution) | [`../docs/build/size-baseline.md`](../docs/build/size-baseline.md) | 03b | done |
 | Bag / Board placement, editing commands, undo/lock | [`systems/backpack.md`](systems/backpack.md) | 05 | done |
 | Combo (synergy) evaluation + bag → battle loadout | [`systems/backpack.md#6-combos--synergyevaluator`](systems/backpack.md#6-combos--synergyevaluator) | 05 | done |
-| Shop / economy | *(pending)* | 06 | not started |
-| Run & scene flow | *(pending)* | 06 | not started |
+| Shop / economy (wallet, `shop_pool`, stock per camp, re-roll ladder) | [`systems/run-shop.md`](systems/run-shop.md) | 06 | done |
+| Run & scene flow (phase machine, commands, settlement, `ReplayLog`) | [`systems/run-shop.md`](systems/run-shop.md) | 06 | done |
 | Battle simulation (EcsLite) | *(pending)* | 07 | not started |
 | 2.5D presentation | *(pending)* | 08 | not started |
 | Core foundation (RNG / clock / ticker / Result) | [ADR 0004](../docs/adr/0004-dotnet-layer-enforcement.md) + [`../docs/architecture/overview.md`](../docs/architecture/overview.md) | 01 | done |
@@ -39,7 +39,7 @@ lands.
 | --- | --- | --- |
 | WebGL2 is single-threaded | *(pending)* | Allocation in hot paths causes GC hitches; pooling is mandatory |
 | MessagePack dynamic resolver | *(pending)* | Not IL2CPP-compatible; source generator only |
-| Unity Editor FPS ≠ Web FPS | [`../docs/adr/0003-...`](../adr/0003-performance-baseline-machine-and-browser.md) | Only a real browser build counts |
+| Unity Editor FPS ≠ Web FPS | [ADR 0003](../docs/adr/0003-performance-baseline-machine-and-browser.md) | Only a real browser build counts |
 | IL2CPP strips constructors reflection-only code needs | [`gotchas/il2cpp-di-and-reflection.md`](gotchas/il2cpp-di-and-reflection.md) | A VContainer registration that works in the Editor can fail in the player; register with factories |
 | Dynamic TMP font assets lose their tables at build time | [`gotchas/tmp-font-assets-in-builds.md`](gotchas/tmp-font-assets-in-builds.md) | The first Web build shipped a font asset with an empty character table; bake, then freeze to Static |
 | A GUI Build click rewrites player settings | [ADR 0011](../docs/adr/0011-webgl-payload-budget-and-size-measurement.md) | It applies platform profile defaults (`webGLNameFilesAsHashes`, compression, linear lighting) and regenerates the shared IL2CPP tree; only CLI `-SizeProfile` builds are evidence |
@@ -53,6 +53,9 @@ lands.
 | Tiers do not change weight or price | [ADR 0013](../docs/adr/0013-weight-speed-penalty-curve.md), [ADR 0014](../docs/adr/0014-backpack-editing-undo-and-placement-ownership.md) | `item`/`bag` carry one `weight` and one `price`; merging to tier 3 is stronger, not heavier or more valuable — a data-model gap, not a rule |
 | A bag move can be refused because of the *other* bag | [ADR 0014](../docs/adr/0014-backpack-editing-undo-and-placement-ownership.md) | Two bags can both cover one item; the command is refused whole rather than auto-relocating the item, so the Stage 09 UI has to name the item |
 | `SameRow` and `SameColumn` are different rules, not one “same line” rule | [ADR 0015](../docs/adr/0015-same-line-synergy-kinds.md) | The GDD's table says *row*; widening the shipped kind would silently strengthen a balance rule |
+| A rented shop slot is **emptied**, not merely flagged | [ADR 0016](../docs/adr/0016-run-settlement-and-shop-commit-boundaries.md) | The panel cannot show "what was rented here"; only `PurchaseOutcome` carries it, because a rented slot must not look rentable |
+| The settlement id is a report, never the once-per-floor guard | [ADR 0016](../docs/adr/0016-run-settlement-and-shop-commit-boundaries.md) | The guard is the phase plus the pending setup; a second `ApplyBattleResult` is `run.not_in_battle` |
+| A `BattleResult` whose consumable list length differs from the loadout refuses the whole settlement | [ADR 0016](../docs/adr/0016-run-settlement-and-shop-commit-boundaries.md) | `RemainingConsumables` is aligned with the loadout; clamping it would pay currency for a floor the run cannot reconcile |
 | `validate-data.ps1` defaults to `data/`, which has no `.bytes` | [ADR 0001](../docs/adr/0001-repository-and-artifact-conventions.md) | Generated tables are published to `lib/Tests~/data`; call it with `-DataDir "lib/Tests~/data"` or it reports `table_missing` |
 | Determinism scope | [`gotchas/determinism-scope.md`](gotchas/determinism-scope.md) | Guaranteed within one runtime only, not across browsers/CPUs |
 | EcsLite pool refs, liveness, DEBUG checks | [`gotchas/ecslite-pool-refs.md`](gotchas/ecslite-pool-refs.md) | A stale `ref`, or a Release build with sanitize checks compiled out |

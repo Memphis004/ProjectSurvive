@@ -653,6 +653,102 @@ namespace ProjectSurvive.Core.Tests
                 new[] { "ProjectSurvive.Core.Domain.Combat.Battle.BattleFrameBuffer" }, implementations);
         }
 
+        // -------------------------------------------------------------------
+        // Run, shop and scene flow (Stage 06)
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// AGENTS rule 3 as applied to the battle seam: the run and the scene flow reach
+        /// a battle through <c>IBattleSessionFactory</c> and never name an implementation.
+        /// </summary>
+        /// <remarks>
+        /// The fake is a test/dev session, so the only code that may mention it is the
+        /// <c>Application/Battle/Fake</c> folder that defines it (and the composition root
+        /// that binds the port). This is the mechanical half of the acceptance line
+        /// "เข้าถึง Battle ผ่าน IBattleSessionFactory เท่านั้น": Stage 07 swaps in the EcsLite
+        /// session by changing a binding, and this test is what keeps a call site from
+        /// hard-wiring a session instead.
+        /// </remarks>
+        [Fact]
+        public void Battle_sessions_are_reached_only_through_their_factory_port()
+        {
+            const string fakeNamespace = "Application/Battle/Fake/";
+            var offenders = new List<string>();
+
+            foreach (string file in LibSourceFiles("Runtime"))
+            {
+                string relative = RelativePath(file);
+                if (relative.Contains(fakeNamespace, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (StripComments(File.ReadAllText(file)).Contains("FakeBattleSession", StringComparison.Ordinal))
+                {
+                    offenders.Add(relative + " names a battle session implementation");
+                }
+            }
+
+            foreach (string file in UnitySourceFiles("Scripts"))
+            {
+                if (StripComments(File.ReadAllText(file)).Contains("FakeBattleSession", StringComparison.Ordinal))
+                {
+                    offenders.Add(RelativePath(file) + " names a battle session implementation");
+                }
+            }
+
+            Assert.Empty(offenders);
+        }
+
+        /// <summary>
+        /// Stage 06 acceptance "ไม่มี economy logic ใน Presenter" (AGENTS rule 10): a
+        /// Presenter renders a number it was given, and the run (Application) is what
+        /// decides one.
+        /// </summary>
+        /// <remarks>
+        /// The forbidden tokens are the <i>decisions</i>, not the state: reading
+        /// <c>RunSession</c>, <c>ShopStock</c> or <c>Wallet.Bia</c> to fill a label stays
+        /// allowed, while rolling the stock, resolving a price, moving bia, recomputing a
+        /// combo or a loadout, or re-deriving the heal and the payout percentage all mean
+        /// the View owns a rule it does not own. Comments are stripped, so a doc comment
+        /// may explain the rule it is forbidden to implement.
+        /// </remarks>
+        [Fact]
+        public void Presentation_sources_do_not_decide_economy_numbers()
+        {
+            string[] forbidden =
+            {
+                "ShopRoller",
+                "SynergyEvaluator",
+                "LoadoutResolver",
+                "TrySpend(",
+                "RefreshCost(",
+                "SellBackPercent",
+                "HealPercentOnClear",
+            };
+
+            var offenders = new List<string>();
+
+            foreach (string file in UnitySourceFiles("Scripts"))
+            {
+                if (!RelativePath(file).Contains("/Presentation/", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                string code = StripComments(File.ReadAllText(file));
+                foreach (string token in forbidden)
+                {
+                    if (code.Contains(token, StringComparison.Ordinal))
+                    {
+                        offenders.Add(RelativePath(file) + " decides an economy number with " + token);
+                    }
+                }
+            }
+
+            Assert.Empty(offenders);
+        }
+
         private static void CollectForbiddenReferences(
             Type? type, string owner, string[] forbiddenNamespaces, List<string> offenders)
         {
@@ -711,6 +807,29 @@ namespace ProjectSurvive.Core.Tests
                         continue;
                     }
 
+                    yield return file;
+                }
+            }
+        }
+
+        /// <summary>
+        /// The hand-written Unity sources under <c>UnityProject/Assets/Main</c>. The
+        /// engine-facing half of the project is not compiled by this harness, so a rule
+        /// about it can only be checked at the source level.
+        /// </summary>
+        private static IEnumerable<string> UnitySourceFiles(params string[] relativeDirectories)
+        {
+            foreach (string relative in relativeDirectories)
+            {
+                string root = Path.Combine(
+                    RepoRoot, "UnityProject", "Assets", "Main", relative.Replace('/', Path.DirectorySeparatorChar));
+                if (!Directory.Exists(root))
+                {
+                    continue;
+                }
+
+                foreach (string file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+                {
                     yield return file;
                 }
             }

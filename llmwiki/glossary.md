@@ -167,23 +167,50 @@ tag, is in [`systems/data-schema.md`](systems/data-schema.md#tag-vocabulary).
 | ตัวประเมินคอมโบ | `SynergyEvaluator` | Domain | One pass; counts distinct partners, capped by `max_stacks` |
 | ตัวแปลงย่ามเป็นชุดรบ | `LoadoutResolver` | Domain | Produces the Battle v1 `CombatLoadoutSnapshot`, cached on `Backpack.Revision` |
 
+## Run, economy and the camp shop (Stage 06)
+
+| Thai | Code name | Kind | Notes |
+| --- | --- | --- | --- |
+| เบี้ย (กระเป๋า) | `Wallet` | Domain | The only place bia changes; `TrySpend` is atomic |
+| รอบเล่น | `Run` / `RunSession` | Application | One seed, one purse, one bag, five floors; the only command surface |
+| ระยะของรอบ | `RunFlowState` | Enum | `Title` / `Camp` / `Battle` / `Result`; values are hash-fixed |
+| ฉากของแต่ละระยะ | `SceneId` / `SceneFlowMap` | Enum + map | Phase → scene, one explicit function |
+| ตัวขับลูปฉาก | `SceneFlow` | Application | Camp ↔ Battle; the only place a battle session is created |
+| แผงวัตถุมงคลยายจันทร์ | `ShopStock` | Domain | 4 slots; one stock per camp entry (`BeginCamp` re-rolls) |
+| ช่องสินค้า | `ShopSlot` | Domain | Offer + two flags; a rented slot is emptied, never refilled |
+| สุ่มแผงสินค้า / เสี่ยงเซียมซี | `ShopRoller` | Domain | Weighted draw without replacement; resolves the table price |
+| ล็อกสินค้าที่อยากเก็บไว้ | `SetSlotLocked` | Command | A pinned slot survives a re-roll |
+| ราคาเสี่ยงเซียมซี | `ShopStock.RefreshCost` | Rule | `refresh_base_cost + increment × refreshes this camp` |
+| เช่าสินค้า (ซื้อ) | `Purchase` | Command | Pays the shown price, then lands the piece in the chest |
+| ถวายคืนศาล (ขาย) | `Sell` | Command | `BackpackEditor.Recycle` + credit the purse |
+| เปิดร้าน | `OpenShop` | Command | A read: the same stock every time in one camp |
+| ออกเดินทาง / เริ่มชั้น | `StartFloor` | Command | The departure gate; returns the `BattleSetup` |
+| รับผลของชั้น (CompleteFloor) | `ApplyBattleResult` | Command | The one payout per floor |
+| ผลของการรับชั้น | `FloorSettlement` | Value | settlement id, floor, reward, heal, HP, run-ended |
+| ผลของการเช่า / สุ่ม | `PurchaseOutcome`, `RefreshOutcome` | Value | What one accepted command did |
+| ชุดเริ่มต้นของรอบ | `RunDefaults` | Data | Starting bag and weapon **ids + placement**; every number stays in `data/` |
+| คำสั่งของรอบ | `RunCommand` / `RunCommandKind` | Data | The replay log's vocabulary |
+| เหตุการณ์ของรอบ | `RunEvent` / `RunEventKind` | Data | Presentation only; never a rule input |
+| สแนปช็อตของรอบ | `RunState` | Data | The hashable picture; `ComputeHash()` |
+| บันทึกเล่นซ้ำของรอบ | `ReplayLog` | Application | seed + accepted commands + one `BattleReplay` per floor |
+
 ## Scenes / flow
 
 | Thai | Code name | Notes |
 | --- | --- | --- |
 | ฉาก | `Scene` | Lifetime scope |
-| หน้าแรก / จอชื่อเกม | `Title` | Scene |
-| ศาลาพัก | `Camp` | Scene |
-| สนามรบ | `Battle` | Scene |
+| หน้าแรก / จอชื่อเกม | `Title` | Scene (also `RunFlowState.Title`) |
+| ศาลาพัก | `Camp` | Scene (also `RunFlowState.Camp`) |
+| สนามรบ | `Battle` | Scene (also `RunFlowState.Battle`) |
 | ผลรอบ | `Result` | Scene, ends the run |
-| รอบเล่น | `Run` | Lifetime scope |
-| บันทึก | `RunCheckpoint` | Saved only at Camp |
+| ออกไปหน้าแรก | `ReturnToTitle` | Command: Result → Title |
+| บันทึก | `RunCheckpoint` | Saved only at Camp (Stage 12) |
 
 ## Error codes
 
 `Error.Code` values are stable lowercase identifiers, `noun.problem`, and the UI
 resolves them through localization as `error.<code>` (AGENTS.md rule 5 — no
-player-facing text in Core). Examples: `bag.overlap`, `shop.insufficient_bia`,
+player-facing text in Core). Examples: `bag.overlap`, `wallet.insufficient_bia`,
 `item.unknown_shape`, `floor.invalid`. Renaming a code is an API change: update
 the localization key in the same commit.
 
@@ -192,13 +219,20 @@ The Stage 05 inventory codes are `inventory.` + `unknown_piece`, `wrong_zone`,
 `chest_full`, `locked`, `nothing_to_undo`, `merge_mismatch`, `merge_not_item`,
 `merge_max_tier`, `not_on_board` (`Domain/Inventory/Identity.cs`).
 
+The Stage 06 codes are `run.` + `wrong_state`, `no_arcane_weapon`, `not_in_battle`,
+`battle_running`, `unknown_piece` (plus the named preconditions `no_floor_left`,
+`unknown_floor`), `wallet.insufficient_bia` (`Domain/Run/RunError.cs`) and `shop.` +
+`unknown_slot`, `slot_empty`, `slot_purchased`, `unknown_piece` (`Domain/Shop/ShopError.cs`).
+A full chest reports **`inventory.chest_full`** rather than a shop code of its own.
+
 ## Naming rules
 
 - `PascalCase` for types/commands/events, `camelCase` for locals.
 - Commands are verbs. Landed so far: `Move`, `Rotate`, `TransferToChest`, `Merge`,
-  `Recycle`, `Undo`, `Reset`, `SetLocked` (Stage 05) — the method names are the command
-  names, so the glossary no longer lists invented spellings (`PlaceBag`, `MoveItem`).
-  Still to come: `PurchaseItem`, `SellItem`, `RefreshShop`, `StartFloor`.
+  `Recycle`, `Undo`, `Reset`, `SetLocked` (Stage 05) and `StartRun`, `Purchase`, `Sell`,
+  `RefreshShop`, `SetSlotLocked`, `OpenShop`, `StartFloor`, `ApplyBattleResult`,
+  `ReturnToTitle` (Stage 06) — the method names are the command names, so the glossary does
+  not list invented spellings (`PlaceBag`, `MoveItem`, `PurchaseItem`, `SellItem`).
 - Events are past-tense facts: `WalletChanged`, `InventoryChanged`,
   `ShopStockChanged`, `LoadoutChanged`, `FloorCompleted`, `RunCompleted`.
 - Thai text never appears in identifiers — only in `data/localization/*.csv`.

@@ -20,7 +20,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **03** | **Unity shell, first Web build, Thai text spike** | **DONE** — see [`docs/stages/03-report.md`](docs/stages/03-report.md) |
 | **04** | **Prototype data (14 pieces, 5 combos, 5 floors)** | **DONE** — see [`docs/stages/04-report.md`](docs/stages/04-report.md) |
 | **05** | **Inventory domain (bag rules, combos, loadout)** | **DONE** — see [`docs/stages/05-report.md`](docs/stages/05-report.md) |
-| 06 | Shop, economy, run, scene flow | not started |
+| **06** | **Shop, economy, run, scene flow** | **DONE** — see [`docs/stages/06-report.md`](docs/stages/06-report.md) |
 | 07 | Battle core (headless) & bot sim | not started |
 | 08 | Battle presentation 2.5D | not started |
 | 09 | Camp scene & bag UI | not started |
@@ -31,7 +31,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
-**Current state:** Stages 00–05. `lib/` is a real UPM package
+**Current state:** Stages 00–06. `lib/` is a real UPM package
 (`com.projectsurvive.core`) with six hand-written layer `.asmdef`s plus two
 generated ones, the vendored EcsLite, the deterministic `Shared`/`Infrastructure`
 primitives (`IRandomSource` / `Xoshiro128`, `RandomStreams`, `IClock` /
@@ -47,11 +47,12 @@ build metadata. Stage 02b added the **battle contract v1**
 `Entities` and `PreviousEntities` so Stage 08 interpolates between two ticks through
 the one port it is allowed to read, and exactly one `IBattleFrame` implementation is
 allowed (the fake and Stage 07 share it, enforced by a reflection test).
-**341 xUnit tests pass** (57 Stage 01, 73
-Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05).
-The bag rules and the combo rules are real code now; the shop/economy flow, the
-run/scene flow and the battle *simulation* are still absent — `Domain/Combat/Battle` and
-`Application` hold the battle **contract** (v1) that Stage 07 implements.
+**385 xUnit tests pass** (57 Stage 01, 73
+Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05,
+44 Stage 06). The bag rules, the combo rules, the economy and the run/scene flow are real
+code now; the battle *simulation* is still absent — `Domain/Combat/Battle` and
+`Application` hold the battle **contract** (v1) that Stage 07 implements, and the run
+reaches it only through `IBattleSessionFactory`.
 
 Stage 03 built the **Unity shell** (`UnityProject/`, Unity `6000.3.9f1` + URP,
 referencing `lib/` as a local package): a composition root, three scenes
@@ -95,6 +96,26 @@ weight → speed rule got its curve ([ADR 0013](docs/adr/0013-weight-speed-penal
 Confidence comes from 105 dotnet cases over the **real** tables — including a 10 000-command
 randomized invariant run — **90.92 %** line coverage of the backpack rule set, and 9 Unity
 EditMode cases that place real pieces and hand a loadout to the battle contract.
+
+Stage 06 built the **run** around it — still no battle simulation. `Domain/Run` holds the
+`Wallet` (the only place bia changes), the phase enum `RunFlowState` with its explicit
+`SceneId` mapping, the recorded command vocabulary `RunCommand`, the presentation event kinds,
+the hashable `RunState`, and the typed outcomes; `Domain/Shop` holds the four-slot camp shop
+(`ShopStock` / `ShopSlot`) and the weighted, floor-banded `ShopRoller` that reads its pool
+from `shop_pool`. `Application/Run/RunSession` is the **only** command surface — `StartRun`,
+`Purchase`, `Sell`, `RefreshShop`, `SetSlotLocked`, `OpenShop`, the Stage 05 bag commands
+(now recorded), `StartFloor` (the departure gate with its `run.no_arcane_weapon` reason code
+and the bag lock during Battle) and `ApplyBattleResult` (one settlement per floor, healing
+`economy.heal_percent_on_clear` capped at max HP) — each validating completely before its
+first mutation. `SceneFlow` drives Camp ↔ Battle and is the only place a session is created,
+through the `IBattleSessionFactory` it was handed; `ReplayLog` rebuilds a whole run from its
+seed plus the accepted commands plus one Stage 02b `BattleReplay` per floor, and asserts the
+same `RunState` hash. Three boundaries are settled in
+[ADR 0016](docs/adr/0016-run-settlement-and-shop-commit-boundaries.md). Evidence: 42 dotnet
+cases over the real tables (a scripted five-floor run that ends at `Result`, a run that loses
+the boss, and a replay of both), 2 architecture tests (no economy rule in a Presenter; the
+battle reachable only through its factory), and 4 Unity EditMode cases over the **shipped**
+`Resources/Config` tables.
 
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
@@ -240,6 +261,7 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
 | [`llmwiki/systems/data-schema.md`](llmwiki/systems/data-schema.md) | **Static data schema + pipeline commands** |
 | [`llmwiki/systems/battle-contract.md`](llmwiki/systems/battle-contract.md) | **Battle contract v1 — the interface between the battle and the rest** |
 | [`llmwiki/systems/backpack.md`](llmwiki/systems/backpack.md) | **Bag/board rules, editing commands, combos, bag → battle loadout** |
+| [`llmwiki/systems/run-shop.md`](llmwiki/systems/run-shop.md) | **Run phase machine, wallet, camp shop, settlement, `ReplayLog`** |
 | [`llmwiki/index.md`](llmwiki/index.md) | Wiki index |
 | [`llmwiki/glossary.md`](llmwiki/glossary.md) | Code names ↔ Thai terms |
 | [`docs/stages/`](docs/stages/) | Per-stage reports |
@@ -284,3 +306,10 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
   Always pass `-DataDir "lib/Tests~/data"` (the pipeline's generated tables). Running it
   bare reports twelve `config.table_missing` findings that are not data bugs.
 - **No performance number has been measured.** All budget figures are targets.
+- **The Unity composition root still binds nothing run-level.** `RootLifetimeScope` is
+  scene-scoped and registers only the shell's services (config, clock, localization, UI
+  state, presenters); `RunSession`/`SceneFlow` are constructed by whoever drives the run
+  today (the harness and the EditMode tests) and Stage 07–09 will add the scope that
+  survives scene loads together with the `IBattleSessionFactory` binding. Deliberate at
+  Stage 06 ([ADR 0016](docs/adr/0016-run-settlement-and-shop-commit-boundaries.md)): the
+  fake must not become the shipped battle by accident in a registration nobody reads.

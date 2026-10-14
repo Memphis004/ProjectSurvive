@@ -137,5 +137,8 @@ namespace ProjectSurvive.Core.Domain.Inventory
 
         /// <summary>Rotating only means something for a piece on the board.</summary>
         public const string NotOnBoard = "inventory.not_on_board";
+
+        /// <summary>The run does not hold that many copies of the piece ("ใช้ของไปแล้ว").</summary>
+        public const string NotEnoughPieces = "inventory.not_enough_pieces";
     }
 }
