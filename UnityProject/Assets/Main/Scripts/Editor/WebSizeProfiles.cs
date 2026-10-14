@@ -16,9 +16,9 @@ namespace ProjectSurvive.Game.Editor
     /// Stage 03b compares builds against each other, so the configuration a number
     /// came from has to be a value that can be written down, re-applied and diffed —
     /// not Editor state somebody toggled by hand. Every profile sets the whole
-    /// size-relevant surface (including the settings it leaves at their stage-03
-    /// value), so a build's configuration is never a mix of "what this profile says"
-    /// and "what the project happened to contain".
+    /// size-relevant surface, including the values it shares with the project's own
+    /// configuration, so a build's configuration is never a mix of "what this profile
+    /// says" and "what the project happened to contain".
     /// </para>
     /// <para>
     /// Profiles are cumulative along the list in <see cref="Names"/>: each one differs
