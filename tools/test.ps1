@@ -249,10 +249,12 @@ function Invoke-Sim {
 if ($NoSim) {
     Add-Result 'Sim determinism' 'Required' 'SKIP' 'disabled with -NoSim'
     Add-Result 'Sim stream separation' 'Required' 'SKIP' 'disabled with -NoSim'
+    Add-Result 'Sim bot run' 'Required' 'SKIP' 'disabled with -NoSim'
 }
 elseif (-not $dotnet) {
     Add-Result 'Sim determinism' 'Required' 'SKIP' 'dotnet unavailable'
     Add-Result 'Sim stream separation' 'Required' 'SKIP' 'dotnet unavailable'
+    Add-Result 'Sim bot run' 'Required' 'SKIP' 'dotnet unavailable'
 }
 else {
     $seedA = $Seed
@@ -299,6 +301,33 @@ else {
     }
     else {
         Add-Result 'Sim stream separation' 'Required' 'PASS' ("{0} {1} {2}" -f $shop, $battle, $visual)
+    }
+
+    # The Stage 07 bot: a whole run, played headlessly, through the real battle and the real
+    # run. Two seeds is a smoke test, not a balance measurement - full runs are
+    # `tools/sim.ps1 --seeds 200`. What this catches is the bot not playing at all: a floor
+    # that never ends, a flow that cannot leave a state, an empty CSV.
+    $botCsv = Join-Path $script:ArtifactDir 'balance-smoke.csv'
+    $bot = Invoke-Sim @('--mode', 'bot', '--seeds', '2', '--out', $botCsv, '--quiet')
+
+    if (-not $bot.Ok) {
+        Add-Result 'Sim bot run' 'Required' 'FAIL' ("bot exited with {0}" -f $bot.Code)
+    }
+    else {
+        $rows = 0
+        if (Test-Path -LiteralPath $botCsv) {
+            $rows = @(
+                Get-Content -LiteralPath $botCsv |
+                    Where-Object { $_ -notmatch '^##' -and $_ -notmatch '^seed,' }
+            ).Count
+        }
+
+        if ($rows -lt 1) {
+            Add-Result 'Sim bot run' 'Required' 'FAIL' "the bot wrote no balance rows to $botCsv"
+        }
+        else {
+            Add-Result 'Sim bot run' 'Required' 'PASS' ("2 seeds -> {0} floor rows" -f $rows)
+        }
     }
 }
 

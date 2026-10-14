@@ -158,19 +158,26 @@ pair have to be on it.
 
 ## 8. Contract tests
 
-`BattleSessionContractTests<TFactory>` (xUnit) is the executable contract. Any
-factory — the fake today, the EcsLite simulation from Stage 07 — is bound to it by
-a one-line derived class and must pass every case: phase transitions, result
-bounds, event sequence continuity and dropped reporting, the render cap,
-`PlayerInputFrame.FromAxis` normalisation, replay round-trip, and **no allocation
-after warm-up**.
+`BattleSessionContractTests<TFactory>` (xUnit) is the executable contract. Both
+factories — `FakeBattleSessionFactory` and, since Stage 07, the real
+`EcsBattleSessionFactory` — are bound to it by a one-line derived class and must
+pass every case: phase transitions, result bounds, event sequence continuity and
+dropped reporting, the render cap, `PlayerInputFrame.FromAxis` normalisation,
+replay round-trip, and **no allocation after warm-up**.
+
+The real simulation's derived class visibly supplies what the suite's idle-input
+premises need (a large HP pool, a churning benchmark load) — see
+[ADR 0017](../../docs/adr/0017-ecslite-battle-simulation.md), §7. What it must
+never do is relax a case.
 
 ## 9. What is deliberately absent
 
 - No level-up / blessing / XP / choice gate (GDD v0.3; `BattlePhase` value 1 is
   reserved but unused).
-- No economy: the battle reports `CurrencyEarned`, Run owns the wallet.
+- No economy: the battle reports `CurrencyEarned`, Run owns the wallet. (It reports
+  `0` today: no `data/` column says what a kill pays — ADR 0017.)
 - No bag / Board / combo logic: the battle receives a resolved
   `CombatLoadoutSnapshot` and never recomputes a combo.
 - The fake does not fight — it exists to satisfy and exercise the contract, not to
-  model combat.
+  model combat. The real session does, and lives in
+  [`battle-simulation.md`](battle-simulation.md).

@@ -701,6 +701,75 @@ namespace ProjectSurvive.Core.Tests
         }
 
         /// <summary>
+        /// Stage 07 acceptance: "type ของ EcsLite ห้ามหลุดออกนอก lib/Runtime/Simulation".
+        /// </summary>
+        /// <remarks>
+        /// The ECS is an implementation detail of the battle, not a vocabulary the rest of
+        /// the project learns. Application, Domain and the engine-facing Unity scripts reach
+        /// a battle through <c>IBattleSession</c> / <c>IBattleSessionFactory</c> and read a
+        /// frame, so a component, a world or a system type appearing outside the simulation
+        /// folder means a caller is driving the ECS directly — and the day the battle is
+        /// rebuilt, that call site has to be found by hand.
+        /// <para>
+        /// The concrete simulation and its factory are checked on the Core side only: a
+        /// composition root (Unity, later stage) is allowed to bind
+        /// <c>EcsBattleSessionFactory</c> to the port, exactly as it binds the fake today,
+        /// while the world types stay unreachable from anything but the simulation.
+        /// </para>
+        /// </remarks>
+        [Fact]
+        public void Ecs_types_do_not_leak_outside_the_simulation_layer()
+        {
+            string[] ecsTokens =
+            {
+                "Leopotam", "EcsWorld", "EcsPool", "EcsFilter", "EcsSystems", "IEcsRunSystem", "IEcsInitSystem",
+            };
+
+            string[] simulationTypes = { "EcsBattleSimulation", "EcsBattleSessionFactory" };
+            var offenders = new List<string>();
+
+            foreach (string file in LibSourceFiles("Runtime"))
+            {
+                string relative = RelativePath(file);
+                if (relative.Contains("Runtime/Simulation/", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                string code = StripComments(File.ReadAllText(file));
+                foreach (string token in ecsTokens)
+                {
+                    if (code.Contains(token, StringComparison.Ordinal))
+                    {
+                        offenders.Add(relative + " names the ECS type " + token);
+                    }
+                }
+
+                foreach (string token in simulationTypes)
+                {
+                    if (code.Contains(token, StringComparison.Ordinal))
+                    {
+                        offenders.Add(relative + " names the session implementation " + token);
+                    }
+                }
+            }
+
+            foreach (string file in UnitySourceFiles("Scripts"))
+            {
+                string code = StripComments(File.ReadAllText(file));
+                foreach (string token in ecsTokens)
+                {
+                    if (code.Contains(token, StringComparison.Ordinal))
+                    {
+                        offenders.Add(RelativePath(file) + " names the ECS type " + token);
+                    }
+                }
+            }
+
+            Assert.Empty(offenders);
+        }
+
+        /// <summary>
         /// Stage 06 acceptance "ไม่มี economy logic ใน Presenter" (AGENTS rule 10): a
         /// Presenter renders a number it was given, and the run (Application) is what
         /// decides one.

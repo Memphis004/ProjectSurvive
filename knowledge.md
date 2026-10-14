@@ -21,7 +21,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **04** | **Prototype data (14 pieces, 5 combos, 5 floors)** | **DONE** — see [`docs/stages/04-report.md`](docs/stages/04-report.md) |
 | **05** | **Inventory domain (bag rules, combos, loadout)** | **DONE** — see [`docs/stages/05-report.md`](docs/stages/05-report.md) |
 | **06** | **Shop, economy, run, scene flow** | **DONE** — see [`docs/stages/06-report.md`](docs/stages/06-report.md) |
-| 07 | Battle core (headless) & bot sim | not started |
+| **07** | **Battle core (headless) & bot sim** | **DONE** — see [`docs/stages/07-report.md`](docs/stages/07-report.md) |
 | 08 | Battle presentation 2.5D | not started |
 | 09 | Camp scene & bag UI | not started |
 | 10 | Full loop (vertical slice) | not started |
@@ -31,7 +31,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
-**Current state:** Stages 00–06. `lib/` is a real UPM package
+**Current state:** Stages 00–07. `lib/` is a real UPM package
 (`com.projectsurvive.core`) with six hand-written layer `.asmdef`s plus two
 generated ones, the vendored EcsLite, the deterministic `Shared`/`Infrastructure`
 primitives (`IRandomSource` / `Xoshiro128`, `RandomStreams`, `IClock` /
@@ -47,12 +47,13 @@ build metadata. Stage 02b added the **battle contract v1**
 `Entities` and `PreviousEntities` so Stage 08 interpolates between two ticks through
 the one port it is allowed to read, and exactly one `IBattleFrame` implementation is
 allowed (the fake and Stage 07 share it, enforced by a reflection test).
-**385 xUnit tests pass** (57 Stage 01, 73
+**413 xUnit tests pass** (57 Stage 01, 73
 Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05,
-44 Stage 06). The bag rules, the combo rules, the economy and the run/scene flow are real
-code now; the battle *simulation* is still absent — `Domain/Combat/Battle` and
-`Application` hold the battle **contract** (v1) that Stage 07 implements, and the run
-reaches it only through `IBattleSessionFactory`.
+44 Stage 06, 28 Stage 07). The bag rules, the combo rules, the economy, the run/scene flow
+and the **battle simulation** are real code now: `Domain/Combat/Battle` and `Application`
+hold the battle **contract** (v1) — which the fake implements as a contract exercise — and
+`lib/Runtime/Simulation` holds the real EcsLite battle that implements it, reached only
+through `IBattleSessionFactory`.
 
 Stage 03 built the **Unity shell** (`UnityProject/`, Unity `6000.3.9f1` + URP,
 referencing `lib/` as a local package): a composition root, three scenes
@@ -116,6 +117,28 @@ cases over the real tables (a scripted five-floor run that ends at `Result`, a r
 the boss, and a replay of both), 2 architecture tests (no economy rule in a Presenter; the
 battle reachable only through its factory), and 4 Unity EditMode cases over the **shipped**
 `Resources/Config` tables.
+
+Stage 07 built the **battle** — the thing Stages 05–06 kept deferring. `lib/Runtime/Simulation/Battle`
+is an EcsLite world of ghosts, projectiles and drops driven one fixed 30 Hz tick at a time behind the
+Stage 02b contract: `EcsBattleSimulation` + `EcsBattleSessionFactory`, fourteen components and fourteen
+systems in the GDD's order (`WaveSpawn → PlayerMove → EnemySteer → AutoCast → ProjectileMove →
+SpatialHash → Collision → DamageStatus → Death → Drop → Pickup → FloorEnd`), a uniform-grid spatial hash,
+and `BattleDefIds` (a def id is its table row's 1-based position). It uses the **same** `BattleEventRing`
+and `BattleFrameBuffer` the fake uses, so a Presentation sees one behaviour; it names no Unity type
+(architecture test); it casts at most one spell per tick — ready, affordable, shortest base cooldown,
+nearest ghost; and it owns **no clock**, so paused is “not stepped” and a stalled tab has its backlog
+dropped and counted rather than replayed. Evidence: **28 new xUnit cases (413 total)**, every case of the
+shared contract suite the fake passes, plus a rules suite (movement per tick, cooldown, MP, projectile
+hit + despawn, one reward per kill, one floor end per death, the boss win, the zero-allocation tick);
+a **bot harness** — `tools/sim.ps1 --seeds 200` plays the kiting bot and a greedy camp policy through
+all five floors into `artifacts/balance.csv` (floor 1 200/200, floor 2 198/200, floor 3 91/198, floor 4
+71/91, floor 5 **71/71**); and an **acceptance benchmark** of 300 ghosts + 500 projectiles measuring
+**0 bytes allocated per tick** (avg `0.114 ms`, p95 `0.126 ms` per tick, Release, .NET 9, machine named
+in the report). Three numbers the prototype wants are **not in `data/`** — elemental status magnitude, a
+kill's `enemy.drop_value`, `constant.magnet_speed` — so none was invented in code: the status re-uses
+the applying skill's own damage, a pickup collects instantly and pays `0` (which is why a run earns no
+bia in battle and no build can grow after the first camp), and each gap names the column Stage 11 adds
+([ADR 0017](docs/adr/0017-ecslite-battle-simulation.md)).
 
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
@@ -294,9 +317,10 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
 - **Charm passives and offering consumable effects have no columns yet.**
   `item` records a charm's tags but not its own buff magnitude, and an offering's
   heal/bia/uses likewise. Deliberate at Stage 04
-  ([ADR 0010](docs/adr/0010-item-local-effects-deferred.md)): the consumers arrive in
-  Stage 05–07. **The numbers must land in `data/` when they do — never in code**
-  (rule 5).
+  ([ADR 0010](docs/adr/0010-item-local-effects-deferred.md)): Stages 05–07 have landed and the
+  item-local effects are **still** unmodelled, because neither the bag rules, the economy nor the
+  battle needed a magnitude a designer had not written. **The numbers must land in `data/` when a
+  consumer does — never in code** (rule 5).
 - **A piece's weight and price do not depend on its tier.** `item`/`bag` carry one
   `weight` and one `price`, so merging to tier 3 makes a piece stronger without making it
   heavier or more valuable ([ADR 0013](docs/adr/0013-weight-speed-penalty-curve.md),
@@ -305,11 +329,18 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
 - **`tools/validate-data.ps1`'s default `-DataDir` is `data/`, which holds no `.bytes`.**
   Always pass `-DataDir "lib/Tests~/data"` (the pipeline's generated tables). Running it
   bare reports twelve `config.table_missing` findings that are not data bugs.
-- **No performance number has been measured.** All budget figures are targets.
+- **The only measured performance is the headless .NET battle benchmark** (Stage 07: 300 ghosts +
+  500 projectiles, Release, `0` bytes allocated per tick, avg `0.114 ms` / p95 `0.126 ms` per 30 Hz
+  tick on the machine quoted in [`docs/stages/07-report.md`](docs/stages/07-report.md)). It is **not**
+  a Web number: the player is IL2CPP/WASM and single-threaded, so every frame-time and size budget
+  elsewhere in this document is still a target until a **build** is measured
+  ([ADR 0011](docs/adr/0011-webgl-payload-budget-and-size-measurement.md)).
 - **The Unity composition root still binds nothing run-level.** `RootLifetimeScope` is
   scene-scoped and registers only the shell's services (config, clock, localization, UI
-  state, presenters); `RunSession`/`SceneFlow` are constructed by whoever drives the run
-  today (the harness and the EditMode tests) and Stage 07–09 will add the scope that
-  survives scene loads together with the `IBattleSessionFactory` binding. Deliberate at
+  state, presenters); `RunSession`/`SceneFlow`/`EcsBattleSessionFactory` are constructed by whoever
+  drives the run today (the bot harness and the EditMode tests) and Stages 08–10 will add the scope
+  that survives scene loads together with the `IBattleSessionFactory` binding. Deliberate at
   Stage 06 ([ADR 0016](docs/adr/0016-run-settlement-and-shop-commit-boundaries.md)): the
-  fake must not become the shipped battle by accident in a registration nobody reads.
+  fake must not become the shipped battle by accident in a registration nobody reads — and as of
+  Stage 07 there is a second implementation to choose between, which is exactly why the binding is
+  a decision and not a default.

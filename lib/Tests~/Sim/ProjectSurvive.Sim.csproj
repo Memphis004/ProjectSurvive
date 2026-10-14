@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Headless deterministic harness: runs the fixed-tick clock and the separated
-    random streams with no Unity and no rendering, and prints a fingerprint of
-    the resulting sequence. Stage 07 grows this into the bot simulation.
+    Headless harness: the Stage 01 fixed-tick / stream fingerprint, the Stage 07 bot
+    simulation (a kiting bot playing complete runs) and the Stage 07 load benchmark.
+    No Unity, no rendering: the bot drives the run and the battle through their own
+    ports, exactly as the game does.
   -->
 
   <PropertyGroup>
@@ -19,6 +20,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Layers\ProjectSurvive.Core.Shared.csproj" />
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Domain.csproj" />
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Application.csproj" />
+    <ProjectReference Include="..\Layers\ProjectSurvive.Core.Simulation.csproj" />
     <ProjectReference Include="..\Layers\ProjectSurvive.Core.Infrastructure.csproj" />
   </ItemGroup>
 

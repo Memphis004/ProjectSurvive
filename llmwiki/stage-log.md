@@ -20,6 +20,8 @@ order" view.
 
 | 06 | 2026-10-14 | **Run, economy, camp shop and scene flow (no UI, still no battle sim)**: `Domain/Run` — `Wallet` (the only place bia changes), `RunFlowState` + `SceneId` joined by `SceneFlowMap`, `RunCommand`/`RunEvent`, the hashable `RunState`, `PurchaseOutcome`/`RefreshOutcome`/`FloorSettlement`, `RunDefaults` (starting ids only) and `RunError`; `Domain/Shop` — `ShopStock` (4 slots, one stock per camp entry, re-roll 5 then +2 per re-roll in the same camp), `ShopSlot` (a rented slot is **emptied**) and `ShopRoller` (weighted, floor-banded, no repeat, price captured at roll time); `Application/Run` — `RunSession` (the only command surface: `StartRun`/`OpenShop`/`Purchase`/`Sell`/`RefreshShop`/`SetSlotLocked`/`StartFloor`/`ApplyBattleResult`/`ReturnToTitle` plus the Stage 05 bag commands, each validating fully before its first mutation), `SceneFlow` (the only place a battle session is created, through `IBattleSessionFactory`) and `ReplayLog` (seed + accepted commands + one `BattleReplay` per floor); the one-payout, rented-slot, desynced-result and composition-root boundaries in [ADR 0016](../docs/adr/0016-run-settlement-and-shop-commit-boundaries.md); no `data/` change at all | [`06-report`](../docs/stages/06-report.md) |
 
+| 07 | 2026-10-15 | **Battle core (EcsLite, headless) + bot sim**: `lib/Runtime/Simulation/Battle` — `EcsBattleSimulation` + `EcsBattleSessionFactory` implementing the Stage 02b contract, `BattleContext` (pre-resolved wave timeline, per-tick queues, counters), `BattleArena` (structural bounds), 14 components, 14 systems in the GDD's order (`WaveSpawn → LoadTest → PlayerMove → EnemySteer → AutoCast → ProjectileMove → SpatialHash → Collision → DamageStatus → Death → Drop → Pickup → FloorEnd → FramePublish`), a uniform-grid spatial hash, `BattleDefIds`; the frame and the event ring are the **shared** `BattleFrameBuffer`/`BattleEventRing` (single-`IBattleFrame`-implementation test); `lib/Tests~/Sim` grew a kiting bot + greedy camp policy (`tools/sim.ps1 --seeds 200 → artifacts/balance.csv`) and an acceptance-load benchmark; [ADR 0017](../docs/adr/0017-ecslite-battle-simulation.md) records the tick/backlog/pause policy, the def-id mapping, the auto-cast rule, and the three numbers `data/` does not have yet (status magnitude, `enemy.drop_value`, magnet speed) | [`07-report`](../docs/stages/07-report.md) |
+
 ## Notes carried forward
 
 - **Stage 02b was amended after Stage 04** (2026-10-14) to give `IBattleFrame` a
@@ -41,6 +43,14 @@ order" view.
   composition-root binding for the run — the last one deliberate
   ([ADR 0016](../docs/adr/0016-run-settlement-and-shop-commit-boundaries.md)), so the Stage
   02b fake cannot become the shipped battle by accident.
+- **Stage 07 is the battle, and the balance harness with it**: the EcsLite session passes every case of
+  the Stage 02b contract suite unchanged (413 dotnet cases in total), runs with no scene, and measures
+  **0 bytes allocated per tick** at ~300 ghosts + ~500 projectiles on .NET (avg 0.114 ms, p95 0.126 ms per
+  30 Hz tick, Release, machine quoted in the report). Three prototype gaps surfaced as *data* gaps rather than code decisions —
+  no `status` table, no `enemy.drop_value`, no `constant.magnet_speed` — and because a run earns no bia
+  inside a battle, the 200-seed balance run (floor 1 200/200, floor 2 198/200, floor 3 91/198, floor 4
+  71/91, floor 5 71/71) describes the tables *with no way to buy anything after the first camp*, which
+  is the first thing Stage 11 has to fix ([ADR 0017](../docs/adr/0017-ecslite-battle-simulation.md)).
 - Determinism is guaranteed within one runtime only (see the scope gotcha).
 - `lib/` is now compiled twice: by `dotnet` (lib/Tests~) and by Unity as the local
   package `com.projectsurvive.core`. A change to a rule-engine file must keep both
