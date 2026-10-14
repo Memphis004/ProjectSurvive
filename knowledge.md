@@ -122,13 +122,32 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/check-fixtures.ps1    
 # Focused runs
 dotnet test "lib/Tests~/ProjectSurvive.Core.sln" --filter FullyQualifiedName~Xoshiro128
 dotnet run --project "lib/Tests~/Sim/ProjectSurvive.Sim.csproj" -- --seed 12345 --trace 5
+
+# WebGL build + browser tests (the Editor must be closed; a build takes minutes)
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1                      # Development
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 -Profile Release     # Release
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 -SizeProfile optimize-size
+                                                                                             # ^ a measured size configuration;
+                                                                                             #   baseline | strip-high | optimize-size | minimal
+node tools/serve-web.mjs --port 8080          # then, in tests/web: npx playwright test
+
+# Size: what does a build weigh, and which assembly is inside the .wasm
+node tools/measure-web-size.mjs --dir UnityProject/Builds/Web --label mine   # raw / gzip -9 / Brotli q11
+node tools/measure-il2cpp-size.mjs --artifacts UnityProject/Library/Bee/artifacts/WebGL
+                                                                             # per assembly, from IL2CPP's C++
 ```
+
+Size numbers only come from `-SizeProfile` builds run through this script: a build started in the
+Editor's Build Settings window applies platform profile defaults over the project's player
+settings. See [`docs/build/size-baseline.md`](docs/build/size-baseline.md) and
+[ADR 0011](docs/adr/0011-webgl-payload-budget-and-size-measurement.md).
 
 Exit codes are part of the contract: `0` = all required checks passed,
 `1` = a required check failed, `2` = the tool itself could not run.
 
 New commands are added as their stage lands (`tools/build-web.ps1` /
-`serve-web.mjs` at Stage 03).
+`serve-web.mjs` at Stage 03; `measure-web-size.mjs` / `measure-il2cpp-size.mjs`
+at Stage 03b).
 
 ---
 
@@ -151,6 +170,7 @@ docs/                  gdd/ architecture/ adr/ stages/ testing/ build/
 llmwiki/               index.md glossary.md systems/ (data-schema) gotchas/
 tools/                 versions.lock.json doctor.ps1 setup-tools.ps1 gen.ps1
                        validate-data.ps1 verify-generated.ps1 check-fixtures.ps1 test.ps1
+                       build-web.ps1 serve-web.mjs measure-web-size.mjs measure-il2cpp-size.mjs
                        vendor/ (downloaded CLI toolchain, never committed)
 tests/web/             Playwright specs — Stage 03+
 artifacts/             untracked logs/reports/screenshots

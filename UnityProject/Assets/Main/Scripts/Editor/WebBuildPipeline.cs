@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
@@ -52,7 +53,56 @@ namespace ProjectSurvive.Game.Editor
         /// <summary>Release variant, kept for the stage that needs real timing numbers.</summary>
         public static void BuildWebRelease() => BuildWeb(false);
 
-        private static bool BuildWeb(bool development)
+        /// <summary>
+        /// Size-measurement build: applies the size profile named by <c>-sizeProfile</c> on the
+        /// command line and writes the Release player to <c>-outputDir</c>, so one invocation is
+        /// one reproducible data point instead of one Editor session's opinion.
+        /// </summary>
+        /// <remarks>
+        /// The profile is applied in the same process as the build, never read back from the
+        /// project: a size number whose configuration depends on Editor state cannot be
+        /// reproduced, and <c>tools/build-web.ps1 -SizeProfile</c> is how a reader re-runs it.
+        /// </remarks>
+        public static void BuildWebForSize()
+        {
+            string profile = CommandLineValue("-sizeProfile") ?? WebSizeProfiles.Baseline;
+            string outputDirectory = CommandLineValue("-outputDir") ?? OutputDirectory;
+
+            if (!WebSizeProfiles.IsKnown(profile))
+            {
+                Debug.LogError("WebBuildPipeline: unknown -sizeProfile '" + profile + "'. Known profiles: " + string.Join(", ", WebSizeProfiles.Names));
+                throw new ArgumentException("unknown size profile '" + profile + "'", nameof(profile));
+            }
+
+            WebSizeProfiles.ApplyAndPersist(profile);
+            Debug.Log("WebBuildPipeline: " + WebSizeProfiles.DescribeOneLine(profile) + " -> " + outputDirectory);
+
+            if (!BuildWeb(false, outputDirectory, profile))
+            {
+                throw new InvalidOperationException("WebGL size build failed - see the Editor console for the report.");
+            }
+        }
+
+        /// <summary>
+        /// The value following a bare <c>-flag value</c> pair on the Unity command line, or null.
+        /// Unity forwards arguments it does not recognise, which is how a calling script
+        /// parameterises an <c>-executeMethod</c> entry point.
+        /// </summary>
+        private static string CommandLineValue(string flag)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (string.Equals(args[i], flag, StringComparison.Ordinal))
+                {
+                    return args[i + 1];
+                }
+            }
+
+            return null;
+        }
+
+        private static bool BuildWeb(bool development, string outputDirectory = OutputDirectory, string sizeProfile = WebSizeProfiles.None)
         {
             string[] scenes = EnabledScenePaths();
             if (scenes.Length == 0)
@@ -69,7 +119,7 @@ namespace ProjectSurvive.Game.Editor
             var options = new BuildPlayerOptions
             {
                 scenes = scenes,
-                locationPathName = OutputDirectory,
+                locationPathName = outputDirectory,
                 target = BuildTarget.WebGL,
                 options = development ? BuildOptions.Development : BuildOptions.None,
             };
@@ -85,14 +135,15 @@ namespace ProjectSurvive.Game.Editor
                 summary.totalErrors,
                 summary.totalWarnings,
                 summary.totalTime.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture),
-                OutputDirectory));
+                outputDirectory));
 
             if (summary.result != BuildResult.Succeeded)
             {
                 return false;
             }
 
-            WriteBuildInfo(scenes, development, summary);
+            WriteBuildInfo(outputDirectory, scenes, development, summary);
+            WriteSizeReport(outputDirectory, development, sizeProfile, options, report);
             return true;
         }
 
@@ -116,9 +167,9 @@ namespace ProjectSurvive.Game.Editor
         /// report) can name the exact artifact it exercised. Lives in the ignored
         /// build folder - it describes an artifact, it is not one.
         /// </summary>
-        private static void WriteBuildInfo(string[] scenes, bool development, BuildSummary summary)
+        private static void WriteBuildInfo(string outputDirectory, string[] scenes, bool development, BuildSummary summary)
         {
-            string path = Path.Combine(OutputDirectory, "build-info.json");
+            string path = Path.Combine(outputDirectory, "build-info.json");
             var json = new StringBuilder();
             json.Append("{\n");
             json.Append("  \"unityVersion\": \"").Append(Application.unityVersion).Append("\",\n");
@@ -142,6 +193,147 @@ namespace ProjectSurvive.Game.Editor
             json.Append("]\n}\n");
             File.WriteAllText(path, json.ToString());
             Debug.Log("WebBuildPipeline: wrote " + path);
+        }
+
+        /// <summary>
+        /// Writes <c>build-report.json</c> next to the player: the player files, the largest
+        /// packed assets, and the player settings that produced them.
+        /// </summary>
+        /// <remarks>
+        /// The settings travel with the numbers on purpose. Stage 03b compares one build
+        /// against another, and a size figure whose configuration is not recorded is not
+        /// evidence of anything. A build that applied no profile is labelled
+        /// <see cref="WebSizeProfiles.None"/> rather than being given a profile's name it
+        /// never ran. Same hand-rolled JSON as <see cref="WriteBuildInfo"/> so the
+        /// build folder needs no serializer.
+        /// </remarks>
+        private static void WriteSizeReport(string outputDirectory, bool development, string sizeProfile, BuildPlayerOptions options, BuildReport report)
+        {
+            BuildSummary summary = report.summary;
+            var json = new StringBuilder();
+            json.Append("{\n");
+            json.Append("  \"unityVersion\": \"").Append(Application.unityVersion).Append("\",\n");
+            json.Append("  \"development\": ").Append(development ? "true" : "false").Append(",\n");
+            json.Append("  \"buildOptions\": \"").Append(options.options).Append("\",\n");
+            json.Append("  \"outputDirectory\": \"").Append(Escape(outputDirectory)).Append("\",\n");
+            json.Append("  \"result\": \"").Append(summary.result).Append("\",\n");
+            json.Append("  \"totalSizeBytes\": ").Append(summary.totalSize.ToString(CultureInfo.InvariantCulture)).Append(",\n");
+            json.Append("  \"totalTimeSeconds\": ").Append(summary.totalTime.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture)).Append(",\n");
+            json.Append("  \"totalErrors\": ").Append(summary.totalErrors.ToString(CultureInfo.InvariantCulture)).Append(",\n");
+            json.Append("  \"totalWarnings\": ").Append(summary.totalWarnings.ToString(CultureInfo.InvariantCulture)).Append(",\n");
+
+            // The settings travel with the numbers: the profile that was asked for, the
+            // settings that were actually in effect, and the values each step set.
+            json.Append(WebSizeProfiles.ToJson(sizeProfile)).Append(",\n");
+
+            json.Append("  \"playerFiles\": [");
+            BuildFile[] files = report.GetFiles();
+            for (int i = 0; i < files.Length; i++)
+            {
+                json.Append(i == 0 ? "\n    " : ",\n    ");
+                json.Append("{ \"path\": \"").Append(Escape(files[i].path)).Append("\", \"role\": \"").Append(files[i].role).Append("\", \"sizeBytes\": ").Append(files[i].size.ToString(CultureInfo.InvariantCulture)).Append(" }");
+            }
+
+            json.Append("\n  ],\n");
+
+            // Packed assets are per-object, not per-file: one source asset can own a whole
+            // hierarchy, so the rows are summed per source asset before they are ranked.
+            var byAsset = new Dictionary<string, AssetSizeEntry>();
+            var byType = new Dictionary<string, long>();
+            PackedAssets[] bundles = report.packedAssets;
+            for (int b = 0; b < bundles.Length; b++)
+            {
+                string bundle = bundles[b].shortPath;
+                PackedAssetInfo[] contents = bundles[b].contents;
+                for (int c = 0; c < contents.Length; c++)
+                {
+                    string assetPath = string.IsNullOrEmpty(contents[c].sourceAssetPath) ? "(internal)" : contents[c].sourceAssetPath;
+                    string type = contents[c].type.Name;
+                    long size = (long)contents[c].packedSize;
+
+                    if (byAsset.TryGetValue(assetPath, out AssetSizeEntry entry))
+                    {
+                        entry.Size += size;
+                        entry.ObjectCount++;
+                        byAsset[assetPath] = entry;
+                    }
+                    else
+                    {
+                        byAsset.Add(assetPath, new AssetSizeEntry(assetPath, type, bundle, size));
+                    }
+
+                    byType.TryGetValue(type, out long typeTotal);
+                    byType[type] = typeTotal + size;
+                }
+            }
+
+            var assets = new List<AssetSizeEntry>(byAsset.Values);
+            assets.Sort(LargestFirst);
+            json.Append("  \"packedAssetCount\": ").Append(assets.Count.ToString(CultureInfo.InvariantCulture)).Append(",\n");
+            json.Append("  \"largestAssets\": [");
+            int take = Math.Min(20, assets.Count);
+            for (int i = 0; i < take; i++)
+            {
+                json.Append(i == 0 ? "\n    " : ",\n    ");
+                json.Append("{ \"assetPath\": \"").Append(Escape(assets[i].Path)).Append("\", \"type\": \"").Append(assets[i].Type).Append("\", \"bundle\": \"").Append(Escape(assets[i].Bundle)).Append("\", \"objectCount\": ").Append(assets[i].ObjectCount.ToString(CultureInfo.InvariantCulture)).Append(", \"sizeBytes\": ").Append(assets[i].Size.ToString(CultureInfo.InvariantCulture)).Append(" }");
+            }
+
+            json.Append("\n  ],\n");
+
+            var types = new List<TypeSizeEntry>();
+            foreach (KeyValuePair<string, long> pair in byType)
+            {
+                types.Add(new TypeSizeEntry(pair.Key, pair.Value));
+            }
+
+            types.Sort((a, b) => b.Size.CompareTo(a.Size));
+            json.Append("  \"sizeByObjectType\": [");
+            int typeTake = Math.Min(12, types.Count);
+            for (int i = 0; i < typeTake; i++)
+            {
+                json.Append(i == 0 ? "\n    " : ",\n    ");
+                json.Append("{ \"type\": \"").Append(types[i].Type).Append("\", \"sizeBytes\": ").Append(types[i].Size.ToString(CultureInfo.InvariantCulture)).Append(" }");
+            }
+
+            json.Append("\n  ]\n}\n");
+
+            string path = Path.Combine(outputDirectory, "build-report.json");
+            File.WriteAllText(path, json.ToString());
+            Debug.Log("WebBuildPipeline: wrote " + path);
+        }
+
+        private static int LargestFirst(AssetSizeEntry a, AssetSizeEntry b) => b.Size.CompareTo(a.Size);
+
+        private static string Escape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+        private struct AssetSizeEntry
+        {
+            public AssetSizeEntry(string path, string type, string bundle, long size)
+            {
+                Path = path;
+                Type = type;
+                Bundle = bundle;
+                Size = size;
+                ObjectCount = 1;
+            }
+
+            public readonly string Path;
+            public readonly string Type;
+            public readonly string Bundle;
+            public long Size;
+            public int ObjectCount;
+        }
+
+        private readonly struct TypeSizeEntry
+        {
+            public TypeSizeEntry(string type, long size)
+            {
+                Type = type;
+                Size = size;
+            }
+
+            public readonly string Type;
+            public readonly long Size;
         }
     }
 }

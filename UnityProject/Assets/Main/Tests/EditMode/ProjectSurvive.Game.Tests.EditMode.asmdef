@@ -4,6 +4,7 @@
     "references": [
         "ProjectSurvive.Game.Infrastructure",
         "ProjectSurvive.Game.Presentation",
+        "ProjectSurvive.Game.Editor",
         "ProjectSurvive.Core.Shared",
         "ProjectSurvive.Core.Domain",
         "ProjectSurvive.Core.Application",

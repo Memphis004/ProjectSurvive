@@ -33,7 +33,23 @@
       2 = the script could not run (missing Editor, project locked, no project)
 
 .PARAMETER Configuration
-    Development (default) or Release.
+    Development (default) or Release. The parameter is also reachable as
+    -Profile (Stage 03b), because a "build profile" is what the size work calls
+    it; both names set the same thing.
+
+    Release is the configuration whose SIZE and TIMING numbers may be quoted
+    (ADR 0003). A Development build is bigger (debug symbols, no optimisation)
+    and is kept only as the comparison point for the size baseline.
+
+.PARAMETER SizeProfile
+    Stage 03b size measurement: baseline | strip-high | optimize-size | minimal.
+    Selecting one switches the script to the profile-driven Release entry point
+    (WebBuildPipeline.BuildWebForSize), which applies that profile in the same
+    process as the build and writes build-report.json next to the player.
+
+    A profile is a value, not Editor state, so the same command reproduces the
+    same configuration: the numbers in docs/build/size-baseline.md were produced
+    by these four commands, and re-running one is how they are checked.
 
 .PARAMETER OutputDirectory
     Where the player is written; relative paths resolve against the repo root.
@@ -48,11 +64,15 @@
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1
     powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 -Configuration Release
+    powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 -Profile Release
 #>
 [CmdletBinding()]
 param(
+    [Alias('Profile')]
     [ValidateSet('Development', 'Release')]
     [string]$Configuration = 'Development',
+    [ValidateSet('', 'baseline', 'strip-high', 'optimize-size', 'minimal')]
+    [string]$SizeProfile = '',
     [string]$OutputDirectory = 'UnityProject/Builds/Web',
     [switch]$Json,
     [switch]$NoWrite
@@ -118,7 +138,12 @@ Add-Check 'project' 'PASS' $ProjectPath
 # ---------------------------------------------------------------------------
 # 3. build
 # ---------------------------------------------------------------------------
-$method = if ($Configuration -eq 'Release') {
+$method = if ($SizeProfile) {
+    # A size build is always Release, whatever -Profile says: only a Release build's
+    # size is a number about the game rather than about debug symbols.
+    $Configuration = 'Release'
+    'ProjectSurvive.Game.Editor.WebBuildPipeline.BuildWebForSize'
+} elseif ($Configuration -eq 'Release') {
     'ProjectSurvive.Game.Editor.WebBuildPipeline.BuildWebRelease'
 } else {
     'ProjectSurvive.Game.Editor.WebBuildPipeline.BuildWebDevelopment'
@@ -136,6 +161,12 @@ $arguments = @(
     '-executeMethod', $method
     '-logFile', $logPath
 )
+
+if ($SizeProfile) {
+    # The pipeline reads these back off the command line, so the profile and the
+    # output directory are the build's inputs rather than ambient Editor state.
+    $arguments += @('-sizeProfile', $SizeProfile, '-outputDir', $OutputDirectory)
+}
 
 Write-Host ("  running: Unity.exe {0}" -f ($arguments -join ' ')) -ForegroundColor DarkGray
 $process = Start-Process -FilePath $editorPath -ArgumentList $arguments -Wait -PassThru -NoNewWindow
@@ -155,9 +186,13 @@ Add-Check 'C# errors in log' $(if ($compileErrors -eq 0) { 'PASS' } else { 'FAIL
 # 4. artifact
 # ---------------------------------------------------------------------------
 $indexHtml = Join-Path $OutputDirectory 'index.html'
-$wasm = if (Test-Path -LiteralPath $OutputDirectory) {
-    Get-ChildItem -LiteralPath $OutputDirectory -Recurse -Filter '*.wasm' -ErrorAction SilentlyContinue
-} else { @() }
+# @(...) is load bearing: a build writes exactly one .wasm, and under
+# Set-StrictMode a single FileInfo has no .Count, so the plain assignment made
+# every successful single-wasm build fail its own verification.
+$wasm = @()
+if (Test-Path -LiteralPath $OutputDirectory) {
+    $wasm = @(Get-ChildItem -LiteralPath $OutputDirectory -Recurse -Filter '*.wasm' -ErrorAction SilentlyContinue)
+}
 
 $artifactOk = (Test-Path -LiteralPath $indexHtml) -and ($wasm.Count -gt 0)
 Add-Check 'player output' $(if ($artifactOk) { 'PASS' } else { 'FAIL' }) "index.html + $($wasm.Count) wasm file(s) in $OutputDirectory"
@@ -179,6 +214,7 @@ $summary = [pscustomobject]@{
     timestamp       = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     unityVersion    = $unityVersion
     configuration   = $Configuration
+    sizeProfile     = $SizeProfile
     outputDirectory = $OutputDirectory
     exitCode        = $exitCode
     checks          = $script:Checks

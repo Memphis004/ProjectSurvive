@@ -20,6 +20,7 @@ architecture docs.
 | Prototype content (14 pieces, tag vocabulary, tiers, floors, shop pool) | [`systems/data-schema.md`](systems/data-schema.md#the-stage-04-prototype-content) | 04 | done |
 | Battle contract v1 (interfaces, fake, contract tests) | [`systems/battle-contract.md`](systems/battle-contract.md) | 02b | done |
 | Unity shell (scenes, DI, smoke suite, WebGL build, browser tests) | [`systems/unity-shell.md`](systems/unity-shell.md) | 03 | done |
+| WebGL payload size (profiles, measurement, per-assembly attribution) | [`../docs/build/size-baseline.md`](../docs/build/size-baseline.md) | 03b | done |
 | Bag / Board placement | *(folders ready, note pending)* | 05 | not started |
 | Combo evaluation | *(pending)* | 05–06 | not started |
 | Shop / economy | *(pending)* | 06 | not started |
@@ -41,6 +42,8 @@ lands.
 | Unity Editor FPS ≠ Web FPS | [`../docs/adr/0003-...`](../adr/0003-performance-baseline-machine-and-browser.md) | Only a real browser build counts |
 | IL2CPP strips constructors reflection-only code needs | [`gotchas/il2cpp-di-and-reflection.md`](gotchas/il2cpp-di-and-reflection.md) | A VContainer registration that works in the Editor can fail in the player; register with factories |
 | Dynamic TMP font assets lose their tables at build time | [`gotchas/tmp-font-assets-in-builds.md`](gotchas/tmp-font-assets-in-builds.md) | The first Web build shipped a font asset with an empty character table; bake, then freeze to Static |
+| A GUI Build click rewrites player settings | [ADR 0011](../docs/adr/0011-webgl-payload-budget-and-size-measurement.md) | It applies platform profile defaults (`webGLNameFilesAsHashes`, compression, linear lighting) and regenerates the shared IL2CPP tree; only CLI `-SizeProfile` builds are evidence |
+| Build size is meaningless without its basis | [ADR 0011](../docs/adr/0011-webgl-payload-budget-and-size-measurement.md) | The same player is 44.29 MiB raw, 15.53 MiB gzip or 10.87 MiB Brotli; a budget is on a compressed payload |
 | `TryAddCharacters`' return value is not coverage | [`gotchas/tmp-tryaddcharacters-lies.md`](gotchas/tmp-tryaddcharacters-lies.md) | A false return with the whole set "missing" usually means the face failed to load |
 | Luban 5.1 CLI: `--strict`, `__tables__.csv`, loader keys | [`gotchas/luban-5-strict-and-tables.md`](gotchas/luban-5-strict-and-tables.md) | Without `--strict` a broken `#ref` only warns and still exits 0; `#ref` cannot mean "optional" |
 | Thai text with TMP | [ADR 0008](../docs/adr/0008-thai-text-ui-stack.md) | Both stacks render Thai with 0 missing glyphs at 182-char coverage; the traps are in the asset and build pipeline, not the shaping |
