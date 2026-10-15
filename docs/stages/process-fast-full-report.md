@@ -20,7 +20,7 @@ finished **11 PASS / 0 FAIL / 2 NOT RUN** in 204.5 s.
 | # | Criterion | Verdict | Evidence |
 | --- | --- | --- | --- |
 | 1 | Real per-step timing table in `docs/testing/test-suites.md`, and a complete test → suite mapping | **PASS** | [`docs/testing/test-suites.md`](../testing/test-suites.md) §2 (cold and warm per step, machine spec) and §3 (every dotnet/EditMode/PlayMode/Playwright/Sim/data test and its suite) |
-| 2 | `-Suite Fast` and `-Suite Full` run, with PASS / FAIL / NOT RUN separated | **PASS** | `artifacts/proc10/fast-run1.log` (cold, `PASS 10 / FAIL 0 / NOT RUN 3`), `fast-run3.log` (final script, Editor open, 65/65 EditMode, 72.1 s), `full-editor-open.log` (`FAIL 1`: PlayMode §3), `full-editor-closed2.log` (`PASS 11 / FAIL 0 / NOT RUN 2`); summaries in `artifacts/test-summary.md` and `artifacts/proc10/*-summary.md` |
+| 2 | `-Suite Fast` and `-Suite Full` run, with PASS / FAIL / NOT RUN separated | **PASS** | `artifacts/proc10/fast-run1.log` (cold, `PASS 10 / FAIL 0 / NOT RUN 3`), `fast-run3.log` (final script, Editor open, 65/65 EditMode, 72.1 s), `full-editor-open.log` (`FAIL 1`: PlayMode §3), `full-editor-closed2.log` (`PASS 11 / FAIL 0 / NOT RUN 2`), `artifacts/timings/proc10-release/fast-release.log` (`-Release`: header `configuration: Release (web: Release)`, `PASS 10 / FAIL 0 / NOT RUN 3`, 180.9 s); summaries in `artifacts/test-summary.md` and `artifacts/proc10/*-summary.md` |
 | 3 | Fast + Full run no fewer tests than before | **PASS** | before: 425 dotnet + 57 EditMode + 24 PlayMode + 8 Playwright = 514. now: 425 + **65** + 24 + 8 = **522** (`unity: EditMode 65/65`, `dotnet test 425 passed`, `unity: PlayMode 24`, `Playwright 8 passed`) |
 | 4 | UI capture produces both sizes of Camp and Battle, and the overlap check can really fail | **PASS** | `artifacts/ui/{camp,battle}-{1920x1080,1280x720}.png` (+ `camp-closed-*`), exact sizes verified from the PNG headers, `artifacts/ui/ui-report.md`; the deliberate-overlap run wrote `artifacts/ui/ui-report-selftest.md` with **4 failures** naming the colliding pair at both sizes; `UiLayoutCheckTests` (8 cases) is in Fast |
 | 5 | `AGENTS.md` per the prompt, and this report in the new short format | **PASS** | `AGENTS.md` (Fast/Full rule, Editor layout check, ADR and stage-log rules, the >7-item split rule, 4-part ≤1-page report) — this file is that format |
@@ -43,6 +43,14 @@ finished **11 PASS / 0 FAIL / 2 NOT RUN** in 204.5 s.
 - **The batch `-executeMethod` path needs the Editor closed** (one process owns the project lock) — same
   constraint as `tools/build-web.ps1`. It was verified this way: 6 images, **byte-identical** to the menu
   run's, exit 0.
+- **`-Release` is verified only as far as Fast reaches.** The flag really does set both halves it
+  claims — `tools/test.ps1` maps it to `$script:Configuration = 'Release'` and
+  `$script:WebConfiguration = 'Release'` (lines 85–86) — and the run of record
+  (`artifacts/timings/proc10-release/`) proves the dotnet half: the header reads
+  `configuration: Release (web: Release)` and MSBuild reports `Release configuration` (5.6 s, 425
+  passed). The **WebGL Release build is a Full-only step and was not re-run**, so a Stage gate naming
+  Full `-Release` still has to produce that build; the last one measured is Stage 09's (201.4 s,
+  `artifacts/stage09/`).
 - **`data: broken fixtures rejected` is the slow step (47–52 s, the largest part of Fast)** because it
   spawns one validation process per fixture. The suggested fix (one process walking all 17) is not
   implemented.
@@ -59,6 +67,7 @@ finished **11 PASS / 0 FAIL / 2 NOT RUN** in 204.5 s.
 # the two suites (Editor open for EditMode; Editor closed for the WebGL step)
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1                 # Fast  (3 runs: cold, warm, final)
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -Suite Full     # Full  (Editor open, then closed)
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -Release        # the -Release flag (dotnet half)
 powershell -NoProfile -ExecutionPolicy Bypass -File artifacts/close-unity-editor.ps1
 
 # the UI capture: menu item through the open Editor, then the scripted batch form

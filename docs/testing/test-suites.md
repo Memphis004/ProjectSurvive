@@ -81,6 +81,29 @@ Warmth is not something the harness controls: a fourth run in the same session
 `data: generated tables validate` 65.3 s). An Editor restart and a busy machine were enough to lose the
 caches, so budget Fast at **1–4 minutes** rather than at the warm number.
 
+**Fast with `-Release`** (2026-10-15, warm machine, `artifacts/timings/proc10-release/fast-release.log`)
+— this run is what verifies the flag does what §1 says it does: the summary header reads
+`configuration: Release (web: Release)` and `dotnet build` reports `Release configuration`:
+
+| Step | Seconds |
+| --- | --- |
+| `toolchain: .NET SDK` | 0.0 |
+| `dotnet build` | 5.6 (Release) |
+| `dotnet test (xUnit)` | 2.4 — 425 passed |
+| `sim: determinism` | 36.0 |
+| `sim: stream separation` | 0.1 |
+| `sim: bot smoke run` | 48.8 |
+| `data: generated tables validate` | 15.6 |
+| `data: generated code reproducible` | 1.9 |
+| `data: broken fixtures rejected` | 59.9 |
+| `unity: EditMode` | 10.6 — 65/65 passed |
+| **total of steps** | **180.9** (PASS 10, FAIL 0, NOT RUN 3) |
+
+The flag's **WebGL half is Full-only and was not re-run** for this measurement; it is the same
+`tools/build-web.ps1 -Configuration Release` Stage 09 measured (201.4 s, 64,426,152 B,
+`artifacts/stage09/build-report.json`). A Stage gate that names Full with `-Release` still needs that
+run — `-Release` is exercised there, not here.
+
 **Full only** (2026-10-15, Editor closed, `artifacts/proc10/full-editor-closed.log` and the
 `test-summary.md` it wrote):
 
@@ -90,8 +113,8 @@ caches, so budget Fast at **1–4 minutes** rather than at the warm number.
 | `web: WebGL build (Development)` | 269.3 cold / **16.5** warm | cold: a fresh IL2CPP translation (Unity's own `buildSeconds: 258.3`, 119,647,484 B, 5 scenes). warm: the second build minutes later reused the IL2CPP C++ cache (Unity: `buildSeconds: 6.7`, 119,647,478 B) |
 | `web: Playwright (smoke + battle + camp)` | 121.4 | 8 tests, 1 worker, Chrome channel |
 
-`unity: EditMode` measured 9.2–13.6 s across four runs and `dotnet test` 2.2–2.7 s; the numbers above
-are the runs of record, not averages.
+`unity: EditMode` measured 9.2–13.6 s across the five runs above and `dotnet test` 2.2–2.7 s; the
+numbers quoted per run are the runs of record, not averages.
 
 ## 3. Every test, and the suite it belongs to
 
