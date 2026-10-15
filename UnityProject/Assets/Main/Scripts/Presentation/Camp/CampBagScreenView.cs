@@ -1242,7 +1242,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             _ghostLabel = labelObject.AddComponent<TextMeshProUGUI>();
             _ghostLabel.raycastTarget = false;
-            _ghostLabel.fontSize = 14f;
+            // Stage 09d item 2: the same 22 px floor as the panel's authored labels, at the canvas'
+            // 1920×1080 reference resolution (see ProjectSetup.UiFontSize).
+            _ghostLabel.fontSize = 22f;
             if (_font != null)
             {
                 _ghostLabel.font = _font;
@@ -1355,7 +1357,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
                 var label = labelObject.AddComponent<TextMeshProUGUI>();
                 label.raycastTarget = false;
-                label.fontSize = 15f;
+                label.fontSize = 22f;
                 label.alignment = TextAlignmentOptions.Center;
                 if (font != null)
                 {

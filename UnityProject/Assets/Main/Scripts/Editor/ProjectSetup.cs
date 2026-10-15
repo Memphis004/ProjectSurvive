@@ -91,6 +91,20 @@ namespace ProjectSurvive.Game.Editor
         /// </summary>
         private const int SpikeTmpFontSize = 48;
 
+        /// <summary>
+        /// The smallest a Thai label may be authored at, in canvas pixels at the 1920×1080 reference
+        /// resolution every canvas is scaled from (Stage 09d work item 2: *"ข้อความไทยทั่วไป ≥ 22 px
+        /// ฐาน 1080p"*).
+        /// </summary>
+        /// <remarks>
+        /// Before Stage 09d the panel ran on 14, 15, 16, 17, 18 and 20 px labels — the floor Stage 09b
+        /// asked for was 14 px, which is below what Thai needs once its upper and lower marks are
+        /// drawn (a Thai line box at 22 px is about 31 px tall, which is why the row pitches below
+        /// grew with the type). Display text (the 96 px title, the 56 px battle status) is authored
+        /// above the floor and left alone.
+        /// </remarks>
+        private const float UiFontSize = 22f;
+
         // ------------------------------------------------------------------
         // Menu entry points
         // ------------------------------------------------------------------
@@ -890,7 +904,7 @@ namespace ProjectSurvive.Game.Editor
                 canvasRect, "TimelinePanel", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
                 new Vector2(0f, 32f), new Vector2(1400f, 170f));
 
-            TMP_Text timelineCaption = CreateUiText(bottom, "TimelineCaption", new Vector2(0f, -6f), new Vector2(700f, 30f), 20f, font);
+            TMP_Text timelineCaption = CreateUiText(bottom, "TimelineCaption", new Vector2(0f, -6f), new Vector2(700f, 30f), UiFontSize, font);
             RectTransform track = CreateUiRect(
                 bottom, "TimelineTrack", new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(0f, -44f), new Vector2(1380f, 26f));
@@ -915,8 +929,8 @@ namespace ProjectSurvive.Game.Editor
             Image playheadImage = playhead.gameObject.AddComponent<Image>();
             playheadImage.color = new Color(0.95f, 0.95f, 0.98f, 0.9f);
 
-            TMP_Text spellsCaption = CreateUiText(bottom, "SpellsCaption", new Vector2(0f, -76f), new Vector2(1380f, 28f), 20f, font);
-            TMP_Text spellsValue = CreateUiText(bottom, "SpellsValue", new Vector2(0f, -106f), new Vector2(1380f, 28f), 22f, font);
+            TMP_Text spellsCaption = CreateUiText(bottom, "SpellsCaption", new Vector2(0f, -74f), new Vector2(1380f, 30f), UiFontSize, font);
+            TMP_Text spellsValue = CreateUiText(bottom, "SpellsValue", new Vector2(0f, -106f), new Vector2(1380f, 30f), UiFontSize, font);
 
             TMP_Text statusLabel = CreateUiText(
                 canvasRect, "StatusLabel", new Vector2(-600f, 120f), new Vector2(1200f, 90f), 56f, font,
@@ -1088,23 +1102,23 @@ namespace ProjectSurvive.Game.Editor
             // value, so an unchecked box and a checked box are two different commands.
             Toggle lockRestore = CreateUiToggle(
                 panel, "LockRestoreToggle", new Vector2(250f, -72f), new Vector2(30f, 30f), font,
-                new Vector2(292f, -72f), new Vector2(400f, 30f), out TMP_Text lockRestoreLabel);
+                new Vector2(292f, -72f), new Vector2(400f, 34f), out TMP_Text lockRestoreLabel);
 
             // --- Top-right (y 20..180): the instruction scroll, four numbered steps --------------
             RectTransform instr = CreateUiRect(
                 panel, "Instructions", new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-40f, -20f), new Vector2(776f, 160f));
+                new Vector2(-40f, -20f), new Vector2(776f, 176f));
             var instrImage = instr.gameObject.AddComponent<Image>();
             instrImage.color = new Color(0.12f, 0.14f, 0.18f, 0.85f);
             instrImage.raycastTarget = false;
 
-            TMP_Text instrTitle = CreateUiText(instr, "InstrTitle", new Vector2(12f, -8f), new Vector2(752f, 24f), 17f, font);
+            TMP_Text instrTitle = CreateUiText(instr, "InstrTitle", new Vector2(12f, -8f), new Vector2(752f, 28f), UiFontSize, font);
             instrTitle.color = new Color(1f, 0.82f, 0.35f, 1f);
 
-            TMP_Text step1 = CreateUiText(instr, "Step1", new Vector2(12f, -38f), new Vector2(752f, 24f), 15f, font);
-            TMP_Text step2 = CreateUiText(instr, "Step2", new Vector2(12f, -66f), new Vector2(752f, 24f), 15f, font);
-            TMP_Text step3 = CreateUiText(instr, "Step3", new Vector2(12f, -94f), new Vector2(752f, 24f), 15f, font);
-            TMP_Text step4 = CreateUiText(instr, "Step4", new Vector2(12f, -122f), new Vector2(752f, 24f), 15f, font);
+            TMP_Text step1 = CreateUiText(instr, "Step1", new Vector2(12f, -40f), new Vector2(752f, 28f), UiFontSize, font);
+            TMP_Text step2 = CreateUiText(instr, "Step2", new Vector2(12f, -72f), new Vector2(752f, 28f), UiFontSize, font);
+            TMP_Text step3 = CreateUiText(instr, "Step3", new Vector2(12f, -104f), new Vector2(752f, 28f), UiFontSize, font);
+            TMP_Text step4 = CreateUiText(instr, "Step4", new Vector2(12f, -136f), new Vector2(752f, 28f), UiFontSize, font);
 
             // --- Left column (y 180..760): the board. Nine columns of 78 + a 4 gap = 734 wide -----
             RectTransform board = CreateUiRect(
@@ -1119,7 +1133,7 @@ namespace ProjectSurvive.Game.Editor
             chestPanelImage.color = new Color(0.10f, 0.12f, 0.15f, 0.90f);
             chestPanelImage.raycastTarget = false;
 
-            TMP_Text chestTitle = CreateUiText(chestPanel, "ChestTitle", new Vector2(16f, -10f), new Vector2(744f, 32f), 20f, font);
+            TMP_Text chestTitle = CreateUiText(chestPanel, "ChestTitle", new Vector2(16f, -10f), new Vector2(744f, 34f), UiFontSize, font);
 
             // 5 columns of 136 + a 16 gap = 744 wide, two rows = 288 tall.
             RectTransform chest = CreateUiRect(
@@ -1136,9 +1150,9 @@ namespace ProjectSurvive.Game.Editor
             altarImage.raycastTarget = false;
 
             TMP_Text altarCaption = CreateUiText(
-                altar, "AltarCaption", new Vector2(0f, -12f), new Vector2(240f, 32f), 18f, font, TextAlignmentOptions.Center);
+                altar, "AltarCaption", new Vector2(0f, -10f), new Vector2(240f, 34f), UiFontSize, font, TextAlignmentOptions.Center);
             TMP_Text altarOffer = CreateUiText(
-                altar, "AltarOffer", new Vector2(20f, -50f), new Vector2(200f, 80f), 15f, font, TextAlignmentOptions.Center);
+                altar, "AltarOffer", new Vector2(10f, -52f), new Vector2(220f, 96f), UiFontSize, font, TextAlignmentOptions.Center);
 
             // --- Bottom-left (y 866..1056): กลับ, ไปชั้นถัดไป, then HP/MP, น้ำหนัก, เบี้ย ---------
             RectTransform statsNav = CreateUiRect(
@@ -1149,12 +1163,12 @@ namespace ProjectSurvive.Game.Editor
             Button nextFloorButton = CreateUiButton(statsNav, "NextFloorButton", new Vector2(142f, 0f), new Vector2(220f, 50f), font, out TMP_Text nextFloorLabel);
 
             // The reason the ไปชั้นถัดไป button is disabled ("ปิดพร้อมเหตุผลถ้าไม่มีอาวุธอาคม").
-            TMP_Text departReason = CreateUiText(statsNav, "DepartReason", new Vector2(0f, -58f), new Vector2(740f, 24f), 14f, font);
+            TMP_Text departReason = CreateUiText(statsNav, "DepartReason", new Vector2(0f, -56f), new Vector2(740f, 30f), UiFontSize, font);
             departReason.color = new Color(0.95f, 0.45f, 0.45f, 1f);
 
-            TMP_Text hpLabel = CreateUiText(statsNav, "HpLabel", new Vector2(0f, -86f), new Vector2(740f, 26f), 18f, font);
-            TMP_Text weightLabel = CreateUiText(statsNav, "WeightLabel", new Vector2(0f, -114f), new Vector2(740f, 26f), 16f, font);
-            TMP_Text biaLabel = CreateUiText(statsNav, "BiaLabel", new Vector2(0f, -142f), new Vector2(740f, 26f), 16f, font);
+            TMP_Text hpLabel = CreateUiText(statsNav, "HpLabel", new Vector2(0f, -90f), new Vector2(740f, 30f), UiFontSize, font);
+            TMP_Text weightLabel = CreateUiText(statsNav, "WeightLabel", new Vector2(0f, -124f), new Vector2(740f, 30f), UiFontSize, font);
+            TMP_Text biaLabel = CreateUiText(statsNav, "BiaLabel", new Vector2(0f, -158f), new Vector2(740f, 30f), UiFontSize, font);
 
             // The จัดย่าม button lives on the canvas, not in the panel, and is hidden while the
             // panel is open (the panel carries its own กลับ). Bottom-centre per the GDD, clear of
@@ -1241,7 +1255,7 @@ namespace ProjectSurvive.Game.Editor
             toggle.graphic = markImage;
             toggle.isOn = false;
 
-            label = CreateUiText(parent, name + "Label", labelPosition, labelSize, 15f, font);
+            label = CreateUiText(parent, name + "Label", labelPosition, labelSize, UiFontSize, font);
             label.text = string.Empty;
             return toggle;
         }
@@ -1253,37 +1267,41 @@ namespace ProjectSurvive.Game.Editor
         private static CampStatusBarView BuildCampStatusBar(RectTransform canvasRect, TMP_FontAsset font, CampSceneScope scope)
         {
             // Left-anchored and no wider than the gap the bag screen leaves: a bar that ran under
-            // the bag panel would hide the depart button it is supposed to justify.
+            // the bag panel would hide the depart button it is supposed to justify. It grew from 960
+            // to 1400 in Stage 09d because the control hint has to read at 22 px, and Thai does not
+            // break inside a run of syllables: the string is one unbreakable word as far as TMP is
+            // concerned, so a box narrower than the text does not wrap it — it spills it.
             RectTransform panel = CreateUiRect(
                 canvasRect, "StatusPanel", new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(24f, 16f), new Vector2(960f, 190f));
+                new Vector2(24f, 16f), new Vector2(1400f, 190f));
 
             var background = panel.gameObject.AddComponent<Image>();
             background.color = new Color(0.06f, 0.06f, 0.08f, 0.88f);
 
             // Row one: the run at a glance.
-            TMP_Text floor = CreateUiText(panel, "FloorValue", new Vector2(10f, -6f), new Vector2(140f, 30f), 22f, font);
-            TMP_Text chestCaption = CreateUiText(panel, "ChestCaption", new Vector2(160f, -6f), new Vector2(90f, 30f), 20f, font);
-            TMP_Text chestValue = CreateUiText(panel, "ChestValue", new Vector2(252f, -6f), new Vector2(110f, 30f), 22f, font);
-            TMP_Text biaCaption = CreateUiText(panel, "BiaCaption", new Vector2(370f, -6f), new Vector2(80f, 30f), 20f, font);
-            TMP_Text biaValue = CreateUiText(panel, "BiaValue", new Vector2(452f, -6f), new Vector2(110f, 30f), 22f, font);
-            TMP_Text refreshCostCaption = CreateUiText(panel, "RefreshCostCaption", new Vector2(570f, -6f), new Vector2(150f, 30f), 18f, font);
-            TMP_Text refreshCostValue = CreateUiText(panel, "RefreshCostValue", new Vector2(724f, -6f), new Vector2(90f, 30f), 20f, font);
+            TMP_Text floor = CreateUiText(panel, "FloorValue", new Vector2(10f, -6f), new Vector2(140f, 30f), UiFontSize, font);
+            TMP_Text chestCaption = CreateUiText(panel, "ChestCaption", new Vector2(160f, -6f), new Vector2(90f, 30f), UiFontSize, font);
+            TMP_Text chestValue = CreateUiText(panel, "ChestValue", new Vector2(252f, -6f), new Vector2(110f, 30f), UiFontSize, font);
+            TMP_Text biaCaption = CreateUiText(panel, "BiaCaption", new Vector2(370f, -6f), new Vector2(80f, 30f), UiFontSize, font);
+            TMP_Text biaValue = CreateUiText(panel, "BiaValue", new Vector2(452f, -6f), new Vector2(70f, 30f), UiFontSize, font);
+            TMP_Text refreshCostCaption = CreateUiText(panel, "RefreshCostCaption", new Vector2(600f, -6f), new Vector2(190f, 30f), UiFontSize, font);
+            TMP_Text refreshCostValue = CreateUiText(panel, "RefreshCostValue", new Vector2(794f, -6f), new Vector2(110f, 30f), UiFontSize, font);
 
             // Row two: the weight penalty and the focus rate, with the depart button on the right.
-            TMP_Text weightCaption = CreateUiText(panel, "WeightCaption", new Vector2(10f, -40f), new Vector2(110f, 28f), 20f, font);
-            TMP_Text weightValue = CreateUiText(panel, "WeightValue", new Vector2(124f, -40f), new Vector2(250f, 28f), 20f, font);
-            TMP_Text focusCaption = CreateUiText(panel, "FocusCaption", new Vector2(384f, -40f), new Vector2(110f, 28f), 20f, font);
-            TMP_Text focusValue = CreateUiText(panel, "FocusValue", new Vector2(498f, -40f), new Vector2(140f, 28f), 20f, font);
-            TMP_Text departReason = CreateUiText(panel, "DepartReason", new Vector2(650f, -6f), new Vector2(300f, 56f), 16f, font);
+            TMP_Text weightCaption = CreateUiText(panel, "WeightCaption", new Vector2(10f, -40f), new Vector2(120f, 30f), UiFontSize, font);
+            TMP_Text weightValue = CreateUiText(panel, "WeightValue", new Vector2(134f, -40f), new Vector2(260f, 30f), UiFontSize, font);
+            TMP_Text focusCaption = CreateUiText(panel, "FocusCaption", new Vector2(404f, -40f), new Vector2(120f, 30f), UiFontSize, font);
+            TMP_Text focusValue = CreateUiText(panel, "FocusValue", new Vector2(528f, -40f), new Vector2(160f, 30f), UiFontSize, font);
+            TMP_Text departReason = CreateUiText(panel, "DepartReason", new Vector2(920f, -6f), new Vector2(460f, 64f), UiFontSize, font);
 
             // Row three: the penalty bar, the status line, and the depart button itself.
             RectTransform weightBar = CreateUiBar(panel, "WeightBar", new Vector2(10f, -76f), new Vector2(370f, 16f), new Color(0.72f, 0.58f, 0.30f, 1f));
-            TMP_Text status = CreateUiText(panel, "StatusLabel", new Vector2(392f, -72f), new Vector2(240f, 40f), 16f, font);
-            Button depart = CreateUiButton(panel, "DepartButton", new Vector2(650f, -100f), new Vector2(300f, 64f), font, out TMP_Text departLabel);
+            TMP_Text status = CreateUiText(panel, "StatusLabel", new Vector2(392f, -72f), new Vector2(300f, 40f), UiFontSize, font);
+            Button depart = CreateUiButton(panel, "DepartButton", new Vector2(1050f, -76f), new Vector2(320f, 64f), font, out TMP_Text departLabel);
 
-            // Row four: the controls hint, across the bar.
-            TMP_Text hint = CreateUiText(panel, "HintLabel", new Vector2(10f, -122f), new Vector2(620f, 60f), 15f, font);
+            // Row four: the controls hint, across the bar — and *below* the depart button rather
+            // than beside it, because at 22 px the hint is wider than the strip the button leaves.
+            TMP_Text hint = CreateUiText(panel, "HintLabel", new Vector2(10f, -146f), new Vector2(1370f, 34f), UiFontSize, font);
 
             CampStatusBarView view = panel.gameObject.AddComponent<CampStatusBarView>();
             SetObjectReference(view, "_scope", scope);
@@ -1320,9 +1338,9 @@ namespace ProjectSurvive.Game.Editor
             var background = panel.gameObject.AddComponent<Image>();
             background.color = new Color(0.05f, 0.05f, 0.07f, 0.94f);
 
-            TMP_Text title = CreateUiText(panel, "TooltipTitle", new Vector2(12f, -8f), new Vector2(356f, 36f), 22f, font);
-            TMP_Text stats = CreateUiText(panel, "TooltipStats", new Vector2(12f, -48f), new Vector2(356f, 110f), 18f, font);
-            TMP_Text combos = CreateUiText(panel, "TooltipCombos", new Vector2(12f, -166f), new Vector2(356f, 120f), 18f, font);
+            TMP_Text title = CreateUiText(panel, "TooltipTitle", new Vector2(12f, -8f), new Vector2(356f, 36f), UiFontSize, font);
+            TMP_Text stats = CreateUiText(panel, "TooltipStats", new Vector2(12f, -50f), new Vector2(356f, 120f), UiFontSize, font);
+            TMP_Text combos = CreateUiText(panel, "TooltipCombos", new Vector2(12f, -176f), new Vector2(356f, 120f), UiFontSize, font);
 
             CampTooltipView view = panel.gameObject.AddComponent<CampTooltipView>();
             SetObjectReference(view, "_scope", scope);
@@ -1349,7 +1367,7 @@ namespace ProjectSurvive.Game.Editor
             var button = rect.gameObject.AddComponent<Button>();
             button.targetGraphic = image;
 
-            label = CreateUiText(rect, "Label", Vector2.zero, size, 20f, font, TextAlignmentOptions.Center);
+            label = CreateUiText(rect, "Label", Vector2.zero, size, UiFontSize, font, TextAlignmentOptions.Center);
             return button;
         }
 

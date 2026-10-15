@@ -43,7 +43,12 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         private const int DragSteps = 6;
 
         /// <summary>The smallest type size the GDD allows on the bag screen at 1080p.</summary>
-        private const float MinimumFontSize = 14f;
+        /// <summary>
+        /// Stage 09d item 2: Thai labels are authored at 22 px or more at the canvas' 1920×1080
+        /// reference resolution. Stage 09b's floor was 14 px, which left the panel's body text below
+        /// what Thai needs once its upper and lower marks are drawn.
+        /// </summary>
+        private const float MinimumFontSize = 22f;
 
         /// <summary>
         /// Regions that are allowed to overlap because one is drawn inside the other. The chest's
@@ -267,8 +272,8 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         }
 
         /// <summary>
-        /// Stage 09b, item B: no two named regions of the panel are on top of each other, and no label
-        /// is smaller than the GDD's 14 px.
+        /// Stage 09b, item B: no two named regions of the panel are on top of each other, and Stage
+        /// 09d, item 2: no label is smaller than 22 px.
         /// </summary>
         /// <remarks>
         /// Measured from the same rectangles the layout report publishes to the page, so the browser

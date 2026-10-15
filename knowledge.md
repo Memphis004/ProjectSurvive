@@ -24,6 +24,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **07** | **Battle core (headless) & bot sim** | **DONE** — see [`docs/stages/07-report.md`](docs/stages/07-report.md) |
 | **08** | **Battle presentation 2.5D** | **DONE** — see [`docs/stages/08-report.md`](docs/stages/08-report.md) |
 | **09** | **Camp scene & จัดย่าม UI (walkable sala, world shop)** | **DONE** — see [`docs/stages/09-report.md`](docs/stages/09-report.md), [`09b`](docs/stages/09b-report.md) (the drag diagnosis), [`09c`](docs/stages/09c-report.md) (the walkable camp) |
+| **09d** | **Thai text sharpness (font report, 22 px floor, on-screen measurements)** | **DONE** — see [`docs/stages/09d-report.md`](docs/stages/09d-report.md) |
 | 10 | Full loop (vertical slice) | not started |
 | 11 | Thai ghost AI, Pob boss, balance | not started |
 | 12 | Save, resume, settings | not started |
@@ -31,7 +32,10 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
-**Current state:** Stages 00–09. `lib/` is a real UPM package
+**Current state:** Stages 00–09, plus **09d** (a measurement pass over 09's Thai text: the font every
+canvas uses is `Sarabun-Regular SDF`, the ≥ 22 px floor is a **1080p-base** statement — at 1280×720
+every canvas label is drawn at two-thirds of it, measured — and the world-space shelf labels are
+12 px tall at best, which is a different rule and still open). `lib/` is a real UPM package
 (`com.projectsurvive.core`) with six hand-written layer `.asmdef`s plus two
 generated ones, the vendored EcsLite, the deterministic `Shared`/`Infrastructure`
 primitives (`IRandomSource` / `Xoshiro128`, `RandomStreams`, `IClock` /
@@ -235,6 +239,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 -SizePro
                                                                                              # ^ a measured size configuration;
                                                                                              #   baseline | strip-high | optimize-size | minimal
 node tools/serve-web.mjs --port 8080          # then, in tests/web: npx playwright test
+
+# Thai text sharpness (Stage 09d): how big the letters really are, from the font and from the player
+python tools/font-metrics.py --size 22                                    # 22 px metrics + comparison PNGs
+node tests/web/scripts/collect-geometry.mjs http://127.0.0.1:8080/ 1920 1080 \
+  artifacts/stage09d/camp-geometry-1920x1080.json 1                       # the layout behind a shot
+python tools/screen-text-metrics.py --image artifacts/stage09d/screens/web-camp-1920x1080-dsf1.png \
+  --geometry artifacts/stage09d/camp-geometry-1920x1080.json --region openBag --region shelfLock1
+SCREENS=1 npx playwright test screens.spec.ts   # in tests/web: the Stage 09d screenshots (opt-in,
+                                                # 13 player boots; not a gate)
 
 # Coverage of the bag rules (Stage 05 acceptance: >= 85 % of Domain/Inventory + Footprint)
 dotnet test "lib/Tests~/Core.Tests/ProjectSurvive.Core.Tests.csproj" --collect:"XPlat Code Coverage" `

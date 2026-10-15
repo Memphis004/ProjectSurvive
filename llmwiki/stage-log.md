@@ -26,8 +26,26 @@ order" view.
 
 | 09 | 2026-10-15 | **ศาลาพัก (camp) + จัดย่าม screen, made usable (09b) and walkable (09c)**: `Assets/Main/Scenes/Camp.unity` (5th scene, `?scene=Camp`) + `Camp/**` + `Presentation/Camp/**` (13 files, `CampBagScreenView` 1415 lines, `CampReport` 713) — a fullscreen translucent overlay over the sala (board / chest `x/10` / incense pot / 4-step instruction scroll / restore+lock-on-restore checkbox / navigation+stats) with drag feedback, synergy lines, click-then-click fallback and Escape-cancel; since 09c the sala is walked with WASD under a follow camera, the shop is **four shelves in the world** (one affordance per slot, `E` or a click, the same `RunSession` command) with the เซียมซี drum and per-shelf lock pins, and the camp starts with the panel closed; `RunSession.PreviewDrop` is a **dry run of the same `BackpackEditor` predicates** the accepted command asks, `SetBagLocked` + the camp read model (`EvaluateLayout`/`BagWeight`/`BagPenalty`/…) added, `Domain/Run/BagDrop` extracted (+81 localization rows, 145 total); two documents published for the browser (`__projectSurviveCamp`, `__projectSurviveCampGeometry`) with every cell/slot/station as a **centre** (a published corner is outside its own rect); [ADR 0019](../docs/adr/0019-camp-screen-read-model-and-gesture-preview.md) | [`09-report`](../docs/stages/09-report.md) + [`09b`](../docs/stages/09b-report.md) + [`09c`](../docs/stages/09c-report.md) |
 
+| 09d | 2026-10-15 | **Thai text sharpness, measured rather than eyeballed**: the font every canvas actually uses is reported from the loaded assets (`Sarabun-Regular SDF` — 90 pt sampling, 9 px padding, **SDFAA**, Static, 1024², 182 chars) and `THSarabunPSK SDF` is shown to be **orphaned** (no scene references it, 0 characters baked) while being the **largest asset in the Web build** (4,220,916 B packed); all four canvases confirmed `ScaleWithScreenSize` 1920×1080 match 0.5, scene labels ≥ 22 px (Title 28, Battle 22, Camp 22); the จัดย่าม label measured **21 px of ink at 1920×1080** in the real player and 14 px at 1280×720 (the scaler's 0.667), 27 px at deviceScaleFactor 2; THSarabunPSK measured **31 % shorter** than Sarabun at the same size (31 px needed for parity) with three comparison images; 13/13 Playwright screenshots (17 PNGs) at 1920×1080/1280×720 × deviceScaleFactor 1/2; two new tools (`tools/font-metrics.py`, `tools/screen-text-metrics.py`) and `tests/web/scripts/collect-geometry.mjs` | [`09d-report`](../docs/stages/09d-report.md) |
+
 ## Notes carried forward
 
+- **The bulk PlayMode suite fails on ambient Input System log-asserts, while every test passes
+alone** (2026-10-15, Stage 09d). In a freshly launched Editor, three whole-suite runs gave
+  **10 passed / 10 failed** with three different duration sets (so they were real runs, not the
+  `run_tests` cache — see the next note): seven failures are `[Exception] IndexOutOfRangeException`
+  raised inside `InputSystem.InputManagerStateMonitors.AddStateChangeMonitor` via
+  `InputSystemUIInputModule.OnEnable`, three are `[Error] Cached unprocessed value unexpectedly became
+  outdated` from `NativeInputRuntime`, and **none is a failed assertion** — they are `LogAssert`
+  failures on ambient messages. The test that owns the 22 px floor passed **1/1** when run on its own,
+  and Stage 09's session reported all 24 PlayMode tests green on the same code. Run a failing-looking
+  suite test-by-test before believing it, and log the whole-suite result as unsolved rather than
+  tidying it.
+- **`run_tests` can answer with the *previous* run's results** (2026-10-15, Stage 09d). A
+  `filter_type = class` call returned the whole suite's cached result verbatim (identical per-test
+  durations), and an `async_tests = true` call right after a sync attempt returned a run that had
+  already completed. The tell is always the durations: compare them against the run you think you
+  started before quoting a number.
 - **A `data/` edit is not in the build until `gen.ps1` runs** (2026-10-15). Stage 09 added 81
   localization rows to `data/localization/localization.csv` and never regenerated: the tracked
   `ConfigBuildMetadata.g.cs` hash no longer matched the tables, `verify-generated` failed on
