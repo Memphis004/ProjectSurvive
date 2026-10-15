@@ -146,3 +146,12 @@ alone** (2026-10-15, Stage 09d). In a freshly launched Editor, three whole-suite
   (stripped DI constructors, emptied font tables) were invisible to Mono-based
   EditMode/PlayMode tests and only the real build caught them — `tests/web/` is the
   gate for anything IL2CPP-, AOT- or asset-serialization-sensitive.
+- **Process change (2026-10-15, not a Stage): two suites, and a layout check in the Editor.**
+  `tools/test.ps1 -Suite Fast|Full` splits the same tests by how often they need to run — Fast is
+  **72–77 s warm / 229 s cold** (dotnet + Sim + data gates + EditMode); Full adds PlayMode, a WebGL
+  Development build (269 s cold / 16.5 s warm) and Playwright, and its run with the Editor closed was
+  **204.5 s, 11 PASS / 0 FAIL / 2 NOT RUN**. `ProjectSurvive/Tools/1. Capture UI` renders Camp and
+  Battle at 1920×1080 and 1280×720 in ~1 s and fails on overlapping panels, so a layout no longer
+  needs a Web build. Tests
+  514 → 522, each one mapped in [`docs/testing/test-suites.md`](../docs/testing/test-suites.md);
+  [`process-fast-full-report`](../docs/stages/process-fast-full-report.md).

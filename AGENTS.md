@@ -50,17 +50,25 @@ Definition of Done ของทุก Stage:
 - ไม่มี error หรือ warning ใหม่ที่ปล่อยทิ้งโดยไม่อธิบาย
 - อัปเดตเอกสารและคำสั่งทดสอบ บันทึกผลที่ docs/stages/NN-report.md
 - commit ด้วยข้อความ stage-NN: <สรุป>
+- ระหว่างทำงานรัน `tools/test.ps1 -Suite Fast` เท่านั้น; รัน `-Suite Full` ตอนปิด Stage หรือก่อน commit ของ Stage
+  (รายละเอียดชุดและเวลาจริงของแต่ละขั้นอยู่ที่ docs/testing/test-suites.md)
+- รัน WebGL build และ Playwright เฉพาะ Stage ที่ระบุ gate (10, 12, 14, 15) หรือเมื่อ `-Suite Full`; ระหว่างทางใช้ Editor Play Mode และ PlayMode tests
+- งาน UI: ตรวจ layout จากภาพของ Editor capture (`ProjectSurvive/Tools/1. Capture UI` → artifacts/ui) ไม่ต้อง build Web ทุกครั้ง;
+  ก่อนปิด Stage ยังต้องส่ง screenshot จากเกมจริงให้ผู้ใช้ดูก่อน และห้ามประกาศ PASS ด้านภาพจากเทสต์อย่างเดียว
+- อ่านเฉพาะ AGENTS.md, ตารางสถานะใน knowledge.md และเอกสารของระบบที่กำลังแก้
+- เขียน ADR เฉพาะเมื่อมีทางเลือกที่ต่างกันจริงอย่างน้อยสองทางและกระทบ Stage อื่น
+- อัปเดต llmwiki/stage-log.md ตอนปิด Stage ด้วย 3 บรรทัด (ทำอะไร / ผลเป็นอย่างไร / อะไรต่อ) และอัปเดตเอกสารอื่นเฉพาะที่พฤติกรรมเปลี่ยนจริง
+- ถ้า Stage มีงานเกินราว 7 ข้อ หรือแตะพร้อมกันทั้ง Core, ฉาก Unity, UI และ Web test ให้หยุดและรายงานข้อเสนอแตกเป็น Stage ย่อยก่อนลงมือ
+- ห้ามเพิ่ม Stage ย่อยเองโดยไม่ถามผู้ใช้
 
-รายงานท้าย Stage:
-1. สิ่งที่ทำสำเร็จ
-2. ไฟล์สำคัญที่เปลี่ยน
-3. คำสั่งที่รันจริง
-4. ผลและที่เก็บ log หรือ artifact
-5. สิ่งที่ไม่ได้ทดสอบและเหตุผล
-6. blocker และความเสี่ยง
-7. Acceptance แต่ละข้อ: PASS / FAIL / NOT RUN
+รายงานท้าย Stage (ไม่เกินราว 1 หน้า, ห้ามแปะ log ยาว):
+1. สรุป 3-5 บรรทัด
+2. Acceptance ทีละข้อ: PASS / FAIL / NOT RUN พร้อมลิงก์หลักฐานใน artifacts/
+3. สิ่งที่ไม่ได้ทดสอบและความเสี่ยง
+4. คำสั่งที่รันจริง
 
 ถ้าไม่มี Unity Editor, license, Web module หรือ browser:
 ทำส่วนที่ทำได้และระบุ NOT RUN ห้ามอ้างว่า build หรือ test ผ่าน
 และห้ามปิด Stage เป็น PASS ถ้า gate ที่จำเป็นยังไม่ผ่าน
 ตัวเลข performance ต้องมาจากการวัดจริงพร้อมสเปกเครื่อง ห้ามอ้างตัวเลขที่ไม่ได้วัด
+

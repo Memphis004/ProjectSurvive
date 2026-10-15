@@ -214,10 +214,17 @@ pwsh -NoProfile -File tools/doctor.ps1
 # Clone setup (once, after cloning)
 git lfs install
 
-# Core: build + xUnit tests + Sim determinism + the Stage 02 data gates — no Unity needed
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -NoPipeline   # skip the slow data gates
-pwsh -NoProfile -File tools/test.ps1 -Configuration Release
+# The two suites (docs/testing/test-suites.md has the timings and the complete test -> suite mapping)
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1                    # Fast: dotnet + Sim + data gates + Unity EditMode
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -Suite Full         # + PlayMode + WebGL Development + Playwright
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -Suite Full -Release # a gate: Release build (ADR 0003)
+# Fast is the working loop and needs the Editor open for its EditMode step; Full needs the Editor
+# CLOSED for its WebGL step, so the two runs together give the complete verdict.
+# Both write artifacts/test-summary.md (PASS / FAIL / NOT RUN per step, with real seconds).
+
+# Core alone: build + xUnit + Sim determinism + the data gates, with no Unity at all
+dotnet build "lib/Tests~/ProjectSurvive.Core.sln" -c Debug
+pwsh -NoProfile -File tools/verify-generated.ps1
 
 # Static data pipeline (one-time setup downloads Luban + protoc into tools/vendor/)
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/setup-tools.ps1
@@ -239,6 +246,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 -SizePro
                                                                                              # ^ a measured size configuration;
                                                                                              #   baseline | strip-high | optimize-size | minimal
 node tools/serve-web.mjs --port 8080          # then, in tests/web: npx playwright test
+
+# UI layout without a WebGL build (Stage 09d follow-up): open the scenes, shoot them at the two
+# sizes and fail when two panels overlap. Editor open, menu `ProjectSurvive/Tools/1. Capture UI`:
+unity command menu --path "ProjectSurvive/Tools/1. Capture UI (Camp + Battle, 1920x1080 + 1280x720)"
+#   -> artifacts/ui/{camp,battle}-{1920x1080,1280x720}.png + ui-report.md (every rectangle measured)
+# Scripted form (Editor closed): Unity.exe -batchmode -quit -projectPath UnityProject \
+#   -executeMethod ProjectSurvive.Game.Editor.UiCaptureTool.CaptureAllAndExit
+# Proof the check can fail: menu `ProjectSurvive/Tools/2. Capture UI self-test (expected to FAIL)`
+#   -> ui-report-selftest.md with the deliberate collision listed.
+
 
 # Thai text sharpness (Stage 09d): how big the letters really are, from the font and from the player
 python tools/font-metrics.py --size 22                                    # 22 px metrics + comparison PNGs

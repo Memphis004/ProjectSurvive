@@ -9,6 +9,7 @@ architecture docs.
 - Thai ↔ code names: [`glossary.md`](glossary.md)
 - Rules engine: [`../docs/architecture/overview.md`](../docs/architecture/overview.md)
 - Dependency risk: [`../docs/architecture/dependencies.md`](../docs/architecture/dependencies.md)
+- Which tests run when (Fast/Full, timings, test → suite): [`../docs/testing/test-suites.md`](../docs/testing/test-suites.md)
 
 ---
 
