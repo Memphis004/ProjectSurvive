@@ -97,6 +97,19 @@ namespace ProjectSurvive.Game.Editor
             ("NextFloor", "_nextFloorButton"),
         };
 
+        /// <summary>
+        /// The opacity the tooltip's own background has to reach ("พื้นหลังทึบ (alpha ≥ 0.92)").
+        /// </summary>
+        private const float TooltipAlphaFloor = 0.92f;
+
+        /// <summary>
+        /// How much closer to the overlay's own background colour a pixel has to land for the overlay
+        /// to count as painted there. Two steps of an 8-bit channel (2/255): small on purpose, because
+        /// a dark tooltip over a dark panel only moves the pixel by a couple of levels — and honest,
+        /// because an overlay that is not drawn there at all moves it by <b>nothing</b>.
+        /// </summary>
+        private const float OverlayPixelProofFloor = 0.008f;
+
         private static readonly Vector3[] Corners = new Vector3[4];
 
         private static string OutputDirectory =>
@@ -202,13 +215,15 @@ namespace ProjectSurvive.Game.Editor
 
             var bag = Object.FindFirstObjectByType<CampBagScreenView>(FindObjectsInactive.Include);
             var bar = Object.FindFirstObjectByType<CampStatusBarView>(FindObjectsInactive.Include);
+            var tooltip = Object.FindFirstObjectByType<CampTooltipView>(FindObjectsInactive.Include);
             Camera camera = Camera.main;
 
-            if (bag == null || bar == null || camera == null)
+            if (bag == null || bar == null || tooltip == null || camera == null)
             {
                 report.Failures.Add(
                     "the Camp scene is missing " + (bag == null ? "CampBagScreenView " : string.Empty)
                     + (bar == null ? "CampStatusBarView " : string.Empty)
+                    + (tooltip == null ? "CampTooltipView " : string.Empty)
                     + (camera == null ? "a MainCamera" : string.Empty));
                 return;
             }
@@ -217,6 +232,26 @@ namespace ProjectSurvive.Game.Editor
             var fixedRects = new List<(string Name, UiRegionKind Kind, RectTransform Rect)>();
             AddSerializedRects(bagFields, PanelSurfaces, UiRegionKind.Surface, fixedRects);
             AddSerializedRects(bagFields, PanelControls, UiRegionKind.Control, fixedRects);
+
+            var tooltipFields = new SerializedObject(tooltip);
+
+            // The tooltip serializes its panel as a GameObject, and the inactive panel is exactly the
+            // state the scene is authored in, so the lookups here include inactive objects.
+            var tooltipPanel = tooltipFields.FindProperty("_root")?.objectReferenceValue as GameObject;
+            var tooltipRegion = new List<(string Name, UiRegionKind Kind, RectTransform Rect)>();
+
+            if (tooltipPanel == null)
+            {
+                report.Failures.Add("the tooltip has no root panel, so nothing can measure where it is drawn");
+                return;
+            }
+
+            tooltipRegion.Add((UiLayoutCheck.Tooltip, UiRegionKind.Overlay, (RectTransform)tooltipPanel.transform));
+
+            // The overlay's own contract, checked once: it is drawn by a canvas above the screen's and
+            // it cannot be clicked. Both are properties of the authored scene, so they are read from it
+            // rather than inferred from the picture.
+            CheckTooltipContract(tooltip, bag, report);
 
             var barFields = new SerializedObject(bar);
             var statusBar = barFields.FindProperty("_panelRect")?.objectReferenceValue as RectTransform;
@@ -255,10 +290,86 @@ namespace ProjectSurvive.Game.Editor
                 // Then the panel, which is where the board, the chest and the altar live.
                 bag.ShowPanel(true);
                 Capture(SceneKind.Camp, "panel", "camp", camera, size, fixedRects, report);
+
+                // Then the tooltip shown over the panel: the tooltip's own rectangle is measured
+                // against the canvas, and the picture has to prove it drew over what is behind it —
+                // the board is opaque, so a tooltip on a lower canvas would be invisible here and the
+                // two samples would agree.
+                var tooltipState = new List<(string Name, UiRegionKind Kind, RectTransform Rect)>(fixedRects);
+                tooltipState.AddRange(tooltipRegion);
+                tooltipPanel.SetActive(true);
+                Capture(
+                    SceneKind.Camp, "tooltip", "camp-tooltip", camera, size, tooltipState, report,
+                    overlay: tooltipPanel);
+                tooltipPanel.SetActive(false);
             }
 
-            // Leave the panel exactly as the scene was authored: closed.
+            // Leave the panel and the tooltip exactly as the scene was authored: closed.
             bag.ShowPanel(false);
+        }
+
+        /// <summary>
+        /// The tooltip's contract: it draws on a canvas above the screen's own and no click can reach
+        /// it.
+        /// </summary>
+        /// <remarks>
+        /// Read from the objects in the scene rather than from the running view, because this command
+        /// never enters play mode: the canvas a component sits under and the flags on its graphics are
+        /// serialized facts. The two halves are the two ways a tooltip breaks the thing it is for if
+        /// they are missing — a lower canvas draws it under the board, and a raycast target eats the
+        /// pointer events that move it.
+        /// </remarks>
+        private static void CheckTooltipContract(
+            CampTooltipView tooltip, CampBagScreenView bag, CaptureReport report)
+        {
+            Canvas tooltipCanvas = tooltip.GetComponentInParent<Canvas>();
+            Canvas screenCanvas = bag.GetComponentInParent<Canvas>();
+
+            if (tooltipCanvas == null || screenCanvas == null)
+            {
+                report.Failures.Add("the tooltip or the จัดย่าม panel is not under a canvas");
+                return;
+            }
+
+            Canvas tooltipRoot = tooltipCanvas.rootCanvas;
+            Canvas screenRoot = screenCanvas.rootCanvas;
+
+            if (tooltipRoot == screenRoot)
+            {
+                report.Failures.Add(
+                    "the tooltip shares the camp's canvas: 'on top' would then be the creation order of "
+                    + "the board's cells, not a draw order");
+            }
+            else if (tooltipRoot.sortingOrder <= screenRoot.sortingOrder)
+            {
+                report.Failures.Add(
+                    "the tooltip's canvas sorts at " + tooltipRoot.sortingOrder + ", not above the camp's "
+                    + screenRoot.sortingOrder);
+            }
+
+            if (tooltipRoot.GetComponent<GraphicRaycaster>() != null)
+            {
+                report.Failures.Add("the tooltip's canvas carries a GraphicRaycaster, so it can be clicked");
+            }
+
+            var background = tooltip.GetComponent<Image>();
+            if (background == null)
+            {
+                report.Failures.Add("the tooltip has no background of its own");
+                return;
+            }
+
+            if (background.raycastTarget)
+            {
+                report.Failures.Add("the tooltip's background is a raycast target");
+            }
+
+            if (background.color.a < TooltipAlphaFloor - 0.001f)
+            {
+                report.Failures.Add(
+                    "the tooltip's background is alpha " + background.color.a.ToString("0.###")
+                    + ", below the " + TooltipAlphaFloor.ToString("0.###") + " floor");
+            }
         }
 
         // ------------------------------------------------------------------
@@ -298,7 +409,8 @@ namespace ProjectSurvive.Game.Editor
             Camera camera,
             Vector2Int size,
             List<(string Name, UiRegionKind Kind, RectTransform Rect)> regions,
-            CaptureReport report)
+            CaptureReport report,
+            GameObject overlay = null)
         {
             var borrowed = new List<(Canvas Canvas, RenderMode Mode, Camera Camera, float Plane)>();
             RenderTexture target = null;
@@ -358,7 +470,8 @@ namespace ProjectSurvive.Game.Editor
                             continue;
                         }
 
-                        measured.Add(new UiRegion(regions[i].Name, rect, regions[i].Kind));
+                        measured.Add(new UiRegion(
+                            regions[i].Name, rect, regions[i].Kind, AlphaOf(regions[i].Rect)));
                     }
 
                     CheckInside(measured, size, state, report);
@@ -376,6 +489,14 @@ namespace ProjectSurvive.Game.Editor
                 byte[] png = image.EncodeToPNG();
                 File.WriteAllBytes(path, png);
 
+                if (overlay != null)
+                {
+                    Image paint = overlay.GetComponent<Image>();
+                    ProveOverlayIsOnTop(
+                        overlay, paint != null ? paint.color : Color.black, measured, target, camera,
+                        state, size, report);
+                }
+
                 camera.targetTexture = previousTarget;
 
                 var violations = new List<string>();
@@ -385,6 +506,13 @@ namespace ProjectSurvive.Game.Editor
                     for (int i = 0; i < violations.Count; i++)
                     {
                         report.Failures.Add(state + " " + size.x + "x" + size.y + ": " + violations[i]);
+                    }
+
+                    var opacity = UiLayoutCheck.FindOpacityViolations(measured);
+                    for (int i = 0; i < opacity.Count; i++)
+                    {
+                        report.Failures.Add(state + " " + size.x + "x" + size.y + ": " + opacity[i]);
+                        violations.Add(opacity[i]);
                     }
                 }
 
@@ -421,6 +549,160 @@ namespace ProjectSurvive.Game.Editor
 
                 Canvas.ForceUpdateCanvases();
             }
+        }
+
+        /// <summary>
+        /// Renders the shot a second time with the overlay switched off and asks the pixels whether
+        /// the overlay was painted where its rectangle is: the pixel at the overlay's own centre has
+        /// to sit <b>closer to the overlay's background colour</b> with it on than with it off.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This is the only check in the run that reads pixels rather than rectangles, and it is the
+        /// one that can tell "drawn on top" from "drawn underneath": every other check would pass
+        /// with the tooltip painted below the board, because the rectangles would still be where the
+        /// scene says.
+        /// </para>
+        /// <para>
+        /// A plain "the pixel changed" test is not enough here, which is a measured fact rather than a
+        /// preference: the tooltip is a dark panel over a dark จัดย่าม panel, and the change is 0.024
+        /// per channel at 1920×1080 — real, but below the 0.05 first used, and it would have been a
+        /// false failure. The direction of the move is what carries the meaning, so that is what is
+        /// tested: alpha compositing can only pull a pixel toward the colour being painted over it.
+        /// </para>
+        /// <para>The scene is left as it was found: the overlay's active state is the caller's.</para>
+        /// </remarks>
+        private static void ProveOverlayIsOnTop(
+            GameObject overlay,
+            Color paint,
+            List<UiRegion> measured,
+            RenderTexture target,
+            Camera camera,
+            string state,
+            Vector2Int size,
+            CaptureReport report)
+        {
+            Rect rect = default;
+            string name = "the overlay";
+
+            for (int i = 0; i < measured.Count; i++)
+            {
+                if (measured[i].Kind == UiRegionKind.Overlay)
+                {
+                    rect = measured[i].Rect;
+                    name = measured[i].Name;
+                }
+            }
+
+            if (rect.width <= 0f || rect.height <= 0f)
+            {
+                report.Failures.Add(
+                    state + " " + size.x + "x" + size.y + ": " + name + " was not measured");
+                return;
+            }
+
+            // The centre, and the four points a tenth of the way in from each side: on a rectangle the
+            // centre alone would do, and the four are there because a label could sit on it.
+            var samples = new Vector2[5];
+            samples[0] = rect.center;
+            samples[1] = new Vector2(Mathf.Lerp(rect.xMin, rect.xMax, 0.1f), Mathf.Lerp(rect.yMin, rect.yMax, 0.1f));
+            samples[2] = new Vector2(Mathf.Lerp(rect.xMin, rect.xMax, 0.9f), Mathf.Lerp(rect.yMin, rect.yMax, 0.1f));
+            samples[3] = new Vector2(Mathf.Lerp(rect.xMin, rect.xMax, 0.1f), Mathf.Lerp(rect.yMin, rect.yMax, 0.9f));
+            samples[4] = new Vector2(Mathf.Lerp(rect.xMin, rect.xMax, 0.9f), Mathf.Lerp(rect.yMin, rect.yMax, 0.9f));
+
+            var shown = new Color[samples.Length];
+            var behind = new Color[samples.Length];
+
+            for (int i = 0; i < samples.Length; i++)
+            {
+                shown[i] = ReadPixel(target, samples[i]);
+            }
+
+            bool wasActive = overlay.activeSelf;
+            overlay.SetActive(false);
+            Canvas.ForceUpdateCanvases();
+            camera.Render();
+
+            for (int i = 0; i < samples.Length; i++)
+            {
+                behind[i] = ReadPixel(target, samples[i]);
+            }
+
+            overlay.SetActive(wasActive);
+            Canvas.ForceUpdateCanvases();
+            camera.Render();
+
+            string story = string.Empty;
+            float best = 0f;
+
+            for (int i = 0; i < samples.Length; i++)
+            {
+                float before = Distance(behind[i], paint);
+                float after = Distance(shown[i], paint);
+                float improvement = before - after;
+
+                if (improvement > best)
+                {
+                    best = improvement;
+                }
+
+                story +=
+                    (i == 0 ? "centre" : "point " + i)
+                    + " (" + Mathf.RoundToInt(samples[i].x) + "," + Mathf.RoundToInt(samples[i].y) + ")"
+                    + " is " + improvement.ToString("0.###") + " closer to the tooltip's own colour"
+                    + (i == samples.Length - 1 ? string.Empty : ", ");
+            }
+
+            if (best < OverlayPixelProofFloor)
+            {
+                report.Failures.Add(
+                    state + " " + size.x + "x" + size.y + ": " + name
+                    + " does not paint the pixels inside its own rectangle (the best of "
+                    + samples.Length + " samples moved " + best.ToString("0.###") + " toward its "
+                    + "background colour when it was switched on, floor "
+                    + OverlayPixelProofFloor.ToString("0.###") + "): " + story);
+            }
+            else
+            {
+                report.Notes.Add(
+                    state + " " + size.x + "x" + size.y + ": " + name
+                    + " paints its own rectangle and is therefore drawn above the panel (" + story + ")");
+            }
+        }
+
+        /// <summary>The largest per-channel difference between two colours.</summary>
+        private static float Distance(Color a, Color b) =>
+            Mathf.Max(
+                Mathf.Abs(a.r - b.r),
+                Mathf.Max(Mathf.Abs(a.g - b.g), Mathf.Abs(a.b - b.b)));
+
+        /// <summary>Reads one pixel of <paramref name="target"/> at a point in its own pixel space.</summary>
+        private static Color ReadPixel(RenderTexture target, Vector2 point)
+        {
+            int x = Mathf.Clamp(Mathf.RoundToInt(point.x), 0, target.width - 1);
+            int y = Mathf.Clamp(Mathf.RoundToInt(point.y), 0, target.height - 1);
+
+            RenderTexture previous = RenderTexture.active;
+            RenderTexture.active = target;
+
+            var pixel = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            pixel.ReadPixels(new Rect(x, y, 1, 1), 0, 0);
+            pixel.Apply();
+            Color color = pixel.GetPixel(0, 0);
+            Object.DestroyImmediate(pixel);
+
+            RenderTexture.active = previous;
+            return color;
+        }
+
+        /// <summary>
+        /// The opacity of the region's own background — the <see cref="Image"/> on the rect the view
+        /// serialized, or 1 when the region has none of its own and is only a frame for its children.
+        /// </summary>
+        private static float AlphaOf(RectTransform rect)
+        {
+            Image image = rect != null ? rect.GetComponent<Image>() : null;
+            return image != null ? image.color.a : 1f;
         }
 
         /// <summary>
@@ -596,7 +878,7 @@ namespace ProjectSurvive.Game.Editor
                 {
                     UiRegion region = shot.Regions[r];
                     text.AppendLine(
-                        $"  - {region.Name} ({region.Kind}): "
+                        $"  - {region.Name} ({region.Kind}, alpha {region.Alpha.ToString("0.###")}): "
                         + string.Format("{0:0.###},{1:0.###} {2:0.###}×{3:0.###}",
                             region.Rect.x, region.Rect.y, region.Rect.width, region.Rect.height));
                 }
@@ -664,6 +946,7 @@ namespace ProjectSurvive.Game.Editor
                     json.Append(", \"y\": ").Append(Round(region.Rect.y));
                     json.Append(", \"width\": ").Append(Round(region.Rect.width));
                     json.Append(", \"height\": ").Append(Round(region.Rect.height));
+                    json.Append(", \"alpha\": ").Append(Round(region.Alpha));
                     json.Append("}");
                 }
 

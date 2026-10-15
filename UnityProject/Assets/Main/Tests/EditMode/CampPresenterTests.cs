@@ -5,6 +5,7 @@ using System.IO;
 using NUnit.Framework;
 using ProjectSurvive.Core.Application.Run;
 using ProjectSurvive.Core.Application.Text;
+using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Domain.Run;
@@ -379,16 +380,28 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(_config.TryGetItem(RunDefaults.InitialWeaponId, out ItemConfig weaponConfig), Is.True);
             Assert.That(_config.TryGetSkill(weaponConfig.SkillId, out SkillConfig skill), Is.True, "the starting weapon has a skill");
 
-            string stats = ui.State.TooltipStats.Value;
-            Assert.That(stats, Does.Not.Contain("camp.tooltip"), "every key resolved");
+            // Stage 09e item 2: five separate lines — ชื่อ, ระดับ, สถานะ, คำอธิบาย, คอมโบที่ทำงานอยู่ — so
+            // the screen owns one label each. One combined string would be the shape this stage
+            // replaced, and the two halves are asserted apart here.
+            string tier = ui.State.TooltipTier.Value;
+            Assert.That(tier, Does.Not.Contain("camp.tooltip"), "every key resolved");
             Assert.That(
-                stats,
-                Does.Contain(Format("camp.tooltip.tier.format", run.Backpack.Items[0].Tier, _config.Constant.MaxTier)),
+                tier,
+                Is.EqualTo(Format("camp.tooltip.tier.format", run.Backpack.Items[0].Tier, _config.Constant.MaxTier)),
                 "the tier line is built from the surface's own format");
+
+            string status = ui.State.TooltipStatus.Value;
+            Assert.That(status, Does.Not.Contain("camp.tooltip"), "every key resolved");
             Assert.That(
-                stats,
-                Does.Contain(Format("camp.tooltip.stat.format", skill.Damage, skill.CooldownSeconds, skill.MpCost)),
+                status,
+                Is.EqualTo(Format("camp.tooltip.stat.format", skill.Damage, skill.CooldownSeconds, skill.MpCost)),
                 "the weapon's skill numbers are the table's, formatted by the presenter");
+            Assert.That(status, Does.Not.Contain(tier), "ระดับ is its own line, not a prefix of สถานะ");
+
+            Assert.That(
+                ui.State.TooltipDescription.Value,
+                Is.EqualTo(Text(weaponConfig.DescriptionKey)),
+                "คำอธิบาย is the item's own description row, localized");
 
             Assert.That(ui.State.TooltipCombos.Value, Is.Not.Empty, "a piece with no combo still says so");
 
@@ -410,6 +423,150 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
             Assert.That(ui.State.TooltipVisible.Value, Is.False);
             Assert.That(ui.State.Bag.Value.Highlight.Length, Is.Zero, "the highlight goes away with the pointer");
+        }
+
+        /// <summary>
+        /// A bag has no table description, so its tooltip says so by <b>leaving the line out</b>
+        /// rather than by drawing a placeholder: the five lines are the shape of the panel, and an
+        /// empty one is a line the view hides.
+        /// </summary>
+        [Test]
+        public void A_bag_shows_its_usable_slots_and_no_description()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            RunSession run = ui.Run;
+
+            PieceRef bag = run.Backpack.Bags[0].Ref;
+            ui.Presenter.Hover(bag);
+
+            Assert.That(ui.State.TooltipVisible.Value, Is.True);
+            Assert.That(ui.State.TooltipTitle.Value, Is.Not.Empty, "the bag has a name");
+            Assert.That(ui.State.TooltipTier.Value, Is.Not.Empty, "and a tier");
+            Assert.That(
+                ui.State.TooltipStatus.Value,
+                Is.Not.Empty,
+                "a bag's สถานะ line is the slots it opens");
+            Assert.That(
+                ui.State.TooltipDescription.Value,
+                Is.Empty,
+                "a bag's table has no description row, so the line is empty rather than invented");
+        }
+
+        /// <summary>
+        /// The stage's line rule: a line is drawn for a ตำรา–อาวุธอาคม pair on the same row, for
+        /// nothing else, and it is gone the moment the pair stops qualifying.
+        /// </summary>
+        /// <remarks>
+        /// The pairs come from <c>SynergyEvaluator</c>; what is under test is the <b>classification</b>
+        /// the screen draws from — which rule gets a line, which gets a badge and which gets no
+        /// permanent mark at all. The board is arranged through the run's own commands (this test is
+        /// about what the screen draws, not about how a piece got there), and the tome is the one the
+        /// seed's own shop offers at the first camp: no item id is written into the test.
+        /// </remarks>
+        [Test]
+        public void Only_the_tome_to_weapon_rule_is_drawn_as_a_line_and_the_bag_bonus_is_not()
+        {
+            IGameConfig config = _config;
+            SynergyConfig lineRule = SameLineRule(config, out bool found);
+
+            Assert.That(
+                found,
+                Is.True,
+                "the shipped tables have no same-line rule, so there is nothing for this test to check");
+
+            uint seed = SeedOffering(lineRule.TagA, out int slot);
+            Assert.That(slot, Is.GreaterThanOrEqualTo(0), "no seed in range offered a '" + lineRule.TagA + "' piece in any camp of its run");
+
+            var run = new RunSession(config, _codec, seed);
+            Assert.That(run.StartRun().IsSuccess, Is.True);
+
+            // The tome is a mid-run offer (the shop's own floor band says so), so the walk to it is
+            // made the way the game makes it: win the floors in front of it. Nothing synthesises a
+            // camp, and no floor number is written into the test.
+            int slotReached = 0;
+            while (run.FlowState == RunFlowState.Camp && (slotReached = SlotOfferingTag(run, lineRule.TagA)) < 0)
+            {
+                Assert.That(WinOneFloor(run), Is.True, "the run could not reach the camp that offers a '" + lineRule.TagA + "' piece");
+            }
+
+            Assert.That(slotReached, Is.GreaterThanOrEqualTo(0), "the searched camp stopped offering the piece it was found for");
+
+            var state = new CampUiState();
+            var presenter = new CampPresenter(run, config, _text, state);
+            presenter.Begin();
+
+            presenter.Rent(slotReached);
+
+            PieceRef tome = OnlyChestItem(run);
+            Assert.That(tome.IsValid, Is.True, "the rented tome is carried in the chest");
+
+            CampPieceModel weapon = FirstBoardItem(presenter.Bag);
+            Assert.That(weapon.Kind, Is.EqualTo(PieceKind.Item));
+
+            // Place the tome on a cell that shares a row with the weapon: that is the rule's own
+            // condition, so the line has to appear.
+            CellOffset placed = PlaceSharingARow(presenter, tome, weapon, out bool rowsOverlap);
+
+            Assert.That(rowsOverlap, Is.True, "the fixture could not put the tome on the weapon's row");
+            Assert.That(placed.X, Is.GreaterThanOrEqualTo(0), "the bag has no free 2x2 block left for the tome");
+
+            CampLink[] links = presenter.Bag.Links;
+            Assert.That(links.Length, Is.GreaterThan(0), "the same-row rule is working but the screen draws nothing for it");
+
+            int lines = 0;
+            for (int i = 0; i < links.Length; i++)
+            {
+                if (links[i].Style != CampLinkStyle.Line)
+                {
+                    continue;
+                }
+
+                lines++;
+
+                // ห้ามวาดเส้นจากย่ามไปไอเทม: a bag is never an end of a line, whichever rule fired.
+                Assert.That(
+                    IsBag(run, links[i].SourceInstanceId), Is.False,
+                    "a line was drawn from a bag: " + links[i]);
+                Assert.That(
+                    IsBag(run, links[i].TargetInstanceId), Is.False,
+                    "a line was drawn to a bag: " + links[i]);
+                Assert.That(
+                    links[i].TargetInstanceId, Is.EqualTo(weapon.Piece.InstanceId),
+                    "the only arcane weapon on the board is the one a line should reach");
+            }
+
+            Assert.That(lines, Is.GreaterThan(0), "the tome shares the weapon's row but no line was drawn for it");
+
+            // The bag-area bonus is every item the bag's own rule reached: a badge, never a line.
+            int badges = 0;
+            for (int i = 0; i < links.Length; i++)
+            {
+                if (links[i].Style == CampLinkStyle.Line)
+                {
+                    continue;
+                }
+
+                badges++;
+                Assert.That(
+                    IsBag(run, links[i].SourceInstanceId), Is.True,
+                    "only the area rule reaches an item from a bag, so a badge always comes from one: " + links[i]);
+            }
+
+            Assert.That(badges, Is.GreaterThan(0), "the starting kit puts an item inside a bag, so the area rule fired");
+
+            // Move the tome to a row the weapon is not on: the pair stops qualifying, so the line
+            // has to be gone from the very next picture the screen publishes.
+            CellOffset away = PlaceOffEveryRow(presenter, tome, weapon, out bool movedAway);
+            Assert.That(movedAway, Is.True, "no free 2x2 block exists off the weapon's row, so the drop cannot be checked");
+            Assert.That(away, Is.Not.EqualTo(placed), "the tome has to leave the weapon's row for the line to go");
+
+            links = presenter.Bag.Links;
+            for (int i = 0; i < links.Length; i++)
+            {
+                Assert.That(
+                    links[i].Style, Is.Not.EqualTo(CampLinkStyle.Line),
+                    "a line survived the pair going off the same row: " + links[i]);
+            }
         }
 
         [Test]
@@ -534,6 +691,244 @@ namespace ProjectSurvive.Game.Tests.EditMode
         // -------------------------------------------------------------------
         // helpers
         // -------------------------------------------------------------------
+
+        /// <summary>The same-line rule the screen draws a line for, or false when the tables have none.</summary>
+        private static SynergyConfig SameLineRule(IGameConfig config, out bool found)
+        {
+            for (int i = 0; i < config.Synergies.Count; i++)
+            {
+                SynergyKind kind = config.Synergies[i].Kind;
+                if (kind == SynergyKind.SameRow || kind == SynergyKind.SameColumn)
+                {
+                    found = true;
+                    return config.Synergies[i];
+                }
+            }
+
+            found = false;
+            return null;
+        }
+
+        /// <summary>
+        /// The first seed with a camp that offers a piece carrying <paramref name="tag"/>, and the
+        /// slot it sits in.
+        /// </summary>
+        /// <remarks>
+        /// Searched rather than pinned: the shop roll is weighted by floor band, so a pinned seed
+        /// whose offer happens to be the piece would be a second copy of that band to keep in step
+        /// with <c>data/</c>. The walk itself is deterministic, so the test is too.
+        /// </remarks>
+        private uint SeedOffering(string tag, out int slot)
+        {
+            for (uint seed = 1u; seed <= 400u; seed++)
+            {
+                var run = new RunSession(_config, _codec, seed);
+                if (run.StartRun().IsFailure)
+                {
+                    continue;
+                }
+
+                while (run.FlowState == RunFlowState.Camp)
+                {
+                    int offered = SlotOfferingTag(run, tag);
+                    if (offered >= 0)
+                    {
+                        slot = offered;
+                        return seed;
+                    }
+
+                    if (!WinOneFloor(run))
+                    {
+                        break;
+                    }
+                }
+            }
+
+            slot = -1;
+            return 0u;
+        }
+
+        /// <summary>The first slot whose offer carries <paramref name="tag"/>, or -1.</summary>
+        private int SlotOfferingTag(RunSession run, string tag)
+        {
+            for (int i = 0; i < run.Stock.SlotCount; i++)
+            {
+                if (run.Stock[i].IsEmpty
+                    || !_config.TryGetItem(run.Stock[i].OfferedId, out ItemConfig item))
+                {
+                    continue;
+                }
+
+                for (int t = 0; t < item.Tags.Count; t++)
+                {
+                    if (string.Equals(item.Tags[t], tag, StringComparison.Ordinal))
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Plays one floor to a win so the run lands in its next camp.
+        /// </summary>
+        /// <remarks>
+        /// The result is the run's own input type, filled with a winning outcome and a purse the test
+        /// chooses: the command, the payout, the heal and the next camp are all the run's, so a camp
+        /// reached this way is a real camp and not a synthesised one.
+        /// </remarks>
+        private static bool WinOneFloor(RunSession run)
+        {
+            if (run.StartFloor().IsFailure)
+            {
+                return false;
+            }
+
+            var result = new BattleResult
+            {
+                Outcome = BattlePhase.Won,
+                EndReason = BattleEndReason.SurvivedAllWaves,
+                SurvivedTicks = 0,
+                FinalHp = run.Hp,
+                CurrencyEarned = 200,
+                Kills = 0,
+            };
+
+            return run.ApplyBattleResult(result).IsSuccess && run.FlowState == RunFlowState.Camp;
+        }
+
+        /// <summary>The first piece the screen draws on the board.</summary>
+        private static CampPieceModel FirstBoardItem(CampBagScreen bag)
+        {
+            for (int i = 0; i < bag.Pieces.Length; i++)
+            {
+                if (bag.Pieces[i].IsOnBoard && !bag.Pieces[i].IsBag)
+                {
+                    return bag.Pieces[i];
+                }
+            }
+
+            return default;
+        }
+
+        /// <summary>One piece of the drawn model, or a default value when it is not on the board.</summary>
+        private static CampPieceModel PieceOf(CampBagScreen bag, PieceRef piece)
+        {
+            for (int i = 0; i < bag.Pieces.Length; i++)
+            {
+                if (bag.Pieces[i].Piece == piece)
+                {
+                    return bag.Pieces[i];
+                }
+            }
+
+            return default;
+        }
+
+        /// <summary>True when an instance id belongs to one of the run's bags.</summary>
+        private static bool IsBag(RunSession run, int instanceId)
+        {
+            IReadOnlyList<BagPieceInstance> bags = run.Backpack.Bags;
+            for (int i = 0; i < bags.Count; i++)
+            {
+                if (bags[i].InstanceId == instanceId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether a piece placed with its top-left at <paramref name="origin"/> covers a cell in one of <paramref name="other"/>'s rows.</summary>
+        private static bool SharesARow(CampPieceModel piece, CellOffset origin, CampPieceModel other)
+        {
+            int height = piece.Shape == null ? 1 : piece.Shape.Height;
+            int otherHeight = other.Shape == null ? 1 : other.Shape.Height;
+
+            for (int row = origin.Y; row < origin.Y + height; row++)
+            {
+                for (int there = other.Origin.Y; there < other.Origin.Y + otherHeight; there++)
+                {
+                    if (row == there)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>Drops the piece on a cell that shares a row with the weapon, so the same-row rule fires.</summary>
+        private static CellOffset PlaceSharingARow(
+            CampPresenter presenter, PieceRef piece, CampPieceModel weapon, out bool rowsOverlap)
+        {
+            rowsOverlap = false;
+
+            CampBagScreen bag = presenter.Bag;
+            CampPieceModel model = PieceOf(bag, piece);
+
+            presenter.DragStart(piece, Rotation.Degrees0);
+
+            for (int row = 0; row < bag.BoardHeight; row++)
+            {
+                for (int column = 0; column < bag.BoardWidth; column++)
+                {
+                    var cell = new CellOffset(column, row);
+                    presenter.DragMove(BagDropZone.Board, cell);
+
+                    if (!presenter.Drag.IsValid || presenter.Drag.Action != BagDropAction.Place
+                        || !SharesARow(model, cell, weapon))
+                    {
+                        continue;
+                    }
+
+                    rowsOverlap = true;
+                    presenter.Drop();
+                    return cell;
+                }
+            }
+
+            presenter.CancelDrag();
+            return new CellOffset(-1, -1);
+        }
+
+        /// <summary>The opposite: drops the piece where it shares no row with the weapon.</summary>
+        private static CellOffset PlaceOffEveryRow(
+            CampPresenter presenter, PieceRef piece, CampPieceModel weapon, out bool found)
+        {
+            found = false;
+
+            CampBagScreen bag = presenter.Bag;
+            CampPieceModel model = PieceOf(bag, piece);
+
+            presenter.DragStart(piece, Rotation.Degrees0);
+
+            for (int row = 0; row < bag.BoardHeight; row++)
+            {
+                for (int column = 0; column < bag.BoardWidth; column++)
+                {
+                    var cell = new CellOffset(column, row);
+                    presenter.DragMove(BagDropZone.Board, cell);
+
+                    if (!presenter.Drag.IsValid || presenter.Drag.Action != BagDropAction.Place
+                        || SharesARow(model, cell, weapon))
+                    {
+                        continue;
+                    }
+
+                    found = true;
+                    presenter.Drop();
+                    return cell;
+                }
+            }
+
+            presenter.CancelDrag();
+            return new CellOffset(-1, -1);
+        }
 
         /// <summary>The screen and the run behind it, at the first camp of a fresh run.</summary>
         private Screen ScreenAtFirstCamp()

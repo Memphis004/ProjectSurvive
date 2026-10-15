@@ -3,25 +3,40 @@ using System.Collections.Generic;
 using R3;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
 using VContainer;
 using VContainer.Unity;
 
 namespace ProjectSurvive.Game.Presentation.Camp
 {
     /// <summary>
-    /// The piece tooltip: name, tier, the item's own table numbers, and the combos the layout
-    /// has turned on ("tooltip: stat, tier, synergy ที่ทำงานอยู่").
+    /// The piece tooltip: ชื่อ, ระดับ, สถานะ, คำอธิบาย, คอมโบที่ทำงานอยู่ — one label per line, on its
+    /// own canvas that draws above the whole camp screen.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Three labels and one flag. Every line was composed by <see cref="CampPresenter"/> from
-    /// localization and from numbers the run already resolved — the damage and cooldown are the
-    /// item's own table values, and the multipliers are the ones the combo evaluation produced,
-    /// because a View (or a presenter) that recomputed them would be a second rules engine
-    /// (AGENTS rule 10).
+    /// <b>Its own canvas, not a panel on the camp's.</b> The camp screen is one canvas whose draw
+    /// order is the hierarchy order of its panels, so \"the tooltip is on top\" would hold only as long
+    /// as nothing new was added after it — the board's cells, the piece rectangles and the combo
+    /// lines are all created at runtime and are all appended to that hierarchy. The tooltip therefore
+    /// lives on a second root canvas whose <c>sortingOrder</c> is higher than the camp's, which the
+    /// installed engine documents as \"<i>Canvas' order within a sorting layer</i>\" for
+    /// <c>Canvas.sortingOrder</c> and \"<i>Allows for nested canvases to override the
+    /// Canvas.sortingOrder from parent canvases</i>\" for <c>Canvas.overrideSorting</c>
+    /// (UnityEngine.UIModule.xml, Unity 6000.3.9f1). Nothing on that canvas can be clicked either:
+    /// it carries no <c>GraphicRaycaster</c> and every graphic in it has <c>raycastTarget</c> off.
     /// </para>
     /// <para>
-    /// Show and hide are driven by one boolean, so a piece with no tooltip costs one comparison.
+    /// <b>Five fields, five lines.</b> Each string is composed by <see cref="CampPresenter"/> from
+    /// localization and from numbers the run already resolved; the view assigns them and hides the
+    /// lines that are empty (a bag has no คำอธิบาย). A view that joined them or formatted them would
+    /// be a second formatting path, which AGENTS rule 10 forbids.
+    /// </para>
+    /// <para>
+    /// The pointer is read only while the tooltip is on screen, and the placement is
+    /// <see cref="CampTooltipPlacement"/>'s arithmetic — no allocation, no formatting, nothing built
+    /// per frame.
     /// </para>
     /// </remarks>
     [DisallowMultipleComponent]
@@ -30,16 +45,22 @@ namespace ProjectSurvive.Game.Presentation.Camp
         [SerializeField] private LifetimeScope _scope;
         [SerializeField] private GameObject _root;
         [SerializeField] private TMP_Text _titleLabel;
-        [SerializeField] private TMP_Text _statsLabel;
+        [SerializeField] private TMP_Text _tierLabel;
+        [SerializeField] private TMP_Text _statusLabel;
+        [SerializeField] private TMP_Text _descriptionLabel;
         [SerializeField] private TMP_Text _combosLabel;
 
-        private readonly List<IDisposable> _subscriptions = new List<IDisposable>(4);
+        private readonly List<IDisposable> _subscriptions = new List<IDisposable>(8);
 
         private CampUiState _state;
+        private RectTransform _panel;
         private bool _bound;
 
         /// <summary>True while the tooltip is on screen (a test reads this).</summary>
         public bool Visible { get; private set; }
+
+        /// <summary>The canvas the tooltip draws on, so its draw order can be compared with the screen's.</summary>
+        public Canvas RootCanvas { get; private set; }
 
         /// <summary>Resolves the screen's services and starts rendering. Public and idempotent.</summary>
         public void Bind()
@@ -58,11 +79,32 @@ namespace ProjectSurvive.Game.Presentation.Camp
             _bound = true;
             _state = _scope.Container.Resolve<CampUiState>();
 
-            Subscribe(_state.TooltipTitle, _titleLabel);
-            Subscribe(_state.TooltipStats, _statsLabel);
-            Subscribe(_state.TooltipCombos, _combosLabel);
+            _panel = _root == null ? null : (RectTransform)_root.transform;
+
+            Canvas canvas = GetComponentInParent<Canvas>();
+            if (canvas != null)
+            {
+                RootCanvas = canvas.rootCanvas;
+            }
+
+            if (_root != null)
+            {
+                // Belt and braces with the canvas having no GraphicRaycaster: a tooltip that follows
+                // the pointer must never eat the pointer's own events.
+                var background = _root.GetComponent<Image>();
+                if (background != null)
+                {
+                    background.raycastTarget = false;
+                }
+            }
 
             _subscriptions.Add(_state.TooltipVisible.Subscribe(SetVisible));
+
+            Subscribe(_state.TooltipTitle, _titleLabel);
+            Subscribe(_state.TooltipTier, _tierLabel);
+            Subscribe(_state.TooltipStatus, _statusLabel);
+            Subscribe(_state.TooltipDescription, _descriptionLabel);
+            Subscribe(_state.TooltipCombos, _combosLabel);
         }
 
         private void OnDestroy()
@@ -76,6 +118,76 @@ namespace ProjectSurvive.Game.Presentation.Camp
             _state = null;
             _bound = false;
         }
+
+        /// <summary>
+        /// Keeps the panel beside the pointer while it is on screen.
+        /// </summary>
+        /// <remarks>
+        /// Nothing runs while the tooltip is hidden, which is every frame of a camp the player is
+        /// only walking through.
+        /// </remarks>
+        private void Update()
+        {
+            if (!Visible || _panel == null)
+            {
+                return;
+            }
+
+            Mouse mouse = Mouse.current;
+            if (mouse == null)
+            {
+                return;
+            }
+
+            PlaceAt(mouse.position.ReadValue());
+        }
+
+        /// <summary>
+        /// Puts the panel beside a screen point, flipped and clamped so it stays on the canvas.
+        /// </summary>
+        /// <remarks>
+        /// The conversion is the same one the rest of the screen uses:
+        /// <c>RectTransformUtility.ScreenPointToLocalPointInRectangle</c> against the canvas. The
+        /// canvas' own pivot is subtracted out (<c>rect.min</c>) rather than assumed, so the
+        /// arithmetic holds whichever pivot the canvas happens to have.
+        /// </remarks>
+        public void PlaceAt(Vector2 screenPoint)
+        {
+            if (_panel == null)
+            {
+                return;
+            }
+
+            Canvas canvas = RootCanvas;
+            if (canvas == null)
+            {
+                return;
+            }
+
+            var canvasRect = (RectTransform)canvas.transform;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    canvasRect, screenPoint, null, out Vector2 local))
+            {
+                return;
+            }
+
+            Vector2 canvasSize = canvasRect.rect.size;
+            Vector2 panelSize = _panel.rect.size;
+
+            if (panelSize.x <= 0f || panelSize.y <= 0f || canvasSize.x <= 0f || canvasSize.y <= 0f)
+            {
+                // The first frame after being shown can arrive before the layout has run.
+                return;
+            }
+
+            _panel.anchoredPosition = CampTooltipPlacement.Place(
+                new Vector2(local.x - canvasRect.rect.xMin, local.y - canvasRect.rect.yMin),
+                panelSize,
+                canvasSize);
+        }
+
+        /// <summary>The tooltip's own screen rectangle, or false while it is hidden or has no area.</summary>
+        public bool TryGetScreenRect(out Rect rect) => CampScreenRects.TryOf(_panel, out rect);
 
         private void SetVisible(bool visible)
         {
@@ -94,7 +206,14 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
-            _subscriptions.Add(property.Subscribe(value => label.text = value));
+            // A line with nothing to say is hidden rather than drawn empty: the tooltip's shape then
+            // says which of the five lines this piece actually has.
+            _subscriptions.Add(property.Subscribe(value =>
+            {
+                bool hasText = !string.IsNullOrEmpty(value);
+                label.text = value;
+                label.gameObject.SetActive(hasText);
+            }));
         }
     }
 }

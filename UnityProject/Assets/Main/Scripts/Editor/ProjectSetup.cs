@@ -105,6 +105,13 @@ namespace ProjectSurvive.Game.Editor
         /// </remarks>
         private const float UiFontSize = 22f;
 
+        /// <summary>
+        /// The camp tooltip canvas' draw order. Above the camp screen's own canvas (0) and above
+        /// everything it contains — the board, the chest, the incense pot and the bottom bar — because
+        /// the engine sorts overlay canvases by <c>Canvas.sortingOrder</c> before anything else.
+        /// </summary>
+        private const int TooltipSortingOrder = 100;
+
         // ------------------------------------------------------------------
         // Menu entry points
         // ------------------------------------------------------------------
@@ -1035,7 +1042,7 @@ namespace ProjectSurvive.Game.Editor
             var canvasRect = (RectTransform)canvas.transform;
 
             CampStatusBarView status = BuildCampStatusBar(canvasRect, font, scope);
-            CampTooltipView tooltip = BuildCampTooltip(canvasRect, font, scope);
+            CampTooltipView tooltip = BuildCampTooltip(font, scope);
             CampBagScreenView bag = BuildCampBagScreen(canvasRect, canvasObject, font, scope);
 
             SetObjectReference(walker, "_bag", bag);
@@ -1056,15 +1063,31 @@ namespace ProjectSurvive.Game.Editor
         /// </summary>
         /// <remarks>
         /// <para>
-        /// Every region is laid out from the <b>canvas's top-left corner</b> (a disabled rect's
-        /// children anchor to its top-left, so a positive y used to place a control above the block
-        /// it belonged to). The numbers below are measured rather than guessed: at the 1920×1080
-        /// reference resolution the four rows are 20..160, 180..760, 866..1056 from the top, the
-        /// three columns are 40..780, 780..1104 and 1104..1880, and no two regions intersect — which
-        /// is what <c>CampReport</c> publishes rectangles for and the tests check.
+        /// Every region is anchored to a <b>corner or edge of the canvas</b> — top-left, top-right,
+        /// bottom-left, bottom-centre — and the canvas scaler (1920×1080, match 0.5) turns that into
+        /// the same proportions at any window size, so no element is placed by an absolute screen
+        /// pixel. The numbers below are in reference units and are measured rather than guessed: at
+        /// 1920×1080 the rows are 20..106 from the top (the top-left controls), 140..720 from the top
+        /// (the board) and 232..340, 214..320, 16..206 from the bottom (the panel's own foot, the
+        /// pot and the status bar), the columns are 40..780, 822..1032 and 1104..1880, and no two of
+        /// the regions the capture command measures intersect — at either size, which
+        /// <c>artifacts/ui/ui-report.md</c> records.
         /// </para>
         /// <para>
-        /// Every label is ≥ 14 px at 1080p (GDD Stage 09b work item B). Nothing here writes player
+        /// <b>Nothing here repeats the bottom bar.</b> Stage 09's panel carried its own เบี้ย/น้ำหนัก/HP
+        /// readouts while the bar under it carried the same numbers, and the two disagreed the moment
+        /// one of them was stale; the panel now has the controls the bar does not (กลับ, ไปชั้นถัดไป
+        /// and the reason it is disabled) and the bar stays the only place a run stat is shown.
+        /// </para>
+        /// <para>
+        /// <b>The blocks stand clear of each other and of the bar.</b> The panel's foot sits above the
+        /// status bar rather than on it (Stage 09e work item 1: the buttons and the run's own numbers
+        /// must not share pixels), and the incense pot sits in the column the bar does not reach —
+        /// between the panel's foot (ends at x 780) and the bar's ออกเดินทาง button (starts at 1074) —
+        /// so the pot cannot cover the one control that leaves the camp.
+        /// </para>
+        /// <para>
+        /// Every label is ≥ 22 px at the 1080p base (Stage 09d item 2). Nothing here writes player
         /// text: the strings arrive over <c>CampUiState</c> from the localization table
         /// (AGENTS rule 5), and this method only places the widgets that will receive them.
         /// </para>
@@ -1120,17 +1143,26 @@ namespace ProjectSurvive.Game.Editor
             TMP_Text step3 = CreateUiText(instr, "Step3", new Vector2(12f, -104f), new Vector2(752f, 28f), UiFontSize, font);
             TMP_Text step4 = CreateUiText(instr, "Step4", new Vector2(12f, -136f), new Vector2(752f, 28f), UiFontSize, font);
 
-            // --- Left column (y 180..760): the board. Nine columns of 78 + a 4 gap = 734 wide -----
+            // --- Left column (y 140..720 from the top): the board. Nine columns of 78 + a 4 gap =
+            //     734 wide, seven rows = 574 tall -----------------------------------------------
             RectTransform board = CreateUiRect(
                 panel, "Board", new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(40f, -180f), new Vector2(740f, 580f));
+                new Vector2(40f, -140f), new Vector2(740f, 580f));
 
-            // --- Right column (y 200..600): the chest panel and its ten slots --------------------
+            // The board's own background. Opaque enough that the sala behind the overlay cannot be
+            // read through the grid ("พาเนล Board และหีบทึบพอ (alpha ≥ 0.9) ไม่ให้ฉากด้านหลังโผล่ผ่าน"):
+            // the cells are drawn on top of this and leave a 4 px gap, and the gaps used to show the
+            // 2.5D sala straight through the placement area.
+            var boardImage = board.gameObject.AddComponent<Image>();
+            boardImage.color = new Color(0.07f, 0.09f, 0.12f, 0.92f);
+            boardImage.raycastTarget = false;
+
+            // --- Right column (y 200..600 from the top): the chest panel and its ten slots -------
             RectTransform chestPanel = CreateUiRect(
                 panel, "ChestPanel", new Vector2(1f, 1f), new Vector2(1f, 1f),
                 new Vector2(-40f, -200f), new Vector2(776f, 400f));
             var chestPanelImage = chestPanel.gameObject.AddComponent<Image>();
-            chestPanelImage.color = new Color(0.10f, 0.12f, 0.15f, 0.90f);
+            chestPanelImage.color = new Color(0.10f, 0.12f, 0.15f, 0.92f);
             chestPanelImage.raycastTarget = false;
 
             TMP_Text chestTitle = CreateUiText(chestPanel, "ChestTitle", new Vector2(16f, -10f), new Vector2(744f, 34f), UiFontSize, font);
@@ -1140,35 +1172,35 @@ namespace ProjectSurvive.Game.Editor
                 chestPanel, "Chest", new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(16f, -52f), new Vector2(744f, 300f));
 
-            // --- Bottom-centre (y 24..214): the incense pot, in the free column between the
-            //     board (ends at 780) and the chest panel (starts at 1104) ----------------------
+            // --- The free column above the bar (y 214..320, x 822..1032): the incense pot. It has
+            //     to be above the status bar (which is 190 tall) and clear of both the panel's foot
+            //     (ends at x 780) and the bar's ออกเดินทาง button (starts at x 1074), because a pot
+            //     drawn over the depart button is a pot a player clicks instead of leaving camp -----
             RectTransform altar = CreateUiRect(
-                panel, "Altar", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 24f), new Vector2(240f, 190f));
+                panel, "Altar", new Vector2(0f, 0f), new Vector2(0f, 0f),
+                new Vector2(822f, 214f), new Vector2(210f, 106f));
             var altarImage = altar.gameObject.AddComponent<Image>();
-            altarImage.color = new Color(0.38f, 0.28f, 0.16f, 0.90f);
+            altarImage.color = new Color(0.38f, 0.28f, 0.16f, 0.92f);
             altarImage.raycastTarget = false;
 
             TMP_Text altarCaption = CreateUiText(
-                altar, "AltarCaption", new Vector2(0f, -10f), new Vector2(240f, 34f), UiFontSize, font, TextAlignmentOptions.Center);
+                altar, "AltarCaption", new Vector2(6f, -4f), new Vector2(198f, 26f), UiFontSize, font, TextAlignmentOptions.Center);
             TMP_Text altarOffer = CreateUiText(
-                altar, "AltarOffer", new Vector2(10f, -52f), new Vector2(220f, 96f), UiFontSize, font, TextAlignmentOptions.Center);
+                altar, "AltarOffer", new Vector2(6f, -34f), new Vector2(198f, 66f), UiFontSize, font, TextAlignmentOptions.Center);
 
-            // --- Bottom-left (y 866..1056): กลับ, ไปชั้นถัดไป, then HP/MP, น้ำหนัก, เบี้ย ---------
+            // --- Bottom-left, above the bar (y 232..340): กลับ, ไปชั้นถัดไป and the reason the
+            //     second one is disabled. The panel's foot used to be drawn straight over the status
+            //     bar (y 24..214 against the bar's 16..206) with its own copy of the run's numbers ----
             RectTransform statsNav = CreateUiRect(
                 panel, "StatsNav", new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(40f, 24f), new Vector2(740f, 190f));
+                new Vector2(40f, 232f), new Vector2(740f, 108f));
 
             Button closeButton = CreateUiButton(statsNav, "CloseButton", new Vector2(0f, 0f), new Vector2(130f, 50f), font, out TMP_Text closeLabel);
             Button nextFloorButton = CreateUiButton(statsNav, "NextFloorButton", new Vector2(142f, 0f), new Vector2(220f, 50f), font, out TMP_Text nextFloorLabel);
 
             // The reason the ไปชั้นถัดไป button is disabled ("ปิดพร้อมเหตุผลถ้าไม่มีอาวุธอาคม").
-            TMP_Text departReason = CreateUiText(statsNav, "DepartReason", new Vector2(0f, -56f), new Vector2(740f, 30f), UiFontSize, font);
+            TMP_Text departReason = CreateUiText(statsNav, "DepartReason", new Vector2(0f, -58f), new Vector2(740f, 28f), UiFontSize, font);
             departReason.color = new Color(0.95f, 0.45f, 0.45f, 1f);
-
-            TMP_Text hpLabel = CreateUiText(statsNav, "HpLabel", new Vector2(0f, -90f), new Vector2(740f, 30f), UiFontSize, font);
-            TMP_Text weightLabel = CreateUiText(statsNav, "WeightLabel", new Vector2(0f, -124f), new Vector2(740f, 30f), UiFontSize, font);
-            TMP_Text biaLabel = CreateUiText(statsNav, "BiaLabel", new Vector2(0f, -158f), new Vector2(740f, 30f), UiFontSize, font);
 
             // The จัดย่าม button lives on the canvas, not in the panel, and is hidden while the
             // panel is open (the panel carries its own กลับ). Bottom-centre per the GDD, clear of
@@ -1210,9 +1242,6 @@ namespace ProjectSurvive.Game.Editor
             SetObjectReference(view, "_nextFloorButton", nextFloorButton);
             SetObjectReference(view, "_nextFloorLabel", nextFloorLabel);
             SetObjectReference(view, "_departReasonLabel", departReason);
-            SetObjectReference(view, "_hpLabel", hpLabel);
-            SetObjectReference(view, "_weightLabel", weightLabel);
-            SetObjectReference(view, "_biaLabel", biaLabel);
             SetObjectReference(view, "_instructionsRect", instr);
             SetObjectReference(view, "_instructionsTitleLabel", instrTitle);
             SetObjectReference(view, "_instructionStep1Label", step1);
@@ -1294,9 +1323,13 @@ namespace ProjectSurvive.Game.Editor
             TMP_Text focusValue = CreateUiText(panel, "FocusValue", new Vector2(528f, -40f), new Vector2(160f, 30f), UiFontSize, font);
             TMP_Text departReason = CreateUiText(panel, "DepartReason", new Vector2(920f, -6f), new Vector2(460f, 64f), UiFontSize, font);
 
-            // Row three: the penalty bar, the status line, and the depart button itself.
+            // Row three: the penalty bar, the status line, the run's own HP/MP, and the depart button
+            // itself. HP/MP used to be a second readout inside the จัดย่าม panel, which meant the camp
+            // showed a stat twice and the panel's copy went stale as soon as a battle changed it; the
+            // bar is now the only place a run stat appears (Stage 09e work item 1).
             RectTransform weightBar = CreateUiBar(panel, "WeightBar", new Vector2(10f, -76f), new Vector2(370f, 16f), new Color(0.72f, 0.58f, 0.30f, 1f));
             TMP_Text status = CreateUiText(panel, "StatusLabel", new Vector2(392f, -72f), new Vector2(300f, 40f), UiFontSize, font);
+            TMP_Text hpMp = CreateUiText(panel, "HpMpLabel", new Vector2(700f, -72f), new Vector2(330f, 40f), UiFontSize, font);
             Button depart = CreateUiButton(panel, "DepartButton", new Vector2(1050f, -76f), new Vector2(320f, 64f), font, out TMP_Text departLabel);
 
             // Row four: the controls hint, across the bar — and *below* the depart button rather
@@ -1320,33 +1353,66 @@ namespace ProjectSurvive.Game.Editor
             SetObjectReference(view, "_refreshCostValueLabel", refreshCostValue);
             SetObjectReference(view, "_hintLabel", hint);
             SetObjectReference(view, "_statusLabel", status);
+            SetObjectReference(view, "_hpMpLabel", hpMp);
             SetObjectReference(view, "_departReasonLabel", departReason);
             SetObjectReference(view, "_departButton", depart);
             SetObjectReference(view, "_departButtonLabel", departLabel);
             return view;
         }
 
-        /// <summary>The piece tooltip: name, tier and stats, and the combos that are on.</summary>
-        private static CampTooltipView BuildCampTooltip(RectTransform canvasRect, TMP_FontAsset font, CampSceneScope scope)
+        /// <summary>
+        /// The piece tooltip: ชื่อ, ระดับ, สถานะ, คำอธิบาย, คอมโบที่ทำงานอยู่ — five lines on a canvas of
+        /// its own that draws above the whole camp screen.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Its own <b>canvas</b>, not a panel of the camp's, for one measured reason: the camp screen
+        /// is a single canvas, so "on top" there means "added last", and the board's cells, the piece
+        /// rectangles and the combo lines are all created at runtime and appended after everything
+        /// authored. A second root canvas with a higher <c>Canvas.sortingOrder</c> is the documented
+        /// way to draw over another canvas rather than a race with creation order.
+        /// </para>
+        /// <para>
+        /// The canvas carries <b>no</b> <c>GraphicRaycaster</c> and every graphic on it has
+        /// <c>raycastTarget</c> off, so a tooltip that follows the pointer cannot swallow the pointer
+        /// events that move it. The panel's background is 0.95 alpha, above the 0.92 the stage asks
+        /// for, so the board is not readable through it.
+        /// </para>
+        /// </remarks>
+        private static CampTooltipView BuildCampTooltip(TMP_FontAsset font, CampSceneScope scope)
         {
-            // The tooltip floats in the free column between the shop panel (left) and the bag screen
-            // (right), so it never covers the piece it describes.
+            Canvas canvas = CreateCanvas(out GameObject canvasObject, TooltipSortingOrder, withRaycaster: false);
+            var canvasRect = (RectTransform)canvas.transform;
+
+            // Anchored to the canvas' bottom-left corner: the placement rule (CampTooltipPlacement)
+            // writes this rect's anchoredPosition in the same units, so what a test measures is what
+            // the view set. The initial position is the margin, which is where an unhovered tooltip
+            // would sit if anything showed it.
             RectTransform panel = CreateUiRect(
-                canvasRect, "TooltipPanel", new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(632f, 300f), new Vector2(380f, 300f));
+                canvasRect, "TooltipPanel", Vector2.zero, Vector2.zero,
+                new Vector2(CampTooltipPlacement.Margin, CampTooltipPlacement.Margin),
+                new Vector2(440f, 330f));
 
             var background = panel.gameObject.AddComponent<Image>();
-            background.color = new Color(0.05f, 0.05f, 0.07f, 0.94f);
+            background.color = new Color(0.04f, 0.05f, 0.07f, 0.95f);
+            background.raycastTarget = false;
 
-            TMP_Text title = CreateUiText(panel, "TooltipTitle", new Vector2(12f, -8f), new Vector2(356f, 36f), UiFontSize, font);
-            TMP_Text stats = CreateUiText(panel, "TooltipStats", new Vector2(12f, -50f), new Vector2(356f, 120f), UiFontSize, font);
-            TMP_Text combos = CreateUiText(panel, "TooltipCombos", new Vector2(12f, -176f), new Vector2(356f, 120f), UiFontSize, font);
+            TMP_Text title = CreateUiText(panel, "TooltipTitle", new Vector2(14f, -10f), new Vector2(412f, 34f), UiFontSize + 4f, font);
+            title.color = new Color(1f, 0.85f, 0.45f, 1f);
+            TMP_Text tier = CreateUiText(panel, "TooltipTier", new Vector2(14f, -46f), new Vector2(412f, 28f), UiFontSize, font);
+            TMP_Text status = CreateUiText(panel, "TooltipStatus", new Vector2(14f, -78f), new Vector2(412f, 30f), UiFontSize, font);
+            TMP_Text description = CreateUiText(panel, "TooltipDescription", new Vector2(14f, -114f), new Vector2(412f, 96f), UiFontSize, font);
+            description.color = new Color(0.85f, 0.88f, 0.92f, 1f);
+            TMP_Text combos = CreateUiText(panel, "TooltipCombos", new Vector2(14f, -214f), new Vector2(412f, 106f), UiFontSize, font);
+            combos.color = new Color(0.95f, 0.82f, 0.35f, 1f);
 
             CampTooltipView view = panel.gameObject.AddComponent<CampTooltipView>();
             SetObjectReference(view, "_scope", scope);
             SetObjectReference(view, "_root", panel.gameObject);
             SetObjectReference(view, "_titleLabel", title);
-            SetObjectReference(view, "_statsLabel", stats);
+            SetObjectReference(view, "_tierLabel", tier);
+            SetObjectReference(view, "_statusLabel", status);
+            SetObjectReference(view, "_descriptionLabel", description);
             SetObjectReference(view, "_combosLabel", combos);
 
             panel.gameObject.SetActive(false);
@@ -1464,18 +1530,40 @@ namespace ProjectSurvive.Game.Editor
             eventSystemObject.AddComponent<InputSystemUIInputModule>();
         }
 
-        private static Canvas CreateCanvas(out GameObject canvasObject)
+        private static Canvas CreateCanvas(out GameObject canvasObject) =>
+            CreateCanvas(out canvasObject, sortingOrder: 0, withRaycaster: true);
+
+        /// <summary>
+        /// A screen-space canvas with the project's scaler: 1920×1080 reference, match 0.5, so a
+        /// region anchored to a corner keeps the same proportions at every window size.
+        /// </summary>
+        /// <param name="sortingOrder">
+        /// Draw order among the screen's overlay canvases. The engine documents this as
+        /// <i>"Canvas' order within a sorting layer"</i> (<c>UnityEngine.UIModule.xml</c>, Unity
+        /// 6000.3.9f1): a higher number draws later, on top.
+        /// </param>
+        /// <param name="withRaycaster">
+        /// False for a canvas that must never receive a click. A tooltip that follows the pointer has
+        /// to be the last thing drawn and the first thing ignored, and without a
+        /// <c>GraphicRaycaster</c> its graphics are not hit-tested at all.
+        /// </param>
+        private static Canvas CreateCanvas(out GameObject canvasObject, int sortingOrder, bool withRaycaster)
         {
-            canvasObject = new GameObject("UI");
+            canvasObject = new GameObject(sortingOrder == 0 ? "UI" : "UI" + sortingOrder);
             Canvas canvas = canvasObject.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = sortingOrder;
 
             CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
 
-            canvasObject.AddComponent<GraphicRaycaster>();
+            if (withRaycaster)
+            {
+                canvasObject.AddComponent<GraphicRaycaster>();
+            }
+
             return canvas;
         }
 

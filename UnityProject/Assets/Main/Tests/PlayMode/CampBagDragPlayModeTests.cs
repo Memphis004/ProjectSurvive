@@ -14,6 +14,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 
 namespace ProjectSurvive.Game.Tests.PlayMode
 {
@@ -59,9 +60,13 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             (CampBagSurface.ChestPanel, CampBagSurface.Chest),
         };
 
+        /// <summary>The opacity the tooltip's own background has to reach (Stage 09d, item 2).</summary>
+        private const float TooltipAlphaFloor = 0.92f;
+
         private Mouse _mouse;
         private CampSceneDirector _director;
         private CampBagScreenView _bag;
+        private CampTooltipView _tooltip;
 
         public override void Setup()
         {
@@ -114,6 +119,9 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             _bag = Object.FindFirstObjectByType<CampBagScreenView>(FindObjectsInactive.Include);
             Assert.That(_bag, Is.Not.Null, "the Camp scene has no CampBagScreenView");
             Assert.That(_bag.Model, Is.Not.Null, "the bag screen never received a model");
+
+            _tooltip = Object.FindFirstObjectByType<CampTooltipView>(FindObjectsInactive.Include);
+            Assert.That(_tooltip, Is.Not.Null, "the Camp scene has no CampTooltipView");
 
             // Since Stage 09c the camp is a place the player walks and the panel starts closed, so
             // the panel is opened here the way a player opens it — by clicking จัดย่าม. The stage's
@@ -337,6 +345,355 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 Assert.That(
                     label.fontSize, Is.GreaterThanOrEqualTo(MinimumFontSize),
                     "'" + label.name + "' is " + label.fontSize + " px, below the " + MinimumFontSize + " px floor");
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Stage 09d: the tooltip, the names in the cells, and the combo lines
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Stage 09d, item 2: the tooltip is drawn on a canvas above the whole camp screen, the
+        /// rectangle it occupies really does sit over the board, nothing in it can be clicked, and it
+        /// follows the pointer into a corner without leaving the screen.
+        /// </summary>
+        /// <remarks>
+        /// The pointer drives it, as it does for a player: the tooltip appears from a hover over a
+        /// piece and is placed by <c>CampTooltipView.Update</c> from the real mouse position. The
+        /// draw order is the statement that matters — a tooltip on the camp's own canvas would be
+        /// under the board's cells, since both are children of one canvas and the cells are created
+        /// at runtime, after everything authored.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator The_tooltip_is_drawn_on_a_canvas_above_the_board_and_stays_on_screen()
+        {
+            yield return LoadCamp();
+
+            CampPieceModel item = FirstPieceOfKind(PieceKind.Item);
+
+            Set(_mouse.position, CellCentre(item.Origin.X, item.Origin.Y));
+            yield return null;
+            yield return null;
+
+            Assert.That(_tooltip.Visible, Is.True, "hovering a piece did not show the tooltip");
+
+            // The content is one line per fact, in the stage's order, and a line with nothing to say
+            // is hidden rather than drawn empty: the tooltip's shape then says which of the five lines
+            // this piece actually has (an item with no คำอธิบาย in its own table has four).
+            string[] lines = { "TooltipTitle", "TooltipTier", "TooltipStatus", "TooltipDescription", "TooltipCombos" };
+            var labels = new TMP_Text[lines.Length];
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                labels[i] = LabelNamed(_tooltip, lines[i]);
+
+                Assert.That(
+                    labels[i].gameObject.activeSelf, Is.EqualTo(!string.IsNullOrEmpty(labels[i].text)),
+                    "'" + lines[i] + "' is " + (labels[i].gameObject.activeSelf ? "shown" : "hidden")
+                    + " with text '" + labels[i].text + "'");
+
+                for (int j = 0; j < i; j++)
+                {
+                    Assert.That(
+                        labels[i].gameObject, Is.Not.EqualTo(labels[j].gameObject),
+                        "'" + lines[i] + "' and '" + lines[j] + "' are the same label: the lines are not separate");
+                }
+            }
+
+            Assert.That(
+                labels[0].text, Is.EqualTo(item.Name),
+                "the tooltip's first line is not the hovered piece's own name");
+            Assert.That(labels[1].text, Is.Not.Empty, "the tooltip has no ระดับ line for an item that has a tier");
+            Assert.That(labels[2].text, Is.Not.Empty, "the tooltip has no สถานะ line for an item");
+
+            Canvas tooltipCanvas = _tooltip.RootCanvas;
+            Canvas screenCanvas = _bag.GetComponentInParent<Canvas>();
+            Assert.That(tooltipCanvas, Is.Not.Null, "the tooltip never resolved its canvas");
+            Assert.That(screenCanvas, Is.Not.Null, "the จัดย่าม panel is not under a canvas");
+            Assert.That(
+                tooltipCanvas.rootCanvas, Is.Not.EqualTo(screenCanvas.rootCanvas),
+                "the tooltip shares the camp's canvas: it would be drawn in creation order, under the "
+                + "board's cells, which are built at runtime");
+            Assert.That(
+                tooltipCanvas.rootCanvas.sortingOrder, Is.GreaterThan(screenCanvas.rootCanvas.sortingOrder),
+                "the tooltip's canvas does not sort above the camp's");
+
+            Assert.That(_bag.TryGetSurfaceScreenRect(CampBagSurface.Board, out Rect board), Is.True, "the board is not on screen");
+            Assert.That(_tooltip.TryGetScreenRect(out Rect tooltip), Is.True, "the tooltip has no screen rectangle");
+            Assert.That(
+                Overlaps(board, tooltip), Is.True,
+                "the tooltip does not reach the board at all, so its draw order proves nothing: tooltip "
+                + tooltip + " against board " + board);
+
+            Assert.That(
+                tooltipCanvas.rootCanvas.GetComponent<GraphicRaycaster>(), Is.Null,
+                "the tooltip's canvas carries a GraphicRaycaster: it can be clicked, and a tooltip that "
+                + "follows the pointer must not eat the pointer's own events");
+
+            var background = _tooltip.GetComponent<Image>();
+            Assert.That(background, Is.Not.Null, "the tooltip has no background of its own");
+            Assert.That(background.raycastTarget, Is.False, "the tooltip's background is a raycast target");
+            Assert.That(
+                background.color.a, Is.GreaterThanOrEqualTo(TooltipAlphaFloor),
+                "the tooltip's background is alpha " + background.color.a + ", below the " + TooltipAlphaFloor + " floor");
+
+            // The corners: the placement rule flips the panel rather than letting it hang half off the
+            // canvas, which is the difference between a readable tooltip and a clipped one.
+            float width = Screen.width;
+            float height = Screen.height;
+            var corners = new[]
+            {
+                new Vector2(1f, 1f),
+                new Vector2(width - 1f, 1f),
+                new Vector2(1f, height - 1f),
+                new Vector2(width - 1f, height - 1f),
+                new Vector2(width * 0.5f, height * 0.5f),
+            };
+
+            var screen = new Rect(0f, 0f, width, height);
+            for (int i = 0; i < corners.Length; i++)
+            {
+                _tooltip.PlaceAt(corners[i]);
+                Canvas.ForceUpdateCanvases();
+
+                Assert.That(
+                    _tooltip.TryGetScreenRect(out Rect placed), Is.True,
+                    "the tooltip has no rectangle after being placed at " + corners[i]);
+                Assert.That(
+                    placed.xMin >= -0.5f && placed.yMin >= -0.5f
+                    && placed.xMax <= screen.xMax + 0.5f && placed.yMax <= screen.yMax + 0.5f,
+                    "placed at " + corners[i] + " the tooltip runs off the screen: " + placed);
+            }
+        }
+
+        /// <summary>
+        /// Stage 09d, item 1: no two piece names on the board share pixels — an item's name is the one
+        /// that keeps its place, and a รยาม's name is the secondary text that gives way to it.
+        /// </summary>
+        /// <remarks>
+        /// The names are read as rectangles, the same way the layout is: a name is a label the view
+        /// shows or hides, so "they do not overlap" is a statement about two rectangles rather than
+        /// about a screenshot. The check runs before and after the item is dragged off the bag, which
+        /// is the case where the bag's own name has room again.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator An_items_name_keeps_its_place_over_the_bag_under_it_and_no_two_names_overlap()
+        {
+            yield return LoadCamp();
+
+            CampPieceModel item = FirstPieceOfKind(PieceKind.Item);
+            CellOffset to = FarthestFreeCellCoveredByABag(item.Origin);
+
+            Assert.That(to.X, Is.GreaterThanOrEqualTo(0), "the fixture found no free bag cell to move the item to");
+
+            Assert.That(
+                TryFindBagUnder(item, out CampPieceModel bag), Is.True,
+                "the starting kit does not put an item on a รยาม, so there is no pair of names to check");
+
+            Assert.That(
+                _bag.TryGetPieceLabelScreenRect(item.Piece, out Rect itemName), Is.True,
+                "the item on the board has no name on screen");
+            // Either the bag's name is hidden under the item or it is drawn somewhere the item's name
+            // is not: an item's name is the primary text of the cell.
+            bool bagNameDrawn = _bag.TryGetPieceLabelScreenRect(bag.Piece, out Rect bagName);
+
+            Assert.That(
+                !bagNameDrawn || !Overlaps(itemName, bagName), Is.True,
+                "the รยาม's name is drawn over the item's name: " + bagName + " against " + itemName);
+
+            AssertNoTwoNamesOverlap();
+
+            yield return Drag(CellCentre(item.Origin.X, item.Origin.Y), CellCentre(to.X, to.Y));
+
+            Assert.That(Piece(item.Piece).Origin.X, Is.EqualTo(to.X), "the item did not move off the bag's name");
+            AssertNoTwoNamesOverlap();
+        }
+
+        /// <summary>
+        /// Stage 09d, item 3: the view draws <b>exactly</b> the marks the run's own evaluation listed —
+        /// a line for every pair that shares a board line, never for a bag — and nothing for the
+        /// adjacency rules, which are shown by the hover highlight instead.
+        /// </summary>
+        /// <remarks>
+        /// The pairs are Core's (<c>SynergyEvaluator.Active</c>); this test says the view rendered the
+        /// classification and that no line has a bag at either end, which is the stage's "ห้ามวาดเส้นจาก
+        /// รยามไปไอเทม" read from the picture's own counters. The deeper placement claim — a tome
+        /// carried to a weapon's row draws a line, and leaving the row takes it away — is
+        /// <c>CampPresenterTests</c>, where the run can be walked to the camp that offers the tome.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator Only_a_pair_that_shares_a_board_line_is_drawn_as_a_line_and_never_a_bag()
+        {
+            yield return LoadCamp();
+
+            CampLink[] links = _bag.Model.Links;
+            int lines = 0;
+            int badges = 0;
+
+            for (int i = 0; i < links.Length; i++)
+            {
+                CampPieceModel source = PieceById(links[i].SourceInstanceId);
+                CampPieceModel target = PieceById(links[i].TargetInstanceId);
+
+                if (links[i].Style == CampLinkStyle.Line)
+                {
+                    lines++;
+
+                    Assert.That(source.Kind, Is.EqualTo(PieceKind.Item), "a line was drawn from a รยาม: " + links[i]);
+                    Assert.That(target.Kind, Is.EqualTo(PieceKind.Item), "a line was drawn to a รยาม: " + links[i]);
+                    Assert.That(
+                        SharesABoardLine(source, target), Is.True,
+                        "a line was drawn between two pieces that share no board row or column: " + links[i]);
+                }
+                else
+                {
+                    badges++;
+
+                    Assert.That(
+                        source.Kind, Is.EqualTo(PieceKind.Bag),
+                        "a badge is the area rule's mark, and only a รยาม can start it: " + links[i]);
+                }
+            }
+
+            Assert.That(
+                _bag.VisibleLineCount, Is.EqualTo(lines),
+                "the view drew " + _bag.VisibleLineCount + " line(s) for the " + lines + " the run listed");
+            Assert.That(
+                _bag.VisibleBadgeCount, Is.EqualTo(badges),
+                "the view drew " + _bag.VisibleBadgeCount + " badge(s) for the " + badges + " the run listed");
+        }
+
+        /// <summary>One of the tooltip's five lines, found by the name the scene authored it under.</summary>
+        private static TMP_Text LabelNamed(Component owner, string name)
+        {
+            TMP_Text[] labels = owner.GetComponentsInChildren<TMP_Text>(true);
+            TMP_Text found = null;
+            int matches = 0;
+
+            for (int i = 0; i < labels.Length; i++)
+            {
+                if (labels[i].name == name)
+                {
+                    found = labels[i];
+                    matches++;
+                }
+            }
+
+            Assert.That(matches, Is.EqualTo(1), "the tooltip has " + matches + " '" + name + "' labels, not one");
+            return found;
+        }
+
+        /// <summary>Every name the board draws, as rectangles, and none of them sharing pixels.</summary>
+        private void AssertNoTwoNamesOverlap()
+        {
+            CampPieceModel[] pieces = _bag.Model.Pieces;
+            var names = new List<(string Name, Rect Rect)>();
+
+            for (int i = 0; i < pieces.Length; i++)
+            {
+                if (_bag.TryGetPieceLabelScreenRect(pieces[i].Piece, out Rect rect))
+                {
+                    names.Add((pieces[i].Name, rect));
+                }
+            }
+
+            Assert.That(names.Count, Is.GreaterThan(0), "the board draws no piece name at all");
+
+            for (int i = 0; i < names.Count; i++)
+            {
+                for (int j = i + 1; j < names.Count; j++)
+                {
+                    Assert.That(
+                        Overlaps(names[i].Rect, names[j].Rect), Is.False,
+                        "'" + names[i].Name + "' " + names[i].Rect + " is drawn over '" + names[j].Name
+                        + "' " + names[j].Rect);
+                }
+            }
+        }
+
+        /// <summary>The bag a piece currently sits on, which is the pair the name rule is about.</summary>
+        private bool TryFindBagUnder(CampPieceModel item, out CampPieceModel bag)
+        {
+            CampPieceModel[] pieces = _bag.Model.Pieces;
+            for (int i = 0; i < pieces.Length; i++)
+            {
+                if (pieces[i].IsBag && pieces[i].IsOnBoard && Covers(pieces[i], item.Origin))
+                {
+                    bag = pieces[i];
+                    return true;
+                }
+            }
+
+            bag = default;
+            return false;
+        }
+
+        private CampPieceModel PieceById(int instanceId)
+        {
+            CampPieceModel[] pieces = _bag.Model.Pieces;
+            for (int i = 0; i < pieces.Length; i++)
+            {
+                if (pieces[i].Piece.InstanceId == instanceId)
+                {
+                    return pieces[i];
+                }
+            }
+
+            Assert.Fail("the run holds no piece " + instanceId);
+            return default;
+        }
+
+        /// <summary>
+        /// True when two pieces occupy at least one common board row or column — the condition the
+        /// same-line rule matches on, computed from the footprints the model carries.
+        /// </summary>
+        /// <remarks>
+        /// A test is not allowed to name the rule's tags (<c>tome</c>, <c>weapon</c>): the data is the
+        /// source of those, and a rule the data retunes must not make this test stale. What is fixed is
+        /// the geometry the rule reads.
+        /// </remarks>
+        private static bool SharesABoardLine(CampPieceModel a, CampPieceModel b)
+        {
+            Cells(a, out int aRowMin, out int aRowMax, out int aColumnMin, out int aColumnMax);
+            Cells(b, out int bRowMin, out int bRowMax, out int bColumnMin, out int bColumnMax);
+
+            bool sameRow = aRowMin <= bRowMax && bRowMin <= aRowMax;
+            bool sameColumn = aColumnMin <= bColumnMax && bColumnMin <= aColumnMax;
+            return sameRow || sameColumn;
+        }
+
+        /// <summary>The board rows and columns a piece's footprint covers.</summary>
+        private static void Cells(
+            CampPieceModel piece, out int rowMin, out int rowMax, out int columnMin, out int columnMax)
+        {
+            rowMin = int.MaxValue;
+            rowMax = int.MinValue;
+            columnMin = int.MaxValue;
+            columnMax = int.MinValue;
+
+            Footprint shape = piece.Shape;
+            if (shape == null)
+            {
+                return;
+            }
+
+            for (int y = 0; y < shape.Height; y++)
+            {
+                for (int x = 0; x < shape.Width; x++)
+                {
+                    if (!shape.Contains(new CellOffset(x, y)))
+                    {
+                        continue;
+                    }
+
+                    int row = piece.Origin.Y + y;
+                    int column = piece.Origin.X + x;
+
+                    if (row < rowMin) { rowMin = row; }
+                    if (row > rowMax) { rowMax = row; }
+                    if (column < columnMin) { columnMin = column; }
+                    if (column > columnMax) { columnMax = column; }
+                }
             }
         }
 

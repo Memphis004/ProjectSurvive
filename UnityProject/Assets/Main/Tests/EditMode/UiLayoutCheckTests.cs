@@ -132,5 +132,85 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
             Assert.That(UiLayoutCheck.FindViolations(layout), Has.Count.EqualTo(1));
         }
+
+        // ------------------------------------------------------------------
+        // Stage 09d: the overlay and the opacity floor
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void The_tooltip_may_cover_the_board_because_that_is_what_it_is_for()
+        {
+            var layout = new List<UiRegion>
+            {
+                Surface("Board", 40f, 140f, 740f, 580f),
+                Overlay(UiLayoutCheck.Tooltip, 100f, 200f, 440f, 330f),
+            };
+
+            Assert.That(
+                UiLayoutCheck.FindViolations(layout), Is.Empty,
+                "a tooltip drawn over the board is the point of it, and the overlap rule must not report it");
+        }
+
+        [Test]
+        public void A_tooltip_over_a_panel_does_not_excuse_the_panels_own_collisions()
+        {
+            // The overlay is exempt, the pair behind it is not: a tooltip covering two panels that
+            // overlap each other must not hide that defect.
+            var layout = new List<UiRegion>
+            {
+                Surface("Altar", 822f, 16f, 210f, 106f),
+                Surface("StatusBar", 24f, 16f, 1400f, 190f),
+                Overlay(UiLayoutCheck.Tooltip, 800f, 100f, 440f, 330f),
+            };
+
+            List<string> violations = UiLayoutCheck.FindViolations(layout);
+
+            Assert.That(violations, Has.Count.EqualTo(1));
+            Assert.That(violations[0], Does.Contain("Altar"));
+            Assert.That(violations[0], Does.Contain("StatusBar"));
+        }
+
+        [Test]
+        public void A_board_below_the_opacity_floor_is_reported_and_an_opaque_one_is_not()
+        {
+            Assert.That(
+                UiLayoutCheck.FindOpacityViolations(new List<UiRegion>
+                {
+                    Surface("Board", 40f, 140f, 740f, 580f, 0.92f),
+                    Surface(UiLayoutCheck.ChestPanel, 1104f, 200f, 776f, 400f, 0.9f),
+                }),
+                Is.Empty,
+                "0.9 is the floor itself, and a scene that writes 0.9 must not be reported");
+
+            List<string> violations = UiLayoutCheck.FindOpacityViolations(new List<UiRegion>
+            {
+                Surface("Board", 40f, 140f, 740f, 580f, 0.62f),
+            });
+
+            Assert.That(violations, Has.Count.EqualTo(1));
+            Assert.That(violations[0], Does.Contain("Board"));
+            Assert.That(violations[0], Does.Contain("0.62"));
+        }
+
+        [Test]
+        public void The_panels_that_are_meant_to_be_translucent_are_not_held_to_the_floor()
+        {
+            // The จัดย่าม screen is an overlay on ศาลาพัก: the instruction scroll and the altar are
+            // deliberately see-through, and the rule names only the two panels the stage names.
+            Assert.That(
+                UiLayoutCheck.FindOpacityViolations(new List<UiRegion>
+                {
+                    Surface("Instructions", 1104f, 884f, 776f, 176f, 0.85f),
+                    Surface("Altar", 822f, 214f, 210f, 106f, 0.5f),
+                    Surface("StatusBar", 24f, 16f, 1400f, 190f, 0.4f),
+                }),
+                Is.Empty);
+        }
+
+        private static UiRegion Overlay(string name, float x, float y, float w, float h) =>
+            new UiRegion(name, new Rect(x, y, w, h), UiRegionKind.Overlay, 0.95f);
+
+        private static UiRegion Surface(string name, float x, float y, float w, float h, float alpha) =>
+            new UiRegion(name, new Rect(x, y, w, h), UiRegionKind.Surface, alpha);
     }
 }

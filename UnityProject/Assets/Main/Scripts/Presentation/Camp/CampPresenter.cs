@@ -48,8 +48,15 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private readonly List<CellOffset> _highlight = new List<CellOffset>(48);
         private readonly CampShopSlotModel[] _shop;
 
+        private readonly List<CampLink> _linkScratch = new List<CampLink>(16);
+
         private SynergyEvaluation _layout;
         private int _layoutRevision = -1;
+        private CampLink[] _links;
+        private int _linksRevision = -1;
+
+        /// <summary>The mark set of a layout with no working combo: shared, because it is constant.</summary>
+        private static readonly CampLink[] NoLinks = new CampLink[0];
 
         private CampDragState _drag = CampDragState.None;
         private Rotation _dragRotation = Rotation.Degrees0;
@@ -785,7 +792,100 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 _run.CanUndoEdit,
                 _pieces.ToArray(),
                 _highlight.ToArray(),
+                DrawnLinks(),
                 backpack.Revision);
+        }
+
+        /// <summary>
+        /// The combos the screen marks permanently, as pairs plus how each is drawn.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The pairs are Core's: <c>SynergyEvaluator.Active</c> already resolved which piece
+        /// provided a condition and which one received the effect, and this method does not add to
+        /// that or re-derive it (AGENTS rule 10). What it decides is the <i>drawing</i>: the
+        /// stage's rule is one line style — the same-line rule from a ตำรา to each อาวุธอาคม — a
+        /// badge for the bag-area bonus (never a line from a bag to an item), and nothing permanent
+        /// for the adjacency rules, which are shown by the hover highlight instead.
+        /// </para>
+        /// <para>
+        /// Which style a rule gets comes from its own <c>synergy.kind</c> row, so a same-line rule
+        /// added to <c>data/</c> arrives with a line and no code change, and an adjacency rule
+        /// arrives with no mark at all.
+        /// </para>
+        /// <para>
+        /// Rebuilt only when the layout was rebuilt (a command moved the bag) and cached otherwise,
+        /// so a pointer move over the board pays nothing for it.
+        /// </para>
+        /// </remarks>
+        private CampLink[] DrawnLinks()
+        {
+            // The layout is asked for first, always: it is the thing that knows whether the bag moved,
+            // and the cache key below is its revision. Reading `_layoutRevision` before this call was
+            // the one real bug in the first version of this method — with nothing hovered,
+            // `BuildHighlight` returns before touching the layout, so a cache keyed on that stale field
+            // answered with the marks of the previous revision for the rest of the camp visit
+            // (measured: a tome placed on the weapon's row drew no line until something was hovered).
+            SynergyEvaluation layout = CachedLayout();
+
+            if (_links != null && _linksRevision == _layoutRevision)
+            {
+                return _links;
+            }
+
+            _linkScratch.Clear();
+
+            IReadOnlyList<ActiveSynergy> active = layout.Active;
+            for (int i = 0; i < active.Count; i++)
+            {
+                ActiveSynergy synergy = active[i];
+
+                if (!TryRuleKind(synergy.RuleId, out SynergyKind kind))
+                {
+                    // A rule id the config does not know: drawn as nothing rather than guessed at.
+                    continue;
+                }
+
+                switch (kind)
+                {
+                    case SynergyKind.SameRow:
+                    case SynergyKind.SameColumn:
+                        _linkScratch.Add(new CampLink(
+                            synergy.SourceInstanceId, synergy.TargetInstanceId, CampLinkStyle.Line));
+                        break;
+
+                    case SynergyKind.BagArea:
+                        // The bag is not a partner on the board: the bonus belongs to the cell it
+                        // reached, so the mark goes on the receiver.
+                        _linkScratch.Add(new CampLink(
+                            synergy.SourceInstanceId, synergy.TargetInstanceId, CampLinkStyle.Badge));
+                        break;
+
+                    default:
+                        // AdjacentPair: highlighted while the pointer is on one of the pair.
+                        break;
+                }
+            }
+
+            _linksRevision = _layoutRevision;
+            _links = _linkScratch.Count == 0 ? NoLinks : _linkScratch.ToArray();
+            return _links;
+        }
+
+        /// <summary>The kind of a rule the screen is drawing, or false when the config has no such row.</summary>
+        private bool TryRuleKind(string ruleId, out SynergyKind kind)
+        {
+            for (int i = 0; i < _config.Synergies.Count; i++)
+            {
+                if (string.Equals(_config.Synergies[i].Id, ruleId, StringComparison.Ordinal))
+                {
+                    kind = _config.Synergies[i].Kind;
+                    return true;
+                }
+            }
+
+            kind = default;
+            return false;
         }
 
         private CampPieceModel Model(PieceInstance instance)
@@ -911,13 +1011,26 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
+            // One field per line: ชื่อ, ระดับ, สถานะ, คำอธิบาย, คอมโบที่ทำงานอยู่. The view puts each in
+            // its own label and hides the ones that are empty, so nothing composes a second string
+            // from these.
             CampUiState.Set(_state.TooltipTitle, model.Name);
-            CampUiState.Set(_state.TooltipStats, StatLine(model));
+            CampUiState.Set(_state.TooltipTier, TierLine(model));
+            CampUiState.Set(_state.TooltipStatus, StatusLine(model));
+            CampUiState.Set(_state.TooltipDescription, DescriptionLine(model));
             CampUiState.Set(_state.TooltipCombos, ComboLine(model));
             CampUiState.Set(_state.TooltipVisible, true);
         }
 
-        private string StatLine(CampPieceModel model)
+        /// <summary>ระดับ <c>t/max</c> — the piece's own tier, which a merge raised, not the table's.</summary>
+        private string TierLine(CampPieceModel model) =>
+            Format("camp.tooltip.tier.format", model.Tier, _config.Constant.MaxTier);
+
+        /// <summary>
+        /// สถานะ: ดาเมจ · คูลดาวน์ · สมาธิ for a piece that casts, its usable slots for a bag, and the
+        /// category name for a piece that does neither.
+        /// </summary>
+        private string StatusLine(CampPieceModel model)
         {
             if (model.IsBag)
             {
@@ -931,19 +1044,28 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return string.Empty;
             }
 
-            _builder.Clear();
-            _builder.Append(Format("camp.tooltip.tier.format", model.Tier, _config.Constant.MaxTier));
-
             if (!string.IsNullOrEmpty(item.SkillId) && _config.TryGetSkill(item.SkillId, out SkillConfig skill))
             {
-                _builder.Append('\n');
-                _builder.Append(Format("camp.tooltip.stat.format", skill.Damage, skill.CooldownSeconds, skill.MpCost));
-                return _builder.ToString();
+                return Format("camp.tooltip.stat.format", skill.Damage, skill.CooldownSeconds, skill.MpCost);
             }
 
-            _builder.Append('\n');
-            _builder.Append(Lookup(CategoryKey(item.Category)));
-            return _builder.ToString();
+            return Lookup(CategoryKey(item.Category));
+        }
+
+        /// <summary>
+        /// คำอธิบาย: the item's own description row, or empty when its table has none (a bag never
+        /// has one). Empty is a real answer — the tooltip hides that line rather than drawing a
+        /// placeholder.
+        /// </summary>
+        private string DescriptionLine(CampPieceModel model)
+        {
+            if (model.IsBag || !_config.TryGetItem(model.DefId, out ItemConfig item)
+                || string.IsNullOrEmpty(item.DescriptionKey))
+            {
+                return string.Empty;
+            }
+
+            return Lookup(item.DescriptionKey);
         }
 
         private string ComboLine(CampPieceModel model)

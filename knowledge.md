@@ -173,8 +173,10 @@ thing that calls Application — a drag's verdict is `RunSession.PreviewDrop`, a
 *place*: a figure that walks with WASD under a following oblique camera, one shelf per shop slot
 standing in the sala with its piece, price and lock pin, the เซียมซี drum, `E` at the station the
 figure stands at, and every control still clickable without walking (the phone and browser path).
-425 xUnit, 57 Unity EditMode, 24 PlayMode and 8 Playwright cases pass; the browser flow runs rent →
-place → rotate → merge → give back → restore against the real UI. See
+425 xUnit, 75 Unity EditMode and 8 Playwright cases pass; the 27 PlayMode cases are green class by
+class, while a **bulk** PlayMode run still fails on ambient Input System log asserts (no failed
+assertion — [`docs/testing/test-suites.md`](docs/testing/test-suites.md) §7). The browser flow runs
+rent → place → rotate → merge → give back → restore against the real UI. See
 [`llmwiki/systems/camp.md`](llmwiki/systems/camp.md) and the [report](docs/stages/09-report.md).
 
 
@@ -247,10 +249,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 -SizePro
                                                                                              #   baseline | strip-high | optimize-size | minimal
 node tools/serve-web.mjs --port 8080          # then, in tests/web: npx playwright test
 
-# UI layout without a WebGL build (Stage 09d follow-up): open the scenes, shoot them at the two
-# sizes and fail when two panels overlap. Editor open, menu `ProjectSurvive/Tools/1. Capture UI`:
+# UI layout without a WebGL build (the process stage + Stage 09e): open the scenes, shoot them at
+# the two sizes and fail when two panels overlap. Editor open, menu `ProjectSurvive/Tools/1. Capture UI`:
 unity command menu --path "ProjectSurvive/Tools/1. Capture UI (Camp + Battle, 1920x1080 + 1280x720)"
-#   -> artifacts/ui/{camp,battle}-{1920x1080,1280x720}.png + ui-report.md (every rectangle measured)
+#   -> artifacts/ui/{camp,battle}-{1920x1080,1280x720}.png, camp-closed-* and camp-tooltip-* (the
+#      tooltip's draw order is proved in pixels: the same frame off vs on), + ui-report.md with
+#      every rectangle AND every region's alpha (the opacity floor is a measured column)
 # Scripted form (Editor closed): Unity.exe -batchmode -quit -projectPath UnityProject \
 #   -executeMethod ProjectSurvive.Game.Editor.UiCaptureTool.CaptureAllAndExit
 # Proof the check can fail: menu `ProjectSurvive/Tools/2. Capture UI self-test (expected to FAIL)`

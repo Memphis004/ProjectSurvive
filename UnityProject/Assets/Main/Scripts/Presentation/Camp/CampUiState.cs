@@ -125,10 +125,26 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         public ReactiveProperty<string> Instruction4 { get; } = new ReactiveProperty<string>(string.Empty);
 
+        /// <summary>
+        /// The tooltip, one field per <b>line</b>: ชื่อ, ระดับ, สถานะ, คำอธิบาย, คอมโบที่ทำงานอยู่.
+        /// </summary>
+        /// <remarks>
+        /// Five fields rather than one string with newlines, because each line is a separate label
+        /// the tooltip hides when it is empty (a bag has no คำอธิบาย) and because a label whose text
+        /// was assembled by the view would be the view formatting, which AGENTS rule 10 forbids.
+        /// </remarks>
         public ReactiveProperty<string> TooltipTitle { get; } = new ReactiveProperty<string>(string.Empty);
 
-        public ReactiveProperty<string> TooltipStats { get; } = new ReactiveProperty<string>(string.Empty);
+        /// <summary>ระดับ <c>t/max</c> of the hovered piece.</summary>
+        public ReactiveProperty<string> TooltipTier { get; } = new ReactiveProperty<string>(string.Empty);
 
+        /// <summary>ดาเมจ · คูลดาวน์ · สมาธิ of the hovered piece, or its usable slots when it is a bag.</summary>
+        public ReactiveProperty<string> TooltipStatus { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>The item's own description text; empty for a piece whose table has none.</summary>
+        public ReactiveProperty<string> TooltipDescription { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>คอมโบที่ทำงานอยู่: the totals and the names of the rules that fired.</summary>
         public ReactiveProperty<string> TooltipCombos { get; } = new ReactiveProperty<string>(string.Empty);
 
         // --- flags and bars ---
@@ -245,7 +261,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
             Instruction3.Dispose();
             Instruction4.Dispose();
             TooltipTitle.Dispose();
-            TooltipStats.Dispose();
+            TooltipTier.Dispose();
+            TooltipStatus.Dispose();
+            TooltipDescription.Dispose();
             TooltipCombos.Dispose();
             CanDepart.Dispose();
             CanRefresh.Dispose();

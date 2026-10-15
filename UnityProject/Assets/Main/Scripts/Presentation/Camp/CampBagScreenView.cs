@@ -48,16 +48,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
         [SerializeField] private TMP_Text _instructionStep3Label;
         [SerializeField] private TMP_Text _instructionStep4Label;
 
-        [Header("Stats & Navigation (Bottom-Left)")]
-        [Tooltip("The whole bottom-left block. Its screen rectangle is what the layout report measures.")]
+        [Header("Navigation (Bottom-Left, above the status bar)")]
+        [Tooltip("The whole bottom-left block: กลับ, ไปชั้นถัดไป and the reason. Its screen rectangle is what the layout report measures.")]
         [SerializeField] private RectTransform _statsRect;
 
         [Tooltip("The chest panel's background, so the no-overlap check measures the panel, not just its grid.")]
         [SerializeField] private RectTransform _chestPanelRect;
-
-        [SerializeField] private TMP_Text _hpLabel;
-        [SerializeField] private TMP_Text _weightLabel;
-        [SerializeField] private TMP_Text _biaLabel;
 
         [Tooltip("ไปชั้นถัดไป: the same use case as the status bar's ออกเดินทาง, disabled with a reason.")]
         [SerializeField] private Button _nextFloorButton;
@@ -107,10 +103,21 @@ namespace ProjectSurvive.Game.Presentation.Camp
         [SerializeField] private Color _ghostInvalid = new Color(0.85f, 0.35f, 0.35f, 0.85f);
         [SerializeField] private Color _ghostMerge = new Color(0.95f, 0.80f, 0.35f, 0.90f);
 
+        /// <summary>
+        /// How tall a bag's secondary name strip is, in canvas units. Tall enough for the 22 px
+        /// floor's line box; an item's rectangle reaching it is what hides the bag's name.
+        /// </summary>
+        private const float BagLabelHeight = 30f;
+
+        /// <summary>The side of a bag-area bonus badge, in canvas units.</summary>
+        private const float BadgeSize = 18f;
+
         private readonly List<Image> _boardCells = new List<Image>(64);
         private readonly List<Image> _chestCells = new List<Image>(16);
         private readonly List<CampPieceView> _pieceViews = new List<CampPieceView>(32);
+        private readonly List<CampPieceModel> _painted = new List<CampPieceModel>(32);
         private readonly List<Image> _synergyLines = new List<Image>(16);
+        private readonly List<Image> _badges = new List<Image>(16);
         private readonly List<IDisposable> _subscriptions = new List<IDisposable>(16);
 
         private CampUiState _state;
@@ -118,7 +125,8 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private Image _ghost;
         private RectTransform _ghostRect;
         private TMP_Text _ghostLabel;
-        private RectTransform _synergyRoot;
+        private RectTransform _linkRoot;
+        private RectTransform _badgeRoot;
 
         private int _boardWidth;
         private int _boardHeight;
@@ -157,6 +165,58 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         /// <summary>True while the จัดย่าม panel is on screen.</summary>
         public bool PanelVisible => _panelRoot == null || _panelRoot.activeSelf;
+
+        /// <summary>
+        /// How many combo lines are drawn right now. A test reads it: the rule is that a line means
+        /// a ตำรา–อาวุธอาคม pair and nothing else, and a bag-area bonus must never raise it.
+        /// </summary>
+        public int VisibleLineCount { get; private set; }
+
+        /// <summary>How many bag-area bonus badges are drawn right now.</summary>
+        public int VisibleBadgeCount { get; private set; }
+
+        /// <summary>
+        /// The screen rectangle of a piece's name, or false when the piece has no name on screen.
+        /// </summary>
+        /// <remarks>
+        /// A bag's name is secondary text and is hidden when an item's rectangle covers the strip it
+        /// is drawn in, so "no name is drawn under another name" is a statement a test can make about
+        /// two rectangles instead of about a picture.
+        /// </remarks>
+        public bool TryGetPieceLabelScreenRect(PieceRef piece, out Rect rect)
+        {
+            rect = default;
+
+            for (int i = 0; i < _painted.Count; i++)
+            {
+                if (_painted[i].Piece != piece || i >= _pieceViews.Count)
+                {
+                    continue;
+                }
+
+                RectTransform label = _pieceViews[i].LabelRect;
+                return label != null && label.gameObject.activeInHierarchy
+                    && CampScreenRects.TryOf(label, out rect);
+            }
+
+            return false;
+        }
+
+        /// <summary>The screen rectangle of a piece's rectangle (not its name), or false when it is not drawn.</summary>
+        public bool TryGetPieceScreenRect(PieceRef piece, out Rect rect)
+        {
+            rect = default;
+
+            for (int i = 0; i < _painted.Count; i++)
+            {
+                if (_painted[i].Piece == piece && i < _pieceViews.Count)
+                {
+                    return CampScreenRects.TryOf(_pieceViews[i].Rect, out rect);
+                }
+            }
+
+            return false;
+        }
 
         /// <summary>Resolves the screen's services and starts rendering. Public and idempotent.</summary>
         public void Bind()
@@ -249,9 +309,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
             Subscribe(_state.Instruction3, _instructionStep3Label);
             Subscribe(_state.Instruction4, _instructionStep4Label);
 
-            Subscribe(_state.HpMpValue, _hpLabel);
-            Subscribe(_state.WeightValue, _weightLabel);
-            Subscribe(_state.BiaValue, _biaLabel);
+            // The panel carries no run stat of its own: น้ำหนัก/สมาธิ/หีบ/เบี้ย/HP/MP live on the
+            // bottom bar, which is under the panel and never hidden by it, and a second copy here was
+            // the duplication Stage 09e work item 1 removes.
             Subscribe(_state.ChestValue, _chestTitleLabel, format: "หีบสัมภาระ ({0})");
             Subscribe(_state.DepartReason, _departReasonLabel);
 
@@ -839,6 +899,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             _renderedRevision = model.Revision;
 
+            _painted.Clear();
             int used = 0;
             for (int i = 0; i < model.Pieces.Length; i++)
             {
@@ -859,85 +920,60 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 _pieceViews[i].Hide();
             }
 
-            RenderSynergyLines();
+            // The names are decided once the pieces are placed: whether a bag may keep its own name
+            // depends on which items ended up on top of it.
+            LayoutPieceLabels();
+
+            RenderLinks(model.Links);
         }
 
-        private void RenderSynergyLines()
+        /// <summary>
+        /// Draws the two permanent marks of a working combo: a line for a ตำรา → อาวุธอาคม pair, a
+        /// badge for the bag-area bonus. <see cref="CampBagScreen.Links"/> is what it draws, and it
+        /// hides every mark the model no longer lists, so a pair that stopped qualifying loses its
+        /// mark on the same render that dropped it.
+        /// </summary>
+        /// <remarks>
+        /// Lines are drawn <b>under</b> the pieces and their names: a line through a name is a line
+        /// the player cannot read the board through, so the marks sit directly above the cells and
+        /// below the text.
+        /// </remarks>
+        private void RenderLinks(CampLink[] links)
         {
-            if (_presenter == null || Model == null || _boardRect == null)
+            if (_boardRect == null || Model == null)
             {
+                VisibleLineCount = 0;
+                VisibleBadgeCount = 0;
                 return;
             }
 
-            if (_synergyRoot == null)
-            {
-                var synObj = new GameObject("SynergyLines", typeof(RectTransform));
-                _synergyRoot = (RectTransform)synObj.transform;
-                _synergyRoot.SetParent(_boardRect, false);
-                _synergyRoot.anchorMin = Vector2.zero;
-                _synergyRoot.anchorMax = Vector2.one;
-                _synergyRoot.offsetMin = Vector2.zero;
-                _synergyRoot.offsetMax = Vector2.zero;
-                _synergyRoot.SetAsLastSibling();
-            }
-
-            SynergyEvaluation layout = _presenter.Layout();
-            if (layout == null || layout.Active == null || layout.Active.Count == 0)
-            {
-                for (int i = 0; i < _synergyLines.Count; i++)
-                {
-                    _synergyLines[i].gameObject.SetActive(false);
-                }
-                return;
-            }
+            EnsureLinkRoots();
 
             float pitch = CellPitch;
             int lineIdx = 0;
-            for (int i = 0; i < layout.Active.Count; i++)
+            int badgeIdx = 0;
+
+            if (links != null)
             {
-                ActiveSynergy syn = layout.Active[i];
-                CampPieceModel src = default;
-                CampPieceModel tgt = default;
-                bool foundSrc = false, foundTgt = false;
-
-                for (int p = 0; p < Model.Pieces.Length; p++)
+                for (int i = 0; i < links.Length; i++)
                 {
-                    if (Model.Pieces[p].Piece.InstanceId == syn.SourceInstanceId)
+                    CampLink link = links[i];
+
+                    if (!TryFindPiece(link.SourceInstanceId, out CampPieceModel source)
+                        || !TryFindPiece(link.TargetInstanceId, out CampPieceModel target)
+                        || !source.IsOnBoard || !target.IsOnBoard)
                     {
-                        src = Model.Pieces[p];
-                        foundSrc = true;
+                        continue;
                     }
-                    if (Model.Pieces[p].Piece.InstanceId == syn.TargetInstanceId)
+
+                    if (link.Style == CampLinkStyle.Badge)
                     {
-                        tgt = Model.Pieces[p];
-                        foundTgt = true;
+                        PlaceBadge(badgeIdx++, target, pitch);
                     }
-                }
-
-                if (foundSrc && foundTgt && src.IsOnBoard && tgt.IsOnBoard)
-                {
-                    int srcW = src.Shape?.Width ?? 1;
-                    int srcH = src.Shape?.Height ?? 1;
-                    int tgtW = tgt.Shape?.Width ?? 1;
-                    int tgtH = tgt.Shape?.Height ?? 1;
-
-                    Vector2 srcCenter = new Vector2(
-                        (src.Origin.X + (srcW * 0.5f)) * pitch - (_cellGap * 0.5f),
-                        -((src.Origin.Y + (srcH * 0.5f)) * pitch) + (_cellGap * 0.5f));
-
-                    Vector2 tgtCenter = new Vector2(
-                        (tgt.Origin.X + (tgtW * 0.5f)) * pitch - (_cellGap * 0.5f),
-                        -((tgt.Origin.Y + (tgtH * 0.5f)) * pitch) + (_cellGap * 0.5f));
-
-                    Image line = GetOrCreateSynergyLine(lineIdx++);
-                    line.gameObject.SetActive(true);
-                    line.color = new Color(1f, 0.82f, 0.25f, 0.85f);
-                    RectTransform rect = line.rectTransform;
-                    Vector2 dir = tgtCenter - srcCenter;
-                    float dist = dir.magnitude;
-                    rect.anchoredPosition = (srcCenter + tgtCenter) * 0.5f;
-                    rect.sizeDelta = new Vector2(dist, 4f);
-                    rect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg);
+                    else
+                    {
+                        PlaceLine(lineIdx++, source, target, pitch);
+                    }
                 }
             }
 
@@ -945,26 +981,224 @@ namespace ProjectSurvive.Game.Presentation.Camp
             {
                 _synergyLines[i].gameObject.SetActive(false);
             }
+
+            for (int i = badgeIdx; i < _badges.Count; i++)
+            {
+                _badges[i].gameObject.SetActive(false);
+            }
+
+            VisibleLineCount = lineIdx;
+            VisibleBadgeCount = badgeIdx;
         }
 
-        private Image GetOrCreateSynergyLine(int index)
+        private bool TryFindPiece(int instanceId, out CampPieceModel piece)
+        {
+            CampPieceModel[] pieces = Model.Pieces;
+            for (int i = 0; i < pieces.Length; i++)
+            {
+                if (pieces[i].Piece.InstanceId == instanceId)
+                {
+                    piece = pieces[i];
+                    return true;
+                }
+            }
+
+            piece = default;
+            return false;
+        }
+
+        /// <summary>Lays a line from the centre of one piece to the centre of another.</summary>
+        private void PlaceLine(int index, CampPieceModel source, CampPieceModel target, float pitch)
+        {
+            Vector2 from = CentreOf(source, pitch, _cellGap);
+            Vector2 to = CentreOf(target, pitch, _cellGap);
+
+            Image line = GetOrCreateLine(index);
+            line.gameObject.SetActive(true);
+            line.color = new Color(1f, 0.82f, 0.25f, 0.85f);
+
+            RectTransform rect = line.rectTransform;
+            Vector2 direction = to - from;
+            rect.anchoredPosition = (from + to) * 0.5f;
+            rect.sizeDelta = new Vector2(direction.magnitude, 4f);
+            rect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
+        }
+
+        /// <summary>
+        /// Marks a piece the bag-area bonus reached, on the piece's own corner: the rule is about the
+        /// cells a bag covers, so the mark belongs to what was covered, and a line from the bag would
+        /// say the bag is a partner on the board.
+        /// </summary>
+        private void PlaceBadge(int index, CampPieceModel target, float pitch)
+        {
+            Rect piece = PieceRect(target, pitch, _cellGap);
+
+            Image badge = GetOrCreateBadge(index);
+            badge.gameObject.SetActive(true);
+
+            RectTransform rect = badge.rectTransform;
+            rect.anchoredPosition = new Vector2(piece.xMax - BadgeSize - 2f, piece.yMin - 2f);
+        }
+
+        /// <summary>
+        /// The two roots the marks live in, kept directly above the cells and below every piece.
+        /// </summary>
+        /// <remarks>
+        /// Their sibling index is reset on every render because pieces are created lazily and each new
+        /// one is appended: without this a piece added later would be drawn under the existing lines.
+        /// </remarks>
+        private void EnsureLinkRoots()
+        {
+            if (_linkRoot == null)
+            {
+                _linkRoot = CreateOverlayRoot("SynergyLines");
+            }
+
+            if (_badgeRoot == null)
+            {
+                _badgeRoot = CreateOverlayRoot("BagBonusBadges");
+            }
+
+            int cells = _boardCells.Count;
+            if (cells > _boardRect.childCount - 1)
+            {
+                cells = _boardRect.childCount - 1;
+            }
+
+            _linkRoot.SetSiblingIndex(cells < 0 ? 0 : cells);
+
+            int badgeIndex = cells + 1;
+            _badgeRoot.SetSiblingIndex(badgeIndex > _boardRect.childCount - 1 ? _boardRect.childCount - 1 : badgeIndex);
+        }
+
+        private RectTransform CreateOverlayRoot(string name)
+        {
+            var rootObject = new GameObject(name, typeof(RectTransform));
+            var root = (RectTransform)rootObject.transform;
+            root.SetParent(_boardRect, false);
+            root.anchorMin = Vector2.zero;
+            root.anchorMax = Vector2.one;
+            root.offsetMin = Vector2.zero;
+            root.offsetMax = Vector2.zero;
+            root.pivot = new Vector2(0f, 1f);
+            return root;
+        }
+
+        private Image GetOrCreateLine(int index)
         {
             if (index < _synergyLines.Count)
             {
                 return _synergyLines[index];
             }
 
-            var lineObj = new GameObject("SynLine" + index, typeof(RectTransform));
-            var lineRect = (RectTransform)lineObj.transform;
-            lineRect.SetParent(_synergyRoot, false);
-            lineRect.anchorMin = new Vector2(0f, 1f);
-            lineRect.anchorMax = new Vector2(0f, 1f);
-            lineRect.pivot = new Vector2(0.5f, 0.5f);
-            var line = lineObj.AddComponent<Image>();
-            line.raycastTarget = false;
+            Image line = CreateMark(_linkRoot, "SynLine" + index, 4f);
             _synergyLines.Add(line);
             return line;
         }
+
+        private Image GetOrCreateBadge(int index)
+        {
+            if (index < _badges.Count)
+            {
+                return _badges[index];
+            }
+
+            Image badge = CreateMark(_badgeRoot, "BagBadge" + index, BadgeSize);
+            badge.color = new Color(0.45f, 0.85f, 0.95f, 0.95f);
+            _badges.Add(badge);
+            return badge;
+        }
+
+        private static Image CreateMark(RectTransform parent, string name, float size)
+        {
+            var markObject = new GameObject(name, typeof(RectTransform));
+            var rect = (RectTransform)markObject.transform;
+            rect.SetParent(parent, false);
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(size, size);
+
+            var image = markObject.AddComponent<Image>();
+            image.raycastTarget = false;
+            return image;
+        }
+
+        /// <summary>The centre of a piece in board-local units, which is where a line ends.</summary>
+        private static Vector2 CentreOf(CampPieceModel piece, float pitch, float gap)
+        {
+            Rect rect = PieceRect(piece, pitch, gap);
+            return new Vector2(rect.x + (rect.width * 0.5f), rect.y + (rect.height * 0.5f));
+        }
+
+        /// <summary>
+        /// A piece's rectangle in board-local units, built the way <see cref="CampPieceView.Show"/>
+        /// places it: x right, y <b>down</b> from the board's top-left corner, both in cell pitches.
+        /// </summary>
+        private static Rect PieceRect(CampPieceModel piece, float pitch, float gap)
+        {
+            int width = piece.Shape == null ? 1 : piece.Shape.Width;
+            int height = piece.Shape == null ? 1 : piece.Shape.Height;
+
+            return new Rect(
+                piece.Origin.X * pitch,
+                -(piece.Origin.Y * pitch),
+                (width * pitch) - gap,
+                (height * pitch) - gap);
+        }
+
+        /// <summary>
+        /// Shows or hides each bag's own name.
+        /// </summary>
+        /// <remarks>
+        /// The item on top of a bag is the primary text; a bag's name is secondary. Both are drawn in
+        /// the same local space, so "an item's rectangle reaches the strip the bag's name is drawn
+        /// in" is an exact test and not an estimate of how wide a string will be
+        /// (Stage 09e work item 1: "ชื่อย่ามกับชื่อไอเทมต้องไม่ซ้อนกัน (ชื่อไอเทมเป็นหลัก ชื่อย่ามเป็น
+        /// ข้อความรองหรือซ่อนเมื่อที่ไม่พอ)").
+        /// </remarks>
+        private void LayoutPieceLabels()
+        {
+            float pitch = CellPitch;
+
+            for (int i = 0; i < _painted.Count; i++)
+            {
+                CampPieceModel piece = _painted[i];
+
+                if (!piece.IsBag || !piece.IsOnBoard)
+                {
+                    _pieceViews[i].SetLabel(true, secondary: false);
+                    continue;
+                }
+
+                Rect strip = BagLabelStrip(piece, pitch, _cellGap);
+                bool covered = false;
+
+                for (int j = 0; j < _painted.Count && !covered; j++)
+                {
+                    CampPieceModel other = _painted[j];
+
+                    if (other.IsBag || !other.IsOnBoard)
+                    {
+                        continue;
+                    }
+
+                    Rect rect = PieceRect(other, pitch, _cellGap);
+                    covered = strip.xMin < rect.xMax && rect.xMin < strip.xMax
+                        && strip.yMin < rect.yMax && rect.yMin < strip.yMax;
+                }
+
+                _pieceViews[i].SetLabel(!covered, secondary: true);
+            }
+        }
+
+        /// <summary>The strip of a bag a name may be drawn in: its top edge, inset from both sides.</summary>
+        private static Rect BagLabelStrip(CampPieceModel bag, float pitch, float gap)
+        {
+            Rect rect = PieceRect(bag, pitch, gap);
+            return new Rect(rect.x + 4f, rect.y, Mathf.Max(rect.width - 8f, 1f), BagLabelHeight);
+        }
+
 
         private void RenderDrag(CampDragState drag)
         {
@@ -1210,6 +1444,10 @@ namespace ProjectSurvive.Game.Presentation.Camp
             }
 
             view.Show(piece, this);
+
+            // The pool index and the painted array are the same index on purpose: the name test walks
+            // the painted pieces and asks the view at that index where its label is.
+            _painted.Add(piece);
             return used + 1;
         }
 
@@ -1335,6 +1573,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
             private Image _image;
             private TMP_Text _label;
 
+            /// <summary>The piece's own rectangle, for the label rules.</summary>
+            public RectTransform Rect => _rect;
+
+            /// <summary>The name's own rectangle; null before <see cref="Create"/> has run.</summary>
+            public RectTransform LabelRect => _label == null ? null : (RectTransform)_label.transform;
+
             public static CampPieceView Create(RectTransform parent, TMP_FontAsset font)
             {
                 var gameObject = new GameObject("Piece", typeof(RectTransform));
@@ -1409,6 +1653,49 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 }
 
                 _label.text = piece.Label;
+            }
+
+            /// <summary>
+            /// Whether the name is drawn, and where: an item's name is centred over its own rectangle
+            /// (the primary text of the cell), a bag's name is a single line along its top edge (the
+            /// secondary text, which the caller hides when an item reaches it).
+            /// </summary>
+            public void SetLabel(bool visible, bool secondary)
+            {
+                if (_label == null)
+                {
+                    return;
+                }
+
+                _label.gameObject.SetActive(visible);
+
+                if (!visible)
+                {
+                    return;
+                }
+
+                RectTransform rect = (RectTransform)_label.transform;
+
+                if (secondary)
+                {
+                    rect.anchorMin = new Vector2(0f, 1f);
+                    rect.anchorMax = new Vector2(1f, 1f);
+                    rect.pivot = new Vector2(0.5f, 1f);
+                    rect.sizeDelta = new Vector2(-8f, BagLabelHeight);
+                    rect.anchoredPosition = new Vector2(0f, -2f);
+                    _label.alignment = TextAlignmentOptions.TopLeft;
+                    _label.color = new Color(1f, 1f, 1f, 0.85f);
+                }
+                else
+                {
+                    rect.anchorMin = Vector2.zero;
+                    rect.anchorMax = Vector2.one;
+                    rect.pivot = new Vector2(0.5f, 0.5f);
+                    rect.offsetMin = Vector2.zero;
+                    rect.offsetMax = Vector2.zero;
+                    _label.alignment = TextAlignmentOptions.Center;
+                    _label.color = Color.white;
+                }
             }
 
             public void Hide() => _rect.gameObject.SetActive(false);

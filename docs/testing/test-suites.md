@@ -26,8 +26,8 @@ need to run, and the Web build moved behind the Full suite.
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 17 broken data sets rejected for the right reason |
-| `unity: EditMode` | Fast | 65 tests in `ProjectSurvive.Game.Tests.EditMode` |
-| `unity: PlayMode` | **Full** | 24 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking) |
+| `unity: EditMode` | Fast | 75 tests in `ProjectSurvive.Game.Tests.EditMode` |
+| `unity: PlayMode` | **Full** | 27 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
 | `web: Playwright (smoke + battle + camp)` | **Full** | 8 browser tests against that build, in Chrome |
 
@@ -140,24 +140,25 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `Inventory/*.cs` | Board/Backpack/BackpackEditor/Merge/Recycle/Rotation/Synergy/Loadout + the randomized bag tests |
 | `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay |
 
-### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (65 tests) → **Fast**
+### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (75 tests) → **Fast**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
 | `ShellSmokeTests` | 12 | the 7-probe smoke suite, config hash, R3/UniTask/serialization in the Editor |
 | `BattlePresentationTests` | 15 | the battle HUD/state/presenter seam without a scene |
-| `CampPresenterTests` | 9 | every camp command through the presenter, the preview/command agreement, the 0-byte drag |
+| `CampPresenterTests` | 11 | every camp command through the presenter, the preview/command agreement, the 0-byte drag, the drawn-link kinds |
+| `CampTooltipPlacementTests` | 4 | the tooltip stays on screen, flips at the edges and never covers the pointer |
 | `RunFlowEditModeTests` | 4 | the run flow against the shipped `Resources` tables |
 | `WebSizeProfilesTests` | 8 | the size profiles and their recorded configuration |
 | `BackpackRulesTests` | 9 | the bag rules as the Editor sees them |
-| `UiLayoutCheckTests` | 8 | the overlap rule the UI capture command applies, including the deliberate-overlap case |
+| `UiLayoutCheckTests` | 12 | the overlap rule the UI capture command applies, the overlay exemption and the opacity floor, including the deliberate-overlap case |
 
-### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (24 tests) → **Full**
+### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (27 tests) → **Full**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
 | `BattlePlayModeTests` | 4 | the battle scene starts, ticks, re-enters and disposes |
-| `CampBagDragPlayModeTests` | 8 | the จัดย่าม screen driven by real pointer events |
+| `CampBagDragPlayModeTests` | 11 | the จัดย่าม screen driven by real pointer events, plus the tooltip's draw order, the two-name rule and the line/badge kinds |
 | `CampWorldPlayModeTests` | 8 | WASD walking, the walk clamp, `E` at a shelf, clicking without walking |
 | `ShellPlayModeTests` | 4 | scene loading, the title, UniTask cancellation in play mode |
 
@@ -211,7 +212,7 @@ Measured above, in order of what they cost:
 3. **`sim: bot smoke run` and `sim: determinism` — 49.0 s / 36.5 s cold, 2.6 s / 1.3 s warm.** Cold-only
    cost (JIT + first config load); nothing to do.
 4. **`unity: EditMode` — 9–14 s.** Already a bridge call into the running Editor, no batch spawn.
-5. **`unity: PlayMode` — 42.7 s** for 24 scene tests. Fine.
+5. **`unity: PlayMode` — 42.7 s** for the scene tests. Fine.
 6. **`web: Playwright` — 121.4 s** for 8 tests, one worker (2.0 min of browser time, several player
    boots). Parallel workers would break the single-player-at-a-time assumption of the server, and the
    tests drive one canvas.
@@ -227,8 +228,17 @@ two that must stand apart share pixels. Measured: 0.9–1.1 s for six images thr
 9 s wall clock for the batch `-executeMethod` form (the Unity launch dominates) — both were run, and
 they produced **byte-identical images** and the same rectangles.
 
-- Coverage: `artifacts/ui/{camp,battle}-{1920x1080,1280x720}.png` plus the closed camp
-  (`camp-closed-*`) and `ui-report.md` / `ui-report.json` with every rectangle in pixels.
+- Coverage: **8 images** — `artifacts/ui/{camp,battle}-{1920x1080,1280x720}.png` plus the closed camp
+  (`camp-closed-*`) and the tooltip state (`camp-tooltip-*`) — and `ui-report.md` / `ui-report.json`
+  with every rectangle in pixels **and the alpha of every region**, so the opacity floor is a measured
+  column rather than a claim (Board and ChestPanel 0.92, Instructions 0.85, Stats 1, Tooltip 0.95).
+- The tooltip shot carries a **pixel proof of draw order**: the same frame is rendered with the overlay
+  off and on, and five points inside the overlay's rectangle must land closer to the overlay's own
+  background colour with it on (measured: 0.016 at four points, 0.188 at the one over a button). It is
+  a direction, not a magnitude: the first version asked for a ≥ 0.05 change and failed, because a dark
+  panel over a dark panel only moves a pixel by 0.024.
+- The overlay is exempt from the overlap rule by design (`UiLayoutCheck` excuses `Overlay` regions only)
+  and is itself covered by a test that it never excuses a *real* collision underneath it.
 - The rectangles are the screen's own: at 1280×720 the board measures
   `{x: 26.667, y: 213.333, width: 493.333, height: 386.667}`, which is what the browser reported for the
   same screen in Stage 09 — the Editor shot and the player agree.
@@ -249,7 +259,8 @@ they produced **byte-identical images** and the same rectangles.
 
 ## 7. Known flake: a bulk PlayMode run
 
-Twelve of the 24 PlayMode tests failed in every bulk run measured on 2026-10-15 (`unity: PlayMode
+Fifteen of the 27 PlayMode tests failed in the bulk run measured on 2026-10-16 (`unity: PlayMode
+15/27`, 12 passed) and twelve of 24 in every bulk run measured on 2026-10-15 (`unity: PlayMode
 12/24`), with **no failed assertion**: the failures are Unity's own ambient-message log asserts
 (`[Exception] IndexOutOfRangeException` inside `InputSystem.InputManagerStateMonitors` via
 `InputSystemUIInputModule.OnEnable`, and `[Error] Cached unprocessed value unexpectedly became

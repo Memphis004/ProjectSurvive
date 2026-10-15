@@ -285,8 +285,73 @@ namespace ProjectSurvive.Game.Presentation.Camp
     }
 
     /// <summary>
-    /// The bag screen's whole picture: every piece, the cells a combo connects, and the
-    /// drag in progress.
+    /// How one working combo is drawn on the board.
+    /// </summary>
+    /// <remarks>
+    /// The stage's rule is that a <b>line</b> means one thing only: the same-line rule that runs
+    /// from a ตำรา to each อาวุธอาคม it empowers. Everything else the Core evaluation reports is
+    /// drawn differently on purpose — the bag-area bonus marks the cell it reached (a line from a
+    /// bag to an item would say the bag is a "partner" on the board, which it is not), and the
+    /// three adjacency rules are only ever highlighted while the pointer is on one of their pieces.
+    /// </remarks>
+    public enum CampLinkStyle
+    {
+        /// <summary>A line, drawn from the piece that provides the condition to the piece that receives it.</summary>
+        Line = 0,
+
+        /// <summary>A small badge on the receiving piece's cell, never a line.</summary>
+        Badge = 1,
+    }
+
+    /// <summary>
+    /// One working combo, resolved by <c>SynergyEvaluator</c> into instance ids and classified by
+    /// <see cref="CampPresenter"/> into how the screen draws it.
+    /// </summary>
+    /// <remarks>
+    /// The <i>pair</i> is Core's (the evaluator already decided which piece provided the condition
+    /// and which one received it); the <i>style</i> is a drawing decision, which is why it is made
+    /// here and not in the rules engine.
+    /// </remarks>
+    public readonly struct CampLink : IEquatable<CampLink>
+    {
+        /// <summary>Captures one drawn combo.</summary>
+        public CampLink(int sourceInstanceId, int targetInstanceId, CampLinkStyle style)
+        {
+            SourceInstanceId = sourceInstanceId;
+            TargetInstanceId = targetInstanceId;
+            Style = style;
+        }
+
+        /// <summary>Instance id of the piece that provided the condition.</summary>
+        public int SourceInstanceId { get; }
+
+        /// <summary>Instance id of the piece the bonus landed on (the one a badge is drawn on).</summary>
+        public int TargetInstanceId { get; }
+
+        /// <summary>How the screen draws it.</summary>
+        public CampLinkStyle Style { get; }
+
+        /// <inheritdoc />
+        public bool Equals(CampLink other) =>
+            SourceInstanceId == other.SourceInstanceId
+            && TargetInstanceId == other.TargetInstanceId
+            && Style == other.Style;
+
+        /// <inheritdoc />
+        public override bool Equals(object obj) => obj is CampLink other && Equals(other);
+
+        /// <inheritdoc />
+        public override int GetHashCode() =>
+            (SourceInstanceId * 397) ^ (TargetInstanceId * 31) ^ (int)Style;
+
+        /// <inheritdoc />
+        public override string ToString() =>
+            Style + " " + SourceInstanceId + "->" + TargetInstanceId;
+    }
+
+    /// <summary>
+    /// The bag screen's whole picture: every piece, the cells a combo connects, the combos to
+    /// draw, and the drag in progress.
     /// </summary>
     /// <remarks>
     /// Replaced wholesale when a command moved the bag ("คำนวณใหม่เมื่อชุดอุปกรณ์เปลี่ยนเท่านั้น"),
@@ -297,12 +362,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
     {
         /// <summary>An empty screen.</summary>
         public static CampBagScreen Empty { get; } = new CampBagScreen(
-            0, 0, 0, false, false, new CampPieceModel[0], new CellOffset[0], 0);
+            0, 0, 0, false, false, new CampPieceModel[0], new CellOffset[0], new CampLink[0], 0);
 
         /// <summary>Captures the screen.</summary>
         public CampBagScreen(
             int boardWidth, int boardHeight, int chestSlots, bool isLocked, bool canUndo,
-            CampPieceModel[] pieces, CellOffset[] highlight, int revision)
+            CampPieceModel[] pieces, CellOffset[] highlight, CampLink[] links, int revision)
         {
             BoardWidth = boardWidth;
             BoardHeight = boardHeight;
@@ -311,6 +376,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             CanUndo = canUndo;
             Pieces = pieces;
             Highlight = highlight;
+            Links = links;
             Revision = revision;
         }
 
@@ -334,6 +400,18 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         /// <summary>Cells a working combo connects, plus the piece the pointer is over.</summary>
         public CellOffset[] Highlight { get; }
+
+        /// <summary>
+        /// Every combo the screen draws as a <b>permanent</b> mark, as pairs and a style: a line for
+        /// the ตำรา → อาวุธอาคม rule and a badge for the bag-area bonus.
+        /// </summary>
+        /// <remarks>
+        /// Only the two styles that are permanent are here. The three adjacency rules are shown by
+        /// <see cref="Highlight"/> while the pointer is on one of their pieces and are drawn nowhere
+        /// else, which is the stage's rule ("ไม่วาดเส้นถาวร ... ไฮไลต์คู่ที่เกี่ยวข้องเฉพาะตอน hover
+        /// หรือ drag"). Replaced with the layout, not per frame.
+        /// </remarks>
+        public CampLink[] Links { get; }
 
         /// <summary>Bumps whenever the pieces or their placement changed.</summary>
         public int Revision { get; }

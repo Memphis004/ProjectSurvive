@@ -45,6 +45,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
         [SerializeField] private TMP_Text _refreshCostCaptionLabel;
         [SerializeField] private TMP_Text _refreshCostValueLabel;
         [SerializeField] private TMP_Text _hintLabel;
+        [SerializeField] private TMP_Text _hpMpLabel;
         [SerializeField] private TMP_Text _statusLabel;
         [SerializeField] private TMP_Text _departReasonLabel;
 
@@ -95,6 +96,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             Subscribe(_state.RefreshCostCaption, _refreshCostCaptionLabel);
             Subscribe(_state.RefreshCostValue, _refreshCostValueLabel);
             Subscribe(_state.HintCaption, _hintLabel);
+            Subscribe(_state.HpMpValue, _hpMpLabel);
             Subscribe(_state.StatusLine, _statusLabel);
             Subscribe(_state.DepartReason, _departReasonLabel);
             Subscribe(_state.DepartLabel, _departButtonLabel);
