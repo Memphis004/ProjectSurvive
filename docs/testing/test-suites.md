@@ -206,6 +206,13 @@ they produced **byte-identical images** and the same rectangles.
 - What the images do **not** contain: text. Every label in `Camp.unity` is empty until the runtime fills
   it from the localization tables, and the board's cells are built at runtime; `ui-report.md` says so,
   and the PlayMode suite is where that runtime layout is measured.
+- Why this mechanism: a canvas in `ScreenSpaceOverlay` is laid out to the game view's size, and the
+  Editor cannot be asked for that size from a script without undocumented `GameView` internals. The
+  documented alternative — `Screen.SetResolution`, whose Unity 6 scripting reference says *"in the
+  Editor, it affects only the Game view's resolution"* — needs Play mode and a game view; rendering the
+  canvases into a `RenderTexture` off-screen needs neither, which is also why the batch
+  `-executeMethod` form works. That the two agree is measured, not assumed: the board comes out at the
+  rectangle the browser published (see above).
 - Proof the check can fail: `ProjectSurvive/Tools/2. Capture UI self-test (expected to FAIL)` runs the
   same command with one invented region dropped on the board and writes `ui-report-selftest.md`, which
   reported 4 failures (the pair named at both sizes). Its rule is also unit-tested 8 ways
