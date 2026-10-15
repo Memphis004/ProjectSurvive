@@ -5,13 +5,22 @@ using ProjectSurvive.Core.Shared;
 using Xunit;
 
 namespace ProjectSurvive.Core.Tests.Inventory
-{
-    /// <summary>
-    /// Stage 05 task 3: bags never overlap, an item needs an ActiveSlot under every cell
-    /// it covers (and may span several bags), and items never overlap each other.
-    /// </summary>
-    public sealed class BoardPlacementTests
-    {
+{        /// <summary>
+        /// Stage 05 task 3: bags never overlap, an item needs an ActiveSlot under every cell
+        /// it covers (and may span several bags), and items never overlap each other — plus the
+        /// Stage 09f rule that a bag brings the items lying on it along (ADR 0020).
+        /// </summary>
+        public sealed class BoardPlacementTests
+        {
+        /// <summary>An item's top-left cell measured inside the bag's own frame.</summary>
+        private static CellOffset Relative(PieceRef bag, PieceRef item, Backpack backpack)
+        {
+            CellOffset bagOrigin = InventoryFixture.BagOf(backpack, bag).Origin;
+            CellOffset itemOrigin = InventoryFixture.ItemOf(backpack, item).Origin;
+            return new CellOffset(itemOrigin.X - bagOrigin.X, itemOrigin.Y - bagOrigin.Y);
+        }
+
+
         [Fact]
         public void Board_is_the_configured_size()
         {
@@ -110,12 +119,17 @@ namespace ProjectSurvive.Core.Tests.Inventory
             Assert.Equal(18, backpack.Board.ActiveSlotCount);
             Assert.Equal(new CellOffset(2, 0), backpack.OrderedBoardItems()[0].Origin);
 
-            // Either bag moving now strands the shared tome, because no two bags may
-            // cover the same cell to begin with.
+            // The tome lies on two bags, so it cannot ride with either of them (ADR 0020 §1):
+            // moving the first bag down leaves the two cells it gave up with no bag under them,
+            // and the whole command is refused — the refusal names the span, not a lost cell.
             PieceRef firstBag = backpack.OrderedBoardBags()[0].Ref;
             Assert.Equal(
-                InventoryError.ItemStranded,
-                editor.Move(firstBag, new CellOffset(6, 0), Rotation.Degrees0).Error.Code);
+                InventoryError.ItemSpansBags,
+                editor.Move(firstBag, new CellOffset(0, 3), Rotation.Degrees0).Error.Code);
+
+            // Turning that same bag in place keeps every cell of the tome covered, so coverage is
+            // what is judged, not the mere presence of an item.
+            Assert.True(editor.Rotate(firstBag).IsSuccess);
         }
 
         [Fact]
@@ -158,19 +172,78 @@ namespace ProjectSurvive.Core.Tests.Inventory
         }
 
         [Fact]
-        public void Bag_move_that_would_strand_an_item_is_refused()
+        public void Moving_a_bag_carries_the_item_standing_on_it()
         {
             IGameConfig config = InventoryFixture.Config();
             BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
             PieceRef bag = InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
-            InventoryFixture.Place(editor, "item.mor_knife", 1, 1);
+            // The middle cell of the 3x3 bag: the case the previous rule refused outright.
+            PieceRef knife = InventoryFixture.Place(editor, "item.mor_knife", 1, 1);
+            int revision = backpack.Revision;
+            int history = editor.UndoDepth;
+
+            var result = editor.Move(bag, new CellOffset(5, 3), Rotation.Degrees0);
+
+            Assert.True(result.IsSuccess, result.Error.ToString());
+            Assert.Equal(new CellOffset(5, 3), InventoryFixture.BagOf(backpack, bag).Origin);
+            Assert.Equal(new CellOffset(6, 4), InventoryFixture.ItemOf(backpack, knife).Origin);
+            Assert.Equal(
+                new CellOffset(1, 1),
+                Relative(bag, knife, backpack));
+            // One gesture is one change: the revision moves once and the gesture is one undo step.
+            Assert.Equal(revision + 1, backpack.Revision);
+            Assert.Equal(history + 1, editor.UndoDepth);
+            InventoryFixture.AssertValid(backpack);
+        }
+
+        /// <summary>
+        /// A bag may step onto cells its own assembly was covering this moment: the whole assembly is
+        /// lifted before it is put down (ADR 0020 §4), so the bag's own footprint and its riders' old
+        /// cells are never read as an obstacle.
+        /// </summary>
+        [Fact]
+        public void A_bag_may_step_onto_the_cells_its_own_assembly_just_left()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            PieceRef bag = InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            PieceRef knife = InventoryFixture.Place(editor, "item.mor_knife", 1, 1);
+
+            // One column right: the new footprint overlaps two columns of the old one, and the
+            // knife lands on (2,1) — a cell the bag itself was covering a moment ago.
+            var result = editor.Move(bag, new CellOffset(1, 0), Rotation.Degrees0);
+
+            Assert.True(result.IsSuccess, result.Error.ToString());
+            Assert.Equal(new CellOffset(1, 0), InventoryFixture.BagOf(backpack, bag).Origin);
+            Assert.Equal(new CellOffset(2, 1), InventoryFixture.ItemOf(backpack, knife).Origin);
+            InventoryFixture.AssertValid(backpack);
+        }
+
+        [Fact]
+        public void A_bag_move_that_would_leave_a_spanning_item_uncovered_is_refused_whole()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            PieceRef first = InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 3, 0);
+            PieceRef tome = InventoryFixture.Place(editor, "item.spell_tome", 2, 0);
             byte[] before = InventoryFixture.StateBytes(backpack);
+            int revision = backpack.Revision;
 
-            var result = editor.Move(bag, new CellOffset(5, 0), Rotation.Degrees0);
+            // Columns 0-2 rows 3-5: a legal bag cell that overlaps no other bag, and that leaves
+            // (2,0) and (2,1) — the tome's share of the first bag — with nothing under them.
+            var moved = editor.Move(first, new CellOffset(0, 3), Rotation.Degrees0);
 
-            Assert.True(result.IsFailure);
-            Assert.Equal(InventoryError.ItemStranded, result.Error.Code);
+            Assert.True(moved.IsFailure);
+            Assert.Equal(InventoryError.ItemSpansBags, moved.Error.Code);
             Assert.Equal(before, InventoryFixture.StateBytes(backpack));
+            Assert.Equal(revision, backpack.Revision);
+
+            // The preview answers with the command's own code, before the player commits.
+            Assert.False(editor.CanPlace(first, new CellOffset(0, 3), Rotation.Degrees0, out Error preview));
+            Assert.Equal(InventoryError.ItemSpansBags, preview.Code);
+
+            Assert.Equal(new CellOffset(2, 0), InventoryFixture.ItemOf(backpack, tome).Origin);
         }
 
         [Fact]

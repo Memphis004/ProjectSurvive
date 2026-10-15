@@ -25,6 +25,8 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **08** | **Battle presentation 2.5D** | **DONE** — see [`docs/stages/08-report.md`](docs/stages/08-report.md) |
 | **09** | **Camp scene & จัดย่าม UI (walkable sala, world shop)** | **DONE** — see [`docs/stages/09-report.md`](docs/stages/09-report.md), [`09b`](docs/stages/09b-report.md) (the drag diagnosis), [`09c`](docs/stages/09c-report.md) (the walkable camp) |
 | **09d** | **Thai text sharpness (font report, 22 px floor, on-screen measurements)** | **DONE** — see [`docs/stages/09d-report.md`](docs/stages/09d-report.md) |
+| **09e** | **จัดย่าม layout & compositing (stats strip, panel alpha, tooltip, synergy marks)** | **DONE** — see [`docs/stages/09e-report.md`](docs/stages/09e-report.md) |
+| **09f** | **A bag move or turn carries the items standing on it** | **DONE** — see [`docs/stages/09f-report.md`](docs/stages/09f-report.md), [ADR 0020](docs/adr/0020-bag-moves-carry-the-items-on-them.md) |
 | 10 | Full loop (vertical slice) | not started |
 | 11 | Thai ghost AI, Pob boss, balance | not started |
 | 12 | Save, resume, settings | not started |
@@ -35,7 +37,13 @@ This file is the fast on-ramp. Read it first, then follow the links.
 **Current state:** Stages 00–09, plus **09d** (a measurement pass over 09's Thai text: the font every
 canvas uses is `Sarabun-Regular SDF`, the ≥ 22 px floor is a **1080p-base** statement — at 1280×720
 every canvas label is drawn at two-thirds of it, measured — and the world-space shelf labels are
-12 px tall at best, which is a different rule and still open). `lib/` is a real UPM package
+12 px tall at best, which is a different rule and still open), **09e** (the จัดย่าม layout and
+compositing pass: a `Stats` strip that stops the panel's controls landing on the bar's readouts, a
+tested 0.92 alpha floor, the tooltip as a second root canvas at sorting order 100, and synergy marks
+chosen from the rule's own `synergy.kind`) and **09f** (a bag now **carries** the items standing on
+it — one rigid assembly through `FootprintRotation.Rotate(..., out shift)`, a new
+`inventory.item_spans_bags` refusal, one revision and one undo step per gesture, and a ghost per
+rider drawn from the run's plan; see [ADR 0020](docs/adr/0020-bag-moves-carry-the-items-on-them.md)). `lib/` is a real UPM package
 (`com.projectsurvive.core`) with six hand-written layer `.asmdef`s plus two
 generated ones, the vendored EcsLite, the deterministic `Shared`/`Infrastructure`
 primitives (`IRandomSource` / `Xoshiro128`, `RandomStreams`, `IClock` /
@@ -51,9 +59,9 @@ build metadata. Stage 02b added the **battle contract v1**
 `Entities` and `PreviousEntities` so Stage 08 interpolates between two ticks through
 the one port it is allowed to read, and exactly one `IBattleFrame` implementation is
 allowed (the fake and Stage 07 share it, enforced by a reflection test).
-**425 xUnit tests pass** (57 Stage 01, 73
+**433 xUnit tests pass** (57 Stage 01, 73
 Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05,
-44 Stage 06, 28 Stage 07, 11 Stage 09). The bag rules, the combo rules, the economy, the run/scene flow
+44 Stage 06, 28 Stage 07, 11 Stage 09, and the 8 the carried-item rule added in Stage 09f). The bag rules, the combo rules, the economy, the run/scene flow
 and the **battle simulation** are real code now: `Domain/Combat/Battle` and `Application`
 hold the battle **contract** (v1) — which the fake implements as a contract exercise — and
 `lib/Runtime/Simulation` holds the real EcsLite battle that implements it, reached only

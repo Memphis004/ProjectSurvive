@@ -114,8 +114,17 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// <summary>The placement overlaps another item.</summary>
         public const string ItemOverlap = "inventory.item_overlap";
 
-        /// <summary>Moving, rotating or removing the bag would leave an item off an ActiveSlot.</summary>
+        /// <summary>
+        /// Taking the bag off the board (into the chest, or to the altar) would leave an item
+        /// lying on the bag with nothing under it.
+        /// </summary>
         public const string ItemStranded = "inventory.item_stranded";
+
+        /// <summary>
+        /// An item lies across this bag and another one, so it cannot ride along; and after the
+        /// change part of it would have no bag under it (Stage 09f / ADR 0020).
+        /// </summary>
+        public const string ItemSpansBags = "inventory.item_spans_bags";
 
         /// <summary>Every chest slot is taken.</summary>
         public const string ChestFull = "inventory.chest_full";

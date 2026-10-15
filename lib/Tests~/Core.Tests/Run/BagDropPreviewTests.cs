@@ -362,6 +362,94 @@ namespace ProjectSurvive.Core.Tests.Run
             Assert.Empty(parked.Active);
         }
 
+        /// <summary>
+        /// Stage 09f: a bag drag carries the items lying on it, and the preview says so before the player
+        /// commits — over the whole board and two orientations, with the plan the screen would draw read
+        /// from the run rather than re-derived.
+        /// </summary>
+        /// <remarks>
+        /// This is the seam the stage is about: the ghost of a carried item comes from
+        /// <see cref="RunSession.CollectCarried"/>, the verdict comes from <c>PreviewDrop</c>, and both are
+        /// the plan the accepted command applies. The sweep is the whole board because a hand-picked cell
+        /// cannot catch an off-by-one in the carried origin — the starting weapon sits on the starting bag,
+        /// so every cell is a case where something is riding.
+        /// </remarks>
+        [Fact]
+        public void A_bag_drag_carries_the_items_on_it_and_the_plan_says_where_they_land()
+        {
+            IGameConfig config = RunFixture.Config();
+            int width = config.Constant.BoardWidth;
+            int height = config.Constant.BoardHeight;
+            int placements = 0;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    var origin = new CellOffset(x, y);
+
+                    for (int r = 0; r < 2; r++)
+                    {
+                        Rotation rotation = r == 0 ? Rotation.Degrees0 : Rotation.Degrees90;
+                        RunSession run = RunFixture.StartedRun(config);
+                        PieceRef bag = RunFixture.StartingBag(run);
+                        PieceRef weapon = RunFixture.StartingWeapon(run);
+
+                        // The drag's ghosts: which items ride and where they land.
+                        var planned = new List<BagCarry>();
+                        run.CollectCarried(bag, origin, rotation, planned);
+                        Assert.Contains(planned, carry => carry.Piece == weapon);
+
+                        // Starting the run is itself a change; the claim below is about the preview.
+                        run.ClearEvents();
+                        uint before = run.ComputeStateHash();
+                        DropPreview preview = run.PreviewDrop(bag, BagDropZone.Board, origin, rotation);
+
+                        Assert.Equal(before, run.ComputeStateHash());
+                        Assert.Empty(run.Events);
+
+                        Result applied = Apply(run, bag, preview, origin, rotation);
+                        Assert.Equal(preview.IsValid, applied.IsSuccess);
+
+                        if (!preview.IsValid)
+                        {
+                            Assert.Equal(preview.ErrorCode, applied.Error.Code);
+                            Assert.Equal(before, run.ComputeStateHash());
+                            continue;
+                        }
+
+                        if (preview.Action != BagDropAction.Place)
+                        {
+                            // Dropping a bag onto an item is the merge gesture, and a bag cannot merge;
+                            // the parity assertions above are the whole claim for that case.
+                            continue;
+                        }
+
+                        placements++;
+
+                        for (int i = 0; i < planned.Count; i++)
+                        {
+                            Assert.True(
+                                run.Backpack.TryGetItem(planned[i].Piece.InstanceId, out ItemInstance? item)
+                                && item is not null,
+                                "the carried item disappeared");
+
+                            Assert.Equal(planned[i].Origin, item!.Origin);
+                            Assert.Equal(planned[i].Rotation, item.Rotation);
+
+                            // And it is really on the bag it rode with, cell by cell.
+                            for (int cell = 0; cell < item.CellCount; cell++)
+                            {
+                                Assert.Equal(bag.InstanceId, run.Backpack.Board.BagOwnerAt(item.CellAt(cell)));
+                            }
+                        }
+                    }
+                }
+            }
+
+            Assert.True(placements > 0, "the sweep never reached an accepted bag placement");
+        }
+
         // -------------------------------------------------------------------
         // helpers
         // -------------------------------------------------------------------

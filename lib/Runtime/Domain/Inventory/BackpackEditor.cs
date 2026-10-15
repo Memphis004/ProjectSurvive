@@ -87,6 +87,13 @@ namespace ProjectSurvive.Core.Domain.Inventory
         private readonly IBackpackSnapshotCodec _codec;
         private readonly List<byte[]> _undo = new List<byte[]>();
         private readonly int _maxUndoDepth;
+
+        /// <summary>
+        /// The plan the last <see cref="CanPlace"/> validated: bag and riders, one gesture (ADR 0020).
+        /// Reused rather than re-allocated, and refilled (or emptied) by every call of that predicate.
+        /// </summary>
+        private readonly List<BagCarry> _carry = new List<BagCarry>(8);
+
         private byte[] _campEntry;
 
         /// <summary>Creates an editor and records the current state as the Camp-entry snapshot.</summary>
@@ -178,8 +185,8 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// "can this go here?" is exactly how a preview and a command come to disagree. The
         /// command is therefore written <i>in terms of</i> this predicate, and the predicate
         /// carries the whole rule: the piece exists, its rotated footprint is on the board,
-        /// nothing it would collide with is there, and a bag move leaves every item on an
-        /// <see cref="ActiveSlot"/>.
+        /// nothing it would collide with is there, and a bag brings the items lying on it along
+        /// (ADR 0020) while nothing left behind loses its ActiveSlot.
         /// </para>
         /// <para>
         /// It deliberately does <b>not</b> consult <see cref="IsLocked"/>: the lock is a policy
@@ -187,11 +194,18 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// not a property of the placement. A caller that wants to render a locked bag asks
         /// <see cref="IsLocked"/> separately — <c>RunSession.PreviewDrop</c> does.
         /// </para>
+        /// <para>
+        /// A bag placement fills this editor's carry plan as it answers, and the accepted command
+        /// applies exactly that plan — so what the drag drew and what the command did cannot differ.
+        /// The plan is private scratch; a caller that wants to <i>read</i> it asks
+        /// <see cref="CollectCarried"/>.
+        /// </para>
         /// </remarks>
         public bool CanPlace(PieceRef piece, CellOffset origin, Rotation rotation, out Error error)
         {
             if (!_backpack.TryGetPiece(piece, out PieceInstance? instance) || instance is null)
             {
+                _carry.Clear();
                 error = new Error(InventoryError.UnknownPiece, ErrorKind.NotFound);
                 return false;
             }
@@ -202,20 +216,40 @@ namespace ProjectSurvive.Core.Domain.Inventory
             {
                 if (!_backpack.Board.CanPlaceBag(bag.InstanceId, shape, origin, out error))
                 {
+                    _carry.Clear();
                     return false;
                 }
 
-                if (bag.Zone == PieceZone.Board
-                    && _backpack.FindStrandedItem(bag.InstanceId, shape, origin) is not null)
-                {
-                    error = new Error(InventoryError.ItemStranded, ErrorKind.Conflict);
-                    return false;
-                }
-
-                return true;
+                return _backpack.TryPlanBagPlacement(bag, origin, rotation, shape, _carry, out error);
             }
 
+            _carry.Clear();
             return _backpack.Board.CanPlaceItem(instance.InstanceId, shape, origin, out error);
+        }
+
+        /// <summary>
+        /// The items a bag placement would carry and where each of them would land — what the screen
+        /// draws as a ghost while a bag is in the air ("เงาของไอเทมที่ติดไปที่ตำแหน่งใหม่").
+        /// </summary>
+        /// <remarks>
+        /// Read-only and it does <b>not</b> judge the placement: the same plan is what
+        /// <see cref="CanPlace"/> validates, so the picture and the verdict come from one rule. Clears
+        /// <paramref name="carry"/> when the piece is not a bag on the board.
+        /// </remarks>
+        public void CollectCarried(PieceRef piece, CellOffset origin, Rotation rotation, List<BagCarry> carry)
+        {
+            if (carry is null)
+            {
+                throw new ArgumentNullException(nameof(carry));
+            }
+
+            if (!_backpack.TryGetPiece(piece, out PieceInstance? instance) || instance is not BagPieceInstance bag)
+            {
+                carry.Clear();
+                return;
+            }
+
+            _backpack.CollectRiders(bag, origin, rotation, carry);
         }
 
         /// <summary>True when <see cref="Merge"/> would accept this pair. Reads only.</summary>
@@ -333,9 +367,16 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// the board.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// One command covers both "ย้ายของขึ้นย่าม" and "ย้ายในย่าม" because the board
         /// rules are the same for both; the difference is only which cell the piece
-        /// came from. A bag move additionally has to leave every item on an ActiveSlot.
+        /// came from.
+        /// </para>
+        /// <para>
+        /// A <b>bag</b> brings the items lying on it along (ADR 0020): the command applies the very
+        /// plan <see cref="CanPlace"/> validated, so the bag and its riders move as one object in one
+        /// step — one revision, one undo, one recomputation of the combos and the loadout.
+        /// </para>
         /// </remarks>
         public Result Move(PieceRef piece, CellOffset origin, Rotation rotation)
         {
@@ -354,8 +395,7 @@ namespace ProjectSurvive.Core.Domain.Inventory
                 return Result.Fail(error);
             }
 
-            PushUndo();
-            _backpack.PlaceOnBoard(instance, origin, rotation);
+            ApplyPlacement(instance, origin, rotation);
             return Result.Ok();
         }
 
@@ -363,6 +403,12 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// Turns a placed piece one quarter turn clockwise (GDD: right click or R), in
         /// place. Four calls return it to its original orientation.
         /// </summary>
+        /// <remarks>
+        /// For a bag this is the same step as a move at the same cell with a different rotation, so it
+        /// goes through the same plan: the bag and the items on it turn as one rigid object about the
+        /// bag's own origin (ADR 0020), and the orientation of an item relative to the bag is what is
+        /// preserved.
+        /// </remarks>
         public Result Rotate(PieceRef piece)
         {
             if (IsLocked)
@@ -387,9 +433,27 @@ namespace ProjectSurvive.Core.Domain.Inventory
                 return Result.Fail(error);
             }
 
-            PushUndo();
-            _backpack.PlaceOnBoard(instance, instance.Origin, turned);
+            ApplyPlacement(instance, instance.Origin, turned);
             return Result.Ok();
+        }
+
+        /// <summary>
+        /// Writes an accepted placement: the undo snapshot, then the bag with its riders as one change
+        /// (or the item on its own). Precondition: <see cref="CanPlace"/> accepted this placement, so
+        /// <see cref="_carry"/> holds the plan it validated.
+        /// </summary>
+        private void ApplyPlacement(PieceInstance instance, CellOffset origin, Rotation rotation)
+        {
+            PushUndo();
+
+            if (instance is BagPieceInstance bag)
+            {
+                _backpack.PlaceAssembly(bag, origin, rotation, _carry);
+            }
+            else
+            {
+                _backpack.PlaceOnBoard(instance, origin, rotation);
+            }
         }
 
         /// <summary>

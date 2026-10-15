@@ -198,9 +198,10 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         /// <remarks>
         /// The gesture starts on a cell the bag covers and the item does not, so the piece under the
         /// pointer really is the bag: starting on the item's own cell would drag the item and the
-        /// assertions below would pass without the bag ever being picked up. The destination is an
-        /// empty corner far from the item, where a bag would leave that item stranded — the Domain
-        /// refuses it ("inventory.item_stranded").
+        /// assertions below would pass without the bag ever being picked up. The destination is the far
+        /// corner, where the bag's own footprint does not fit — the Domain refuses the whole assembly
+        /// ("inventory.out_of_board"), and since Stage 09f that refusal covers the items riding on the
+        /// bag too, so nothing may move: neither the bag nor the item standing on it.
         /// </remarks>
         [UnityTest]
         public IEnumerator A_refused_drop_leaves_the_piece_where_it_was()
@@ -208,6 +209,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             yield return LoadCamp();
 
             CampPieceModel bag = FirstPieceOfKind(PieceKind.Bag);
+            CampPieceModel carried = FirstPieceOfKind(PieceKind.Item);
             CellOffset from = BagOnlyCell(bag, out bool found);
             Assert.That(found, Is.True, "the fixture found no bag cell that holds nothing else to grab the bag by");
 
@@ -221,7 +223,91 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(
                 Piece(bag.Piece).Origin, Is.EqualTo(bag.Origin),
                 "a refused drop moved the piece anyway");
+            Assert.That(
+                Piece(carried.Piece).Origin, Is.EqualTo(carried.Origin),
+                "a refused bag move carried the item on it anyway");
             Assert.That(presenter.StatusCode, Is.Not.Empty, "a refused drop said nothing to the player");
+        }
+
+        /// <summary>
+        /// Stage 09f / ADR 0020: a bag dragged with the real pointer takes the items standing on it,
+        /// and the ghost the screen draws mid-gesture is where they really land.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The gesture is deliberately read <b>before</b> the button is released: the ghost is a promise
+        /// about the future, so the rectangle captured while the pointer is still down has to be the
+        /// rectangle the item is drawn in once the drop has landed. That is the same claim as the item's
+        /// own cell, checked through the screen instead of through the run — a view that drew its own
+        /// guess would pass the first and fail this one.
+        /// </para>
+        /// <para>
+        /// One item rides here, because the camp's starting kit is one bag with one weapon on it. The
+        /// refusals a <i>set</i> of bags produces (an item lying across two of them) are covered where
+        /// they can be set up exactly, in the EditMode and Core suites.
+        /// </para>
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator Dragging_a_bag_carries_the_items_standing_on_it()
+        {
+            yield return LoadCamp();
+
+            CampPieceModel bag = FirstPieceOfKind(PieceKind.Bag);
+            CampPieceModel item = FirstPieceOfKind(PieceKind.Item);
+
+            CellOffset from = BagOnlyCell(bag, out bool found);
+            Assert.That(found, Is.True, "the fixture found no bag cell that holds nothing else to grab the bag by");
+
+            CellOffset to = FarthestFreeBagCell(bag, out bool fits);
+            Assert.That(fits, Is.True, "the fixture found nowhere the bag fits whole");
+
+            Vector2 fromPoint = CellCentre(from.X, from.Y);
+            Vector2 toPoint = CellCentre(to.X, to.Y);
+            Assert.That(
+                Vector2.Distance(fromPoint, toPoint), Is.GreaterThan(EventSystem.current.pixelDragThreshold * 2f),
+                "the two cells are too close on screen for the EventSystem's drag threshold");
+
+            yield return DragWithoutReleasing(fromPoint, toPoint);
+
+            CampPresenter presenter = _director.Presenter;
+            Assert.That(presenter.Counters.DragPreviews, Is.GreaterThan(0), "no drag handler ran: the pointer never reached the view");
+            Assert.That(presenter.IsDragging, Is.True, "the gesture ended before it could be read");
+            Assert.That(
+                presenter.Drag.CarryCount, Is.EqualTo(1),
+                "the item standing on the bag is not riding with it");
+            Assert.That(
+                _bag.VisibleCarryGhostCount, Is.EqualTo(1),
+                "the rider has no ghost on screen");
+
+            Assert.That(
+                _bag.TryGetCarryGhostScreenRect(item.Piece, out Rect ghost), Is.True,
+                "no ghost was drawn for the item that rides");
+
+            // Where the item has to end up: the bag's own move, applied to the item's cell (a pure move
+            // is the zero-turn case of the assembly transform, so the cell keeps its offset).
+            var landing = new CellOffset(
+                to.X + item.Origin.X - bag.Origin.X, to.Y + item.Origin.Y - bag.Origin.Y);
+
+            yield return ReleaseAt(toPoint);
+
+            CampPieceModel movedBag = Piece(bag.Piece);
+            CampPieceModel movedItem = Piece(item.Piece);
+
+            Assert.That(movedBag.Origin, Is.EqualTo(to), "the bag did not land on the cell it was dropped on");
+            Assert.That(movedItem.Origin, Is.EqualTo(landing), "the item did not ride with the bag");
+            Assert.That(movedItem.IsOnBoard, Is.True, "the item was left off the board");
+            Assert.That(Covers(movedBag, movedItem.Origin), Is.True, "the item landed off the bag that carried it");
+            Assert.That(presenter.Counters.Placed, Is.GreaterThan(0), "no placement command ran, so nothing was dropped");
+            Assert.That(_bag.VisibleCarryGhostCount, Is.Zero, "the ghosts stayed on screen after the drop");
+
+            Assert.That(
+                _bag.TryGetPieceScreenRect(item.Piece, out Rect drawn), Is.True,
+                "the item is not drawn after the drop");
+
+            Assert.That(drawn.xMin, Is.EqualTo(ghost.xMin).Within(0.5f), "the ghost was not where the item landed");
+            Assert.That(drawn.yMin, Is.EqualTo(ghost.yMin).Within(0.5f), "the ghost was not where the item landed");
+            Assert.That(drawn.width, Is.EqualTo(ghost.width).Within(0.5f));
+            Assert.That(drawn.height, Is.EqualTo(ghost.height).Within(0.5f));
         }
 
         /// <summary>
@@ -813,6 +899,16 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         /// <summary>Press, move across the cells, release — one frame per step.</summary>
         private IEnumerator Drag(Vector2 from, Vector2 to)
         {
+            yield return DragWithoutReleasing(from, to);
+            yield return ReleaseAt(to);
+        }
+
+        /// <summary>
+        /// Press and move across the cells, <b>leaving the button down</b>, so a gesture can be read while
+        /// it is still in flight.
+        /// </summary>
+        private IEnumerator DragWithoutReleasing(Vector2 from, Vector2 to)
+        {
             Set(_mouse.position, from);
             Press(_mouse.leftButton);
             yield return null;
@@ -826,7 +922,12 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             Set(_mouse.position, to);
             yield return null;
+        }
 
+        /// <summary>Releases the button where the pointer already is.</summary>
+        private IEnumerator ReleaseAt(Vector2 point)
+        {
+            Set(_mouse.position, point);
             Release(_mouse.leftButton);
             yield return null;
             yield return null;
@@ -908,6 +1009,42 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                     {
                         bestDistance = distance;
                         best = cell;
+                        found = true;
+                    }
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>
+        /// The cell furthest from the bag's own where the bag fits whole on the board, which is where a
+        /// player would drag it to; false when there is no such cell.
+        /// </summary>
+        private CellOffset FarthestFreeBagCell(CampPieceModel bag, out bool found)
+        {
+            int width = bag.Shape == null ? 1 : bag.Shape.Width;
+            int height = bag.Shape == null ? 1 : bag.Shape.Height;
+            Vector2 from = CellCentre(bag.Origin.X, bag.Origin.Y);
+
+            CellOffset best = new CellOffset(-1, -1);
+            float bestDistance = -1f;
+            found = false;
+
+            for (int row = 0; row + height <= _bag.BoardHeight; row++)
+            {
+                for (int column = 0; column + width <= _bag.BoardWidth; column++)
+                {
+                    if (column == bag.Origin.X && row == bag.Origin.Y)
+                    {
+                        continue;
+                    }
+
+                    float distance = Vector2.Distance(from, CellCentre(column, row));
+                    if (distance > bestDistance)
+                    {
+                        bestDistance = distance;
+                        best = new CellOffset(column, row);
                         found = true;
                     }
                 }

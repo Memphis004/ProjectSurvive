@@ -1,6 +1,8 @@
 # ADR 0014 — Backpack editing: state vs. commands, snapshot undo, and cell ownership
 
-- **Status:** Accepted (Stage 05)
+- **Status:** Accepted (Stage 05). **§5 is superseded by [ADR 0020](0020-bag-moves-carry-the-items-on-them.md)**
+  (Stage 09f): a bag move or turn now carries the items standing on it instead of being
+  refused. §1–§4 and §6–§8 stand unchanged.
 - **Date:** 2026-10-14
 - **Related:** [ADR 0007](0007-battle-contract-and-asmdef-placement.md) (Domain contract,
   Application fake), [ADR 0009](0009-footprint-picture-format.md) (footprint picture),
@@ -61,6 +63,13 @@ TransferToChest / Recycle of a bag all run the same check: recompute whether eve
 item would still be fully covered *without* this bag's contribution; if one would not,
 the command fails with `inventory.item_stranded` and nothing moves. There is no
 relocation, no auto-park and no partial move.
+
+> **Superseded for Move and Rotate by [ADR 0020](0020-bag-moves-carry-the-items-on-them.md)
+> (Stage 09f).** On the board the items standing on the bag now ride along, and the refusal
+> is reserved for the two cases that cannot be carried: taking the bag **off** the board
+> (`inventory.item_stranded`, as above) and an item lying across two bags that would lose
+> its cover (`inventory.item_spans_bags`). The reasoning that survives is the one behind the
+> rule: refuse the whole command, never relocate an item silently.
 
 **6. Lock freezes every edit, including undo.** Locking is itself never undoable and
 always accepted, because its whole purpose is to be the state the player can rely on

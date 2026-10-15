@@ -197,8 +197,63 @@ namespace ProjectSurvive.Game.Presentation.Camp
     }
 
     /// <summary>
-    /// What the drag is doing right now: which piece, where it would land, and what the
-    /// run says about that.
+    /// One item that rides with a dragged bag, as the screen draws its ghost: the item, the board
+    /// cell its top-left corner would land on, and the size of the footprint it would land with.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The <i>plan</i>, not the gesture. It is the run's own answer for the cell the pointer is over
+    /// (<c>RunSession.CollectCarried</c>) and it is the same plan the accepted command applies, which
+    /// is why the ghost can never show an item landing where the command would refuse to put it —
+    /// the picture and the verdict come from one rule (AGENTS rule 10).
+    /// </para>
+    /// <para>
+    /// A bag brings along every item whose <i>every</i> cell lies on that bag; an item lying across
+    /// two bags does not ride at all and the whole command is refused instead (ADR 0020). The width
+    /// and height are the rider's footprint <b>at</b> <see cref="Origin"/>'s placement, so the view
+    /// never has to turn a shape itself.
+    /// </para>
+    /// </remarks>
+    public readonly struct CampCarryGhost : IEquatable<CampCarryGhost>
+    {
+        /// <summary>Captures one rider's landing place.</summary>
+        public CampCarryGhost(PieceRef piece, CellOffset origin, int width, int height)
+        {
+            Piece = piece;
+            Origin = origin;
+            Width = width;
+            Height = height;
+        }
+
+        /// <summary>The item that rides along.</summary>
+        public PieceRef Piece { get; }
+
+        /// <summary>The top-left board cell it would land on.</summary>
+        public CellOffset Origin { get; }
+
+        /// <summary>Columns its footprint covers once it lands.</summary>
+        public int Width { get; }
+
+        /// <summary>Rows its footprint covers once it lands.</summary>
+        public int Height { get; }
+
+        /// <inheritdoc />
+        public bool Equals(CampCarryGhost other) =>
+            Piece == other.Piece && Origin == other.Origin && Width == other.Width && Height == other.Height;
+
+        /// <inheritdoc />
+        public override bool Equals(object obj) => obj is CampCarryGhost other && Equals(other);
+
+        /// <inheritdoc />
+        public override int GetHashCode() => (Piece.GetHashCode() * 397) ^ (Origin.X * 31) ^ Origin.Y;
+
+        /// <inheritdoc />
+        public override string ToString() => Piece + " -> " + Origin;
+    }
+
+    /// <summary>
+    /// What the drag is doing right now: which piece, where it would land, what the run says about
+    /// that, and which items would ride along.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -212,13 +267,23 @@ namespace ProjectSurvive.Game.Presentation.Camp
     /// <see cref="Origin"/>/<see cref="Rotation"/> are what the ghost would occupy, and come
     /// from the same <c>DropPreview</c> call the drop itself will use.
     /// </para>
+    /// <para>
+    /// <see cref="Carry"/> is the other half of a bag's ghost (Stage 09f / ADR 0020): the items that
+    /// would come along, each with where it would land. It travels in this one value rather than in a
+    /// channel of its own so that the items' ghosts and the bag's are drawn from one push and can
+    /// never be a frame apart, and it is an array of value types compared element by element — an
+    /// unchanged plan republishes nothing.
+    /// </para>
     /// </remarks>
     public readonly struct CampDragState : IEquatable<CampDragState>
     {
+        private readonly CampCarryGhost[] _carry;
+
         /// <summary>Captures the drag.</summary>
         public CampDragState(
             bool isActive, PieceRef piece, BagDropZone zone, CellOffset origin, Rotation rotation,
-            BagDropAction action, bool isValid, int bia, PieceRef target, string errorCode)
+            BagDropAction action, bool isValid, int bia, PieceRef target, string errorCode,
+            CampCarryGhost[] carry)
         {
             IsActive = isActive;
             Piece = piece;
@@ -230,6 +295,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             Bia = bia;
             Target = target;
             ErrorCode = errorCode ?? string.Empty;
+            _carry = carry;
         }
 
         /// <summary>A drag that is not happening.</summary>
@@ -265,23 +331,53 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>The code a refusal would carry; empty when valid.</summary>
         public string ErrorCode { get; }
 
+        /// <summary>How many items would ride along with the dragged bag.</summary>
+        public int CarryCount => _carry == null ? 0 : _carry.Length;
+
+        /// <summary>The riders, in the order the bag's own items are held.</summary>
+        public CampCarryGhost[] Carry => _carry;
+
+        /// <summary>The rider at <paramref name="index"/>.</summary>
+        public CampCarryGhost CarryAt(int index) => _carry[index];
+
         /// <inheritdoc />
-        public bool Equals(CampDragState other) =>
-            IsActive == other.IsActive && Piece == other.Piece && Zone == other.Zone
-            && Origin == other.Origin && Rotation == other.Rotation && Action == other.Action
-            && IsValid == other.IsValid && Bia == other.Bia && Target == other.Target
-            && string.Equals(ErrorCode, other.ErrorCode, StringComparison.Ordinal);
+        public bool Equals(CampDragState other)
+        {
+            if (IsActive != other.IsActive || Piece != other.Piece || Zone != other.Zone
+                || Origin != other.Origin || Rotation != other.Rotation || Action != other.Action
+                || IsValid != other.IsValid || Bia != other.Bia || Target != other.Target
+                || !string.Equals(ErrorCode, other.ErrorCode, StringComparison.Ordinal)
+                || CarryCount != other.CarryCount)
+            {
+                return false;
+            }
+
+            // Element by element: the plan is part of the drag, so a bag that moved to the same cell
+            // with the same riders draws the same picture and must not republish.
+            for (int i = 0; i < CarryCount; i++)
+            {
+                if (!_carry[i].Equals(other._carry[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
 
         /// <inheritdoc />
         public override bool Equals(object obj) => obj is CampDragState other && Equals(other);
 
         /// <inheritdoc />
         public override int GetHashCode() =>
-            (Piece.GetHashCode() * 397) ^ (int)Zone ^ (int)Action ^ (IsValid ? 7 : 0) ^ (int)Rotation;
+            (Piece.GetHashCode() * 397) ^ (int)Zone ^ (int)Action ^ (IsValid ? 7 : 0) ^ (int)Rotation
+            ^ (CarryCount * 17);
 
         /// <inheritdoc />
         public override string ToString() =>
-            IsActive ? "drag " + Piece + " -> " + Zone + " (" + Action + ")" : "no drag";
+            IsActive
+                ? "drag " + Piece + " -> " + Zone + " (" + Action + ", " + CarryCount + " rider(s))"
+                : "no drag";
     }
 
     /// <summary>

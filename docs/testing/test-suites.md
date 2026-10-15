@@ -19,15 +19,15 @@ need to run, and the Web build moved behind the Full suite.
 | --- | --- | --- |
 | `toolchain: .NET SDK` | Fast | an SDK ≥ 8 is present |
 | `dotnet build` | Fast | every `lib/` layer, the xUnit project and the Sim compile |
-| `dotnet test (xUnit)` | Fast | 425 tests: the rule engine, the architecture guards, the contract suites, the Sim |
+| `dotnet test (xUnit)` | Fast | 433 tests: the rule engine, the architecture guards, the contract suites, the Sim |
 | `sim: determinism` | Fast | the same seed prints the same `determinismDigest` twice, a different seed does not |
 | `sim: stream separation` | Fast | shop / battle / visual digests differ, `ticksProduced=300` |
 | `sim: bot smoke run` | Fast | the kiting bot plays 2 seeds and writes balance rows |
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 17 broken data sets rejected for the right reason |
-| `unity: EditMode` | Fast | 75 tests in `ProjectSurvive.Game.Tests.EditMode` |
-| `unity: PlayMode` | **Full** | 27 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking) |
+| `unity: EditMode` | Fast | 79 tests in `ProjectSurvive.Game.Tests.EditMode` |
+| `unity: PlayMode` | **Full** | 28 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
 | `web: Playwright (smoke + battle + camp)` | **Full** | 8 browser tests against that build, in Chrome |
 
@@ -122,7 +122,7 @@ Nothing was dropped when the suites were split: this table lists every test that
 split and where it runs now. "Fast" means the working loop, "Full" the closing one; a test cannot be in
 neither.
 
-### dotnet — `lib/Tests~/ProjectSurvive.Core.sln` (425 tests) → **Fast**
+### dotnet — `lib/Tests~/ProjectSurvive.Core.sln` (433 tests) → **Fast**
 
 Run by `dotnet test` in the `dotnet test (xUnit)` step. The project is the *same source* as the `lib/`
 asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the rule-engine tests.
@@ -140,7 +140,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `Inventory/*.cs` | Board/Backpack/BackpackEditor/Merge/Recycle/Rotation/Synergy/Loadout + the randomized bag tests |
 | `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay |
 
-### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (75 tests) → **Fast**
+### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (79 tests) → **Fast**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
@@ -153,7 +153,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `BackpackRulesTests` | 9 | the bag rules as the Editor sees them |
 | `UiLayoutCheckTests` | 12 | the overlap rule the UI capture command applies, the overlay exemption and the opacity floor, including the deliberate-overlap case |
 
-### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (27 tests) → **Full**
+### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (28 tests) → **Full**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
@@ -259,7 +259,9 @@ they produced **byte-identical images** and the same rectangles.
 
 ## 7. Known flake: a bulk PlayMode run
 
-Fifteen of the 27 PlayMode tests failed in the bulk run measured on 2026-10-16 (`unity: PlayMode
+Sixteen of the 28 PlayMode tests failed in the bulk run measured on 2026-10-16 for Stage 09f
+(`unity: PlayMode 16/28`, 12 passed; 12 `IndexOutOfRangeException` + 4 `Cached unprocessed`),
+fifteen of 27 on the same day for Stage 09e (`unity: PlayMode
 15/27`, 12 passed) and twelve of 24 in every bulk run measured on 2026-10-15 (`unity: PlayMode
 12/24`), with **no failed assertion**: the failures are Unity's own ambient-message log asserts
 (`[Exception] IndexOutOfRangeException` inside `InputSystem.InputManagerStateMonitors` via

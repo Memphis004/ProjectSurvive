@@ -357,6 +357,238 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         // -------------------------------------------------------------------
+        // Stage 09f: a bag brings the items on it along
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// Stage 09f / ADR 0020: a bag drag publishes the items that come with it and where each of
+        /// them would land, so the screen can draw their ghosts.
+        /// </summary>
+        /// <remarks>
+        /// The plan is the run's — the same one the accepted command applies — so the ghost's cell is
+        /// compared with the cell the drop itself produced rather than with a number the test worked
+        /// out. The three cases a plan has to get right are all here: a bag that carries something, an
+        /// item (nothing rides with an item), and a bag dragged towards the chest (nothing rides with it
+        /// there, which is exactly why that drop is refused while an item stands on it).
+        /// </remarks>
+        [Test]
+        public void Dragging_a_bag_publishes_a_ghost_for_every_item_that_rides_and_where_it_lands()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            RunSession run = ui.Run;
+
+            PieceRef bag = run.Backpack.Bags[0].Ref;
+            PieceRef weapon = run.Backpack.Items[0].Ref;
+
+            CellOffset bagOrigin = OriginOf(run, bag);
+            CellOffset weaponOrigin = OriginOf(run, weapon);
+            Assert.That(weaponOrigin, Is.EqualTo(bagOrigin), "the starting weapon is expected to stand on the starting bag");
+
+            ui.Presenter.DragStart(bag, Rotation.Degrees0);
+
+            CellOffset target = FirstPlaceableCell(ui.Presenter, bag, out BagDropAction action);
+            Assert.That(target.X, Is.GreaterThanOrEqualTo(0), "the fixture found no free cell to drag the bag to");
+            Assert.That(action, Is.EqualTo(BagDropAction.Place));
+
+            Assert.That(ui.Presenter.Drag.CarryCount, Is.EqualTo(1), "the weapon stands on the bag, so it rides with it");
+
+            CampCarryGhost plan = ui.Presenter.Drag.CarryAt(0);
+            var expected = new CellOffset(
+                target.X + weaponOrigin.X - bagOrigin.X, target.Y + weaponOrigin.Y - bagOrigin.Y);
+
+            Assert.That(plan.Piece, Is.EqualTo(weapon));
+            Assert.That(plan.Origin, Is.EqualTo(expected), "a move carries the item rigidly, so its cell keeps its offset from the bag's");
+            Assert.That(plan.Width, Is.EqualTo(1), "the weapon's footprint once it lands is the one the board rules read");
+            Assert.That(plan.Height, Is.EqualTo(1));
+            Assert.That(ui.State.Drag.Value.CarryCount, Is.EqualTo(1), "the plan is on screen, not only inside the presenter");
+
+            ui.Presenter.Drop();
+
+            Assert.That(ui.Presenter.Counters.Placed, Is.EqualTo(1));
+            Assert.That(OriginOf(run, bag), Is.EqualTo(target));
+            Assert.That(OriginOf(run, weapon), Is.EqualTo(plan.Origin), "the ghost was where the item really landed");
+
+            // Nothing rides with an item: its drag publishes no plan at all, which is also what keeps a
+            // pointer move free during the gesture the stage measures.
+            ui.Presenter.DragStart(weapon, Rotation.Degrees0);
+            ui.Presenter.DragMove(BagDropZone.Board, target);
+
+            Assert.That(ui.Presenter.Drag.CarryCount, Is.Zero, "an item carries nothing");
+            ui.Presenter.CancelDrag();
+
+            // A bag on its way to the chest leaves its items where they are, so the run refuses it.
+            ui.Presenter.DragStart(bag, Rotation.Degrees0);
+            ui.Presenter.DragMove(BagDropZone.Chest, default);
+
+            Assert.That(ui.Presenter.Drag.CarryCount, Is.Zero, "a bag takes nothing with it into the chest");
+            Assert.That(ui.Presenter.Drag.IsValid, Is.False, "and the run refuses that move while the item is on it");
+            Assert.That(ui.Presenter.Drag.ErrorCode, Is.EqualTo(InventoryError.ItemStranded));
+            ui.Presenter.CancelDrag();
+        }
+
+        /// <summary>
+        /// The Stage 09 measurement, still made for the piece that now has more to publish: a pointer
+        /// move inside one cell during a <b>bag</b> drag allocates nothing, because a plan that cannot
+        /// have changed is not worked out again.
+        /// </summary>
+        [Test]
+        public void A_pointer_move_inside_one_cell_allocates_nothing_while_a_bag_is_in_the_air()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            RunSession run = ui.Run;
+            PieceRef bag = run.Backpack.Bags[0].Ref;
+
+            ui.Presenter.DragStart(bag, Rotation.Degrees0);
+
+            CellOffset target = FirstPlaceableCell(ui.Presenter, bag, out _);
+            Assert.That(target.X, Is.GreaterThanOrEqualTo(0), "the fixture found no free cell to drag the bag to");
+            Assert.That(ui.Presenter.Drag.CarryCount, Is.EqualTo(1), "the measured drag has to be one that carries something");
+
+            const int moves = 2000;
+            long before = GC.GetAllocatedBytesForCurrentThread();
+
+            for (int i = 0; i < moves; i++)
+            {
+                ui.Presenter.DragMove(BagDropZone.Board, target);
+            }
+
+            long sameCell = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.That(
+                sameCell,
+                Is.Zero,
+                "a pointer move inside one cell allocated " + sameCell + " bytes over " + moves + " calls");
+            Assert.That(ui.Presenter.IsDragging, Is.True, "the gesture survived the measurement");
+        }
+
+        /// <summary>
+        /// Stage 09f / ADR 0020: the combo lines are recomputed after a bag <b>turn</b>, because the
+        /// items on the bag turned with it. One quarter turn takes the tome and the weapon off each
+        /// other's row, so the same-line rule stops firing and its line goes — while the bag-area badge,
+        /// which is never a line, stays.
+        /// </summary>
+        /// <remarks>
+        /// The turn makes <i>two</i> decisions at once, which is the point: the items moved (the bag
+        /// carries them) and the rules were read from where they landed. A screen that had re-used the
+        /// previous revision's marks would still be drawing the line here — that failure is the one this
+        /// test is for (it is the shape of the Stage 09d defect).
+        /// </remarks>
+        [Test]
+        public void A_bag_turn_takes_the_combo_line_with_the_items_that_ride()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            RunSession run = ui.Run;
+            Backpack backpack = run.Backpack;
+
+            PieceRef bag = backpack.Bags[0].Ref;
+            PieceRef weapon = backpack.Items[0].Ref;
+            CellOffset bagOrigin = OriginOf(run, bag);
+
+            CampPieceModel bagModel = PieceOf(ui.Presenter.Bag, bag);
+            Assert.That(bagModel.Shape.Width, Is.GreaterThanOrEqualTo(3), "this fixture needs a bag at least 3 columns wide");
+            Assert.That(bagModel.Shape.Height, Is.GreaterThanOrEqualTo(2), "and two rows tall, for the tome");
+
+            // The weapon off the cells the tome will take, then a 2x2 tome onto the bag. The weapon's
+            // own row is the bag's top row, so the tome's two rows include it: that is the rule's
+            // condition, and the fixture checks the fact before asking the screen to draw it.
+            var weaponCell = new CellOffset(bagOrigin.X + 2, bagOrigin.Y);
+
+            ui.Presenter.DragStart(weapon, Rotation.Degrees0);
+            ui.Presenter.DragMove(BagDropZone.Board, weaponCell);
+            ui.Presenter.Drop();
+
+            Assert.That(OriginOf(run, weapon), Is.EqualTo(weaponCell), "the weapon had to leave the tome's cells");
+
+            Result<PieceRef> added = backpack.AddItem("item.spell_tome");
+            Assert.That(added.IsSuccess, Is.True, "the fixture could not take a tome: " + added.Error);
+            PieceRef tome = added.Value;
+
+            ui.Presenter.Refresh();
+            ui.Presenter.DragStart(tome, Rotation.Degrees0);
+            ui.Presenter.DragMove(BagDropZone.Board, bagOrigin);
+            ui.Presenter.Drop();
+
+            Assert.That(OriginOf(run, tome), Is.EqualTo(bagOrigin), "the tome did not land on the bag's own top-left cell");
+
+            CampPieceModel tomeModel = PieceOf(ui.Presenter.Bag, tome);
+            CampPieceModel weaponModel = PieceOf(ui.Presenter.Bag, weapon);
+
+            Assert.That(
+                ShareARow(tomeModel, weaponModel),
+                Is.True,
+                "the fixture could not arrange the pair on one row, so the line cannot be checked");
+            Assert.That(
+                HasLine(ui.Presenter.Bag.Links, tome.InstanceId, weapon.InstanceId),
+                Is.True,
+                "the pair shares a row but the screen drew no line for it");
+
+            int revision = backpack.Revision;
+            ui.Presenter.SelectOnly(bag);
+            ui.Presenter.RotateSelected();
+
+            Assert.That(ui.Presenter.Counters.Rotated, Is.EqualTo(1), "the turn was accepted");
+            Assert.That(backpack.Revision, Is.EqualTo(revision + 1), "one gesture is one change");
+            Assert.That(OriginOf(run, weapon), Is.Not.EqualTo(weaponCell), "the weapon did not ride with the bag");
+
+            tomeModel = PieceOf(ui.Presenter.Bag, tome);
+            weaponModel = PieceOf(ui.Presenter.Bag, weapon);
+
+            Assert.That(
+                ShareARow(tomeModel, weaponModel),
+                Is.False,
+                "the turn left the pair on one row, so a missing line would prove nothing");
+            Assert.That(
+                HasLine(ui.Presenter.Bag.Links, tome.InstanceId, weapon.InstanceId),
+                Is.False,
+                "a line survived the pair leaving the same row");
+            Assert.That(
+                HasBadgeFromBag(ui.Presenter.Bag.Links, bag.InstanceId),
+                Is.True,
+                "the bag-area bonus is a badge and must not go with the line");
+        }
+
+        /// <summary>True when the two pieces cover a common board row — the same-line rule's relation.</summary>
+        private static bool ShareARow(CampPieceModel first, CampPieceModel second)
+        {
+            int firstTop = first.Origin.Y;
+            int firstBottom = first.Origin.Y + (first.Shape == null ? 1 : first.Shape.Height) - 1;
+            int secondTop = second.Origin.Y;
+            int secondBottom = second.Origin.Y + (second.Shape == null ? 1 : second.Shape.Height) - 1;
+
+            return firstTop <= secondBottom && secondTop <= firstBottom;
+        }
+
+        /// <summary>True when a line is drawn from <paramref name="source"/> to <paramref name="target"/>.</summary>
+        private static bool HasLine(CampLink[] links, int source, int target)
+        {
+            for (int i = 0; i < links.Length; i++)
+            {
+                if (links[i].Style == CampLinkStyle.Line
+                    && links[i].SourceInstanceId == source
+                    && links[i].TargetInstanceId == target)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>True when the bag's own area rule is marked, which is a badge and never a line.</summary>
+        private static bool HasBadgeFromBag(CampLink[] links, int bagInstanceId)
+        {
+            for (int i = 0; i < links.Length; i++)
+            {
+                if (links[i].Style != CampLinkStyle.Line && links[i].SourceInstanceId == bagInstanceId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // -------------------------------------------------------------------
         // the tooltip and the bottom bar
         // -------------------------------------------------------------------
 

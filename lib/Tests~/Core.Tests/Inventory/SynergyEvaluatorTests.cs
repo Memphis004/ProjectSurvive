@@ -371,6 +371,75 @@ namespace ProjectSurvive.Core.Tests.Inventory
             Assert.False(InventoryFixture.ItemOf(backpack, tome).SharesColumnWith(InventoryFixture.ItemOf(backpack, inTheChest)));
         }
 
+        /// <summary>
+        /// Stage 09f / ADR 0020: a bag brings the items on it along, so the combos are read from where
+        /// they landed. One quarter turn turns the whole assembly, which takes two items that shared a
+        /// row onto different rows — the same-line rule stops firing — and four turns bring it back.
+        /// </summary>
+        /// <remarks>
+        /// The landing cells are asserted exactly rather than "somewhere else": the point of the stage
+        /// is that the bag and its riders turn as <b>one rigid object</b> about the bag's own origin, and
+        /// a test that only checked "the item moved" would pass for a rule that scattered them.
+        /// </remarks>
+        [Fact]
+        public void A_bag_turn_carries_the_items_so_the_same_row_combo_turns_with_them()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            PieceRef bag = InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            PieceRef tome = InventoryFixture.Place(editor, "item.spell_tome", 0, 0);
+            PieceRef weapon = InventoryFixture.Place(editor, "item.kali_flame_yant", 2, 0);
+
+            CellOffset tomeStart = InventoryFixture.ItemOf(backpack, tome).Origin;
+            CellOffset weaponStart = InventoryFixture.ItemOf(backpack, weapon).Origin;
+            var evaluator = new SynergyEvaluator(config);
+
+            // The tome covers rows 0-1 and the weapon sits on row 0, so the rule fires.
+            Assert.Contains(
+                evaluator.Evaluate(backpack).Active,
+                entry => entry.RuleId == "synergy.tome_row_damage"
+                    && entry.SourceInstanceId == tome.InstanceId
+                    && entry.TargetInstanceId == weapon.InstanceId);
+
+            int revision = backpack.Revision;
+            Assert.True(editor.Rotate(bag).IsSuccess);
+
+            // One gesture is one change: the revision the evaluation is cached on moved exactly once.
+            Assert.Equal(revision + 1, backpack.Revision);
+
+            ItemInstance turnedTome = InventoryFixture.ItemOf(backpack, tome);
+            ItemInstance turnedWeapon = InventoryFixture.ItemOf(backpack, weapon);
+
+            // Rigid: the same turn and the same re-normalisation the bag's own shape got.
+            Assert.Equal(new CellOffset(1, 0), turnedTome.Origin);
+            Assert.Equal(Rotation.Degrees90, turnedTome.Rotation);
+            Assert.Equal(new CellOffset(2, 2), turnedWeapon.Origin);
+            Assert.Equal(Rotation.Degrees90, turnedWeapon.Rotation);
+            Assert.False(
+                turnedTome.SharesRowWith(turnedWeapon),
+                "the riders did not turn with the bag: " + turnedTome.Origin + " still shares a row with " + turnedWeapon.Origin);
+
+            SynergyEvaluation turned = evaluator.Evaluate(backpack);
+
+            Assert.DoesNotContain(turned.Active, entry => entry.RuleId == "synergy.tome_row_damage");
+            Assert.Contains(
+                turned.Active,
+                entry => entry.RuleId == "synergy.bag_area_bonus" && entry.TargetInstanceId == weapon.InstanceId);
+
+            // Four quarter turns return the bag and both riders, so the combo is back too.
+            for (int turn = 1; turn < 4; turn++)
+            {
+                Assert.True(editor.Rotate(bag).IsSuccess);
+            }
+
+            Assert.Equal(tomeStart, InventoryFixture.ItemOf(backpack, tome).Origin);
+            Assert.Equal(weaponStart, InventoryFixture.ItemOf(backpack, weapon).Origin);
+            Assert.Contains(
+                evaluator.Evaluate(backpack).Active,
+                entry => entry.RuleId == "synergy.tome_row_damage"
+                    && entry.TargetInstanceId == weapon.InstanceId);
+        }
+
         [Fact]
         public void Every_shipped_synergy_kind_is_one_the_engine_implements()
         {

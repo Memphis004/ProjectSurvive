@@ -233,6 +233,245 @@ namespace ProjectSurvive.Core.Tests.Inventory
             }
         }
 
+        /// <summary>
+        /// Stage 09f's property test: 10,000 commands that lean on the two bag gestures — move and turn —
+        /// with the structural invariants checked after every one of them and the carrying rule's own
+        /// invariant checked on every accepted one (ADR 0020).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The invariant is stated from observations only, never by re-running the rule: for every item
+        /// that was lying wholly on the bag before the gesture, after an accepted gesture (a) every one of
+        /// its cells still belongs to that same bag — so it went where the bag went — and (b) its
+        /// orientation <i>relative</i> to the bag is the one it had before. A move that turns nothing adds
+        /// (c) the offset inside the bag's frame, which is what "keeps its relative position" means for a
+        /// pure move.
+        /// </para>
+        /// <para>
+        /// Alongside it, every step checks the GDD invariants — no item outside a bag's area, no two
+        /// pieces on one cell, nothing reaching off the board — and that the walk neither loses nor
+        /// duplicates a piece (the piece count and the total tier mass are conserved, and a rejected
+        /// command leaves the revision alone).
+        /// </para>
+        /// </remarks>
+        [Fact]
+        public void Ten_thousand_bag_gestures_carry_the_items_that_ride_and_keep_every_invariant()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            var rng = new Xoshiro128(0x09E5BA6u);
+
+            // A bag on the board with two items lying on it, so the walk always has a bag to gesture
+            // with and something for it to carry: an item can only stand where a bag already covers a
+            // cell, so a walk that starts with an empty board can never reach the rule being tested (it
+            // found exactly that — 10 items in a full chest and no bag on the board at all).
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            InventoryFixture.Place(editor, "item.mor_knife", 1, 1);
+            InventoryFixture.Place(editor, "item.tiger_fang", 0, 0);
+
+            int accepted = 0;
+            int rejected = 0;
+            int gestures = 0;
+            int carried = 0;
+            var failureCodes = new Dictionary<string, int>(StringComparer.Ordinal);
+
+            for (int step = 0; step < OperationCount; step++)
+            {
+                // Reopen the camp now and then, so Reset has a fresh target too.
+                if (step > 0 && step % 613 == 0)
+                {
+                    editor.MarkCampEntry();
+                }
+
+                int revisionBefore = backpack.Revision;
+                int piecesBefore = backpack.Bags.Count + backpack.Items.Count;
+                int tierMassBefore = InventoryFixture.TierMass(backpack);
+
+                var board = new List<BagPieceInstance>();
+                for (int i = 0; i < backpack.Bags.Count; i++)
+                {
+                    if (backpack.Bags[i].Zone == PieceZone.Board)
+                    {
+                        board.Add(backpack.Bags[i]);
+                    }
+                }
+
+                bool acceptedStep;
+                bool gestureStep = false;
+                string errorCode = string.Empty;
+
+                if (board.Count == 0 || rng.NextInt(0, 4) == 0)
+                {
+                    // Keep the walk stocked: the bag gestures are what this test is about, and a
+                    // board with no bag on it has none to try.
+                    acceptedStep = Spawn(editor, rng);
+                }
+                else
+                {
+                    gestureStep = true;
+                    BagPieceInstance bag = board[rng.NextInt(0, board.Count)];
+                    List<Rider> riders = RidersOf(backpack, bag);
+                    CellOffset target = RandomOrigin(rng);
+                    Rotation rotation = RandomRotation(rng);
+                    bool turn = rng.NextInt(0, 2) == 0;
+
+                    // How far the gesture turns the bag: a drag carries a rotation of its own, so a
+                    // "move" is only a pure move when the rotation it asks for is the one the bag is
+                    // already standing in.
+                    int delta = turn ? 1 : (((int)rotation - (int)bag.Rotation) & 3);
+
+                    Result result = turn
+                        ? editor.Rotate(bag.Ref)
+                        : editor.Move(bag.Ref, target, rotation);
+
+                    acceptedStep = result.IsSuccess;
+                    errorCode = result.IsSuccess ? string.Empty : result.Error.Code;
+
+                    if (result.IsSuccess)
+                    {
+                        AssertCarried(backpack, bag, riders, delta == 0, step);
+
+                        if (riders.Count > 0)
+                        {
+                            carried++;
+                        }
+                    }
+                }
+
+                Assert.True(
+                    backpack.TryValidate(out string? violation),
+                    "step " + step + ": " + violation);
+
+                if (gestureStep)
+                {
+                    // A gesture may not lose or duplicate a piece; spawning one is the other branch,
+                    // where the count is expected to go up.
+                    Assert.Equal(
+                        piecesBefore, backpack.Bags.Count + backpack.Items.Count);
+                    Assert.Equal(tierMassBefore, InventoryFixture.TierMass(backpack));
+                }
+
+                if (acceptedStep)
+                {
+                    accepted++;
+                    Assert.True(
+                        backpack.Revision > revisionBefore,
+                        "step " + step + ": a command was accepted but the revision did not move");
+                }
+                else
+                {
+                    rejected++;
+                    Assert.True(
+                        backpack.Revision == revisionBefore,
+                        "step " + step + ": '" + errorCode + "' was rejected but the revision moved");
+                    failureCodes[errorCode] = failureCodes.TryGetValue(errorCode, out int current) ? current + 1 : 1;
+                }
+
+                if (gestureStep)
+                {
+                    gestures++;
+                }
+            }
+
+            Assert.Equal(OperationCount, accepted + rejected);
+            Assert.True(
+                gestures > 5000,
+                "the walk should mostly be bag gestures, was " + gestures
+                + " (bags on the board " + backpack.OrderedBoardBags().Count
+                + ", bags " + backpack.Bags.Count + ", items " + backpack.Items.Count
+                + ", accepted " + accepted + ", rejected " + rejected + ")");
+            Assert.True(accepted > 1000, "the bag gestures should often be accepted, was " + accepted);
+            Assert.True(rejected > 500, "the walk should also exercise rejections, was " + rejected);
+            Assert.True(carried > 200, "the walk should often carry items, was " + carried);
+        }
+
+        /// <summary>One item that was lying wholly on a bag, and the facts the rule preserves.</summary>
+        private readonly struct Rider
+        {
+            internal Rider(int itemInstanceId, int offsetX, int offsetY, int relativeTurns)
+            {
+                ItemInstanceId = itemInstanceId;
+                OffsetX = offsetX;
+                OffsetY = offsetY;
+                RelativeTurns = relativeTurns;
+            }
+
+            internal int ItemInstanceId { get; }
+
+            /// <summary>The item's top-left cell measured from the bag's own origin.</summary>
+            internal int OffsetX { get; }
+
+            internal int OffsetY { get; }
+
+            /// <summary>Quarter turns from the bag's orientation to the item's (0..3).</summary>
+            internal int RelativeTurns { get; }
+        }
+
+        /// <summary>Every item whose every cell lies on that one bag.</summary>
+        private static List<Rider> RidersOf(Backpack backpack, BagPieceInstance bag)
+        {
+            var riders = new List<Rider>();
+
+            for (int i = 0; i < backpack.Items.Count; i++)
+            {
+                ItemInstance item = backpack.Items[i];
+                if (item.Zone != PieceZone.Board || !WhollyOn(backpack, item, bag.InstanceId))
+                {
+                    continue;
+                }
+
+                riders.Add(new Rider(
+                    item.InstanceId,
+                    item.Origin.X - bag.Origin.X,
+                    item.Origin.Y - bag.Origin.Y,
+                    ((item.Rotation.QuarterTurns() - bag.Rotation.QuarterTurns()) + 4) & 3));
+            }
+
+            return riders;
+        }
+
+        /// <summary>Checks that each rider went where its bag went, keeping its relation to it.</summary>
+        private static void AssertCarried(
+            Backpack backpack, BagPieceInstance bag, List<Rider> riders, bool pureMove, int step)
+        {
+            for (int i = 0; i < riders.Count; i++)
+            {
+                Rider rider = riders[i];
+                Assert.True(
+                    backpack.TryGetItem(rider.ItemInstanceId, out ItemInstance? item) && item is not null,
+                    "step " + step + ": a riding item disappeared");
+
+                Assert.True(
+                    WhollyOn(backpack, item!, bag.InstanceId),
+                    "step " + step + ": item " + rider.ItemInstanceId + " rode on bag " + bag.InstanceId
+                    + " but is no longer on it (" + item!.Origin + ")");
+
+                Assert.Equal(
+                    rider.RelativeTurns,
+                    ((item.Rotation.QuarterTurns() - bag.Rotation.QuarterTurns()) + 4) & 3);
+
+                if (pureMove)
+                {
+                    Assert.Equal(rider.OffsetX, item.Origin.X - bag.Origin.X);
+                    Assert.Equal(rider.OffsetY, item.Origin.Y - bag.Origin.Y);
+                }
+            }
+        }
+
+        /// <summary>True when every cell of an item is covered by that one bag.</summary>
+        private static bool WhollyOn(Backpack backpack, ItemInstance item, int bagInstanceId)
+        {
+            for (int cell = 0; cell < item.CellCount; cell++)
+            {
+                if (backpack.Board.BagOwnerAt(item.CellAt(cell)) != bagInstanceId)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private static bool Spawn(BackpackEditor editor, IRandomSource rng)
         {
             // Half the time, duplicate a piece already owned: two equal pieces are what a

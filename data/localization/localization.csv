@@ -113,6 +113,7 @@
 ,error.inventory.chest_full,หีบเต็ม,The chest is full
 ,error.inventory.item_not_covered,ไอเทมไม่ได้อยู่บนช่องย่าม,That item is not on a bag slot
 ,error.inventory.item_overlap,ไอเทมซ้อนกัน,The items overlap
+,error.inventory.item_spans_bags,ไอเทมนี้พาดอยู่บนย่ามสองใบ ย้ายไอเทมไปหีบหรือจัดใหม่ก่อน,That item lies across two bags — move it to the chest or rearrange it first
 ,error.inventory.item_stranded,วางแล้วไอเทมจะลอยนอกย่าม,That would leave an item off the bag
 ,error.inventory.locked,ย่ามถูกล็อกอยู่,The bag is locked
 ,error.inventory.merge_max_tier,รวมต่อไม่ได้แล้ว,That piece is already at the highest tier

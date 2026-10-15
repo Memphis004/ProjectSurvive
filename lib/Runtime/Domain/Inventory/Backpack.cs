@@ -304,6 +304,60 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// </summary>
         internal void PlaceOnBoard(PieceInstance piece, CellOffset origin, Rotation rotation)
         {
+            Lift(piece);
+            Settle(piece, origin, rotation);
+            MarkChanged();
+        }
+
+        /// <summary>
+        /// Places a bag and the items riding on it as <b>one</b> change (Stage 09f / ADR 0020).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The whole assembly is lifted before anything is put down, because a rider may legally
+        /// land on a cell another moving piece was occupying (a small move overlaps the old
+        /// footprint) and the occupancy maps are single-valued per cell — placing one piece at a
+        /// time would read another moving piece's own cells as a collision.
+        /// </para>
+        /// <para>
+        /// <see cref="Revision"/> moves <b>once</b>, not once per piece: the revision is the cache key
+        /// of the loadout and the combo evaluation (ADR 0014 §7), and one gesture is one change. The
+        /// command pushes its undo snapshot before calling this, so a single <c>Undo</c> puts the bag
+        /// and every item back in one step.
+        /// </para>
+        /// <para>
+        /// Precondition: <see cref="TryPlanBagPlacement"/> accepted this placement, so the carry list
+        /// is the one it validated and nothing is checked again here.
+        /// </para>
+        /// </remarks>
+        internal void PlaceAssembly(BagPieceInstance bag, CellOffset origin, Rotation rotation, List<BagCarry> carry)
+        {
+            Lift(bag);
+
+            for (int i = 0; i < carry.Count; i++)
+            {
+                if (TryGetItem(carry[i].Piece.InstanceId, out ItemInstance? item) && item is not null)
+                {
+                    Lift(item);
+                }
+            }
+
+            Settle(bag, origin, rotation);
+
+            for (int i = 0; i < carry.Count; i++)
+            {
+                if (TryGetItem(carry[i].Piece.InstanceId, out ItemInstance? item) && item is not null)
+                {
+                    Settle(item, carry[i].Origin, carry[i].Rotation);
+                }
+            }
+
+            MarkChanged();
+        }
+
+        /// <summary>Gives up a piece's own cells (or its chest slot). No revision bump.</summary>
+        private void Lift(PieceInstance piece)
+        {
             if (piece.Zone == PieceZone.Board)
             {
                 if (piece is BagPieceInstance placedBag)
@@ -319,7 +373,11 @@ namespace ProjectSurvive.Core.Domain.Inventory
             {
                 Chest.ClearByPiece(piece.Ref);
             }
+        }
 
+        /// <summary>Writes a piece's placement into the piece and the occupancy maps. No revision bump.</summary>
+        private void Settle(PieceInstance piece, CellOffset origin, Rotation rotation)
+        {
             Footprint shape = ShapeAt(piece, rotation);
             piece.Shape = shape;
             piece.Rotation = rotation;
@@ -335,8 +393,6 @@ namespace ProjectSurvive.Core.Domain.Inventory
             {
                 Board.OccupyItem(piece.InstanceId, shape, origin);
             }
-
-            MarkChanged();
         }
 
         /// <summary>Parks a piece in the chest. Precondition: there is a free slot.</summary>
@@ -411,38 +467,60 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// (pass an empty shape for "the bag left the board").
         /// </summary>
         /// <remarks>
-        /// Used by move / rotate / chest / recycle of a bag: GDD v0.3 refuses the whole
-        /// command rather than letting an item dangle.
+        /// Used by chest / recycle of a bag — the two commands that take a bag off the board, where an
+        /// item sitting on it has nowhere to go — and by a board move or turn for the items that do
+        /// <i>not</i> ride along (the ones lying across this bag and another, ADR 0020): GDD v0.3
+        /// refuses the whole command rather than letting an item dangle.
         /// </remarks>
         internal bool WouldStayCovered(ItemInstance piece, int bagInstanceId, Footprint? newShape, CellOffset newOrigin)
         {
             int cells = piece.CellCount;
             for (int i = 0; i < cells; i++)
             {
-                CellOffset cell = piece.CellAt(i);
-
-                if (Board.IsActiveSlotExcept(cell, bagInstanceId))
+                if (!CoversCell(piece.CellAt(i), bagInstanceId, newShape, newOrigin))
                 {
-                    continue;
+                    return false;
                 }
-
-                if (newShape is not null && newShape.CellCount > 0)
-                {
-                    int dx = cell.X - newOrigin.X;
-                    int dy = cell.Y - newOrigin.Y;
-                    if (dx >= 0 && dy >= 0 && newShape.Contains(new CellOffset(dx, dy)))
-                    {
-                        continue;
-                    }
-                }
-
-                return false;
             }
 
             return true;
         }
 
-        /// <summary>Finds the first placed item that a bag change would leave off an ActiveSlot.</summary>
+        /// <summary>
+        /// True when <paramref name="cell"/> would be an ActiveSlot after the bag
+        /// <paramref name="bagInstanceId"/> changed to <paramref name="newShape"/> at
+        /// <paramref name="newOrigin"/>: another bag covers it, or the new footprint does.
+        /// </summary>
+        /// <remarks>
+        /// The one sentence behind every coverage question, so "an item still stands on a bag" is
+        /// asked the same way for a piece that stays (its own cells) and for one that rides (its
+        /// mapped cells, ADR 0020).
+        /// </remarks>
+        internal bool CoversCell(CellOffset cell, int bagInstanceId, Footprint? newShape, CellOffset newOrigin)
+        {
+            if (Board.IsActiveSlotExcept(cell, bagInstanceId))
+            {
+                return true;
+            }
+
+            if (newShape is null || newShape.IsEmpty)
+            {
+                return false;
+            }
+
+            int dx = cell.X - newOrigin.X;
+            int dy = cell.Y - newOrigin.Y;
+            return dx >= 0 && dy >= 0 && newShape.Contains(new CellOffset(dx, dy));
+        }
+
+        /// <summary>
+        /// Finds the first placed item that a bag change would leave off an ActiveSlot.
+        /// </summary>
+        /// <remarks>
+        /// Asked by the two commands that take a bag <b>off</b> the board (into the chest, or to the
+        /// altar), where every item standing on it would be left dangling — an item can never come
+        /// along to the chest (Stage 09f / ADR 0020 §2).
+        /// </remarks>
         internal ItemInstance? FindStrandedItem(int bagInstanceId, Footprint? newShape, CellOffset newOrigin)
         {
             for (int i = 0; i < _items.Count; i++)
@@ -460,6 +538,188 @@ namespace ProjectSurvive.Core.Domain.Inventory
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Works out which items ride with <paramref name="bag"/> when it is placed at
+        /// (<paramref name="origin"/>, <paramref name="rotation"/>), and where each of them lands.
+        /// Reads only.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The rule (ADR 0020).</b> An item rides when <i>every</i> one of its cells lies on this
+        /// bag — bags never overlap, so that means this bag and no other. An item lying across this
+        /// bag and a second one does not ride: part of it belongs to a bag that is staying.
+        /// </para>
+        /// <para>
+        /// <b>The whole assembly turns as one.</b> A rider keeps its position in the bag's own frame:
+        /// its cells are turned the same number of quarter turns the bag is being turned about the
+        /// bag's own origin, minus the translation re-normalisation removed from the bag's shape
+        /// (<see cref="FootprintRotation.Rotate(Footprint, Rotation, out CellOffset)"/>). A pure move is
+        /// the zero-turn case of the same map, so "move" and "turn" cannot disagree — one function
+        /// answers both, and four turns return the bag and every rider to where they started.
+        /// </para>
+        /// </remarks>
+        internal void CollectRiders(BagPieceInstance bag, CellOffset origin, Rotation rotation, List<BagCarry> into)
+        {
+            into.Clear();
+
+            if (bag.Zone != PieceZone.Board || _items.Count == 0)
+            {
+                // Nothing can be lying on a bag in the chest: a chest piece covers no cell.
+                return;
+            }
+
+            // How far the assembly is being turned: the difference between the orientation asked for
+            // and the one the bag stands in, as quarter turns clockwise.
+            int turns = ((int)rotation - (int)bag.Rotation) & 3;
+
+            Rotation turn = RotationOps.FromQuarterTurns(turns);
+            FootprintRotation.Rotate(bag.Shape, turn, out CellOffset shift);
+
+            for (int i = 0; i < _items.Count; i++)
+            {
+                ItemInstance item = _items[i];
+                if (item.Zone != PieceZone.Board || !RidesOn(item, bag.InstanceId))
+                {
+                    continue;
+                }
+
+                int minX = int.MaxValue;
+                int minY = int.MaxValue;
+
+                for (int cell = 0; cell < item.CellCount; cell++)
+                {
+                    CellOffset board = item.CellAt(cell);
+                    CellOffset rigid = FootprintRotation.Turn(
+                        new CellOffset(board.X - bag.Origin.X, board.Y - bag.Origin.Y), turn);
+
+                    int x = origin.X + rigid.X - shift.X;
+                    int y = origin.Y + rigid.Y - shift.Y;
+
+                    if (x < minX) { minX = x; }
+                    if (y < minY) { minY = y; }
+                }
+
+                into.Add(new BagCarry(
+                    item.Ref,
+                    new CellOffset(minX, minY),
+                    RotationOps.FromQuarterTurns(item.Rotation.QuarterTurns() + turns)));
+            }
+        }
+
+        /// <summary>
+        /// True when placing <paramref name="bag"/> at (<paramref name="origin"/>, <paramref name="rotation"/>)
+        /// is legal — including what happens to the items lying on it — and fills <paramref name="carry"/>
+        /// with the items that ride along and where they land. Reads only.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The bag's own footprint is not checked here; <see cref="Board.CanPlaceBag"/> already did that
+        /// (it ignores the moving bag's own cells, so a placement overlapping where the bag stands is
+        /// legal). This adds the two questions the presence of items raises:
+        /// </para>
+        /// <list type="number">
+        /// <item><b>Nothing that stays behind may be left uncovered.</b> Only an item lying across this
+        /// bag and another can be affected at all (a bag's new cells cannot reach across another bag),
+        /// and if the cells that leave this bag's cover are not picked up by the new footprint or by
+        /// the other bag, the whole command is refused with <see cref="InventoryError.ItemSpansBags"/>.
+        /// </item>
+        /// <item><b>Every rider must land somewhere legal</b>: inside the board, on a bag, and clear of
+        /// every piece that is not moving. A rider may land on a cell another <i>moving</i> piece was
+        /// occupying — the assembly is lifted whole before it is put down.
+        /// </item>
+        /// </list>
+        /// </remarks>
+        internal bool TryPlanBagPlacement(
+            BagPieceInstance bag, CellOffset origin, Rotation rotation, Footprint shape, List<BagCarry> carry, out Error error)
+        {
+            CollectRiders(bag, origin, rotation, carry);
+
+            for (int i = 0; i < _items.Count; i++)
+            {
+                ItemInstance item = _items[i];
+                if (item.Zone != PieceZone.Board || IsCarried(carry, item.InstanceId))
+                {
+                    continue;
+                }
+
+                if (!WouldStayCovered(item, bag.InstanceId, shape, origin))
+                {
+                    error = new Error(InventoryError.ItemSpansBags, ErrorKind.Conflict);
+                    carry.Clear();
+                    return false;
+                }
+            }
+
+            for (int i = 0; i < carry.Count; i++)
+            {
+                BagCarry rider = carry[i];
+                if (!TryGetItem(rider.Piece.InstanceId, out ItemInstance? item) || item is null)
+                {
+                    continue;
+                }
+
+                Footprint ridden = ShapeAt(item, rider.Rotation);
+                for (int cell = 0; cell < ridden.CellCount; cell++)
+                {
+                    CellOffset local = ridden.CellAt(cell);
+                    var boardCell = new CellOffset(rider.Origin.X + local.X, rider.Origin.Y + local.Y);
+
+                    if (!Board.Contains(boardCell))
+                    {
+                        error = new Error(InventoryError.OutOfBoard, ErrorKind.Validation);
+                        carry.Clear();
+                        return false;
+                    }
+
+                    if (!CoversCell(boardCell, bag.InstanceId, shape, origin))
+                    {
+                        error = new Error(InventoryError.ItemNotCovered, ErrorKind.Conflict);
+                        carry.Clear();
+                        return false;
+                    }
+
+                    int owner = Board.ItemOwnerAt(boardCell);
+                    if (owner != Board.NoOwner && owner != item.InstanceId && !IsCarried(carry, owner))
+                    {
+                        error = new Error(InventoryError.ItemOverlap, ErrorKind.Conflict);
+                        carry.Clear();
+                        return false;
+                    }
+                }
+            }
+
+            error = default;
+            return true;
+        }
+
+        /// <summary>True when every cell of <paramref name="item"/> lies on that one bag.</summary>
+        private bool RidesOn(ItemInstance item, int bagInstanceId)
+        {
+            for (int cell = 0; cell < item.CellCount; cell++)
+            {
+                if (Board.BagOwnerAt(item.CellAt(cell)) != bagInstanceId)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>True when the assembled plan already contains that instance (a linear scan of ≤ a handful).</summary>
+        private static bool IsCarried(List<BagCarry> carry, int instanceId)
+        {
+            for (int i = 0; i < carry.Count; i++)
+            {
+                if (carry[i].Piece.InstanceId == instanceId)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>Instance ids are handed out in order, so a restored state continues the sequence.</summary>

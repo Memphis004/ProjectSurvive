@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Infrastructure.Save;
@@ -85,22 +86,126 @@ namespace ProjectSurvive.Core.Tests.Inventory
             InventoryFixture.AssertValid(backpack);
         }
 
+        /// <summary>
+        /// Stage 09f / ADR 0020: turning a bag turns the items standing on it with it — the item keeps
+        /// its place in the bag's own frame, which is the whole point of the rule (the previous rule
+        /// refused this turn outright).
+        /// </summary>
         [Fact]
-        public void Rotating_a_bag_that_would_strand_an_item_is_refused()
+        public void Rotating_a_bag_carries_the_items_standing_on_it()
         {
             IGameConfig config = InventoryFixture.Config();
             BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
             PieceRef bag = InventoryFixture.PlaceBag(editor, "bag.wicker_basket_l", 0, 0);
             // (0,2) is the basket's bottom-left cell (the L's foot).
-            InventoryFixture.Place(editor, "item.mor_knife", 0, 2);
-            byte[] before = InventoryFixture.StateBytes(backpack);
+            PieceRef knife = InventoryFixture.Place(editor, "item.mor_knife", 0, 2);
+            int revision = backpack.Revision;
+            int history = editor.UndoDepth;
 
             var result = editor.Rotate(bag);
 
-            Assert.True(result.IsFailure);
-            Assert.Equal(InventoryError.ItemStranded, result.Error.Code);
+            Assert.True(result.IsSuccess, result.Error.ToString());
+
+            // The authored basket is "X.|X.|XX"; one turn clockwise gives "XXX|X..", whose cells are
+            // (0,0) (1,0) (2,0) (0,1). The knife was on the foot (0,2), which turns into (0,0).
+            Assert.Equal(Rotation.Degrees90, InventoryFixture.BagOf(backpack, bag).Rotation);
+            Assert.Equal(new CellOffset(0, 0), InventoryFixture.ItemOf(backpack, knife).Origin);
+            Assert.Equal(Rotation.Degrees90, InventoryFixture.ItemOf(backpack, knife).Rotation);
+            Assert.Equal(bag.InstanceId, backpack.Board.BagOwnerAt(new CellOffset(0, 0)));
+
+            // One gesture is one change: the revision moves once, so the combos and the loadout are
+            // recomputed once, and one undo puts the bag and the item back together.
+            Assert.Equal(revision + 1, backpack.Revision);
+            Assert.Equal(history + 1, editor.UndoDepth);
+            InventoryFixture.AssertValid(backpack);
+        }
+
+        /// <summary>
+        /// The rigid-body claim, stated as the strongest thing that can be asserted: four quarter turns
+        /// leave the <b>whole</b> assembly byte-identical, with a bag and an item that are both
+        /// asymmetric (so neither could come back by accident of symmetry).
+        /// </summary>
+        [Fact]
+        public void Four_quarter_turns_return_a_bag_and_an_asymmetric_item_on_it()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            // The L-tetromino basket, and the 2x1 familiar — whose own footprint swaps 2 wide x 1 tall
+            // for 1 wide x 2 tall when the bag it stands on is turned.
+            PieceRef bag = InventoryFixture.PlaceBag(editor, "bag.wicker_basket_l", 0, 0);
+            PieceRef familiar = InventoryFixture.Place(editor, "item.kuman_thong", 0, 2);
+            byte[] before = InventoryFixture.StateBytes(backpack);
+
+            for (int turn = 0; turn < 4; turn++)
+            {
+                var result = editor.Rotate(bag);
+                Assert.True(result.IsSuccess, "turn " + turn + ": " + result.Error);
+                Assert.True(backpack.Board.IsActiveSlot(InventoryFixture.ItemOf(backpack, familiar).Origin));
+                InventoryFixture.AssertValid(backpack);
+            }
+
             Assert.Equal(Rotation.Degrees0, InventoryFixture.BagOf(backpack, bag).Rotation);
+            Assert.Equal(Rotation.Degrees0, InventoryFixture.ItemOf(backpack, familiar).Rotation);
+            Assert.Equal(new CellOffset(0, 2), InventoryFixture.ItemOf(backpack, familiar).Origin);
             Assert.Equal(before, InventoryFixture.StateBytes(backpack));
+        }
+
+        /// <summary>A bag move is one undo step however many items ride on it.</summary>
+        [Fact]
+        public void Undo_brings_a_bag_and_every_item_on_it_back_in_one_step()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            PieceRef bag = InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            InventoryFixture.Place(editor, "item.mor_knife", 0, 0);
+            InventoryFixture.Place(editor, "item.tiger_fang", 2, 2);
+            editor.MarkCampEntry();
+            byte[] before = InventoryFixture.StateBytes(backpack);
+            int revision = backpack.Revision;
+
+            Assert.True(editor.Move(bag, new CellOffset(6, 4), Rotation.Degrees0).IsSuccess);
+
+            // Two items rode along and the bag moved: the history holds one step, not three.
+            Assert.Equal(1, editor.UndoDepth);
+            Assert.Equal(revision + 1, backpack.Revision);
+
+            Assert.True(editor.Undo().IsSuccess);
+
+            Assert.Equal(before, InventoryFixture.StateBytes(backpack));
+            Assert.False(editor.CanUndo);
+            InventoryFixture.AssertValid(backpack);
+        }
+
+        /// <summary>
+        /// The Stage 09 drag's plan and the command that follows it are one answer: the cells the
+        /// preview says the items will land on are the cells they are <i>found</i> on after the drop.
+        /// </summary>
+        [Fact]
+        public void The_carried_plan_is_where_the_items_actually_end_up()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            PieceRef bag = InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            PieceRef knife = InventoryFixture.Place(editor, "item.mor_knife", 0, 1);
+            PieceRef fang = InventoryFixture.Place(editor, "item.tiger_fang", 2, 2);
+            var planned = new List<BagCarry>();
+
+            editor.CollectCarried(bag, new CellOffset(4, 3), Rotation.Degrees180, planned);
+
+            Assert.Equal(2, planned.Count);
+            Assert.True(editor.CanPlace(bag, new CellOffset(4, 3), Rotation.Degrees180, out Error error), error.ToString());
+            Assert.True(editor.Move(bag, new CellOffset(4, 3), Rotation.Degrees180).IsSuccess);
+
+            for (int i = 0; i < planned.Count; i++)
+            {
+                PieceInstance placed = InventoryFixture.ItemOf(backpack, planned[i].Piece);
+                Assert.Equal(planned[i].Origin, placed.Origin);
+                Assert.Equal(planned[i].Rotation, placed.Rotation);
+            }
+
+            Assert.Contains(planned, carry => carry.Piece == knife);
+            Assert.Contains(planned, carry => carry.Piece == fang);
+            InventoryFixture.AssertValid(backpack);
         }
 
         [Fact]

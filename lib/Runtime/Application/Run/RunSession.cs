@@ -836,6 +836,26 @@ namespace ProjectSurvive.Core.Application.Run
         }
 
         /// <summary>
+        /// Fills <paramref name="carry"/> with the items a bag drag at (<paramref name="origin"/>,
+        /// <paramref name="rotation"/>) would bring along, and where each of them would land.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The screen draws these as ghosts while a bag is in the air (Stage 09f: "แสดงเงาของไอเทมที่ติดไป
+        /// ที่ตำแหน่งใหม่"), and the plan is the run's, not the view's: it is the same
+        /// <c>BackpackEditor</c> plan <see cref="PreviewDrop"/> validates, so a ghost can never show an
+        /// item landing where the accepted command would refuse to put it.
+        /// </para>
+        /// <para>
+        /// Read-only, and it judges nothing: this answers "which items ride and where", never "may I".
+        /// The verdict stays <see cref="PreviewDrop"/>, and an empty list means the piece is not a bag on
+        /// the board (nothing rides with a chest piece).
+        /// </para>
+        /// </remarks>
+        public void CollectCarried(PieceRef piece, CellOffset origin, Rotation rotation, List<BagCarry> carry) =>
+            Editor.CollectCarried(piece, origin, rotation, carry);
+
+        /// <summary>
         /// The bag's layout as the combo rules see it — the Stage 09 tooltip's "synergy ที่ทำงานอยู่"
         /// and the cells it highlights.
         /// </summary>

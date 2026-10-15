@@ -25,6 +25,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
     {
         private const float HighlightAlpha = 0.65f;
 
+        /// <summary>
+        /// The opacity of the ghosts of the items a dragged bag carries (Stage 09f). Lower than the bag's
+        /// own ghost on purpose: they are a prediction of a second thing, and the bag's landing place is
+        /// what the player is aiming.
+        /// </summary>
+        private const float CarryGhostAlpha = 0.45f;
+
         [SerializeField] private LifetimeScope _scope;
 
         [Header("Surfaces (authored top-left anchored, pivot 0,1)")]
@@ -118,6 +125,19 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private readonly List<CampPieceModel> _painted = new List<CampPieceModel>(32);
         private readonly List<Image> _synergyLines = new List<Image>(16);
         private readonly List<Image> _badges = new List<Image>(16);
+
+        /// <summary>
+        /// One pooled box per item riding on the dragged bag, parented to the board so a ghost sits
+        /// exactly where the item will (Stage 09f / ADR 0020). Pooled because a drag must not allocate
+        /// per pointer move, and disabled when nothing rides.
+        /// </summary>
+        private readonly List<Image> _carryGhosts = new List<Image>(8);
+
+        /// <summary>The plans the carry ghosts currently on screen were drawn from.</summary>
+        private CampCarryGhost[] _drawnCarry = NoCarryPlans;
+
+        /// <summary>A drag that carries nothing: shared, because it is constant.</summary>
+        private static readonly CampCarryGhost[] NoCarryPlans = new CampCarryGhost[0];
         private readonly List<IDisposable> _subscriptions = new List<IDisposable>(16);
 
         private CampUiState _state;
@@ -174,6 +194,11 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         /// <summary>How many bag-area bonus badges are drawn right now.</summary>
         public int VisibleBadgeCount { get; private set; }
+
+        /// <summary>
+        /// How many item ghosts are drawn right now — the items that would ride with the dragged bag.
+        /// </summary>
+        public int VisibleCarryGhostCount { get; private set; }
 
         /// <summary>
         /// The screen rectangle of a piece's name, or false when the piece has no name on screen.
@@ -1247,6 +1272,108 @@ namespace ProjectSurvive.Game.Presentation.Camp
             _ghostRect.SetAsLastSibling();
 
             HighlightDropCells(drag, shape);
+            RenderCarryGhosts(drag);
+        }
+
+        /// <summary>
+        /// Draws a ghost for every item that would come along with the dragged bag, at the cell each
+        /// would land on.
+        /// </summary>
+        /// <remarks>
+        /// The positions are the presenter's, which are the run's: this method turns a published plan
+        /// into rectangles and decides nothing about which items ride, where they land, or whether the
+        /// drop is accepted (AGENTS rule 10). The colour is the bag's own ghost colour, fainter, so the
+        /// rider's ghost reads as part of the same gesture.
+        /// </remarks>
+        private void RenderCarryGhosts(CampDragState drag)
+        {
+            int count = drag.CarryCount;
+            Color colour = drag.IsValid ? _ghostValid : _ghostInvalid;
+            colour.a = CarryGhostAlpha;
+            float pitch = CellPitch;
+
+            for (int i = 0; i < count; i++)
+            {
+                CampCarryGhost plan = drag.CarryAt(i);
+
+                if (i >= _carryGhosts.Count)
+                {
+                    _carryGhosts.Add(CreateCarryGhost());
+                }
+
+                Image ghost = _carryGhosts[i];
+                ghost.enabled = true;
+                ghost.color = colour;
+
+                var rect = (RectTransform)ghost.transform;
+                rect.anchoredPosition = new Vector2(plan.Origin.X * pitch, -(plan.Origin.Y * pitch));
+                rect.sizeDelta = new Vector2(
+                    (plan.Width * pitch) - _cellGap,
+                    (plan.Height * pitch) - _cellGap);
+                rect.SetAsLastSibling();
+            }
+
+            for (int i = count; i < _carryGhosts.Count; i++)
+            {
+                _carryGhosts[i].enabled = false;
+            }
+
+            _drawnCarry = count == 0 ? NoCarryPlans : drag.Carry;
+            VisibleCarryGhostCount = count;
+        }
+
+        /// <summary>Puts every rider ghost away, which is what the end of a drag does.</summary>
+        private void HideCarryGhosts()
+        {
+            for (int i = 0; i < _carryGhosts.Count; i++)
+            {
+                _carryGhosts[i].enabled = false;
+            }
+
+            _drawnCarry = NoCarryPlans;
+            VisibleCarryGhostCount = 0;
+        }
+
+        private Image CreateCarryGhost()
+        {
+            var gameObject = new GameObject("CarryGhost", typeof(RectTransform));
+            var rect = (RectTransform)gameObject.transform;
+            rect.SetParent(_boardRect, false);
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+
+            var image = gameObject.AddComponent<Image>();
+            image.raycastTarget = false;
+            image.enabled = false;
+            return image;
+        }
+
+        /// <summary>
+        /// The screen rectangle of the ghost drawn for an item riding on the dragged bag, or false when
+        /// that item has no ghost on screen.
+        /// </summary>
+        /// <remarks>
+        /// Published so a test can state the stage's promise as geometry: the ghost is where the item
+        /// really goes, so the rectangle captured mid-drag has to be the rectangle the item is drawn in
+        /// once the drop has landed.
+        /// </remarks>
+        public bool TryGetCarryGhostScreenRect(PieceRef piece, out Rect rect)
+        {
+            rect = default;
+
+            for (int i = 0; i < _drawnCarry.Length && i < _carryGhosts.Count; i++)
+            {
+                if (_drawnCarry[i].Piece != piece)
+                {
+                    continue;
+                }
+
+                return _carryGhosts[i].enabled
+                    && CampScreenRects.TryOf((RectTransform)_carryGhosts[i].transform, out rect);
+            }
+
+            return false;
         }
 
         private void UpdateGhostPosition(Vector2 screenPoint)
@@ -1266,6 +1393,8 @@ namespace ProjectSurvive.Game.Presentation.Camp
             {
                 _ghost.enabled = false;
             }
+
+            HideCarryGhosts();
         }
 
         private void HighlightDropCells(CampDragState drag, Footprint shape)

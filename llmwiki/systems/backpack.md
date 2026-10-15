@@ -1,4 +1,4 @@
-# Bag, board and combos (Stage 05)
+# Bag, board and combos (Stage 05; carried-item rule changed in 09f)
 
 The bag is the game's build surface: pieces are bought into a **Chest**, laid out on a
 **Board**, and the layout is what turns into the player's combat loadout. This note is the
@@ -31,6 +31,12 @@ equal shapes comparable by value and a rotated shape hashable for a snapshot.
 authored shape, and an asymmetric shape gets a *different* cell set at 90°/270° — the
 L-tetromino bag (`bag.wicker_basket_l`) exists for exactly that reason.
 
+The re-normalisation moves the turned cell set back to a minimum of `(0, 0)`, and anything
+else being turned **with** the shape has to make the same move. That translation is
+published by the overload the assembly uses — `Rotate(shape, rotation, out CellOffset shift)`
+— and is the only reason a bag's riders stay rigid under a turn
+([ADR 0020](../../docs/adr/0020-bag-moves-carry-the-items-on-them.md)).
+
 ## 2. Placement ownership (GDD §bag)
 
 Two owner maps live in `Board`: bag owner per cell, item owner per cell. Every placement
@@ -42,12 +48,23 @@ question is a read of those maps, and the three failures are three codes:
 | Two bags share a cell | `inventory.bag_overlap` |
 | An item cell no bag covers | `inventory.item_not_covered` |
 | Two items share a cell | `inventory.item_overlap` |
-| A bag change would leave an item off every ActiveSlot | `inventory.item_stranded` |
+| A bag on its way **off the board** still has an item standing on it | `inventory.item_stranded` |
+| An item lies across two bags and would lose its cover | `inventory.item_spans_bags` |
 
 **An item may straddle several bags**; it needs *every* one of its cells covered, not one.
-A bag may be moved, rotated, stored or recycled **only if no placed item loses coverage** —
-and if one would, the command is refused **whole** (no partial move, no auto-park).
-See [ADR 0014](../../docs/adr/0014-backpack-editing-undo-and-placement-ownership.md).
+What a bag gesture then does depends on which bag the item is standing on
+([ADR 0020](../../docs/adr/0020-bag-moves-carry-the-items-on-them.md)):
+
+| The item's cells are … | A bag **move** or **turn** | A bag to the **chest** / **altar** |
+| --- | --- | --- |
+| all on this one bag | it **rides along**, keeping its place in the bag's frame | refused whole — `item_stranded` |
+| split across this bag and another | it stays; refused whole if the move would leave it uncovered — `item_spans_bags` | it stays; refused only if *this* bag was the one covering the cells it keeps |
+| not on this bag at all | unaffected | unaffected |
+
+An item can never come along into the chest: a chest piece covers no cell, so a rider there
+would be an item outside the build, and the chest has a fixed 10-slot budget.
+See [ADR 0014](../../docs/adr/0014-backpack-editing-undo-and-placement-ownership.md) for the
+parts of the rule that did not change — refuse whole, never relocate an item silently.
 
 ## 3. Identity: `DefId` vs `InstanceId`
 
@@ -72,9 +89,9 @@ changes nothing” structural rather than a promise.
 
 | Command | Rule |
 | --- | --- |
-| `Move(piece, origin, rotation)` | Place/move from chest or board; a bag move also has to leave every item covered |
-| `Rotate(piece)` | One clockwise quarter turn in place; a board-only operation |
-| `TransferToChest(piece)` | Refused when the chest (`economy.chest_slots`, 10) is full, and for a bag that would strand an item |
+| `Move(piece, origin, rotation)` | Place/move from chest or board; a bag brings the items standing on it along (ADR 0020) |
+| `Rotate(piece)` | One clockwise quarter turn in place; a board-only operation, carrying the same riders |
+| `TransferToChest(piece)` | Refused when the chest (`economy.chest_slots`, 10) is full, and for a bag an item is standing on |
 | `Merge(source, target)` | Same item id **and** same tier → `tier + 1`, max `constant.max_tier`; refuses bags, mismatches and the cap |
 | `Recycle(piece)` | Leaves the run; pays `floor(price × economy.sell_back_percent / 100)` of the **tier-1** price |
 | `Undo()` | Re-applies the previous snapshot |
@@ -163,15 +180,19 @@ from the bag to the battle. No second loadout model exists.
 ## 8. Error codes (all under `inventory.`)
 
 `unknown_piece`, `wrong_zone`, `out_of_board`, `bag_overlap`, `item_not_covered`,
-`item_overlap`, `item_stranded`, `chest_full`, `locked`, `nothing_to_undo`,
+`item_overlap`, `item_spans_bags`, `item_stranded`, `chest_full`, `locked`, `nothing_to_undo`,
 `merge_mismatch`, `merge_not_item`, `merge_max_tier`, `not_on_board`.
 
 ## 9. Where the evidence is
 
-- `lib/Tests~/Core.Tests/Inventory/` — 105 xUnit cases over the **real** generated tables
-  (no stub config), including a 10 000-operation randomized run that checks the structural
-  invariants after every command.
-- `UnityProject/Assets/Main/Tests/EditMode/BackpackRulesTests.cs` — 9 cases over the same
-  real data through the Unity-compiled assemblies (loadout contract, codec, undo/lock).
+- `lib/Tests~/Core.Tests/Inventory/` — the rule suite over the **real** generated tables
+  (no stub config), including a 10 000-operation randomized run that mixes bag gestures
+  with every other command and checks the structural invariants after each one.
+- `UnityProject/Assets/Main/Tests/EditMode/BackpackRulesTests.cs` — the same real data
+  through the Unity-compiled assemblies (loadout contract, codec, undo/lock, the carried
+  item and both refusals).
+- `UnityProject/Assets/Main/Tests/PlayMode/CampBagDragPlayModeTests.cs` — the gesture with
+  real pointer events, including the rider's ghost drawn where the item really lands
+  (Stage 09f).
 - `node tools/coverage-report.mjs <cobertura> "Inventory/" "Config/Footprint.cs"` — the
   measurement behind the acceptance number (90.92 % of the backpack rule set).

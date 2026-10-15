@@ -151,9 +151,12 @@ tag, is in [`systems/data-schema.md`](systems/data-schema.md#tag-vocabulary).
 | รูปทรงการวาง | `Footprint` | Domain | A *set* of `CellOffset`; authored as a picture (`"XX.|.XX"`) |
 | การหมุน | `Rotation` | Domain | `Degrees0/90/180/270`, quarter turns clockwise |
 | ย่ามทับกัน | `BagOverlap` | Error | `inventory.bag_overlap` |
-| ไอเทมหลุดพื้นที่ใช้งาน | `ItemStranded` | Error | `inventory.item_stranded` — refuses the whole command |
-| ย้ายชิ้นของ | `Move` | Command | Chest ⇄ board, and within the board |
-| หมุนชิ้นของ | `Rotate` | Command | One quarter turn in place (board only) |
+| ไอเทมหลุดพื้นที่ใช้งาน | `ItemStranded` | Error | `inventory.item_stranded` — taking a bag **off** the board while an item stands on it |
+| ไอเทมพาดสองย่าม | `ItemSpansBags` | Error | `inventory.item_spans_bags` — the item cannot ride, and the move would leave it uncovered |
+| ไอเทมติดไปกับย่าน | `BagCarry` / rider | Domain | One item a bag gesture brings along, with the cell and rotation it lands on |
+| เงาของไอเทมที่ติดไป | `CampCarryGhost` | View model | The landed cell + footprint the screen draws while a bag is in the air |
+| ย้ายชิ้นของ | `Move` | Command | Chest ⇄ board, and within the board; a bag carries its riders |
+| หมุนชิ้นของ | `Rotate` | Command | One quarter turn in place (board only); the bag and its riders turn as one |
 | เก็บของเข้าหีบ | `TransferToChest` | Command | Refused when the chest is full |
 | ถวายคืนศาล (ทิ้งของ) | `Recycle` | Command | `floor(base price × sell_back_percent / 100)` |
 | ย้อนกลับ | `Undo` | Command | Restores the previous snapshot |
@@ -215,9 +218,11 @@ player-facing text in Core). Examples: `bag.overlap`, `wallet.insufficient_bia`,
 the localization key in the same commit.
 
 The Stage 05 inventory codes are `inventory.` + `unknown_piece`, `wrong_zone`,
-`out_of_board`, `bag_overlap`, `item_not_covered`, `item_overlap`, `item_stranded`,
-`chest_full`, `locked`, `nothing_to_undo`, `merge_mismatch`, `merge_not_item`,
-`merge_max_tier`, `not_on_board` (`Domain/Inventory/Identity.cs`).
+`out_of_board`, `bag_overlap`, `item_not_covered`, `item_overlap`, `item_spans_bags`,
+`item_stranded`, `chest_full`, `locked`, `nothing_to_undo`, `merge_mismatch`,
+`merge_not_item`, `merge_max_tier`, `not_on_board` (`Domain/Inventory/Identity.cs`).
+`item_spans_bags` is Stage 09f's addition (ADR 0020): an item lying across two bags that
+the move would leave uncovered.
 
 The Stage 06 codes are `run.` + `wrong_state`, `no_arcane_weapon`, `not_in_battle`,
 `battle_running`, `unknown_piece` (plus the named preconditions `no_floor_left`,

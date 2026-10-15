@@ -50,6 +50,16 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         private readonly List<CampLink> _linkScratch = new List<CampLink>(16);
 
+        /// <summary>
+        /// Scratch for a bag drag's riders: the run's plan, then the ghosts it becomes. Reused, because
+        /// a pointer move must not allocate (Stage 09's measured promise, still measured here).
+        /// </summary>
+        private readonly List<BagCarry> _carryScratch = new List<BagCarry>(8);
+        private readonly List<CampCarryGhost> _carryGhostScratch = new List<CampCarryGhost>(8);
+
+        /// <summary>The plan of a drag that carries nothing: shared, because it is constant.</summary>
+        private static readonly CampCarryGhost[] NoCarry = new CampCarryGhost[0];
+
         private SynergyEvaluation _layout;
         private int _layoutRevision = -1;
         private CampLink[] _links;
@@ -402,11 +412,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 _dragAnchor = new CellOffset(0, 0);
             }
 
-            _drag = new CampDragState(
-                true, piece, BagDropZone.Board, _dragAnchor, _dragRotation,
-                BagDropAction.Place, true, 0, PieceRef.None, string.Empty);
-
-            _drag = Evaluate(BagDropZone.Board, _dragAnchor);
+            // One call, not a placeholder then an overwrite: the first preview is also the first plan,
+            // and a placeholder with no riders would make the plan look unchanged (Stage 09f).
+            _drag = Evaluate(piece, BagDropZone.Board, _dragAnchor, _dragRotation, CampDragState.None);
             PublishDrag();
         }
 
@@ -421,7 +429,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
-            CampDragState next = Evaluate(zone, cell);
+            CampDragState next = Evaluate(_drag.Piece, zone, cell, _dragRotation, _drag);
             if (next.Equals(_drag))
             {
                 // The common case during a drag: the pointer moved inside the same cell with the
@@ -445,7 +453,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
             _dragRotation = RotationOps.Clockwise(_dragRotation);
             Counters.DragRotations++;
 
-            _drag = Evaluate(_drag.Zone, _drag.Origin);
+            // A bag's turn is a new placement at the same cell, so the riders' landing places are
+            // recomputed: the difference in rotation is what the plan reads (ADR 0020 §1).
+            _drag = Evaluate(_drag.Piece, _drag.Zone, _drag.Origin, _dragRotation, _drag);
             PublishDrag();
         }
 
@@ -606,12 +616,22 @@ namespace ProjectSurvive.Game.Presentation.Camp
         // internals
         // ------------------------------------------------------------------
 
-        private CampDragState Evaluate(BagDropZone zone, CellOffset cell)
+        /// <summary>
+        /// Asks the run what this gesture would do and turns the answer into the published drag.
+        /// </summary>
+        /// <param name="previous">
+        /// The drag this one replaces, if any. Used for one thing only: when it already describes this
+        /// very placement, the riders' plan is handed back untouched instead of being worked out again.
+        /// That is what makes a pointer move inside one cell free during a <b>bag</b> drag, exactly as
+        /// it already is for an item.
+        /// </param>
+        private CampDragState Evaluate(
+            PieceRef piece, BagDropZone zone, CellOffset cell, Rotation rotation, CampDragState previous)
         {
             bool overAGrid = zone == BagDropZone.Board || zone == BagDropZone.Chest;
             CellOffset origin = overAGrid ? cell : _dragAnchor;
 
-            DropPreview preview = _run.PreviewDrop(_drag.Piece, zone, origin, _dragRotation);
+            DropPreview preview = _run.PreviewDrop(piece, zone, origin, rotation);
             Counters.DragPreviews++;
 
             if (!preview.IsValid)
@@ -620,15 +640,82 @@ namespace ProjectSurvive.Game.Presentation.Camp
             }
 
             return new CampDragState(
-                true, _drag.Piece, zone, origin, _dragRotation, preview.Action,
+                true, piece, zone, origin, rotation, preview.Action,
                 preview.IsValid, preview.Bia, preview.Target,
-                preview.IsValid ? string.Empty : preview.ErrorCode);
+                preview.IsValid ? string.Empty : preview.ErrorCode,
+                PlanCarry(piece, zone, origin, rotation, previous));
+        }
+
+        /// <summary>
+        /// The items a bag drag at this placement would carry, each with the cell and the size it would
+        /// land on — the ghosts drawn at the new positions.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The plan is the run's (<c>RunSession.CollectCarried</c>), which is the same one the accepted
+        /// command applies: nothing here decides which items ride, and no placement rule is repeated in
+        /// the screen (AGENTS rule 10, and the stage's "ห้ามเขียนกฎซ้ำใน View").
+        /// </para>
+        /// <para>
+        /// Two cases carry nothing: a piece that is not a bag, and a bag being dragged off the board
+        /// into the chest — where its items would stay behind, which is precisely why that command is
+        /// refused while any item stands on it (ADR 0020 §2). Both are answered with the empty array
+        /// without asking the run at all, so an item drag still allocates nothing per pointer move.
+        /// </para>
+        /// </remarks>
+        private CampCarryGhost[] PlanCarry(
+            PieceRef piece, BagDropZone zone, CellOffset origin, Rotation rotation, CampDragState previous)
+        {
+            if (zone != BagDropZone.Board || piece.Kind != PieceKind.Bag)
+            {
+                return NoCarry;
+            }
+
+            if (previous.IsActive && previous.Zone == zone && previous.Origin == origin
+                && previous.Rotation == rotation)
+            {
+                return previous.Carry;
+            }
+
+            _carryScratch.Clear();
+            _run.CollectCarried(piece, origin, rotation, _carryScratch);
+
+            if (_carryScratch.Count == 0)
+            {
+                return NoCarry;
+            }
+
+            _carryGhostScratch.Clear();
+
+            for (int i = 0; i < _carryScratch.Count; i++)
+            {
+                BagCarry carry = _carryScratch[i];
+
+                if (!_run.Backpack.TryGetPiece(carry.Piece, out PieceInstance? instance) || instance is null)
+                {
+                    continue;
+                }
+
+                // A rider keeps its own orientation relative to the bag, so the footprint it lands with
+                // is the one for the rotation the plan gave it — read from the same table the board
+                // rules read, never re-derived here.
+                Footprint landed = _run.Backpack.ShapeAt(instance, carry.Rotation);
+
+                _carryGhostScratch.Add(new CampCarryGhost(
+                    carry.Piece,
+                    carry.Origin,
+                    landed is null ? 1 : landed.Width,
+                    landed is null ? 1 : landed.Height));
+            }
+
+            return _carryGhostScratch.Count == 0 ? NoCarry : _carryGhostScratch.ToArray();
         }
 
         private void EndDrag()
         {
             _dragRotation = Rotation.Degrees0;
             _drag = CampDragState.None;
+            _carryScratch.Clear();
             PublishDrag();
         }
 

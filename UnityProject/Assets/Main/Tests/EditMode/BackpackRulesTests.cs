@@ -225,27 +225,86 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 "a refused rotation must leave the piece as it was");
         }
 
+        /// <summary>
+        /// Stage 09f / ADR 0020: a bag that moves <b>carries</b> the items standing on it — and a bag
+        /// that leaves the board still may not, because an item can never come along into the chest.
+        /// </summary>
+        /// <remarks>
+        /// This test used to assert the opposite for both commands ("moving or storing the only bag
+        /// under the item is refused with <c>inventory.item_stranded</c>"). The rule changed, so the
+        /// assertions changed with it; what did not change is that a refused command leaves the state
+        /// exactly as it was (AGENTS rule 7).
+        /// </remarks>
         [Test]
-        public void A_bag_may_not_be_moved_or_stored_when_that_would_strand_an_item()
+        public void A_bag_move_carries_the_items_on_it_and_a_store_that_would_strand_one_is_refused()
         {
             // Two 3x3 bags side by side, and an item whose whole footprint sits inside the
             // right-hand bag only — so the right bag is the only thing covering it.
             PieceRef left = PlaceBag("bag.raw_cotton_bag", 0, 0);
             PieceRef right = PlaceBag("bag.raw_cotton_bag", 3, 0);
-            PlaceItem("item.mor_knife", 3, 0);
+            PieceRef item = PlaceItem("item.mor_knife", 3, 0);
 
             int revision = _backpack.Revision;
 
             Result moveRight = _editor.Move(right, new CellOffset(4, 0), Rotation.Degrees0);
-            Result storeRight = _editor.TransferToChest(right);
-            Result storeLeft = _editor.TransferToChest(left);
 
-            Assert.That(moveRight.Error.Code, Is.EqualTo(InventoryError.ItemStranded),
-                "moving the only bag under the item would leave it off every ActiveSlot");
+            Assert.That(moveRight.IsSuccess, Is.True, "a bag move now carries the item with it: " + moveRight.Error);
+            Assert.That(OriginOf(item), Is.EqualTo(new CellOffset(4, 0)),
+                "the item did not ride with the bag that was carrying it");
+            Assert.That(_backpack.Revision, Is.EqualTo(revision + 1),
+                "one gesture is one change, however many pieces moved with it");
+
+            // Off the board is a different command: the item would be left with nothing under it.
+            int afterMove = _backpack.Revision;
+            Result storeRight = _editor.TransferToChest(right);
+
             Assert.That(storeRight.Error.Code, Is.EqualTo(InventoryError.ItemStranded),
-                "storing the only bag under the item is the same rule");
+                "storing a bag an item is standing on is still refused");
+            Assert.That(_backpack.Revision, Is.EqualTo(afterMove), "a refused command must not change state");
+            Assert.That(OriginOf(item), Is.EqualTo(new CellOffset(4, 0)), "the item did not move either");
+
+            Result storeLeft = _editor.TransferToChest(left);
             Assert.That(storeLeft.IsSuccess, Is.True, "nothing depends on the left-hand bag");
-            Assert.That(_backpack.Revision, Is.GreaterThan(revision), "only the accepted command may change state");
+        }
+
+        /// <summary>
+        /// Stage 09f / ADR 0020: an item lying across two bags does not ride with either of them. If
+        /// the move would leave part of it with no bag under it, the whole command is refused with its
+        /// own reason code so the screen can tell the player what to do about it.
+        /// </summary>
+        [Test]
+        public void A_bag_move_is_refused_whole_when_it_would_leave_a_two_bag_item_uncovered()
+        {
+            // Two 3x3 bags side by side and a 2x2 tome across the seam: columns 2-3, rows 0-1.
+            // Half of it belongs to a bag that is not moving.
+            PieceRef left = PlaceBag("bag.raw_cotton_bag", 0, 0);
+            PieceRef right = PlaceBag("bag.raw_cotton_bag", 3, 0);
+            PieceRef tome = PlaceItem("item.spell_tome", 2, 0);
+
+            int revision = _backpack.Revision;
+
+            Result slid = _editor.Move(left, new CellOffset(0, 3), Rotation.Degrees0);
+
+            Assert.That(slid.IsFailure, Is.True, "the item spans both bags, so half of it cannot come along");
+            Assert.That(slid.Error.Code, Is.EqualTo(InventoryError.ItemSpansBags),
+                "the refusal carries its own reason, not the one for a piece taken off the board");
+            Assert.That(_backpack.Revision, Is.EqualTo(revision), "a refused move must not change the revision");
+            Assert.That(OriginOf(left), Is.EqualTo(new CellOffset(0, 0)), "the bag stayed where it was");
+            Assert.That(OriginOf(tome), Is.EqualTo(new CellOffset(2, 0)), "and so did the item");
+
+            // Nothing in the rules says the tome may not slide within its own two bags: moving it onto
+            // the right-hand bag alone puts it wholly on one bag, and then the same bag move is legal.
+            Assert.That(_editor.Move(tome, new CellOffset(3, 0), Rotation.Degrees0).IsSuccess, Is.True);
+            Assert.That(_editor.Move(left, new CellOffset(0, 3), Rotation.Degrees0).IsSuccess, Is.True,
+                "with the tome off it, the bag may go where it likes");
+            Assert.That(OriginOf(right), Is.EqualTo(new CellOffset(3, 0)), "the bag that was staying did not move");
+        }
+
+        /// <summary>The board cell a piece stands on, for the assertions above.</summary>
+        private CellOffset OriginOf(PieceRef piece)
+        {
+            Assert.That(_backpack.TryGetPiece(piece, out PieceInstance instance), Is.True, "no such piece: " + piece);
+            return instance.Origin;
         }
 
         [Test]
