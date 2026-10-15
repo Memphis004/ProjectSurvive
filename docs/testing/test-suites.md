@@ -75,6 +75,12 @@ The cold column is what a machine pays once per boot (first JIT, first assembly 
 of the tables); the warm column is the loop a developer actually feels. Nothing in the cold column is
 a check doing more work — the same 17 fixtures are rejected in both.
 
+Warmth is not something the harness controls: a fourth run in the same session
+(`artifacts/proc10/fast-default-run.log`, the default suite invoked with no arguments) came back at
+**241.2 s** — the cold profile again (`dotnet build` 8.4 s, `sim: determinism` 38.1 s,
+`data: generated tables validate` 65.3 s). An Editor restart and a busy machine were enough to lose the
+caches, so budget Fast at **1–4 minutes** rather than at the warm number.
+
 **Full only** (2026-10-15, Editor closed, `artifacts/proc10/full-editor-closed.log` and the
 `test-summary.md` it wrote):
 

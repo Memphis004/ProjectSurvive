@@ -46,6 +46,10 @@ finished **11 PASS / 0 FAIL / 2 NOT RUN** in 204.5 s.
 - **`data: broken fixtures rejected` is the slow step (47–52 s, the largest part of Fast)** because it
   spawns one validation process per fixture. The suggested fix (one process walking all 17) is not
   implemented.
+- **Fast's warm/cold spread is wide and not controlled by the harness:** 72 s, 77 s and 229 s in three
+  consecutive runs of the same code, and a fourth (the default suite, no arguments,
+  `artifacts/proc10/fast-default-run.log`) came back at **241 s** with the cold profile after an Editor
+  restart. Budget Fast at 1–4 minutes; the warm number is not a promise.
 - **Two things are still measured by hand:** the cold-vs-warm numbers above come from the runs named in
   §2, not from a benchmark harness, and there is no CI wiring for either suite yet.
 
