@@ -23,7 +23,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **06** | **Shop, economy, run, scene flow** | **DONE** — see [`docs/stages/06-report.md`](docs/stages/06-report.md) |
 | **07** | **Battle core (headless) & bot sim** | **DONE** — see [`docs/stages/07-report.md`](docs/stages/07-report.md) |
 | **08** | **Battle presentation 2.5D** | **DONE** — see [`docs/stages/08-report.md`](docs/stages/08-report.md) |
-| 09 | Camp scene & bag UI | not started |
+| **09** | **Camp scene & จัดย่าม UI (walkable sala, world shop)** | **DONE** — see [`docs/stages/09-report.md`](docs/stages/09-report.md), [`09b`](docs/stages/09b-report.md) (the drag diagnosis), [`09c`](docs/stages/09c-report.md) (the walkable camp) |
 | 10 | Full loop (vertical slice) | not started |
 | 11 | Thai ghost AI, Pob boss, balance | not started |
 | 12 | Save, resume, settings | not started |
@@ -31,7 +31,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
-**Current state:** Stages 00–08. `lib/` is a real UPM package
+**Current state:** Stages 00–09. `lib/` is a real UPM package
 (`com.projectsurvive.core`) with six hand-written layer `.asmdef`s plus two
 generated ones, the vendored EcsLite, the deterministic `Shared`/`Infrastructure`
 primitives (`IRandomSource` / `Xoshiro128`, `RandomStreams`, `IClock` /
@@ -47,9 +47,9 @@ build metadata. Stage 02b added the **battle contract v1**
 `Entities` and `PreviousEntities` so Stage 08 interpolates between two ticks through
 the one port it is allowed to read, and exactly one `IBattleFrame` implementation is
 allowed (the fake and Stage 07 share it, enforced by a reflection test).
-**413 xUnit tests pass** (57 Stage 01, 73
+**425 xUnit tests pass** (57 Stage 01, 73
 Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05,
-44 Stage 06, 28 Stage 07). The bag rules, the combo rules, the economy, the run/scene flow
+44 Stage 06, 28 Stage 07, 11 Stage 09). The bag rules, the combo rules, the economy, the run/scene flow
 and the **battle simulation** are real code now: `Domain/Combat/Battle` and `Application`
 hold the battle **contract** (v1) — which the fake implements as a contract exercise — and
 `lib/Runtime/Simulation` holds the real EcsLite battle that implements it, reached only
@@ -158,6 +158,20 @@ cases pass. See [`llmwiki/systems/battle-presentation.md`](llmwiki/systems/battl
 and the [report](docs/stages/08-report.md) — which also records a build trap worth knowing: a
 size-profile build persists player settings, and the Release player it poisoned halted at boot with
 `Uncaught undefined` ([gotcha](llmwiki/gotchas/webgl-size-profile-settings-residue.md)).
+
+Stage 09 built the **camp** (`Assets/Main/Scenes/Camp.unity`, fifth scene) and the **จัดย่าม**
+screen: `CampSceneDirector` publishes two documents to the browser (`__projectSurviveCamp`, the run and
+the screen; `__projectSurviveCampGeometry`, every cell, chest slot, shelf and the figure as on-screen
+rectangles) because a WebGL player cannot run Unity's test framework, and `CampPresenter` is the only
+thing that calls Application — a drag's verdict is `RunSession.PreviewDrop`, a **dry run of the same
+`BackpackEditor` predicates the accepted command asks**
+([ADR 0019](docs/adr/0019-camp-screen-read-model-and-gesture-preview.md)). Since 09c the camp is a
+*place*: a figure that walks with WASD under a following oblique camera, one shelf per shop slot
+standing in the sala with its piece, price and lock pin, the เซียมซี drum, `E` at the station the
+figure stands at, and every control still clickable without walking (the phone and browser path).
+425 xUnit, 57 Unity EditMode, 24 PlayMode and 8 Playwright cases pass; the browser flow runs rent →
+place → rotate → merge → give back → restore against the real UI. See
+[`llmwiki/systems/camp.md`](llmwiki/systems/camp.md) and the [report](docs/stages/09-report.md).
 
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →

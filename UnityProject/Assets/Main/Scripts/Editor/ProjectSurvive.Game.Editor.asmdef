@@ -5,6 +5,7 @@
         "ProjectSurvive.Game.Infrastructure",
         "ProjectSurvive.Game.Presentation",
         "ProjectSurvive.Game.Battle",
+        "ProjectSurvive.Game.Camp",
         "ProjectSurvive.Core.Shared",
         "ProjectSurvive.Core.Domain",
         "ProjectSurvive.Core.Application",
@@ -22,7 +23,8 @@
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Core.Editor",
         "Unity.RenderPipelines.Universal.Runtime",
-        "Unity.RenderPipelines.Universal.Editor"
+        "Unity.RenderPipelines.Universal.Editor",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [
         "Editor"

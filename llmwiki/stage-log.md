@@ -24,7 +24,38 @@ order" view.
 
 | 08 | 2026-10-15 | **Battle presentation 2.5D, played in a browser**: `Assets/Main/Scenes/Battle.unity` (authored by `ProjectSetup`, build index 3) + `Presentation/Battle/**` (25 files) — `BattleSimulationRunner` (fixed-step accumulator at 30 Hz, capped `MaxStepsPerFrame`, dropped-tick counter, interpolation alpha, `OnApplicationPause` reset) over `BattleFrameSnapshot` (the Prev/Cur copy taken inside the frame that stepped) and `BattleViewScene` (`BattlePlaceholderArt` generated sprites, `EntityViewPool` 1793 views warmed with an `CreatedAfterWarmup` counter, `BattleRenderBridge`, `BattleWorldMap` `(x,y)→(x,0,y)` + authored sorting order, `BattleCameraRig` 50°, `FloatingDamagePool` 48 labels on the visual RNG, HUD state/presenter/view/timeline, `BattleEventPump` with one cursor per channel) ; `Battle/BattleSceneScope` (composition root, `_useDevBattle` fake↔EcsLite switch), `BattleSceneDirector`, `BattleRunSource` (the run's real `CombatLoadoutSnapshot`); `BattleInputAdapter` + `BattleSpeed` 1×/2×; `IBattleSession : IDisposable`; 13 `hud.*` localization rows; [ADR 0018](../docs/adr/0018-battle-camera-projection.md) (**orthographic**, near÷far sprite scale 1.000 vs perspective 0.832, from `artifacts/stage08/camera-projection.json`); `Presentation` still may not name `Core.Simulation` (EditMode test). Evidence: a **Release WebGL player in Chrome plays floor 1 to `Won / SurvivedAllWaves`** — 1800 ticks, 0 dropped ticks, `viewsGrownDuringPlay: 0` of 1793, 0 dropped events, kills 20; 413 xUnit + 48 EditMode (15 new) + 4 PlayMode + 4 Playwright (2 new) green | [`08-report`](../docs/stages/08-report.md) |
 
+| 09 | 2026-10-15 | **ศาลาพัก (camp) + จัดย่าม screen, made usable (09b) and walkable (09c)**: `Assets/Main/Scenes/Camp.unity` (5th scene, `?scene=Camp`) + `Camp/**` + `Presentation/Camp/**` (13 files, `CampBagScreenView` 1415 lines, `CampReport` 713) — a fullscreen translucent overlay over the sala (board / chest `x/10` / incense pot / 4-step instruction scroll / restore+lock-on-restore checkbox / navigation+stats) with drag feedback, synergy lines, click-then-click fallback and Escape-cancel; since 09c the sala is walked with WASD under a follow camera, the shop is **four shelves in the world** (one affordance per slot, `E` or a click, the same `RunSession` command) with the เซียมซี drum and per-shelf lock pins, and the camp starts with the panel closed; `RunSession.PreviewDrop` is a **dry run of the same `BackpackEditor` predicates** the accepted command asks, `SetBagLocked` + the camp read model (`EvaluateLayout`/`BagWeight`/`BagPenalty`/…) added, `Domain/Run/BagDrop` extracted (+81 localization rows, 145 total); two documents published for the browser (`__projectSurviveCamp`, `__projectSurviveCampGeometry`) with every cell/slot/station as a **centre** (a published corner is outside its own rect); [ADR 0019](../docs/adr/0019-camp-screen-read-model-and-gesture-preview.md) | [`09-report`](../docs/stages/09-report.md) + [`09b`](../docs/stages/09b-report.md) + [`09c`](../docs/stages/09c-report.md) |
+
 ## Notes carried forward
+
+- **A `data/` edit is not in the build until `gen.ps1` runs** (2026-10-15). Stage 09 added 81
+  localization rows to `data/localization/localization.csv` and never regenerated: the tracked
+  `ConfigBuildMetadata.g.cs` hash no longer matched the tables, `verify-generated` failed on
+  `tblocalization.bytes` in both `lib/Tests~/data` and `Resources/Config`, and the **first browser
+  evidence of the stage described a player with 64 localization rows instead of 145** — the camp
+  screen's own labels were not in it. The pinned count in `ConfigLoadTests` then caught the rest: it
+  said 144 while `data/` held 145 (the pin was corrected to the real number, and that is what a pin is
+  for). The fix is a regeneration and a rebuild, so the cost is a stage's worth of browser evidence,
+  not a diff. Run `tools/gen.ps1` and `tools/verify-generated.ps1` before any build or browser run.
+- **Unity's default desktop WebGL template pins the canvas at 960×600** (2026-10-15). The desktop
+  branch of the template writes `canvas.style.width/height = 960px/600px`, so the player renders
+  960×600 in a letterbox on every desktop browser, a 1920×1080 *viewport* changes nothing (measured:
+  the report stayed 960×600 and republished nothing) and every browser measurement in Stages 03–09 was
+  taken in that configuration. What a player can change is the canvas **element** — the template's own
+  fullscreen button and a HiDPI backing store — and the camp follows that within one publish
+  (960×600 → 1280×720 → 1920×1080 → back). A window-filling template is a small change and a
+  project-wide re-measurement ([09-report §6](../docs/stages/09-report.md)).
+- **A gesture is not observable while it is live** (2026-10-15). `CampSceneDirector.Publish` returns
+  before writing the state document when a drag is active (the document is hand-rolled JSON, and a
+  per-pointer-move rebuild is a hot path by the GDD's own list). A browser test waited 15 s for
+  `dragging: true` and timed out; the camp's tests now assert the *release* counters. The same freeze
+  is why a gesture's interior can only be checked in PlayMode, where the presenter is reachable.
+- **Two measurement flakes, reduced but not explained** (2026-10-15). A click aimed at a small panel
+  control ~300 ms after a canvas resize was swallowed in 2 of 4 runs (0 of 5 with a one-second wait,
+  which the resolution test now takes). And one full PlayMode run failed with *clicking จัดย่าม did not
+  open the panel* (0.26 s in) while three runs after passed; the fixture now forces the canvas layout
+  (`Canvas.ForceUpdateCanvases()`) before reading the button's rectangle. Both are recorded in
+  09-report §6 rather than tidied away.
 
 - **A test-assembly compile error makes a test run report the *previous* assembly's results as
   passing** (2026-10-15). `run_tests` returned `14 passed, success: true` while the new test had a

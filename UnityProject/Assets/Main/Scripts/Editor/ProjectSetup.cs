@@ -2,9 +2,11 @@ using System;
 using System.Globalization;
 using System.IO;
 using ProjectSurvive.Game.Battle;
+using ProjectSurvive.Game.Camp;
 using ProjectSurvive.Game.Presentation;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
+using ProjectSurvive.Game.Presentation.Camp;
 using ProjectSurvive.Game.Presentation.Thai;
 using TMPro;
 using UnityEditor;
@@ -12,6 +14,7 @@ using UnityEditor.Build;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
@@ -26,6 +29,7 @@ using Object = UnityEngine.Object;
 // runtime UI is uGUI, so those names mean the uGUI types everywhere in this file.
 using Image = UnityEngine.UI.Image;
 using Button = UnityEngine.UI.Button;
+using Toggle = UnityEngine.UI.Toggle;
 
 namespace ProjectSurvive.Game.Editor
 {
@@ -68,6 +72,15 @@ namespace ProjectSurvive.Game.Editor
 
         /// <summary>The Stage 08 battle scene.</summary>
         public const string BattleScenePath = ScenesFolder + "/Battle.unity";
+
+        /// <summary>The Stage 09 camp scene (ศาลาพัก).</summary>
+        public const string CampScenePath = ScenesFolder + "/Camp.unity";
+
+        /// <summary>
+        /// Scenes a page URL may request with <c>?scene=&lt;name&gt;</c>. One list, used both when
+        /// the Boot scene is created and when the camp scene is added, so the two cannot drift.
+        /// </summary>
+        private static readonly string[] UrlSceneAllowList = { "ThaiTextSpike", "Battle", "Camp" };
 
         private const string SourceFontFile = FontsFolder + "/Sarabun-Regular.ttf";
 
@@ -136,6 +149,29 @@ namespace ProjectSurvive.Game.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("ProjectSurvive: Battle scene created and added to build settings.");
+        }
+
+        /// <summary>
+        /// Creates the Stage 09 camp scene and refreshes the build list.
+        /// </summary>
+        /// <remarks>
+        /// Its own menu item for the same reason Stage 08 has one: re-running the Stage 03 setup on
+        /// an older checkout must not silently rewrite the camp scene, and the scene a stage owns is
+        /// the scene that stage's menu item builds. Run the Stage 03 items first on a fresh clone:
+        /// this one reuses the URP assets, the runtime theme and the baked font they create.
+        /// </remarks>
+        [MenuItem("ProjectSurvive/Stage 09/5. Create Camp scene", priority = 104)]
+        public static void CreateCampSceneAndConfigure()
+        {
+            EnsureFolder(ScenesFolder);
+
+            CreateCampScene();
+            ConfigureBuildSettings();
+            AllowCampSceneFromUrl();
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("ProjectSurvive: Camp scene created and added to build settings.");
         }
 
         // ------------------------------------------------------------------
@@ -604,9 +640,9 @@ namespace ProjectSurvive.Game.Editor
             SetString(boot, "_titleSceneName", "Title");
 
             // `?scene=Battle` is how a browser test reaches the battle without playing through
-            // the camp. It is an allow-list, not a router: only the scenes named here can be
-            // requested from a URL.
-            SetStringArray(boot, "_urlSceneOverrides", new[] { "ThaiTextSpike", "Battle" });
+            // the camp, and `?scene=Camp` is how it reaches the camp. It is an allow-list, not a
+            // router: only the scenes named here can be requested from a URL.
+            SetStringArray(boot, "_urlSceneOverrides", UrlSceneAllowList);
 
             EditorSceneManager.SaveScene(scene, BootScenePath);
         }
@@ -684,14 +720,49 @@ namespace ProjectSurvive.Game.Editor
                 new EditorBuildSettingsScene(SpikeScenePath, true),
             };
 
-            // The battle scene joins the list only once it exists, so a Stage 03-only checkout
-            // keeps a build list of scenes that are really there.
+            // The battle and camp scenes join the list only once they exist, so a Stage 03-only
+            // checkout keeps a build list of scenes that are really there.
             if (File.Exists(BattleScenePath))
             {
                 scenes.Add(new EditorBuildSettingsScene(BattleScenePath, true));
             }
 
+            if (File.Exists(CampScenePath))
+            {
+                scenes.Add(new EditorBuildSettingsScene(CampScenePath, true));
+            }
+
             EditorBuildSettings.scenes = scenes.ToArray();
+        }
+
+        /// <summary>
+        /// Adds <c>Camp</c> to the Boot scene's URL allow-list if it is not there yet.
+        /// </summary>
+        /// <remarks>
+        /// Boot's allow-list is the only way a browser can choose a scene, and Stage 08 had to
+        /// re-run the Boot menu item to get <c>Battle</c> into it. Doing it here means creating the
+        /// camp scene is enough to make it reachable — the two halves of the feature (a scene that
+        /// publishes its own name, and an allow-list that permits it) stay in step without a second
+        /// manual step nobody remembers.
+        /// </remarks>
+        private static void AllowCampSceneFromUrl()
+        {
+            if (!File.Exists(BootScenePath))
+            {
+                return;
+            }
+
+            Scene scene = EditorSceneManager.OpenScene(BootScenePath, OpenSceneMode.Single);
+            SceneBoot boot = Object.FindFirstObjectByType<SceneBoot>();
+            if (boot is null)
+            {
+                Debug.LogWarning("ProjectSurvive: the Boot scene has no SceneBoot; its URL allow-list was not updated.");
+                return;
+            }
+
+            SetStringArray(boot, "_urlSceneOverrides", UrlSceneAllowList);
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene, BootScenePath);
         }
 
         // ------------------------------------------------------------------
@@ -886,6 +957,402 @@ namespace ProjectSurvive.Game.Editor
             return hud;
         }
 
+        // ------------------------------------------------------------------
+        // Stage 09: the Camp scene
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Builds ศาลาพัก: the sala the player walks (ground, ยายจันทร์'s stall, the four shelf
+        /// stations and the เซียมซี cylinder), the figure, the จัดย่าม bag screen, the bottom bar and
+        /// the depart button.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Everything here is created through the Editor API (AGENTS rule 11) — no hand-written
+        /// <c>.unity</c> YAML — so the scene is reproducible from the menu item and reviewable as
+        /// code. Serialized references are wired through <c>SerializedProperty</c> rather than by
+        /// guessing at file ids.
+        /// </para>
+        /// <para>
+        /// <b>The shop is in the world, not in a panel.</b> Stage 09c moved the stall out of the UI:
+        /// each shop slot is a shelf standing in the sala with its own price board and lock control,
+        /// so there is no second list of offers in the report or on the screen. Everything the
+        /// player needs without walking is still reachable without walking — a shelf can be rented
+        /// by clicking it (what a phone and a browser test use) and the จัดย่าม button is on the
+        /// canvas, not in the sala. The bag screen itself is the one thing that opens and closes,
+        /// and it starts closed.
+        /// </para>
+        /// </remarks>
+        private static void CreateCampScene()
+        {
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            (TMP_FontAsset font, _) = EnsureFontAssets();
+
+            var scopeObject = new GameObject("Camp");
+            CampSceneScope scope = scopeObject.AddComponent<CampSceneScope>();
+            CampSceneDirector director = scopeObject.AddComponent<CampSceneDirector>();
+
+            Camera camera = CreateCamera();
+            camera.transform.position = new Vector3(0f, 7.2f, -12.7f);
+            camera.transform.rotation = Quaternion.Euler(32f, 0f, 0f);
+            camera.orthographic = true;
+            camera.orthographicSize = 6.6f;
+
+            CreateEventSystem();
+
+            // The sala is a view, not editor-authored sprites: it generates its own art at runtime
+            // (AGENTS rule 13), so the scene carries no placeholder binaries. It is built once in
+            // Awake and the camera follows the player underneath it.
+            var worldObject = new GameObject("CampWorld");
+            CampWorldView world = worldObject.AddComponent<CampWorldView>();
+            SetObjectReference(world, "_scope", scope);
+            SetObjectReference(world, "_camera", camera);
+            SetObjectReference(world, "_font", font);
+
+            // The walker: a figure the player drives with WASD, standing in the sala. It owns the
+            // walking speed and the reach (both from data/tables/constant.csv, AGENTS rule 5).
+            var playerObject = new GameObject("CampPlayer");
+            CampPlayerView walker = playerObject.AddComponent<CampPlayerView>();
+            SetObjectReference(walker, "_scope", scope);
+            SetObjectReference(walker, "_world", world);
+
+            Canvas canvas = CreateCanvas(out GameObject canvasObject);
+            var canvasRect = (RectTransform)canvas.transform;
+
+            CampStatusBarView status = BuildCampStatusBar(canvasRect, font, scope);
+            CampTooltipView tooltip = BuildCampTooltip(canvasRect, font, scope);
+            CampBagScreenView bag = BuildCampBagScreen(canvasRect, canvasObject, font, scope);
+
+            SetObjectReference(walker, "_bag", bag);
+            SetObjectReference(director, "_scope", scope);
+            SetObjectReference(director, "_world", world);
+            SetObjectReference(director, "_player", walker);
+            SetObjectReference(director, "_bag", bag);
+            SetObjectReference(director, "_status", status);
+            SetObjectReference(director, "_tooltip", tooltip);
+
+            EditorSceneManager.SaveScene(scene, CampScenePath);
+        }
+
+        /// <summary>
+        /// The จัดย่าม screen overlay: the board (left), the chest (right), the altar pot
+        /// (bottom-centre), instructions (top-right), restore/lock with its checkbox (top-left),
+        /// and navigation/stats (bottom-left).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Every region is laid out from the <b>canvas's top-left corner</b> (a disabled rect's
+        /// children anchor to its top-left, so a positive y used to place a control above the block
+        /// it belonged to). The numbers below are measured rather than guessed: at the 1920×1080
+        /// reference resolution the four rows are 20..160, 180..760, 866..1056 from the top, the
+        /// three columns are 40..780, 780..1104 and 1104..1880, and no two regions intersect — which
+        /// is what <c>CampReport</c> publishes rectangles for and the tests check.
+        /// </para>
+        /// <para>
+        /// Every label is ≥ 14 px at 1080p (GDD Stage 09b work item B). Nothing here writes player
+        /// text: the strings arrive over <c>CampUiState</c> from the localization table
+        /// (AGENTS rule 5), and this method only places the widgets that will receive them.
+        /// </para>
+        /// </remarks>
+        private static CampBagScreenView BuildCampBagScreen(
+            RectTransform canvasRect, GameObject canvasObject, TMP_FontAsset font, CampSceneScope scope)
+        {
+            // Fullscreen overlay panel. Translucent rather than opaque: the layout is an overlay on
+            // ศาลาพัก, so the camp has to stay visible behind it ("เห็นฉากอยู่ด้านหลัง").
+            RectTransform panel = CreateUiRect(
+                canvasRect, "BagPanel", Vector2.zero, Vector2.one,
+                Vector2.zero, Vector2.zero);
+            panel.anchorMin = Vector2.zero;
+            panel.anchorMax = Vector2.one;
+            panel.offsetMin = Vector2.zero;
+            panel.offsetMax = Vector2.zero;
+            panel.pivot = new Vector2(0.5f, 0.5f);
+
+            var panelImage = panel.gameObject.AddComponent<Image>();
+            panelImage.color = new Color(0.06f, 0.08f, 0.10f, 0.62f);
+            panelImage.raycastTarget = true;
+
+            // View is attached directly to the panel so it receives all graphic raycasts.
+            CampBagScreenView view = panel.gameObject.AddComponent<CampBagScreenView>();
+
+            // --- Top-left row (y 20..160): title, restore + its checkbox, lock, rotate, undo ------
+            TMP_Text title = CreateUiText(panel, "BagTitle", new Vector2(40f, -20f), new Vector2(200f, 44f), 26f, font);
+            Button reset = CreateUiButton(panel, "ResetButton", new Vector2(250f, -20f), new Vector2(150f, 44f), font, out TMP_Text resetLabel);
+            Button lockButton = CreateUiButton(panel, "LockButton", new Vector2(415f, -20f), new Vector2(240f, 44f), font, out TMP_Text lockLabel);
+            Button rotate = CreateUiButton(panel, "RotateButton", new Vector2(670f, -20f), new Vector2(90f, 44f), font, out TMP_Text rotateLabel);
+            Button undo = CreateUiButton(panel, "UndoButton", new Vector2(775f, -20f), new Vector2(100f, 44f), font, out TMP_Text undoLabel);
+
+            // ล็อกย่ามตอนคืนสภาพ sits directly under the restore button it modifies. A real Toggle,
+            // not a caption that looks like a checkbox: the restore button reads this control's
+            // value, so an unchecked box and a checked box are two different commands.
+            Toggle lockRestore = CreateUiToggle(
+                panel, "LockRestoreToggle", new Vector2(250f, -72f), new Vector2(30f, 30f), font,
+                new Vector2(292f, -72f), new Vector2(400f, 30f), out TMP_Text lockRestoreLabel);
+
+            // --- Top-right (y 20..180): the instruction scroll, four numbered steps --------------
+            RectTransform instr = CreateUiRect(
+                panel, "Instructions", new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-40f, -20f), new Vector2(776f, 160f));
+            var instrImage = instr.gameObject.AddComponent<Image>();
+            instrImage.color = new Color(0.12f, 0.14f, 0.18f, 0.85f);
+            instrImage.raycastTarget = false;
+
+            TMP_Text instrTitle = CreateUiText(instr, "InstrTitle", new Vector2(12f, -8f), new Vector2(752f, 24f), 17f, font);
+            instrTitle.color = new Color(1f, 0.82f, 0.35f, 1f);
+
+            TMP_Text step1 = CreateUiText(instr, "Step1", new Vector2(12f, -38f), new Vector2(752f, 24f), 15f, font);
+            TMP_Text step2 = CreateUiText(instr, "Step2", new Vector2(12f, -66f), new Vector2(752f, 24f), 15f, font);
+            TMP_Text step3 = CreateUiText(instr, "Step3", new Vector2(12f, -94f), new Vector2(752f, 24f), 15f, font);
+            TMP_Text step4 = CreateUiText(instr, "Step4", new Vector2(12f, -122f), new Vector2(752f, 24f), 15f, font);
+
+            // --- Left column (y 180..760): the board. Nine columns of 78 + a 4 gap = 734 wide -----
+            RectTransform board = CreateUiRect(
+                panel, "Board", new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(40f, -180f), new Vector2(740f, 580f));
+
+            // --- Right column (y 200..600): the chest panel and its ten slots --------------------
+            RectTransform chestPanel = CreateUiRect(
+                panel, "ChestPanel", new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-40f, -200f), new Vector2(776f, 400f));
+            var chestPanelImage = chestPanel.gameObject.AddComponent<Image>();
+            chestPanelImage.color = new Color(0.10f, 0.12f, 0.15f, 0.90f);
+            chestPanelImage.raycastTarget = false;
+
+            TMP_Text chestTitle = CreateUiText(chestPanel, "ChestTitle", new Vector2(16f, -10f), new Vector2(744f, 32f), 20f, font);
+
+            // 5 columns of 136 + a 16 gap = 744 wide, two rows = 288 tall.
+            RectTransform chest = CreateUiRect(
+                chestPanel, "Chest", new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(16f, -52f), new Vector2(744f, 300f));
+
+            // --- Bottom-centre (y 24..214): the incense pot, in the free column between the
+            //     board (ends at 780) and the chest panel (starts at 1104) ----------------------
+            RectTransform altar = CreateUiRect(
+                panel, "Altar", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 24f), new Vector2(240f, 190f));
+            var altarImage = altar.gameObject.AddComponent<Image>();
+            altarImage.color = new Color(0.38f, 0.28f, 0.16f, 0.90f);
+            altarImage.raycastTarget = false;
+
+            TMP_Text altarCaption = CreateUiText(
+                altar, "AltarCaption", new Vector2(0f, -12f), new Vector2(240f, 32f), 18f, font, TextAlignmentOptions.Center);
+            TMP_Text altarOffer = CreateUiText(
+                altar, "AltarOffer", new Vector2(20f, -50f), new Vector2(200f, 80f), 15f, font, TextAlignmentOptions.Center);
+
+            // --- Bottom-left (y 866..1056): กลับ, ไปชั้นถัดไป, then HP/MP, น้ำหนัก, เบี้ย ---------
+            RectTransform statsNav = CreateUiRect(
+                panel, "StatsNav", new Vector2(0f, 0f), new Vector2(0f, 0f),
+                new Vector2(40f, 24f), new Vector2(740f, 190f));
+
+            Button closeButton = CreateUiButton(statsNav, "CloseButton", new Vector2(0f, 0f), new Vector2(130f, 50f), font, out TMP_Text closeLabel);
+            Button nextFloorButton = CreateUiButton(statsNav, "NextFloorButton", new Vector2(142f, 0f), new Vector2(220f, 50f), font, out TMP_Text nextFloorLabel);
+
+            // The reason the ไปชั้นถัดไป button is disabled ("ปิดพร้อมเหตุผลถ้าไม่มีอาวุธอาคม").
+            TMP_Text departReason = CreateUiText(statsNav, "DepartReason", new Vector2(0f, -58f), new Vector2(740f, 24f), 14f, font);
+            departReason.color = new Color(0.95f, 0.45f, 0.45f, 1f);
+
+            TMP_Text hpLabel = CreateUiText(statsNav, "HpLabel", new Vector2(0f, -86f), new Vector2(740f, 26f), 18f, font);
+            TMP_Text weightLabel = CreateUiText(statsNav, "WeightLabel", new Vector2(0f, -114f), new Vector2(740f, 26f), 16f, font);
+            TMP_Text biaLabel = CreateUiText(statsNav, "BiaLabel", new Vector2(0f, -142f), new Vector2(740f, 26f), 16f, font);
+
+            // The จัดย่าม button lives on the canvas, not in the panel, and is hidden while the
+            // panel is open (the panel carries its own กลับ). Bottom-centre per the GDD, clear of
+            // the bottom bar underneath it (x 24..984).
+            Button open = CreateUiButton(
+                canvasRect, "OpenBagButton", new Vector2(0f, 0f), new Vector2(220f, 64f), font, out TMP_Text openLabel);
+            RectTransform openRect = open.GetComponent<RectTransform>();
+            openRect.anchorMin = new Vector2(0.5f, 0f);
+            openRect.anchorMax = new Vector2(0.5f, 0f);
+            openRect.pivot = new Vector2(0.5f, 0f);
+            openRect.anchoredPosition = new Vector2(0f, 222f);
+
+            SetObjectReference(view, "_scope", scope);
+            SetObjectReference(view, "_panelRoot", panel.gameObject);
+            SetObjectReference(view, "_boardRect", board);
+            SetObjectReference(view, "_chestRect", chest);
+            SetObjectReference(view, "_chestPanelRect", chestPanel);
+            SetObjectReference(view, "_chestTitleLabel", chestTitle);
+            SetObjectReference(view, "_altarRect", altar);
+            SetObjectReference(view, "_altarCaptionLabel", altarCaption);
+            SetObjectReference(view, "_altarOfferLabel", altarOffer);
+            SetObjectReference(view, "_statsRect", statsNav);
+            SetObjectReference(view, "_font", font);
+            SetObjectReference(view, "_openButton", open);
+            SetObjectReference(view, "_openButtonLabel", openLabel);
+            SetObjectReference(view, "_closeButton", closeButton);
+            SetObjectReference(view, "_closeLabel", closeLabel);
+            SetObjectReference(view, "_titleLabel", title);
+            SetObjectReference(view, "_rotateButton", rotate);
+            SetObjectReference(view, "_rotateLabel", rotateLabel);
+            SetObjectReference(view, "_undoButton", undo);
+            SetObjectReference(view, "_undoLabel", undoLabel);
+            SetObjectReference(view, "_resetButton", reset);
+            SetObjectReference(view, "_resetLabel", resetLabel);
+            SetObjectReference(view, "_lockButton", lockButton);
+            SetObjectReference(view, "_lockLabel", lockLabel);
+            SetObjectReference(view, "_lockRestoreToggle", lockRestore);
+            SetObjectReference(view, "_lockRestoreLabel", lockRestoreLabel);
+            SetObjectReference(view, "_nextFloorButton", nextFloorButton);
+            SetObjectReference(view, "_nextFloorLabel", nextFloorLabel);
+            SetObjectReference(view, "_departReasonLabel", departReason);
+            SetObjectReference(view, "_hpLabel", hpLabel);
+            SetObjectReference(view, "_weightLabel", weightLabel);
+            SetObjectReference(view, "_biaLabel", biaLabel);
+            SetObjectReference(view, "_instructionsRect", instr);
+            SetObjectReference(view, "_instructionsTitleLabel", instrTitle);
+            SetObjectReference(view, "_instructionStep1Label", step1);
+            SetObjectReference(view, "_instructionStep2Label", step2);
+            SetObjectReference(view, "_instructionStep3Label", step3);
+            SetObjectReference(view, "_instructionStep4Label", step4);
+            return view;
+        }
+
+        /// <summary>
+        /// A checkbox and its caption: a box, a check mark that fades in when it is on, and a label
+        /// to the right of it.
+        /// </summary>
+        /// <remarks>
+        /// A real <see cref="Toggle"/> rather than a label that reads like one, because the control it
+        /// belongs to (คืนสภาพ) reads its value. The mark is authored at zero alpha so the saved scene
+        /// shows the unchecked state the player starts in; <see cref="Toggle"/> drives it from then on.
+        /// </remarks>
+        private static Toggle CreateUiToggle(
+            RectTransform parent, string name, Vector2 boxPosition, Vector2 boxSize, TMP_FontAsset font,
+            Vector2 labelPosition, Vector2 labelSize, out TMP_Text label)
+        {
+            RectTransform box = CreateUiRect(
+                parent, name, new Vector2(0f, 1f), new Vector2(0f, 1f), boxPosition, boxSize);
+
+            var background = box.gameObject.AddComponent<Image>();
+            background.color = new Color(0.18f, 0.20f, 0.24f, 1f);
+
+            RectTransform mark = CreateUiRect(
+                box, "Checkmark", new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(5f, -5f), new Vector2(boxSize.x - 10f, boxSize.y - 10f));
+
+            var markImage = mark.gameObject.AddComponent<Image>();
+            markImage.color = new Color(0.95f, 0.82f, 0.35f, 1f);
+            markImage.raycastTarget = false;
+            markImage.canvasRenderer.SetAlpha(0f);
+
+            var toggle = box.gameObject.AddComponent<Toggle>();
+            toggle.targetGraphic = background;
+            toggle.graphic = markImage;
+            toggle.isOn = false;
+
+            label = CreateUiText(parent, name + "Label", labelPosition, labelSize, 15f, font);
+            label.text = string.Empty;
+            return toggle;
+        }
+
+        /// <summary>
+        /// The bottom bar: น้ำหนัก, สมาธิ, หีบ x/10, เบี้ย, ราคา refresh, the hint, the status line and
+        /// the depart button with its reason.
+        /// </summary>
+        private static CampStatusBarView BuildCampStatusBar(RectTransform canvasRect, TMP_FontAsset font, CampSceneScope scope)
+        {
+            // Left-anchored and no wider than the gap the bag screen leaves: a bar that ran under
+            // the bag panel would hide the depart button it is supposed to justify.
+            RectTransform panel = CreateUiRect(
+                canvasRect, "StatusPanel", new Vector2(0f, 0f), new Vector2(0f, 0f),
+                new Vector2(24f, 16f), new Vector2(960f, 190f));
+
+            var background = panel.gameObject.AddComponent<Image>();
+            background.color = new Color(0.06f, 0.06f, 0.08f, 0.88f);
+
+            // Row one: the run at a glance.
+            TMP_Text floor = CreateUiText(panel, "FloorValue", new Vector2(10f, -6f), new Vector2(140f, 30f), 22f, font);
+            TMP_Text chestCaption = CreateUiText(panel, "ChestCaption", new Vector2(160f, -6f), new Vector2(90f, 30f), 20f, font);
+            TMP_Text chestValue = CreateUiText(panel, "ChestValue", new Vector2(252f, -6f), new Vector2(110f, 30f), 22f, font);
+            TMP_Text biaCaption = CreateUiText(panel, "BiaCaption", new Vector2(370f, -6f), new Vector2(80f, 30f), 20f, font);
+            TMP_Text biaValue = CreateUiText(panel, "BiaValue", new Vector2(452f, -6f), new Vector2(110f, 30f), 22f, font);
+            TMP_Text refreshCostCaption = CreateUiText(panel, "RefreshCostCaption", new Vector2(570f, -6f), new Vector2(150f, 30f), 18f, font);
+            TMP_Text refreshCostValue = CreateUiText(panel, "RefreshCostValue", new Vector2(724f, -6f), new Vector2(90f, 30f), 20f, font);
+
+            // Row two: the weight penalty and the focus rate, with the depart button on the right.
+            TMP_Text weightCaption = CreateUiText(panel, "WeightCaption", new Vector2(10f, -40f), new Vector2(110f, 28f), 20f, font);
+            TMP_Text weightValue = CreateUiText(panel, "WeightValue", new Vector2(124f, -40f), new Vector2(250f, 28f), 20f, font);
+            TMP_Text focusCaption = CreateUiText(panel, "FocusCaption", new Vector2(384f, -40f), new Vector2(110f, 28f), 20f, font);
+            TMP_Text focusValue = CreateUiText(panel, "FocusValue", new Vector2(498f, -40f), new Vector2(140f, 28f), 20f, font);
+            TMP_Text departReason = CreateUiText(panel, "DepartReason", new Vector2(650f, -6f), new Vector2(300f, 56f), 16f, font);
+
+            // Row three: the penalty bar, the status line, and the depart button itself.
+            RectTransform weightBar = CreateUiBar(panel, "WeightBar", new Vector2(10f, -76f), new Vector2(370f, 16f), new Color(0.72f, 0.58f, 0.30f, 1f));
+            TMP_Text status = CreateUiText(panel, "StatusLabel", new Vector2(392f, -72f), new Vector2(240f, 40f), 16f, font);
+            Button depart = CreateUiButton(panel, "DepartButton", new Vector2(650f, -100f), new Vector2(300f, 64f), font, out TMP_Text departLabel);
+
+            // Row four: the controls hint, across the bar.
+            TMP_Text hint = CreateUiText(panel, "HintLabel", new Vector2(10f, -122f), new Vector2(620f, 60f), 15f, font);
+
+            CampStatusBarView view = panel.gameObject.AddComponent<CampStatusBarView>();
+            SetObjectReference(view, "_scope", scope);
+            SetObjectReference(view, "_panelRect", panel);
+            SetObjectReference(view, "_floorLabel", floor);
+            SetObjectReference(view, "_weightCaptionLabel", weightCaption);
+            SetObjectReference(view, "_weightValueLabel", weightValue);
+            SetObjectReference(view, "_weightBar", weightBar);
+            SetObjectReference(view, "_focusCaptionLabel", focusCaption);
+            SetObjectReference(view, "_focusValueLabel", focusValue);
+            SetObjectReference(view, "_chestCaptionLabel", chestCaption);
+            SetObjectReference(view, "_chestValueLabel", chestValue);
+            SetObjectReference(view, "_biaCaptionLabel", biaCaption);
+            SetObjectReference(view, "_biaValueLabel", biaValue);
+            SetObjectReference(view, "_refreshCostCaptionLabel", refreshCostCaption);
+            SetObjectReference(view, "_refreshCostValueLabel", refreshCostValue);
+            SetObjectReference(view, "_hintLabel", hint);
+            SetObjectReference(view, "_statusLabel", status);
+            SetObjectReference(view, "_departReasonLabel", departReason);
+            SetObjectReference(view, "_departButton", depart);
+            SetObjectReference(view, "_departButtonLabel", departLabel);
+            return view;
+        }
+
+        /// <summary>The piece tooltip: name, tier and stats, and the combos that are on.</summary>
+        private static CampTooltipView BuildCampTooltip(RectTransform canvasRect, TMP_FontAsset font, CampSceneScope scope)
+        {
+            // The tooltip floats in the free column between the shop panel (left) and the bag screen
+            // (right), so it never covers the piece it describes.
+            RectTransform panel = CreateUiRect(
+                canvasRect, "TooltipPanel", new Vector2(0f, 0f), new Vector2(0f, 0f),
+                new Vector2(632f, 300f), new Vector2(380f, 300f));
+
+            var background = panel.gameObject.AddComponent<Image>();
+            background.color = new Color(0.05f, 0.05f, 0.07f, 0.94f);
+
+            TMP_Text title = CreateUiText(panel, "TooltipTitle", new Vector2(12f, -8f), new Vector2(356f, 36f), 22f, font);
+            TMP_Text stats = CreateUiText(panel, "TooltipStats", new Vector2(12f, -48f), new Vector2(356f, 110f), 18f, font);
+            TMP_Text combos = CreateUiText(panel, "TooltipCombos", new Vector2(12f, -166f), new Vector2(356f, 120f), 18f, font);
+
+            CampTooltipView view = panel.gameObject.AddComponent<CampTooltipView>();
+            SetObjectReference(view, "_scope", scope);
+            SetObjectReference(view, "_root", panel.gameObject);
+            SetObjectReference(view, "_titleLabel", title);
+            SetObjectReference(view, "_statsLabel", stats);
+            SetObjectReference(view, "_combosLabel", combos);
+
+            panel.gameObject.SetActive(false);
+            return view;
+        }
+
+        /// <summary>A button with a centred label, laid out from its parent's top-left corner.</summary>
+        private static Button CreateUiButton(
+            RectTransform parent, string name, Vector2 anchoredPosition, Vector2 size,
+            TMP_FontAsset font, out TMP_Text label)
+        {
+            RectTransform rect = CreateUiRect(
+                parent, name, new Vector2(0f, 1f), new Vector2(0f, 1f), anchoredPosition, size);
+
+            var image = rect.gameObject.AddComponent<Image>();
+            image.color = new Color(0.25f, 0.26f, 0.30f, 1f);
+
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+
+            label = CreateUiText(rect, "Label", Vector2.zero, size, 20f, font, TextAlignmentOptions.Center);
+            return button;
+        }
+
         /// <summary>Creates an empty UI rectangle (a panel or a track) at an anchored position.</summary>
         private static RectTransform CreateUiRect(
             RectTransform parent, string name, Vector2 anchor, Vector2 pivot,
@@ -976,7 +1443,7 @@ namespace ProjectSurvive.Game.Editor
         {
             var eventSystemObject = new GameObject("EventSystem");
             eventSystemObject.AddComponent<EventSystem>();
-            eventSystemObject.AddComponent<StandaloneInputModule>();
+            eventSystemObject.AddComponent<InputSystemUIInputModule>();
         }
 
         private static Canvas CreateCanvas(out GameObject canvasObject)
@@ -1045,6 +1512,13 @@ namespace ProjectSurvive.Game.Editor
         {
             SerializedProperty property = FindProperty(target, fieldName);
             property.intValue = value;
+            property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetVector3(Object target, string fieldName, Vector3 value)
+        {
+            SerializedProperty property = FindProperty(target, fieldName);
+            property.vector3Value = value;
             property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 

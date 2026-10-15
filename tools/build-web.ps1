@@ -56,7 +56,11 @@
     Default: UnityProject/Builds/Web
 
 .PARAMETER NoWrite
-    Do not write the report under artifacts/.
+    Do not write the build report under artifacts/.
+
+.PARAMETER Force
+    Skip the confirmation prompt before the build. Required for an unattended
+    run: without it the script asks, and a run with no console answers "no".
 
 .PARAMETER Json
     Also emit the machine-readable report to stdout.
@@ -75,7 +79,8 @@ param(
     [string]$SizeProfile = '',
     [string]$OutputDirectory = 'UnityProject/Builds/Web',
     [switch]$Json,
-    [switch]$NoWrite
+    [switch]$NoWrite,
+    [switch]$Force
 )
 
 Set-StrictMode -Version Latest
@@ -105,6 +110,18 @@ function Fail-Hard {
     Write-Host "RESULT: ERROR - $Message" -ForegroundColor Red
     exit 2
 }
+
+function Confirm-Build {
+    if ($Force) { return }
+    $yes = Read-Host "Build WebGL player now? (y/N)"
+    if ($yes -ne 'y') { exit 2 }
+}
+
+# The call sits below the function it names on purpose: PowerShell resolves a function only once
+# its definition has run, so a call above the definition fails with "not recognized as the name of
+# a cmdlet" - which is how this script broke before Stage 09's build, and why the first build of
+# the stage produced no player at all.
+Confirm-Build
 
 Write-Host ""
 Write-Host "ProjectSurvive - WebGL build (Stage 03)" -ForegroundColor Cyan

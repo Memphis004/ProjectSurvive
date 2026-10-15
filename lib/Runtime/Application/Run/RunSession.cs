@@ -45,6 +45,7 @@ namespace ProjectSurvive.Core.Application.Run
     {
         private readonly IGameConfig _config;
         private readonly LoadoutResolver _loadouts;
+        private readonly SynergyEvaluator _synergies;
         private readonly ShopRoller _roller;
         private readonly RandomStreams _streams;
         private readonly ReplayLog _log;
@@ -92,7 +93,8 @@ namespace ProjectSurvive.Core.Application.Run
             Editor = new BackpackEditor(Backpack, config, codec);
             Stock = new ShopStock(config.Economy.ShopSlotCount);
             _roller = new ShopRoller(config);
-            _loadouts = new LoadoutResolver(config, new SynergyEvaluator(config));
+            _synergies = new SynergyEvaluator(config);
+            _loadouts = new LoadoutResolver(config, _synergies);
 
             Hp = MaxHp;
         }
@@ -685,6 +687,28 @@ namespace ProjectSurvive.Core.Application.Run
             return Result.Ok();
         }
 
+        /// <summary>
+        /// Locks or unlocks bag editing ("ล็อกย่าม"): the guard the camp screen's lock button
+        /// toggles, so a stray drag cannot rearrange a build.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately <b>not recorded</b> in the replay log: <c>RunState</c> does not carry the
+        /// lock, no command's outcome depends on it, and the two locks the run itself owns (during
+        /// a battle, and released by the settlement) are set by <see cref="StartFloor"/> and
+        /// <see cref="ApplyBattleResult"/> rather than by a player input. Recording it would put a
+        /// flag in the log that a replay must reproduce without any state it can be compared
+        /// against.
+        /// </remarks>
+        public Result SetBagLocked(bool locked)
+        {
+            if (FlowState != RunFlowState.Camp)
+            {
+                return Result.Fail(RunError.WrongState, ErrorKind.InvalidState);
+            }
+
+            return Editor.SetLocked(locked);
+        }
+
         /// <summary>Restores the bag to how it looked when the run entered Camp.</summary>
         public Result Reset()
         {
@@ -738,6 +762,149 @@ namespace ProjectSurvive.Core.Application.Run
 
         /// <summary>Appends the battle recording SceneFlow just ran, so the log can replay the floor.</summary>
         internal void RecordBattle(BattleReplay replay) => _log.RecordBattle(replay);
+
+        // -------------------------------------------------------------------
+        // camp read model (Stage 09)
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// What releasing a dragged piece in <paramref name="zone"/> would do, computed
+        /// without changing anything ("preview วางได้และวางไม่ได้ โดยไม่แก้ Domain จนผู้เล่นยืนยัน").
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A <b>dry run of the command, not a second rule</b>: every branch below asks the same
+        /// <c>BackpackEditor</c> predicate the accepted command asks (<c>CanPlace</c>,
+        /// <c>CanMerge</c>, <c>CanTransferToChest</c>, <c>CanRecycle</c>), so a green preview and
+        /// a refused command are the same condition read twice. The only thing this method decides
+        /// on its own is <i>intent</i> — which command the zone and the piece under the pointer
+        /// imply, which is what "dropping an item onto another item means merge" states in one
+        /// place instead of in a View.
+        /// </para>
+        /// <para>
+        /// Nothing is recorded, nothing is emitted and no revision moves: a preview repeated a
+        /// thousand times during a drag is observationally identical to not previewing at all.
+        /// </para>
+        /// </remarks>
+        public DropPreview PreviewDrop(PieceRef piece, BagDropZone zone, CellOffset origin, Rotation rotation)
+        {
+            if (FlowState != RunFlowState.Camp)
+            {
+                return DropPreview.Refused(RunError.WrongState);
+            }
+
+            if (Editor.IsLocked)
+            {
+                return DropPreview.Refused(InventoryError.Locked);
+            }
+
+            switch (zone)
+            {
+                case BagDropZone.Altar:
+                    return Editor.CanRecycle(piece, out int payout, out Error recycleError)
+                        ? DropPreview.Accepted(BagDropAction.Recycle, default, payout)
+                        : DropPreview.Refused(recycleError.Code);
+
+                case BagDropZone.Chest:
+                    return Editor.CanTransferToChest(piece, out Error chestError)
+                        ? DropPreview.Accepted(BagDropAction.Transfer)
+                        : DropPreview.Refused(chestError.Code);
+
+                case BagDropZone.Board:
+                {
+                    // The piece under the pointer is the merge target: "วางทับเพื่อ merge" is a
+                    // board gesture, and which instance is under it is a fact about the board
+                    // rather than a decision a View should make.
+                    PieceRef target = ItemAt(origin);
+                    if (target.IsValid && target != piece)
+                    {
+                        return Editor.CanMerge(piece, target, out Error mergeError)
+                            ? DropPreview.Accepted(BagDropAction.Merge, target)
+                            : DropPreview.Refused(mergeError.Code);
+                    }
+
+                    return Editor.CanPlace(piece, origin, rotation, out Error placeError)
+                        ? DropPreview.Accepted(BagDropAction.Place)
+                        : DropPreview.Refused(placeError.Code);
+                }
+
+                default:
+                    // Released over nothing. `inventory.out_of_board` is the honest reason: the
+                    // piece would have had no legal cell to land on.
+                    return DropPreview.Refused(InventoryError.OutOfBoard);
+            }
+        }
+
+        /// <summary>
+        /// The bag's layout as the combo rules see it — the Stage 09 tooltip's "synergy ที่ทำงานอยู่"
+        /// and the cells it highlights.
+        /// </summary>
+        /// <remarks>
+        /// Read-only and deliberately uncached: the caller decides when to re-ask (a screen asks
+        /// once per backpack revision, not once per frame), and caching here would give the run a
+        /// second copy of something <c>LoadoutResolver</c> already caches for the battle.
+        /// </remarks>
+        public SynergyEvaluation EvaluateLayout() => _synergies.Evaluate(Backpack);
+
+        /// <summary>Weight carried on the board; a chest piece weighs nothing.</summary>
+        public float BagWeight => Backpack.BoardWeight;
+
+        /// <summary>The movement penalty the carried weight costs, in percent (capped).</summary>
+        public int BagWeightPenaltyPercent => WeightPenalty.Percent(Backpack.BoardWeight, _config.Constant);
+
+        /// <summary>MP regenerated per second (สมาธิ, <c>constant.focus_per_second</c>).</summary>
+        public float FocusPerSecond => _config.Constant.FocusPerSecond;
+
+        /// <summary>How many chest slots the run has (<c>economy.chest_slots</c>, 10).</summary>
+        public int ChestSlots => Backpack.Chest.SlotCount;
+
+        /// <summary>How many chest slots hold something.</summary>
+        public int ChestUsed => Backpack.Chest.OccupiedCount;
+
+        /// <summary>True while the bag refuses every edit ("ล็อกย่าม").</summary>
+        public bool IsBagLocked => Editor.IsLocked;
+
+        /// <summary>True when <see cref="Undo"/> would do something.</summary>
+        public bool CanUndoEdit => Editor.CanUndo;
+
+        /// <summary>What the next re-roll costs (เสี่ยงเซียมซี), before it is paid.</summary>
+        public int RefreshPrice => Stock.RefreshCost(_config.Economy);
+
+        /// <summary>
+        /// Whether <see cref="StartFloor"/> would accept, without departing — what the Stage 09
+        /// depart button is disabled on, and the reason it shows.
+        /// </summary>
+        /// <remarks>
+        /// It asks the same two questions <see cref="StartFloor"/> asks, in the same order, and the
+        /// loadout it resolves is cached on the backpack revision, so a screen may call this on
+        /// every refresh without recomputing a combo.
+        /// </remarks>
+        public Result DepartCheck()
+        {
+            if (FlowState != RunFlowState.Camp)
+            {
+                return Result.Fail(RunError.WrongState, ErrorKind.InvalidState);
+            }
+
+            if (CurrentFloor is null)
+            {
+                return Result.Fail(RunError.NoFloorLeft, ErrorKind.InvalidState);
+            }
+
+            return _loadouts.Resolve(Backpack).Weapons.Count == 0
+                ? Result.Fail(RunError.NoArcaneWeapon, ErrorKind.InvalidState)
+                : Result.Ok();
+        }
+
+        /// <summary>
+        /// Where a piece dropped on the board would fold: the item instance whose cell is
+        /// <paramref name="cell"/>, or <see cref="PieceRef.None"/> when no item is there.
+        /// </summary>
+        private PieceRef ItemAt(CellOffset cell)
+        {
+            int owner = Backpack.Board.ItemOwnerAt(cell);
+            return owner == Board.NoOwner ? PieceRef.None : new PieceRef(PieceKind.Item, owner);
+        }
 
         // -------------------------------------------------------------------
         // internals

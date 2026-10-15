@@ -1,6 +1,7 @@
 ##,key,th,en
 ,ui.title,พ่อหมอปราบผี,The Ghost-Doctor
 ,ui.generic.ok,ตกลง,OK
+,ui.generic.close,ปิด,Close
 ,ui.spike.thai,พ่อหมอปราบผีกระสือ ฤๅษี ปั้นน้ำตาล ญี่ปุ่น,Ghost-Doctor vs Krasue Ruesi sugar-moulding Japan
 ,ui.spike.thai.marks,ปื๊ด ตู้ เบ๊ ญี่ปุ่น น้ำตาล ฤๅษี ฎ ฏ ฐ ฅ ฃ,Thai tone-mark and rare-glyph stress sample
 ,bag.raw_cotton_bag.name,ย่ามผ้าดิบ,Raw Cotton Bag
@@ -63,3 +64,83 @@
 ,hud.end.win,ชนะชั้นนี้,Floor cleared
 ,hud.end.lose,แพ้แล้ว,Defeated
 ,hud.end.aborted,ออกจากชั้น,Left the floor
+,camp.title,ศาลาพัก,The Rest Pavilion
+,camp.npc.name,ยายจันทร์,Grandmother Chan
+,camp.shop.caption,แผงวัตถุมงคลยายจันทร์,Grandmother Chan's stall
+,camp.shop.rent,เช่า,Rent
+,camp.shop.rented,เช่าแล้ว,Rented
+,camp.shop.lock,ล็อกไว้,Pin
+,camp.shop.unlock,ปลดล็อก,Unpin
+,camp.shop.empty,ว่าง,Empty
+,camp.refresh,เสี่ยงเซียมซี,Cast the divination sticks
+,camp.refresh.format,เสี่ยงเซียมซี ({0} เบี้ย),Cast the sticks ({0} bia)
+,camp.bag.caption,จัดย่าม,Pack the bag
+,camp.bag.hint,ลากไอเทมวางบนย่าม กด R หรือคลิกขวาเพื่อหมุน ลากลงกระถางเพื่อถวายคืน,Drag an item onto the bag. Press R or right-click to rotate. Drop it in the pot to give it back.
+,camp.world.hint,เดินด้วย WASD กด E เพื่อเช่า/เสี่ยงเซียมซี คลิกที่ชั้นหรือไถ่เซียมซีก็ได้,WASD to walk. E rents, locks or casts the sticks. Clicking a shelf or the drum works too.
+,camp.bag.lock,ล็อกย่าม,Lock the bag
+,camp.bag.unlock,ปลดล็อกย่าม,Unlock the bag
+,camp.bag.rotate,หมุน,Rotate
+,camp.bag.undo,ย้อนกลับ,Undo
+,camp.bag.reset,คืนสภาพ,Restore
+,camp.chest.caption,หีบ,Chest
+,camp.altar.caption,กระถางธูป,The incense pot
+,camp.altar.format,ถวายคืนได้ {0} เบี้ย,The altar offers {0} bia
+,camp.depart,ออกเดินทาง,Set out
+,camp.departed,ออกเดินทางแล้ว,Already departed
+,camp.stat.weight,น้ำหนัก,Weight
+,camp.stat.focus,สมาธิ,Focus
+,camp.stat.chest,หีบ,Chest
+,camp.stat.bia,เบี้ย,Bia
+,camp.stat.refresh,ราคาเสี่ยงเซียมซี,Re-roll price
+,camp.floor.format,ชั้น {0},Floor {0}
+,camp.weight.format,{0:0.#} ({1}% ช้าลง),{0:0.#} ({1}% slower)
+,camp.focus.format,{0:0.#} ต่อวินาที,{0:0.#} per second
+,camp.chest.format,{0}/{1},{0}/{1}
+,camp.piece.label,{0} ระดับ {1},{0} T{1}
+,camp.category.arcane_weapon,อาวุธอาคม,Arcane weapon
+,camp.category.charm,เครื่องราง,Charm
+,camp.category.tome,ตำรา,Tome
+,camp.category.offering,ของเซ่น,Offering
+,camp.category.familiar,ภูติรับใช้,Familiar
+,camp.category.unknown,ไม่ทราบชนิด,Unknown
+,camp.tooltip.slots.format,ช่องใช้งาน {0} ช่อง,{0} usable slots
+,camp.tooltip.tier.format,ระดับ {0}/{1},Tier {0}/{1}
+,camp.tooltip.stat.format,ดาเมจ {0} · คูลดาวน์ {1:0.#} วิ · ใช้สมาธิ {2},Damage {0} · cooldown {1:0.#}s · focus {2}
+,camp.tooltip.combo.format,คอมโบทำงาน {0} · ดาเมจ x{1:0.##} · คูลดาวน์ x{2:0.##},{0} active combos · damage x{1:0.##} · cooldown x{2:0.##}
+,camp.tooltip.combo.none,ยังไม่มีคอมโบที่ทำงาน,No combo is active yet
+,camp.tooltip.rules.format,คอมโบ: {0},Combos: {0}
+,error.inventory.bag_overlap,ย่ามซ้อนกัน,The bags overlap
+,error.inventory.chest_full,หีบเต็ม,The chest is full
+,error.inventory.item_not_covered,ไอเทมไม่ได้อยู่บนช่องย่าม,That item is not on a bag slot
+,error.inventory.item_overlap,ไอเทมซ้อนกัน,The items overlap
+,error.inventory.item_stranded,วางแล้วไอเทมจะลอยนอกย่าม,That would leave an item off the bag
+,error.inventory.locked,ย่ามถูกล็อกอยู่,The bag is locked
+,error.inventory.merge_max_tier,รวมต่อไม่ได้แล้ว,That piece is already at the highest tier
+,error.inventory.merge_mismatch,รวมได้เฉพาะของชนิดเดียวกันระดับเดียวกัน,Merge needs the same piece at the same tier
+,error.inventory.merge_not_item,รวมได้เฉพาะไอเทม,Only items can be merged
+,error.inventory.not_enough_pieces,ของไม่พอ,There are not enough pieces
+,error.inventory.not_on_board,ของชิ้นนี้ไม่ได้อยู่บนย่าม,That piece is not on the bag
+,error.inventory.nothing_to_undo,ไม่มีอะไรให้ย้อนกลับ,There is nothing to undo
+,error.inventory.out_of_board,วางตรงนั้นไม่ได้,It does not fit there
+,error.inventory.unknown_piece,ไม่พบของชิ้นนี้,No such piece
+,error.inventory.wrong_zone,ของชิ้นนี้อยู่ผิดที่,That piece is in the wrong place
+,error.run.battle_running,กำลังต่อสู้อยู่,A floor is already running
+,error.run.no_arcane_weapon,ต้องมีอาวุธอาคมจึงออกเดินทางได้,You need an arcane weapon to set out
+,error.run.no_floor_left,ไม่มีชั้นเหลือแล้ว,No floor is left
+,error.run.not_in_battle,ยังไม่ได้ต่อสู้,No floor is running
+,error.run.unknown_floor,ไม่พบชั้นนี้,No such floor
+,error.run.unknown_piece,ไม่พบของชิ้นนี้,No such piece
+,error.run.wrong_state,ตอนนี้ทำสิ่งนี้ไม่ได้,That is not possible right now
+,error.shop.slot_empty,ช่องนี้ว่างอยู่,That slot is empty
+,error.shop.slot_purchased,ช่องนี้เช่าไปแล้ว,That slot is already rented
+,error.shop.unknown_piece,ไม่พบสินค้านี้,No such offer
+,error.shop.unknown_slot,ไม่พบช่องนี้,No such slot
+,error.wallet.insufficient_bia,เบี้ยไม่พอ,Not enough bia
+,camp.instructions.title,คำแนะนำการจัดย่าม,Backpack Instructions
+,camp.instructions.1,1. ลากย่ามลง Board,1. Drag bag onto Board
+,camp.instructions.2,2. ลากไอเทมวางบนย่าม,2. Drag items onto bag
+,camp.instructions.3,3. คลิกขวาหรือกด R ระหว่างลากเพื่อหมุน,3. Right-click or press R to rotate
+,camp.instructions.4,4. ไอเทมเหมือนกัน 2 ชิ้นวางซ้อนกันเพื่ออัปเกรด,4. Stack 2 identical items to upgrade
+,camp.bag.lock_restore,ล็อกย่ามตอนคืนสภาพ,Lock bag on restore
+,camp.depart.next,ไปชั้นถัดไป,Next Floor
+,camp.back,กลับ,Back

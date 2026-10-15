@@ -28,6 +28,7 @@ architecture docs.
 | Run & scene flow (phase machine, commands, settlement, `ReplayLog`) | [`systems/run-shop.md`](systems/run-shop.md) | 06 | done |
 | Battle simulation (EcsLite) | [`systems/battle-simulation.md`](systems/battle-simulation.md) | 07 | done |
 | 2.5D battle presentation (scene, clocks, pools, HUD, camera) | [`systems/battle-presentation.md`](systems/battle-presentation.md) | 08 | done |
+| Camp screen (ศาลาพัก: the sala, walkable, shelves as the shop, the จัดย่าม drag, the two published reports) | [`systems/camp.md`](systems/camp.md) | 09 | done |
 | Core foundation (RNG / clock / ticker / Result) | [ADR 0004](../docs/adr/0004-dotnet-layer-enforcement.md) + [`../docs/architecture/overview.md`](../docs/architecture/overview.md) | 01 | done |
 | Save / resume | *(pending)* | 12 | not started |
 
@@ -48,6 +49,9 @@ lands.
 | `TryAddCharacters`' return value is not coverage | [`gotchas/tmp-tryaddcharacters-lies.md`](gotchas/tmp-tryaddcharacters-lies.md) | A false return with the whole set "missing" usually means the face failed to load |
 | Luban 5.1 CLI: `--strict`, `__tables__.csv`, loader keys | [`gotchas/luban-5-strict-and-tables.md`](gotchas/luban-5-strict-and-tables.md) | Without `--strict` a broken `#ref` only warns and still exits 0; `#ref` cannot mean "optional" |
 | Thai text with TMP | [ADR 0008](../docs/adr/0008-thai-text-ui-stack.md) | Both stacks render Thai with 0 missing glyphs at 182-char coverage; the traps are in the asset and build pipeline, not the shaping |
+| A live gesture is invisible in the camp's published report | [`systems/camp.md`](systems/camp.md#2-three-rules-that-bite) | `CampSceneDirector` freezes the state document while a drag is active, so `dragging: true` can never be read from the page - assert the release counters instead |
+| Unity's default desktop WebGL template pins the canvas at 960×600 | [`systems/camp.md`](systems/camp.md), [09-report §5](../docs/stages/09-report.md) | A browser *window* resize never reaches the player; styling the canvas element (what the template's fullscreen button does) does |
+| A `data/` edit is not in the build until `gen.ps1` runs | [09-report §6](../docs/stages/09-report.md) | Stage 09 added 81 localization rows the generated tables never received, so a browser run described a player with the old tables; `verify-generated` is the gate |
 | A footprint picture cannot express a duplicated cell | [ADR 0009](../docs/adr/0009-footprint-picture-format.md) | The Stage 04 format makes that bug class unrepresentable; `footprint.duplicate_cell` no longer exists |
 | A charm's own buff has no data column yet | [ADR 0010](../docs/adr/0010-item-local-effects-deferred.md) | Its magnitude must land in `item`, never as a code constant, when Stage 05–07 lands its consumer |
 | Synergies are resolved into the loadout, not inside the battle | [`systems/backpack.md`](systems/backpack.md#7-bag--battle-loadoutresolver) | The battle reads one `CombatLoadoutSnapshot`; recomputing combos there would let two resolvers disagree and would run per tick |

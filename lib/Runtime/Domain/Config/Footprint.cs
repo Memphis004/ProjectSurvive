@@ -39,6 +39,18 @@ namespace ProjectSurvive.Core.Domain.Config
 
         public IReadOnlyList<CellOffset> Cells => _cells;
 
+        /// <summary>
+        /// The cell at <paramref name="index"/> in canonical order.
+        /// </summary>
+        /// <remarks>
+        /// Added in Stage 09 for the drag preview, which asks the placement rules where a piece
+        /// would land on every pointer move. A <c>foreach</c> over <see cref="Cells"/> boxes an
+        /// enumerator per call (the static type is the interface), and AGENTS rule 8 wants a
+        /// per-frame path to allocate nothing; <see cref="CellCount"/> plus this indexer gives
+        /// that loop for free. Same cells, same order.
+        /// </remarks>
+        public CellOffset CellAt(int index) => _cells[index];
+
         /// <summary>Number of columns in the normalised shape.</summary>
         public int Width => _width;
 

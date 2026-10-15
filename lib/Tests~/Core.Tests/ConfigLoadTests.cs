@@ -34,9 +34,12 @@ namespace ProjectSurvive.Core.Tests
             Assert.Equal(9, config.Waves.Count);
             Assert.Equal(14, config.ShopPool.Count);
 
-            // 51 Stage 04 rows + the 13 Stage 08 HUD labels (hud.*). The count is
-            // pinned so a table that silently loses rows fails here.
-            Assert.Equal(64, config.Localization.Count);
+            // 145 rows: the Stage 04 content, the Stage 08 HUD labels, and the Stage 09 camp screen
+            // with its failure codes (camp.* 53, error.* 27, hud.* 13, item.* 22, bag.* 6 and the
+            // rest). The count is pinned so a table that silently loses rows fails here - which is
+            // how this pin was corrected: it said 144 while data/ held 145, because the 81 rows
+            // Stage 09 added to data/localization/localization.csv had not been regenerated yet.
+            Assert.Equal(145, config.Localization.Count);
         }
 
         [Fact]

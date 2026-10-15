@@ -168,6 +168,166 @@ namespace ProjectSurvive.Core.Domain.Inventory
         }
 
         /// <summary>
+        /// True when <see cref="Move"/> would accept this placement. Reads only; moves
+        /// nothing and records nothing.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Stage 09's drag preview ("preview วางได้และวางไม่ได้ โดยไม่แก้ Domain จนผู้เล่น
+        /// ยืนยัน") is a dry run of the same command, and a second implementation of
+        /// "can this go here?" is exactly how a preview and a command come to disagree. The
+        /// command is therefore written <i>in terms of</i> this predicate, and the predicate
+        /// carries the whole rule: the piece exists, its rotated footprint is on the board,
+        /// nothing it would collide with is there, and a bag move leaves every item on an
+        /// <see cref="ActiveSlot"/>.
+        /// </para>
+        /// <para>
+        /// It deliberately does <b>not</b> consult <see cref="IsLocked"/>: the lock is a policy
+        /// guard on the command (so a stray drag during a battle cannot rearrange a build),
+        /// not a property of the placement. A caller that wants to render a locked bag asks
+        /// <see cref="IsLocked"/> separately — <c>RunSession.PreviewDrop</c> does.
+        /// </para>
+        /// </remarks>
+        public bool CanPlace(PieceRef piece, CellOffset origin, Rotation rotation, out Error error)
+        {
+            if (!_backpack.TryGetPiece(piece, out PieceInstance? instance) || instance is null)
+            {
+                error = new Error(InventoryError.UnknownPiece, ErrorKind.NotFound);
+                return false;
+            }
+
+            Footprint shape = _backpack.ShapeAt(instance, rotation);
+
+            if (instance is BagPieceInstance bag)
+            {
+                if (!_backpack.Board.CanPlaceBag(bag.InstanceId, shape, origin, out error))
+                {
+                    return false;
+                }
+
+                if (bag.Zone == PieceZone.Board
+                    && _backpack.FindStrandedItem(bag.InstanceId, shape, origin) is not null)
+                {
+                    error = new Error(InventoryError.ItemStranded, ErrorKind.Conflict);
+                    return false;
+                }
+
+                return true;
+            }
+
+            return _backpack.Board.CanPlaceItem(instance.InstanceId, shape, origin, out error);
+        }
+
+        /// <summary>True when <see cref="Merge"/> would accept this pair. Reads only.</summary>
+        /// <remarks>
+        /// Same id, same tier, both items, and below <c>constant.max_tier</c> — the whole
+        /// rule the merge gesture ("วางทับเพื่อ merge") needs, asked once here so the drag
+        /// preview and the command cannot drift apart.
+        /// </remarks>
+        public bool CanMerge(PieceRef source, PieceRef target, out Error error)
+        {
+            if (!_backpack.TryGetPiece(source, out PieceInstance? sourceInstance) || sourceInstance is null
+                || !_backpack.TryGetPiece(target, out PieceInstance? targetInstance) || targetInstance is null)
+            {
+                error = new Error(InventoryError.UnknownPiece, ErrorKind.NotFound);
+                return false;
+            }
+
+            if (sourceInstance is not ItemInstance sourceItem || targetInstance is not ItemInstance targetItem)
+            {
+                error = new Error(InventoryError.MergeNotItem, ErrorKind.Validation);
+                return false;
+            }
+
+            if (sourceItem.InstanceId == targetItem.InstanceId
+                || !string.Equals(sourceItem.ItemId, targetItem.ItemId, StringComparison.Ordinal)
+                || sourceItem.Tier != targetItem.Tier)
+            {
+                error = new Error(InventoryError.MergeMismatch, ErrorKind.Validation);
+                return false;
+            }
+
+            if (targetItem.Tier >= _backpack.MaxTier)
+            {
+                error = new Error(InventoryError.MergeMaxTier, ErrorKind.InvalidState);
+                return false;
+            }
+
+            error = default;
+            return true;
+        }
+
+        /// <summary>True when <see cref="TransferToChest"/> would accept this piece. Reads only.</summary>
+        /// <remarks>The realistic refusal is a full chest; a bag that would strand an item is the other.</remarks>
+        public bool CanTransferToChest(PieceRef piece, out Error error)
+        {
+            if (!_backpack.TryGetPiece(piece, out PieceInstance? instance) || instance is null)
+            {
+                error = new Error(InventoryError.UnknownPiece, ErrorKind.NotFound);
+                return false;
+            }
+
+            if (instance.Zone != PieceZone.Board)
+            {
+                error = new Error(InventoryError.WrongZone, ErrorKind.InvalidState);
+                return false;
+            }
+
+            if (_backpack.Chest.IsFull)
+            {
+                error = new Error(InventoryError.ChestFull, ErrorKind.Insufficient);
+                return false;
+            }
+
+            if (instance is BagPieceInstance bag
+                && _backpack.FindStrandedItem(bag.InstanceId, null, default) is not null)
+            {
+                error = new Error(InventoryError.ItemStranded, ErrorKind.Conflict);
+                return false;
+            }
+
+            error = default;
+            return true;
+        }
+
+        /// <summary>
+        /// True when <see cref="Recycle"/> would accept this piece, and what the altar would
+        /// pay for it (<c>floor(base price × economy.sell_back_percent / 100)</c>). Reads only.
+        /// </summary>
+        /// <remarks>
+        /// The payout is part of the predicate on purpose: the Stage 09 altar shows the bia a
+        /// drop would pay <i>before</i> the player commits, and a number computed in a tooltip
+        /// is a number the UI owns ([ADR 0002](../../../../docs/adr/0002-thin-mvp-ui-approach.md)).
+        /// </remarks>
+        public bool CanRecycle(PieceRef piece, out int payout, out Error error)
+        {
+            payout = 0;
+
+            if (!_backpack.TryGetPiece(piece, out PieceInstance? instance) || instance is null)
+            {
+                error = new Error(InventoryError.UnknownPiece, ErrorKind.NotFound);
+                return false;
+            }
+
+            if (instance is BagPieceInstance bag
+                && _backpack.FindStrandedItem(bag.InstanceId, null, default) is not null)
+            {
+                error = new Error(InventoryError.ItemStranded, ErrorKind.Conflict);
+                return false;
+            }
+
+            if (!_backpack.TryGetBasePrice(instance, out int price))
+            {
+                error = new Error(InventoryError.UnknownPiece, ErrorKind.NotFound);
+                return false;
+            }
+
+            payout = (price * _config.Economy.SellBackPercent) / 100;
+            error = default;
+            return true;
+        }
+
+        /// <summary>
         /// Places or moves a piece at <paramref name="origin"/> with
         /// <paramref name="rotation"/>, whether it currently sits in the chest or on
         /// the board.
@@ -189,29 +349,9 @@ namespace ProjectSurvive.Core.Domain.Inventory
                 return Result.Fail(InventoryError.UnknownPiece, ErrorKind.NotFound);
             }
 
-            Footprint shape = _backpack.ShapeAt(instance, rotation);
-
-            if (instance is BagPieceInstance bag)
+            if (!CanPlace(piece, origin, rotation, out Error error))
             {
-                if (!_backpack.Board.CanPlaceBag(bag.InstanceId, shape, origin, out Error error))
-                {
-                    return Result.Fail(error);
-                }
-
-                if (bag.Zone == PieceZone.Board
-                    && _backpack.FindStrandedItem(bag.InstanceId, shape, origin) is not null)
-                {
-                    return Result.Fail(InventoryError.ItemStranded, ErrorKind.Conflict);
-                }
-
-                PushUndo();
-                _backpack.PlaceOnBoard(bag, origin, rotation);
-                return Result.Ok();
-            }
-
-            if (!_backpack.Board.CanPlaceItem(instance.InstanceId, shape, origin, out Error itemError))
-            {
-                return Result.Fail(itemError);
+                return Result.Fail(error);
             }
 
             PushUndo();
@@ -241,28 +381,10 @@ namespace ProjectSurvive.Core.Domain.Inventory
             }
 
             Rotation turned = instance.Rotation.Clockwise();
-            Footprint shape = _backpack.ShapeAt(instance, turned);
 
-            if (instance is BagPieceInstance bag)
+            if (!CanPlace(piece, instance.Origin, turned, out Error error))
             {
-                if (!_backpack.Board.CanPlaceBag(bag.InstanceId, shape, bag.Origin, out Error error))
-                {
-                    return Result.Fail(error);
-                }
-
-                if (_backpack.FindStrandedItem(bag.InstanceId, shape, bag.Origin) is not null)
-                {
-                    return Result.Fail(InventoryError.ItemStranded, ErrorKind.Conflict);
-                }
-
-                PushUndo();
-                _backpack.PlaceOnBoard(bag, bag.Origin, turned);
-                return Result.Ok();
-            }
-
-            if (!_backpack.Board.CanPlaceItem(instance.InstanceId, shape, instance.Origin, out Error itemError))
-            {
-                return Result.Fail(itemError);
+                return Result.Fail(error);
             }
 
             PushUndo();
@@ -286,20 +408,9 @@ namespace ProjectSurvive.Core.Domain.Inventory
                 return Result.Fail(InventoryError.UnknownPiece, ErrorKind.NotFound);
             }
 
-            if (instance.Zone != PieceZone.Board)
+            if (!CanTransferToChest(piece, out Error error))
             {
-                return Result.Fail(InventoryError.WrongZone, ErrorKind.InvalidState);
-            }
-
-            if (_backpack.Chest.IsFull)
-            {
-                return Result.Fail(InventoryError.ChestFull, ErrorKind.Insufficient);
-            }
-
-            if (instance is BagPieceInstance bag
-                && _backpack.FindStrandedItem(bag.InstanceId, null, default) is not null)
-            {
-                return Result.Fail(InventoryError.ItemStranded, ErrorKind.Conflict);
+                return Result.Fail(error);
             }
 
             PushUndo();
@@ -329,31 +440,19 @@ namespace ProjectSurvive.Core.Domain.Inventory
                 return Result.Fail<MergeOutcome>(InventoryError.UnknownPiece, ErrorKind.NotFound);
             }
 
-            if (sourceInstance is not ItemInstance sourceItem || targetInstance is not ItemInstance targetItem)
+            if (!CanMerge(source, target, out Error error))
             {
-                return Result.Fail<MergeOutcome>(InventoryError.MergeNotItem, ErrorKind.Validation);
+                return Result.Fail<MergeOutcome>(error);
             }
 
-            if (sourceItem.InstanceId == targetItem.InstanceId)
-            {
-                return Result.Fail<MergeOutcome>(InventoryError.MergeMismatch, ErrorKind.Validation);
-            }
-
-            if (!string.Equals(sourceItem.ItemId, targetItem.ItemId, StringComparison.Ordinal)
-                || sourceItem.Tier != targetItem.Tier)
-            {
-                return Result.Fail<MergeOutcome>(InventoryError.MergeMismatch, ErrorKind.Validation);
-            }
-
-            if (targetItem.Tier >= _backpack.MaxTier)
-            {
-                return Result.Fail<MergeOutcome>(InventoryError.MergeMaxTier, ErrorKind.InvalidState);
-            }
+            // Precondition: CanMerge proved both pieces are items, so the cast holds and the
+            // survivor keeps its exact placement (the footprint never changes).
+            var survivor = (ItemInstance)targetInstance;
 
             PushUndo();
-            _backpack.RemovePiece(sourceItem);
-            _backpack.RaiseTier(targetItem, targetItem.Tier + 1);
-            return Result.Ok(new MergeOutcome(targetItem, source));
+            _backpack.RemovePiece(sourceInstance);
+            _backpack.RaiseTier(survivor, survivor.Tier + 1);
+            return Result.Ok(new MergeOutcome(survivor, source));
         }
 
         /// <summary>
@@ -378,18 +477,10 @@ namespace ProjectSurvive.Core.Domain.Inventory
                 return Result.Fail<RecycleOutcome>(InventoryError.UnknownPiece, ErrorKind.NotFound);
             }
 
-            if (instance is BagPieceInstance bag
-                && _backpack.FindStrandedItem(bag.InstanceId, null, default) is not null)
+            if (!CanRecycle(piece, out int payout, out Error error))
             {
-                return Result.Fail<RecycleOutcome>(InventoryError.ItemStranded, ErrorKind.Conflict);
+                return Result.Fail<RecycleOutcome>(error);
             }
-
-            if (!_backpack.TryGetBasePrice(instance, out int price))
-            {
-                return Result.Fail<RecycleOutcome>(InventoryError.UnknownPiece, ErrorKind.NotFound);
-            }
-
-            int payout = (price * _config.Economy.SellBackPercent) / 100;
 
             PushUndo();
             _backpack.RemovePiece(instance);

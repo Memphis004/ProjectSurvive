@@ -130,8 +130,12 @@ namespace ProjectSurvive.Core.Domain.Inventory
                 return false;
             }
 
-            foreach (CellOffset cell in shape.Cells)
+            // Index-addressed, not `foreach`: the static type of `Cells` is the interface, so an
+            // enumerator would be boxed on every call — and Stage 09's drag preview calls this on
+            // every pointer move (AGENTS rule 8).
+            for (int i = 0; i < shape.CellCount; i++)
             {
+                CellOffset cell = shape.CellAt(i);
                 var boardCell = new CellOffset(origin.X + cell.X, origin.Y + cell.Y);
                 int owner = BagOwnerAt(boardCell);
                 if (owner != NoOwner && owner != bagInstanceId)
@@ -158,8 +162,9 @@ namespace ProjectSurvive.Core.Domain.Inventory
                 return false;
             }
 
-            foreach (CellOffset cell in shape.Cells)
+            for (int i = 0; i < shape.CellCount; i++)
             {
+                CellOffset cell = shape.CellAt(i);
                 var boardCell = new CellOffset(origin.X + cell.X, origin.Y + cell.Y);
 
                 if (BagOwnerAt(boardCell) == NoOwner)
@@ -185,8 +190,9 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// <summary>Writes a bag piece into the occupancy map. Precondition: <see cref="CanPlaceBag"/>.</summary>
         public void OccupyBag(int bagInstanceId, Footprint shape, CellOffset origin)
         {
-            foreach (CellOffset cell in shape.Cells)
+            for (int i = 0; i < shape.CellCount; i++)
             {
+                CellOffset cell = shape.CellAt(i);
                 _bagOwner[Index(new CellOffset(origin.X + cell.X, origin.Y + cell.Y))] = bagInstanceId;
             }
         }
@@ -194,8 +200,9 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// <summary>Clears a bag piece's cells. Only the cells it actually covers are touched.</summary>
         public void ReleaseBag(int bagInstanceId, Footprint shape, CellOffset origin)
         {
-            foreach (CellOffset cell in shape.Cells)
+            for (int i = 0; i < shape.CellCount; i++)
             {
+                CellOffset cell = shape.CellAt(i);
                 int index = Index(new CellOffset(origin.X + cell.X, origin.Y + cell.Y));
                 if (index >= 0 && _bagOwner[index] == bagInstanceId)
                 {
@@ -207,8 +214,9 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// <summary>Writes an item into the occupancy map. Precondition: <see cref="CanPlaceItem"/>.</summary>
         public void OccupyItem(int itemInstanceId, Footprint shape, CellOffset origin)
         {
-            foreach (CellOffset cell in shape.Cells)
+            for (int i = 0; i < shape.CellCount; i++)
             {
+                CellOffset cell = shape.CellAt(i);
                 _itemOwner[Index(new CellOffset(origin.X + cell.X, origin.Y + cell.Y))] = itemInstanceId;
             }
         }
@@ -216,8 +224,9 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// <summary>Clears an item's cells.</summary>
         public void ReleaseItem(int itemInstanceId, Footprint shape, CellOffset origin)
         {
-            foreach (CellOffset cell in shape.Cells)
+            for (int i = 0; i < shape.CellCount; i++)
             {
+                CellOffset cell = shape.CellAt(i);
                 int index = Index(new CellOffset(origin.X + cell.X, origin.Y + cell.Y));
                 if (index >= 0 && _itemOwner[index] == itemInstanceId)
                 {

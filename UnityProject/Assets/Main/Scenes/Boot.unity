@@ -155,6 +155,7 @@ MonoBehaviour:
   _urlSceneOverrides:
   - ThaiTextSpike
   - Battle
+  - Camp
 --- !u!114 &1934354347
 MonoBehaviour:
   m_ObjectHideFlags: 0

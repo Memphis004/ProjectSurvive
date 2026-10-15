@@ -1,0 +1,341 @@
+using System;
+using ProjectSurvive.Core.Domain.Config;
+using ProjectSurvive.Core.Domain.Inventory;
+using ProjectSurvive.Core.Domain.Run;
+
+namespace ProjectSurvive.Game.Presentation.Camp
+{
+    /// <summary>
+    /// The จัดย่าม panel's own controls, named so a test can ask where one is on screen.
+    /// </summary>
+    /// <remarks>
+    /// The backup buttons of Stage 09 work item 2 ("หมุนด้วย R หรือคลิกขวา (มีปุ่ม UI สำรอง)"), the
+    /// restore and lock buttons, and the จัดย่าม open/close pair. A browser test cannot press a
+    /// keyboard key and a button the same way, so it needs to be able to click the real control.
+    /// </remarks>
+    public enum CampBagButton
+    {
+        Open = 0,
+        Close = 1,
+        Rotate = 2,
+        Undo = 3,
+        Reset = 4,
+        Lock = 5,
+
+        /// <summary>ล็อกย่ามตอนคืนสภาพ — a checkbox, so the report names where its box is.</summary>
+        LockRestore = 6,
+
+        /// <summary>ไปชั้นถัดไป — the panel's own way out of camp.</summary>
+        NextFloor = 7,
+    }
+
+    /// <summary>
+    /// The named regions of the จัดย่าม panel, so the layout report can publish a rectangle for each
+    /// and a test can check that no two of them are on top of each other (Stage 09b work item B).
+    /// </summary>
+    public enum CampBagSurface
+    {
+        /// <summary>The 9×7 placement area.</summary>
+        Board = 0,
+
+        /// <summary>The chest panel's background.</summary>
+        ChestPanel = 1,
+
+        /// <summary>The chest's slot grid.</summary>
+        Chest = 2,
+
+        /// <summary>The incense pot (ถวายคืน).</summary>
+        Altar = 3,
+
+        /// <summary>The instruction scroll.</summary>
+        Instructions = 4,
+
+        /// <summary>The bottom-left block: กลับ, ไปชั้นถัดไป and the HP/weight/bia readouts.</summary>
+        Stats = 5,
+    }
+
+    /// <summary>
+    /// One piece as the bag screen draws it: identity, where it is, and the shape it
+    /// currently occupies.
+    /// </summary>
+    /// <remarks>
+    /// A plain value, rebuilt only when a command moved something. The view reads it and
+    /// assigns; it decides nothing — <see cref="Shape"/> is the Domain's footprint for the
+    /// piece's <b>current</b> rotation, so the cells a view paints are the cells the rules
+    /// validated.
+    /// </remarks>
+    public readonly struct CampPieceModel : IEquatable<CampPieceModel>
+    {
+        /// <summary>Captures one piece.</summary>
+        public CampPieceModel(
+            PieceRef piece, string defId, string name, string label, int tier, PieceKind kind, PieceZone zone,
+            CellOffset origin, Rotation rotation, int chestSlot, Footprint shape)
+        {
+            Piece = piece;
+            DefId = defId ?? string.Empty;
+            Name = name ?? string.Empty;
+            Label = label ?? string.Empty;
+            Tier = tier;
+            Kind = kind;
+            Zone = zone;
+            Origin = origin;
+            Rotation = rotation;
+            ChestSlot = chestSlot;
+            Shape = shape;
+        }
+
+        /// <summary>The run's handle for the piece.</summary>
+        public PieceRef Piece { get; }
+
+        /// <summary>Permanent data id (<c>item.mor_knife</c>).</summary>
+        public string DefId { get; }
+
+        /// <summary>Localized display name.</summary>
+        public string Name { get; }
+
+        /// <summary>
+        /// The short caption painted on the piece's rectangle (name and tier), composed by the
+        /// presenter so that the view has nothing to format.
+        /// </summary>
+        public string Label { get; }
+
+        /// <summary>1..<c>constant.max_tier</c>.</summary>
+        public int Tier { get; }
+
+        /// <summary>Bag or item.</summary>
+        public PieceKind Kind { get; }
+
+        /// <summary>Board or chest.</summary>
+        public PieceZone Zone { get; }
+
+        /// <summary>Top-left board cell (meaningless in the chest).</summary>
+        public CellOffset Origin { get; }
+
+        /// <summary>Orientation (meaningless in the chest).</summary>
+        public Rotation Rotation { get; }
+
+        /// <summary>Chest slot, or <see cref="PieceInstance.NoChestSlot"/>.</summary>
+        public int ChestSlot { get; }
+
+        /// <summary>The footprint at <see cref="Rotation"/>.</summary>
+        public Footprint Shape { get; }
+
+        /// <summary>True for a bag piece.</summary>
+        public bool IsBag => Kind == PieceKind.Bag;
+
+        /// <summary>True when the piece is on the board.</summary>
+        public bool IsOnBoard => Zone == PieceZone.Board;
+
+        /// <inheritdoc />
+        public bool Equals(CampPieceModel other) =>
+            Piece == other.Piece && Tier == other.Tier && Zone == other.Zone
+            && Origin == other.Origin && Rotation == other.Rotation && ChestSlot == other.ChestSlot
+            && string.Equals(DefId, other.DefId, StringComparison.Ordinal);
+
+        /// <inheritdoc />
+        public override bool Equals(object obj) => obj is CampPieceModel other && Equals(other);
+
+        /// <inheritdoc />
+        public override int GetHashCode() => (Piece.GetHashCode() * 397) ^ (Tier * 31) ^ (int)Zone ^ (int)Rotation;
+
+        /// <inheritdoc />
+        public override string ToString() => Name + " t" + Tier + " (" + Piece + ")";
+    }
+
+    /// <summary>One of the four shop slots as the panel draws it.</summary>
+    public readonly struct CampShopSlotModel
+    {
+        /// <summary>Captures one slot.</summary>
+        public CampShopSlotModel(
+            int index, string pieceId, string name, string priceLabel, int price, PieceKind kind,
+            bool isEmpty, bool isPurchased, bool isLocked, bool canAfford)
+        {
+            Index = index;
+            PieceId = pieceId ?? string.Empty;
+            Name = name ?? string.Empty;
+            PriceLabel = priceLabel ?? string.Empty;
+            Price = price;
+            Kind = kind;
+            IsEmpty = isEmpty;
+            IsPurchased = isPurchased;
+            IsLocked = isLocked;
+            CanAfford = canAfford;
+        }
+
+        /// <summary>Panel position, 0-based.</summary>
+        public int Index { get; }
+
+        /// <summary>Offered piece id, or empty.</summary>
+        public string PieceId { get; }
+
+        /// <summary>Localized display name, or empty.</summary>
+        public string Name { get; }
+
+        /// <summary>The price as it is shown, formatted by the presenter.</summary>
+        public string PriceLabel { get; }
+
+        /// <summary>Standard price in bia.</summary>
+        public int Price { get; }
+
+        /// <summary>Bag or item.</summary>
+        public PieceKind Kind { get; }
+
+        /// <summary>Holds nothing to rent.</summary>
+        public bool IsEmpty { get; }
+
+        /// <summary>Already rented; such a slot never refills.</summary>
+        public bool IsPurchased { get; }
+
+        /// <summary>Pinned across a re-roll.</summary>
+        public bool IsLocked { get; }
+
+        /// <summary>True when the purse can pay <see cref="Price"/>.</summary>
+        public bool CanAfford { get; }
+
+        /// <summary>True when the rent button should be live.</summary>
+        public bool CanRent => !IsEmpty && !IsPurchased && CanAfford;
+    }
+
+    /// <summary>
+    /// What the drag is doing right now: which piece, where it would land, and what the
+    /// run says about that.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A struct with value equality on purpose. It is assigned on every pointer move, and
+    /// <c>ReactiveProperty&lt;T&gt;</c> compares with <c>EqualityComparer&lt;T&gt;.Default</c>:
+    /// without <see cref="IEquatable{T}"/> that comparison boxes both sides, which is a heap
+    /// allocation per pointer event — the one thing the Stage 09 acceptance measures
+    /// ("ไม่มี GC spike ระหว่างลาก").
+    /// </para>
+    /// <para>
+    /// <see cref="Origin"/>/<see cref="Rotation"/> are what the ghost would occupy, and come
+    /// from the same <c>DropPreview</c> call the drop itself will use.
+    /// </para>
+    /// </remarks>
+    public readonly struct CampDragState : IEquatable<CampDragState>
+    {
+        /// <summary>Captures the drag.</summary>
+        public CampDragState(
+            bool isActive, PieceRef piece, BagDropZone zone, CellOffset origin, Rotation rotation,
+            BagDropAction action, bool isValid, int bia, PieceRef target, string errorCode)
+        {
+            IsActive = isActive;
+            Piece = piece;
+            Zone = zone;
+            Origin = origin;
+            Rotation = rotation;
+            Action = action;
+            IsValid = isValid;
+            Bia = bia;
+            Target = target;
+            ErrorCode = errorCode ?? string.Empty;
+        }
+
+        /// <summary>A drag that is not happening.</summary>
+        public static CampDragState None => default;
+
+        /// <summary>True while a piece is being dragged.</summary>
+        public bool IsActive { get; }
+
+        /// <summary>The piece under the pointer.</summary>
+        public PieceRef Piece { get; }
+
+        /// <summary>Which surface the pointer is over.</summary>
+        public BagDropZone Zone { get; }
+
+        /// <summary>The cell the piece would be placed at (its top-left cell).</summary>
+        public CellOffset Origin { get; }
+
+        /// <summary>The rotation this drag would place with.</summary>
+        public Rotation Rotation { get; }
+
+        /// <summary>What releasing here would do.</summary>
+        public BagDropAction Action { get; }
+
+        /// <summary>Whether releasing here would be accepted.</summary>
+        public bool IsValid { get; }
+
+        /// <summary>Bia the altar would pay, when <see cref="Action"/> is <see cref="BagDropAction.Recycle"/>.</summary>
+        public int Bia { get; }
+
+        /// <summary>The piece a merge would fold into, so the screen can highlight it.</summary>
+        public PieceRef Target { get; }
+
+        /// <summary>The code a refusal would carry; empty when valid.</summary>
+        public string ErrorCode { get; }
+
+        /// <inheritdoc />
+        public bool Equals(CampDragState other) =>
+            IsActive == other.IsActive && Piece == other.Piece && Zone == other.Zone
+            && Origin == other.Origin && Rotation == other.Rotation && Action == other.Action
+            && IsValid == other.IsValid && Bia == other.Bia && Target == other.Target
+            && string.Equals(ErrorCode, other.ErrorCode, StringComparison.Ordinal);
+
+        /// <inheritdoc />
+        public override bool Equals(object obj) => obj is CampDragState other && Equals(other);
+
+        /// <inheritdoc />
+        public override int GetHashCode() =>
+            (Piece.GetHashCode() * 397) ^ (int)Zone ^ (int)Action ^ (IsValid ? 7 : 0) ^ (int)Rotation;
+
+        /// <inheritdoc />
+        public override string ToString() =>
+            IsActive ? "drag " + Piece + " -> " + Zone + " (" + Action + ")" : "no drag";
+    }
+
+    /// <summary>
+    /// The bag screen's whole picture: every piece, the cells a combo connects, and the
+    /// drag in progress.
+    /// </summary>
+    /// <remarks>
+    /// Replaced wholesale when a command moved the bag ("คำนวณใหม่เมื่อชุดอุปกรณ์เปลี่ยนเท่านั้น"),
+    /// which is why the view can re-render from scratch here and never per frame. The drag is
+    /// the one field that changes during a gesture, and it is a value type for that reason.
+    /// </remarks>
+    public sealed class CampBagScreen
+    {
+        /// <summary>An empty screen.</summary>
+        public static CampBagScreen Empty { get; } = new CampBagScreen(
+            0, 0, 0, false, false, new CampPieceModel[0], new CellOffset[0], 0);
+
+        /// <summary>Captures the screen.</summary>
+        public CampBagScreen(
+            int boardWidth, int boardHeight, int chestSlots, bool isLocked, bool canUndo,
+            CampPieceModel[] pieces, CellOffset[] highlight, int revision)
+        {
+            BoardWidth = boardWidth;
+            BoardHeight = boardHeight;
+            ChestSlots = chestSlots;
+            IsLocked = isLocked;
+            CanUndo = canUndo;
+            Pieces = pieces;
+            Highlight = highlight;
+            Revision = revision;
+        }
+
+        /// <summary>Board columns (<c>constant.board_width</c>).</summary>
+        public int BoardWidth { get; }
+
+        /// <summary>Board rows (<c>constant.board_height</c>).</summary>
+        public int BoardHeight { get; }
+
+        /// <summary>Chest capacity (<c>economy.chest_slots</c>).</summary>
+        public int ChestSlots { get; }
+
+        /// <summary>True while every edit is refused ("ล็อกย่าม").</summary>
+        public bool IsLocked { get; }
+
+        /// <summary>True when there is something to undo.</summary>
+        public bool CanUndo { get; }
+
+        /// <summary>Every piece the run holds, bags first then items, in creation order.</summary>
+        public CampPieceModel[] Pieces { get; }
+
+        /// <summary>Cells a working combo connects, plus the piece the pointer is over.</summary>
+        public CellOffset[] Highlight { get; }
+
+        /// <summary>Bumps whenever the pieces or their placement changed.</summary>
+        public int Revision { get; }
+    }
+}
