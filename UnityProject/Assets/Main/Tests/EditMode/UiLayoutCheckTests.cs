@@ -192,11 +192,37 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(violations[0], Does.Contain("0.62"));
         }
 
+        /// <summary>
+        /// The Result screen's summary column is held to the same floor as the camp's panels: at the
+        /// camp panel's 0.92 it is not reported, and a column translucent enough to read the scene
+        /// through is.
+        /// </summary>
+        [Test]
+        public void The_summary_column_is_held_to_the_same_floor_as_the_camp_panels()
+        {
+            Assert.That(
+                UiLayoutCheck.FindOpacityViolations(new List<UiRegion>
+                {
+                    Surface(UiLayoutCheck.Summary, 240f, 26f, 800f, 666f, 0.92f),
+                }),
+                Is.Empty,
+                "the summary column is authored at the camp panel's own alpha");
+
+            List<string> violations = UiLayoutCheck.FindOpacityViolations(new List<UiRegion>
+            {
+                Surface(UiLayoutCheck.Summary, 240f, 26f, 800f, 666f, 0.62f),
+            });
+
+            Assert.That(violations, Has.Count.EqualTo(1));
+            Assert.That(violations[0], Does.Contain(UiLayoutCheck.Summary));
+        }
+
         [Test]
         public void The_panels_that_are_meant_to_be_translucent_are_not_held_to_the_floor()
         {
-            // The จัดย่าม screen is an overlay on ศาลาพัก: the instruction scroll and the altar are
-            // deliberately see-through, and the rule names only the two panels the stage names.
+            // The จัดย่าม screen is an overlay on ศาลาพัก and the จัดย่าม panel behind it is the way
+            // into the run: the instruction scroll and the altar are deliberately see-through, and
+            // the rule names only the panels the two stages name.
             Assert.That(
                 UiLayoutCheck.FindOpacityViolations(new List<UiRegion>
                 {

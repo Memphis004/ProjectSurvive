@@ -553,7 +553,7 @@ namespace ProjectSurvive.Game.Editor
 
             var regions = new List<(string Name, UiRegionKind Kind, RectTransform Rect)>
             {
-                ("Summary", UiRegionKind.Surface, summary),
+                (UiLayoutCheck.Summary, UiRegionKind.Surface, summary),
             };
 
             AddSerializedComponents(fields, ResultLines, UiRegionKind.Control, regions);

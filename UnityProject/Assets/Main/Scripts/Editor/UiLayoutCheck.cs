@@ -105,6 +105,12 @@ namespace ProjectSurvive.Game.Editor
         /// <summary>The chest's slot grid, a child of <see cref="ChestPanel"/> on purpose.</summary>
         public const string Chest = "Chest";
 
+        /// <summary>
+        /// The Result screen's summary column: the surface the headline, the four lines and the two
+        /// buttons are drawn on (Stage 10, panel added after the stage closed).
+        /// </summary>
+        public const string Summary = "Summary";
+
         /// <summary>The piece tooltip, on its own canvas above the screen.</summary>
         public const string Tooltip = "Tooltip";
 
@@ -147,7 +153,13 @@ namespace ProjectSurvive.Game.Editor
         /// panels are deliberately translucent — the จัดย่าม screen is an overlay on ศาลาพัก and the
         /// camp has to stay visible behind it.
         /// </summary>
-        public static readonly string[] OpaqueRegions = { "Board", ChestPanel };
+        /// <remarks>
+        /// <see cref="Summary"/> is the Result screen's column and is here for the reason the camp's
+        /// two panels are: it is a panel of its own, authored at the camp panel's alpha, and the
+        /// world behind it must not be read through it. The จัดย่าม overlay's own background (0.62) is
+        /// the one panel that is translucent on purpose and is not listed.
+        /// </remarks>
+        public static readonly string[] OpaqueRegions = { "Board", ChestPanel, Summary };
 
         /// <summary>True when the two rectangles share any area at all.</summary>
         public static bool Overlaps(Rect a, Rect b) =>

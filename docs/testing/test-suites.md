@@ -164,11 +164,11 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `RunFlowEditModeTests` | 4 | the run flow against the shipped `Resources` tables |
 | `WebSizeProfilesTests` | 8 | the size profiles and their recorded configuration |
 | `BackpackRulesTests` | 10 | the bag rules as the Editor sees them |
-| `UiLayoutCheckTests` | 19 | the overlap rule the UI capture command applies, the overlay exemption, the opacity floor and (Stage 09g) the modal rules: a window may cover the panel it is asking about, two cards sharing pixels are still reported, a card inside its window passes and one outside it does not; includes the deliberate-overlap case |
+| `UiLayoutCheckTests` | 20 | the overlap rule the UI capture command applies, the overlay exemption, the opacity floor and (Stage 09g) the modal rules: a window may cover the panel it is asking about, two cards sharing pixels are still reported, a card inside its window passes and one outside it does not; includes the deliberate-overlap case and the summary column's own floor case (the Result screen's column is held to the same 0.9 as the camp's panels) |
 | `DevCheatTests` | 8 | **Stage 10c** — `DevCheats.Allowed` is false until the root decides it and false in a release player, `Reset` puts it back; every dev command through the real ECS session: a floor with cheats off refuses each one with `RejectedNotAllowed` and changes nothing (HP, bia, entity count, phase), `DevGodMode` only takes 0/1, `DevAddBia` only takes a positive amount, and a refused command leaves the menu's own toggle telling the truth |
 | `ResultScreenTests` | 7 | **Stage 10b** — the summary a cleared run and a lost one produce (headline, floor reached, ghosts, bia, HP), a run that has not ended, the strings coming through the localization table, one way out at a time, `ReturnToTitle` being the run's own transition, and every `result.*` row existing in both languages |
 | `RunScopeLifetimeTests` | 3 | **Stage 10a** — the run is created once and replaced only by its owner's disposal, a run after a disposal is a new one and not the old object, and a scene scope inherits the App scope's run instead of building its own |
-| `ResultScreenLayoutTests` | 3 | **Stage 10b** — the Result scene read from disk and judged with `UiLayoutCheck`: the seven regions are pairwise disjoint and inside the summary column, every label is ≥ 22 px in a ≥ 32 px line box, and the reading order (headline → lines → restart → title) holds. Measured rectangles in [`artifacts/stage10/result-layout.md`](../../artifacts/stage10/result-layout.md) |
+| `ResultScreenLayoutTests` | 4 | **Stage 10b** — the Result scene read from disk and judged with `UiLayoutCheck`: the seven regions are pairwise disjoint and inside the summary column, every label is ≥ 22 px in a ≥ 32 px line box, the reading order (headline → lines → restart → title) holds, and the column carries a background at the camp panel's own alpha (read out of `Camp.unity`, not copied). Measured rectangles in [`artifacts/stage10/result-layout.md`](../../artifacts/stage10/result-layout.md) |
 
 ### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (40 tests) → **Full**
 
@@ -247,7 +247,7 @@ Cold total for Fast is 229 s and warm is 77 s, so "a few minutes" holds for both
 `-executeMethod ProjectSurvive.Game.Editor.UiCaptureTool.CaptureAllAndExit` — opens Camp, Battle and the
 summary screen (Result) in the Editor, renders each at both sizes into `artifacts/ui/`, measures every
 named panel and fails when two that must stand apart share pixels. Measured: 0.9–1.1 s for six images
-through the menu item (**1 098 ms** on 2026-10-16 and **1 265 ms** on 2026-10-17 for the ten images it writes now, the Result section included, both PASS with 0 failures),
+through the menu item (**1 098 ms** on 2026-10-16 and **1 265 ms** / **1 884 ms** on 2026-10-17 for the ten images it writes now, the Result section included, all three PASS with 0 failures),
 and 9 s wall clock for the batch `-executeMethod` form (the Unity launch dominates) — both were run,
 and they produced **byte-identical images** and the same rectangles. A third entry point,
 `ProjectSurvive/Tools/3. Capture the merge chooser in Play Mode (Camp)`, shoots the Stage 09g
@@ -256,8 +256,8 @@ upgrade-choice window, which does not exist in the authored scene at all — see
 - Coverage: **10 images** — `artifacts/ui/{camp,battle,result}-{1920x1080,1280x720}.png` plus the
   closed camp (`camp-closed-*`) and the tooltip state (`camp-tooltip-*`) — and `ui-report.md` /
   `ui-report.json` with every rectangle in pixels **and the alpha of every region**, so the opacity
-  floor is a measured column rather than a claim (Board and ChestPanel 0.92, Instructions 0.85, Stats 1,
-  Tooltip 0.95). The summary screen is measured the same way: its 1200×1000 column, its five lines and
+  floor is a measured column rather than a claim (Board and ChestPanel 0.92, the Result summary column
+  0.92, Instructions 0.85, Stats 1, Tooltip 0.95). The summary screen is measured the same way: its 1200×1000 column, its five lines and
   its two 400×76 buttons, eight regions at each size, 0 overlaps — and its rectangles are the ones
   `ResultScreenLayoutTests` judges in the column's own units, so the two checks agree rather than
   duplicate a rule that could drift. What the screen *says* is not in these images: every label in
@@ -266,8 +266,13 @@ upgrade-choice window, which does not exist in the authored scene at all — see
   bands of a play-mode capture at 1280×720 fall inside the label boxes this report gives (headline
   592–651 in 573–667, floor 535–557 in 531–560, kills 496–516 in 491–520, bia 456–476 in 451–480, HP
   415–436 in 411–440, the two button labels 288–302 / 221–235 in the 269–320 and 203–253 button boxes).
-  A `Surface` here carries no background unless the scene author gave it one: the summary's column is a
-  bare `RectTransform`, which the capture shows as one flat colour behind the text.
+  A `Surface` here carries no background unless the scene author gave it one, and the one that used to
+  have none was the summary's column — a bare `RectTransform` shown as one flat colour behind the text.
+  It is now authored like the camp's panels (the camp `Board`'s colour at the same **0.92**, which is
+  named in `UiLayoutCheck.OpaqueRegions` so a column below the floor is a failed capture rather than a
+  note), and its paint is measured in pixels rather than inferred from the component
+  (`artifacts/stage10/measure-result-panel.ps1`: 54.9 % of the frame at 1920×1080, 55.0 % at 1280×720,
+  22,22,28 inside the column against 13,15,20 outside it).
 - The tooltip shot carries a **pixel proof of draw order**: the same frame is rendered with the overlay
   off and on, and five points inside the overlay's rectangle must land closer to the overlay's own
   background colour with it on (measured: 0.016 at four points, 0.188 at the one over a button). It is

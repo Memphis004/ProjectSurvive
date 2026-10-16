@@ -271,7 +271,8 @@ node tools/serve-web.mjs --port 8080          # then, in tests/web: npx playwrig
 unity command menu --path "ProjectSurvive/Tools/1. Capture UI (Camp + Battle + Result, 1920x1080 + 1280x720)"
 #   -> artifacts/ui/{camp,battle,result}-{1920x1080,1280x720}.png, camp-closed-* and camp-tooltip-*
 #      (the tooltip's draw order is proved in pixels: the same frame off vs on; the Result screen's
-#      summary column, its five lines and its two buttons are measured the same way), + ui-report.md
+#      summary column, its five lines and its two buttons are measured the same way, and the column's
+#      own background is held to the camp panel's 0.92 by UiLayoutCheck.OpaqueRegions), + ui-report.md
 #      with every rectangle AND every region's alpha (the opacity floor is a measured column)
 # Scripted form (Editor closed): Unity.exe -batchmode -quit -projectPath UnityProject \
 #   -executeMethod ProjectSurvive.Game.Editor.UiCaptureTool.CaptureAllAndExit

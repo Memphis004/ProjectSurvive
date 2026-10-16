@@ -74,6 +74,13 @@ all above the 22 px Thai floor, measured in `artifacts/stage10/result-*.png` and
 both GDD sizes, in `artifacts/ui/result-{1920x1080,1280x720}.png` + `artifacts/ui/ui-report.md`
 (`ProjectSurvive/Tools/1. Capture UI`, which now renders Camp, Battle and Result).
 
+The column is a panel, at the camp's own alpha: an `Image` of `0.07/0.09/0.12` at **0.92** — the value
+ศาลาพัก's `Board` is authored with — with `raycastTarget` off so it cannot take a click meant for the
+two buttons. It is named in `UiLayoutCheck.OpaqueRegions` beside the camp's panels, so the capture tool
+reports a summary you can read the scene through, and
+`ResultScreenLayoutTests.The_summary_column_carries_the_camp_panels_own_background` compares the two
+scenes' alphas rather than trusting the copy of the number.
+
 **What it publishes.** `ResultReport.Publish` (called by `ResultSceneDirector` right after
 `Presenter.Begin()`) hands the page one document, `__projectSurviveResult`: the run's own outcome and
 numbers, the seven strings the screen is showing, and the screen-pixel centres of its two controls

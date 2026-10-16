@@ -196,9 +196,18 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   20/40 bulk payload being the ambient Input-System/R3 log assert rather than an assertion of ours.
 - The capture tool's Result shots and a play-mode capture of the same size were compared rather than
   assumed to agree: the white-text bands in `result-victory.png` fall inside the label rects the tool
-  measures. What that comparison also shows is that `Summary` has **no background image** — every other
-  named panel in `ProjectSetup` gets one — so the screen is white text on the clear colour plus its two
-  buttons. Left as authored, with the numbers in `docs/stages/10-report.md` §7.
+  measures. What that comparison also showed is that `Summary` had **no background image** — every other
+  named panel in `ProjectSetup` gets one — so the screen was white text on the clear colour plus its two
+  buttons; asked for afterwards, the column now carries the camp `Board`'s own colour and alpha
+  (`0.07/0.09/0.12` at **0.92**, `raycastTarget` off), the scene rebuilt from the builder
+  (`ProjectSurvive/Stage 10/6. Create Result scene`) and the capture re-shot: `Summary (Surface, alpha
+  0.92)`, **PASS**, 0 failures, 0 overlaps, and the panel's colour now **54.9 %** of the frame (55.0 % at
+  1280×720) where those pixels used to be the scene's clear colour alone, the bare column's only other
+  marks being the two buttons at 2.8 % (`artifacts/stage10/measure-result-panel.ps1`). The floor is enforced, not just printed — `UiLayoutCheck.OpaqueRegions` names `Summary`
+  beside the camp's `Board`/`ChestPanel` — and two new EditMode tests hold it
+  (`ResultScreenLayoutTests.The_summary_column_carries_the_camp_panels_own_background` reads the camp
+  `Board`'s alpha out of `Camp.unity`; `UiLayoutCheckTests.The_summary_column_is_held_to_the_same_floor_
+  as_the_camp_panels`), EditMode **119 → 121**, `-Suite Fast` **PASS 10 | FAIL 0 | NOT RUN 3**, 85.9 s.
 - Next: anything that still needs a real player — a Release-build dev-menu check, IL2CPP stripping of
   the Result scene's DI beyond what the Development build exercises — stays named in
   `docs/stages/10-report.md` rather than assumed; and the summary screen's look is now a decision with

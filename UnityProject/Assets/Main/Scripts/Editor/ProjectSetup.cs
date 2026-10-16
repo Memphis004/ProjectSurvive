@@ -1670,6 +1670,20 @@ namespace ProjectSurvive.Game.Editor
                 canvasRect, "Summary", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(1200f, 1000f));
 
+            // The column carries a background of its own, at the camp's panel alpha (0.92 — the value
+            // `ProjectSurvive/Tools/1. Capture UI` measures on the camp's Board, ChestPanel and Altar,
+            // and the one `UiLayoutCheck.OpaqueFloor` names for a panel the reader must not see through).
+            // It is not the จัดย่าม screen's 0.62 full-screen overlay: that one is translucent so ศาลาพัก
+            // stays readable behind it, and over this scene's flat clear colour 0.62 is invisible
+            // (0.06/0.08/0.10 at 62 % over 13/15/20 is a 0.5 %-per-channel shift). A summary is a column
+            // of text, so it gets the panel treatment the other screens' panels get.
+            var columnBackground = column.gameObject.AddComponent<Image>();
+            columnBackground.color = new Color(0.07f, 0.09f, 0.12f, 0.92f);
+
+            // The buttons answer their own clicks, so the column behind them must not swallow one: the
+            // camp's own non-blocking panels (Instructions, Board, ChestPanel) are authored the same way.
+            columnBackground.raycastTarget = false;
+
             TMP_Text headline = CreateUiText(
                 column, "Headline", new Vector2(0f, -40f), new Vector2(1200f, 140f), 96f, font,
                 TextAlignmentOptions.Center);

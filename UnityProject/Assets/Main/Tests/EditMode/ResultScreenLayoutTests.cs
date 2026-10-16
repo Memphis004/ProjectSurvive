@@ -35,6 +35,12 @@ namespace ProjectSurvive.Game.Tests.EditMode
     {
         private const string ResultScenePath = "Assets/Main/Scenes/Result.unity";
 
+        /// <summary>The scene the panel this screen's column is held to is authored in.</summary>
+        private const string CampScenePath = "Assets/Main/Scenes/Camp.unity";
+
+        /// <summary>The camp's own panel, the one the summary column is authored to match.</summary>
+        private const string CampPanelName = "Board";
+
         /// <summary>The column every region of this screen is a child of.</summary>
         private const string SummaryName = "Summary";
 
@@ -177,6 +183,41 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(Top("RestartButton"), Is.GreaterThan(Top("TitleButton")), "the title button is not the last control");
         }
 
+        /// <summary>
+        /// The column is a surface, not a hole in the scene: it carries the camp's own panel
+        /// background — the colour and the alpha ศาลาพัก's <c>Board</c> is authored with — so the
+        /// summary reads as the same kind of panel as the other screens' panels do, and the
+        /// background stays out of the two buttons' way.
+        /// </summary>
+        [Test]
+        public void The_summary_column_carries_the_camp_panels_own_background()
+        {
+            ResultView view = OpenResultScene();
+            RectTransform column = Column(view);
+
+            var background = column.GetComponent<Image>();
+            Assert.That(background, Is.Not.Null, "the Summary column carries no background");
+
+            float campAlpha = CampPanelAlpha();
+
+            TestContext.WriteLine(
+                "Summary background alpha " + background.color.a.ToString("0.###")
+                + " vs the camp's " + CampPanelName + " at " + campAlpha.ToString("0.###"));
+
+            Assert.That(
+                background.color.a, Is.EqualTo(campAlpha).Within(0.001f),
+                "the Summary column's background is not at the camp panel's alpha");
+
+            Assert.That(
+                background.color.a, Is.GreaterThanOrEqualTo(UiLayoutCheck.OpaqueFloor - 0.001f),
+                "the Summary column is below the " + UiLayoutCheck.OpaqueFloor.ToString("0.###")
+                + " floor, so the scene behind it reads through");
+
+            Assert.That(
+                background.raycastTarget, Is.False,
+                "the column's background would swallow the two buttons' clicks");
+        }
+
         // ------------------------------------------------------------------
         // Reading the shipped scene
         // ------------------------------------------------------------------
@@ -281,6 +322,44 @@ namespace ProjectSurvive.Game.Tests.EditMode
             }
 
             return default;
+        }
+
+        /// <summary>
+        /// The alpha the camp's own panel is authored with, read from the shipped camp scene: the
+        /// number this screen's column is held to, so "the same panel as the camp's" is one value the
+        /// two scenes agree on rather than a copy of it in this file. The camp scene is opened
+        /// additively and closed again, exactly as the Result scene is, so the test leaves the Editor
+        /// as it found it.
+        /// </summary>
+        private static float CampPanelAlpha()
+        {
+            Scene camp = EditorSceneManager.OpenScene(CampScenePath, OpenSceneMode.Additive);
+
+            try
+            {
+                Assert.That(camp.IsValid() && camp.isLoaded, "the Camp scene could not be opened");
+
+                foreach (GameObject root in camp.GetRootGameObjects())
+                {
+                    foreach (Image image in root.GetComponentsInChildren<Image>(includeInactive: true))
+                    {
+                        if (image.gameObject.name == CampPanelName)
+                        {
+                            return image.color.a;
+                        }
+                    }
+                }
+
+                Assert.Fail("the Camp scene has no '" + CampPanelName + "' panel with a background");
+                return 0f;
+            }
+            finally
+            {
+                if (camp.IsValid() && camp.isLoaded)
+                {
+                    EditorSceneManager.CloseScene(camp, removeScene: true);
+                }
+            }
         }
     }
 }

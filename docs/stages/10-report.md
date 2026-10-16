@@ -116,12 +116,14 @@ unity command screenshot --view game                                           #
 
 ## 7. Follow-up (2026-10-16, same day): the last leg of the loop, twice over
 
-Asked for after the stage closed, in two steps: **(a)** render the summary screen with the Editor
+Asked for after the stage closed, in three steps: **(a)** render the summary screen with the Editor
 capture tool the way Camp and Battle are rendered, so its look is judged from tool output; **(b)** add
 a browser check that reaches the Result screen and asserts its summary, so the player build covers the
-last leg of the loop. Both are follow-ups to this stage, not a new one — and the one rule that did
-change (row 8) was not redesigned here: the browser check found a dev command whose defeat did not
-match the defeat the rules produce, and the command was corrected to match them.
+last leg of the loop; **(c)** give the summary column the camp panels' own background — asked for once
+(a) had judged the bare column legible but plain (row 9). All three are follow-ups to this stage, not
+a new one — and the one rule that did change (row 8) was not redesigned here: the browser check found a
+dev command whose defeat did not match the defeat the rules produce, and the command was corrected to
+match them.
 
 | # | Item | Verdict |
 | --- | --- | --- |
@@ -132,6 +134,7 @@ match the defeat the rules produce, and the command was corrected to match them.
 | 5 | (DoD) automated tests for the changed rules, run for real | **PASS** — 6 new Unity test methods (`ResultReportTests` 4 + `DevMenuReportTests` 2) take the EditMode assembly 115 → **119**; `-Suite Fast` **PASS 10 / FAIL 0 / NOT RUN 3**, 75.7 s, EditMode **119/119**, dotnet **466** (`artifacts/stage10/fast-followup.log`); `ResultScenePlayModeTests` **3/3** and `BattlePlayModeTests` **4/4** with the new assertions. After the rule fix in row 8 the closing runs are `artifacts/stage10/full-editor-open-result.log` (Editor open: EditMode **119/119**, PlayMode per class green — `playmode-per-class-followup.md`) and `artifacts/stage10/full-followup-editor-closed-web-final.log` (Editor closed: **PASS 11 | FAIL 0 | NOT RUN 2**, 245.9 s, WebGL **PASS** + Playwright **9 passed**), with dotnet **466 → 468** for the two contract cases row 8 adds |
 | 6 | (DoD) docs and commands | **PASS** — `knowledge.md`, `docs/testing/test-suites.md` (the tool's command and coverage, the browser spec table and the suite's step name), `llmwiki/systems/loop-and-scopes.md` (the two new documents), `llmwiki/systems/battle-contract.md` (the `DevLoseNow` rule), `llmwiki/systems/camp.md`, `llmwiki/stage-log.md`, and this section |
 | 7 | The summary screen's *look* is judged from the capture tool's output, not from play-mode shots | **PASS** — the 10 images are re-shot from the shipped scene at **00:29 on 2026-10-17** (10 shots, **PASS**, 0 failures, 0 overlaps) and the tool's measured rectangles are cross-checked against a play-mode capture of the same size: the white-text bands in `artifacts/stage10/result-victory.png` (1280×720) sit inside the label rects the report measures — headline 592–651 in the 573–667 box, floor 535–557 in 531–560, kills 496–516 in 491–520, bia 456–476 in 451–480, HP 415–436 in 411–440, and the two button labels 288–302 / 221–235 inside the 269–320 and 203–253 button boxes. What the screen *says* is still absent from the images (empty authored labels), which the report states |
+| 9 | The summary column carries a background at the camp panel's alpha (asked for after row 7 had judged the bare column) | **PASS** — `CreateResultScene` gives the column an `Image` at `new Color(0.07f, 0.09f, 0.12f, 0.92f)` — the camp `Board`'s own colour and alpha, not a value chosen here — with `raycastTarget = false` so a background cannot swallow either button's click; the scene was rebuilt from the builder (`ProjectSurvive/Stage 10/6. Create Result scene`), with the pre-change scene kept at `artifacts/stage10/Result-before-panel.unity` for the comparison. The capture re-shot at **02:18 on 2026-10-17** reports `Summary (Surface, alpha 0.92)` at both sizes, **PASS**, 0 failures, 1 884 ms, 0 overlaps. In pixels (`artifacts/stage10/measure-result-panel.ps1`): the panel's colour is **54.9 %** of the 1920×1080 frame and **55.0 %** of the 1280×720 one — the column's 1200×1000 area, minus its text — reading 22,22,28 inside the column (700,500) against 13,15,20 outside it, where those pixels used to be the scene's clear colour alone (the bare column's only other marks were the two buttons, 2.8 % of the frame). Enforced, not just measured: `UiLayoutCheck.OpaqueRegions` now names `Summary` beside the camp's `Board` and `ChestPanel`, so the capture tool fails on a column below the 0.9 floor, and two new EditMode tests hold it — `ResultScreenLayoutTests.The_summary_column_carries_the_camp_panels_own_background` reads the camp `Board`'s alpha out of `Camp.unity` and compares it with the column's own `Image` (equal within 0.001, at or above the floor, `raycastTarget` off) and `UiLayoutCheckTests.The_summary_column_is_held_to_the_same_floor_as_the_camp_panels`. EditMode 119 → **121**; `-Suite Fast` **PASS 10 / FAIL 0 / NOT RUN 3**, 85.9 s (`artifacts/stage10/fast-summary-panel.log`) |
 | 8 | A forced loss is the loss the rules produce (found by the gate, fixed) | **PASS** — `loseNow` used to finish as `Lost` / `PlayerDied` with the player still at full HP, so the run kept 100 HP through `ApplyBattleResult` and the summary screen printed a defeat at full health. The cheat now spends the HP first, in both sessions (the ECS simulation and the fake), and `BattleSessionContractTests.Dev_lose_now_reports_the_death_it_stands_for` pins `FinalHp == 0` for both factories (dotnet 466 → **468**). The first run of the browser check failed on exactly this (`Expected: 0, Received: 100`) and its own artifacts are kept: `artifacts/stage10/playwright-result-first-run/error-context.md`, `test-failed-1.png`, `trace.zip` |
 
 ### How the web gate found the two things it found
@@ -167,6 +170,12 @@ have held: the first fix tightened the game, the second deleted a wrong comparis
 - `lib/Runtime/Simulation/Battle/EcsBattleSimulation.cs` + `lib/Runtime/Application/Battle/Fake/FakeBattleSession.cs` (**a rule fix**, not a UI one): `DevLoseNow` spends the player's HP (a one-call `KillPlayer` / a `_hp = 0`) before it finishes, so the result is `Lost` / `PlayerDied` / `FinalHp` 0 in both sessions. `lib/Tests~/Core.Tests/Battle/BattleSessionContractTests.cs` gains `Dev_lose_now_reports_the_death_it_stands_for`, which the shared suite runs against **both** factories (dotnet 466 → 468). The web gate is what found it: the summary screen's `hp` line was asserted against the arena's `finalHp`, and a forced defeat was reporting 100 of 100. Applied to the fake as well because a fixture that manufactures a different defeat than the rules do is how a preview and the game drift apart.
 - `tests/web/result.spec.ts` (new): the browser check, listed in `tools/test.ps1`'s web step beside
   smoke/battle/camp so the step's own name (`… + result`) is true.
+- `ProjectSetup.CreateResultScene` + `Result.unity` (rebuilt from the builder, not by hand): the
+  summary column's background `Image`. `UiLayoutCheck` grows the `Summary` region name and lists it in
+  `OpaqueRegions` beside the camp's two panels, and `UiCaptureTool` uses that constant instead of its
+  own copy of the string. `ResultScreenLayoutTests` gains the cross-scene comparison (it opens
+  `Camp.unity` additively and closes it again, as it already did with `Result.unity`) and
+  `UiLayoutCheckTests` the floor case.
 
 ### Commands run (this follow-up)
 
@@ -174,6 +183,17 @@ have held: the first fix tightened the game, the second deleted a wrong comparis
 # the Editor UI capture, re-shot from the shipped scene at the two GDD sizes
 unity command menu --path "ProjectSurvive/Tools/1. Capture UI (Camp + Battle + Result, 1920x1080 + 1280x720)"
 #   -> 10 images, PASS, 0 failures, 1 265 ms; artifacts/ui/{camp,battle,result}-*.png + ui-report.md
+
+# (c) the column's background: rebuild the scene from the builder, then judge it again
+unity command menu --path "ProjectSurvive/Stage 10/6. Create Result scene"
+unity command menu --path "ProjectSurvive/Tools/1. Capture UI (Camp + Battle + Result, 1920x1080 + 1280x720)"
+#   -> PASS, 0 failures, 1 884 ms; Summary (Surface, alpha 0.92) at both sizes, 0 overlaps
+pwsh -NoProfile -File artifacts/stage10/measure-result-panel.ps1 -Image artifacts/ui/result-1920x1080.png
+#   -> panel colour 54.9 % of the frame (55.0 % at 1280x720); inside the column (700,500) 22,22,28
+#      against 13,15,20 outside it
+unity command run_tests --mode editor --filter Layout --async_tests               # 25/25, 0.7 s
+pwsh -NoProfile -File tools/test.ps1 -Suite Fast                                   # PASS 10 | FAIL 0 | NOT RUN 3, 85.9 s,
+                                                                                   # EditMode 121/121, dotnet 468
 
 # Unity, Editor open
 pwsh -NoProfile -File tools/test.ps1 -Suite Full            # PASS 10 | FAIL 1 | NOT RUN 2, 222 s; EditMode 119/119,
@@ -193,7 +213,7 @@ pwsh -NoProfile -File tools/test.ps1 -Suite Full              # Editor closed ->
 
 ### Not tested, and risks (this follow-up)
 
-- **The summary screen draws no panel, and the capture is what makes that visible.** `Result.unity`'s `Summary` column is a bare `RectTransform`: unlike every other named panel in the project (the camp's `StatusPanel` 0.88, `Board` 0.92, the tooltip 0.95, the battle's dev panel 0.88 — `ProjectSetup` gives each of them an `Image`), it carries no background, so a capture of it is 97 % one flat colour with the two buttons (2.8 %) and the text as the only other marks, and the live screen agrees (the same measurement on `result-victory.png`: 96 % background, 2.8 % buttons, white text). That is **legible and within the GDD's wording** for the screen (victory/defeat, floor, ghosts, ways out) and it is left as it is rather than restyled on the way past — but it is the one screen of the three whose look is "white text on the clear colour", and a panel background at the camp's alphas is a two-line change in `CreateResultScene` if that look is what the stage wants next.
+- **The summary column used to draw no panel, and the capture is what made that visible; it now does (row 9).** Before: `Result.unity`'s `Summary` column is a bare `RectTransform`: unlike every other named panel in the project (the camp's `StatusPanel` 0.88, `Board` 0.92, the tooltip 0.95, the battle's dev panel 0.88 — `ProjectSetup` gives each of them an `Image`), it carries no background, so a capture of it is 97 % one flat colour with the two buttons (2.8 %) and the text as the only other marks, and the live screen agrees (the same measurement on `result-victory.png`: 96 % background, 2.8 % buttons, white text). That was **legible and within the GDD's wording** for the screen (victory/defeat, floor, ghosts, ways out) and it was left that way rather than restyled on the way past — the one screen of the three whose look was "white text on the clear colour". The look is no longer that: the column was given the camp `Board`'s own background at the camp's alpha (row 9), so all three screens now draw their content on a panel. It is still the same trade-off, named rather than settled by taste: the panel is a colour and an alpha with a measurement behind them (54.9 % of the frame), and the strings on top of it are unchanged.
 - **A stray server on port 8080 costs a run.** The first closed-Editor Full run reported the Playwright
   step **NOT RUN** — `tools/serve-web.mjs did not start on port 8080` — because a `node` from an
   earlier manual run was still listening; the harness's own server then exits on `EADDRINUSE` and the
