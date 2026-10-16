@@ -207,7 +207,15 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   beside the camp's `Board`/`ChestPanel` — and two new EditMode tests hold it
   (`ResultScreenLayoutTests.The_summary_column_carries_the_camp_panels_own_background` reads the camp
   `Board`'s alpha out of `Camp.unity`; `UiLayoutCheckTests.The_summary_column_is_held_to_the_same_floor_
-  as_the_camp_panels`), EditMode **119 → 121**, `-Suite Fast` **PASS 10 | FAIL 0 | NOT RUN 3**, 85.9 s.
+  as_the_camp_panels`), EditMode **119 → 121**, `-Suite Fast` **PASS 10 | FAIL 0 | NOT RUN 3**, 85.9 s. The
+  WebGL gate agrees with the Editor: with the Editor closed, `web: WebGL build (Development)` **PASS**
+  (20.7 s) and Playwright **9 passed in Chrome** (127.0 s, `result.spec.ts` 5.7 s incl. the `Restart`
+  click) — `PASS 11 | FAIL 0 | NOT RUN 2`, 393.8 s (`artifacts/stage10/full-panel-web.log`), the two
+  NOT RUNs being EditMode and PlayMode, which the same day's Editor-open runs cover (EditMode 121/121,
+  `ResultScenePlayModeTests` 3/3). The panel itself is in the player's own screenshot:
+  `tests/web/test-results/web-result-summary.png` is 33.8 % the panel colour `22,22,28` — the value the
+  Editor capture measures inside the column — against 26.2 % of the scene's clear colour, and its
+  middle scan line is white → clear → panel (x≈340..940) → clear → white, the column's rectangle.
 - Next: anything that still needs a real player — a Release-build dev-menu check, IL2CPP stripping of
   the Result scene's DI beyond what the Development build exercises — stays named in
   `docs/stages/10-report.md` rather than assumed; and the summary screen's look is now a decision with
