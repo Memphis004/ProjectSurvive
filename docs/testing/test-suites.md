@@ -19,17 +19,17 @@ need to run, and the Web build moved behind the Full suite.
 | --- | --- | --- |
 | `toolchain: .NET SDK` | Fast | an SDK ≥ 8 is present |
 | `dotnet build` | Fast | every `lib/` layer, the xUnit project and the Sim compile |
-| `dotnet test (xUnit)` | Fast | 466 tests: the rule engine, the architecture guards, the contract suites, the Sim |
+| `dotnet test (xUnit)` | Fast | 468 tests: the rule engine, the architecture guards, the contract suites, the Sim |
 | `sim: determinism` | Fast | the same seed prints the same `determinismDigest` twice, a different seed does not |
 | `sim: stream separation` | Fast | shop / battle / visual digests differ, `ticksProduced=300` |
 | `sim: bot smoke run` | Fast | the kiting bot plays 2 seeds and writes balance rows |
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 20 broken data sets rejected for the right reason |
-| `unity: EditMode` | Fast | 115 tests in `ProjectSurvive.Game.Tests.EditMode` |
-| `unity: PlayMode` | **Full** | 40 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the three scopes and the 20-round-trip loop) |
+| `unity: EditMode` | Fast | 130 tests in `ProjectSurvive.Game.Tests.EditMode` |
+| `unity: PlayMode` | **Full** | 45 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the three scopes and the 20-round-trip loop) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
-| `web: Playwright (smoke + battle + camp + result)` | **Full** | 9 browser tests against that build, in Chrome (13 more are the opt-in screenshot generator, skipped unless `SCREENS=1`) |
+| `web: Playwright (smoke + title + battle + camp + result)` | **Full** | 10 browser tests against that build, in Chrome (13 more are the opt-in screenshot generator, skipped unless `SCREENS=1`) |
 
 `-Release` moves the dotnet build and the WebGL build to Release. It is for a Stage gate or a
 measurement — a Development build's numbers may not be quoted ([ADR 0003](../adr/0003-performance-baseline-machine-and-browser.md)).
@@ -53,6 +53,13 @@ layout tests landed (`artifacts/stage10/fast-after-layout-tests.log`) — the sa
 spread being the cold/warm behaviour §2 records. The three NOT RUN steps are
 `unity: PlayMode`, `web: WebGL build` and `web: Playwright`, which Fast does not request; `dotnet test`
 466 passed and `unity: EditMode` 115/115 in both runs.
+
+Stage 10d (2026-10-17) moved all four counts: `dotnet test` **468** (the localization row count the
+title's one new string moved), EditMode **130/130** (`TitleScreenTests` 5 + `TitleScreenLayoutTests` 4),
+PlayMode **45** (`TitleScenePlayModeTests` 5) and Playwright **10**. Its `-Suite Fast` run is
+`artifacts/stage10d/fast-after-scene-anchor.log` — **PASS 10 | FAIL 0 | NOT RUN 3**, 81.6 s — and its
+closed-Editor Full run is `artifacts/stage10d/full-editor-closed-web.log` — **PASS 11 | FAIL 0 |
+NOT RUN 2**, 268.4 s, WebGL **PASS** 70.2 s + Playwright **10 passed in Chrome** 130.7 s.
 
 Stage 10's own gate is Full, and it is **two runs**: Full with the Editor **open**
 (`artifacts/stage10/full-suite-editor-open.log`) reports EditMode and PlayMode and NOT RUNs both web
@@ -124,7 +131,7 @@ run — `-Release` is exercised there, not here.
 | --- | --- | --- |
 | `unity: PlayMode` | 42.7 | 24 tests; **12 failed** in this run — see §7 |
 | `web: WebGL build (Development)` | 269.3 cold / **16.5** warm | cold: a fresh IL2CPP translation (Unity's own `buildSeconds: 258.3`, 119,647,484 B, 5 scenes). warm: the second build minutes later reused the IL2CPP C++ cache (Unity: `buildSeconds: 6.7`, 119,647,478 B) |
-| `web: Playwright (smoke + battle + camp + result)` | 121.4 (2026-10-16: pending, 9 tests) | 9 tests, 1 worker, Chrome channel |
+| `web: Playwright (smoke + title + battle + camp + result)` | 121.4 (2026-10-16: 9 tests) / **130.7** (2026-10-17, the 10th test) | 10 tests, 1 worker, Chrome channel |
 
 `unity: EditMode` measured 9.2–13.6 s across the five runs above and `dotnet test` 2.2–2.7 s; the
 numbers quoted per run are the runs of record, not averages.
@@ -135,7 +142,7 @@ Nothing was dropped when the suites were split: this table lists every test that
 split and where it runs now. "Fast" means the working loop, "Full" the closing one; a test cannot be in
 neither.
 
-### dotnet — `lib/Tests~/ProjectSurvive.Core.sln` (466 tests) → **Fast**
+### dotnet — `lib/Tests~/ProjectSurvive.Core.sln` (468 tests) → **Fast**
 
 Run by `dotnet test` in the `dotnet test (xUnit)` step. The project is the *same source* as the `lib/`
 asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the rule-engine tests.
@@ -153,7 +160,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `Inventory/*.cs` | Board/Backpack/BackpackEditor/Merge/Recycle/Rotation/Synergy/Loadout + the randomized bag tests |
 | `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay |
 
-### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (115 tests) → **Fast**
+### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (130 tests) → **Fast**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
@@ -169,8 +176,10 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `ResultScreenTests` | 7 | **Stage 10b** — the summary a cleared run and a lost one produce (headline, floor reached, ghosts, bia, HP), a run that has not ended, the strings coming through the localization table, one way out at a time, `ReturnToTitle` being the run's own transition, and every `result.*` row existing in both languages |
 | `RunScopeLifetimeTests` | 3 | **Stage 10a** — the run is created once and replaced only by its owner's disposal, a run after a disposal is a new one and not the old object, and a scene scope inherits the App scope's run instead of building its own |
 | `ResultScreenLayoutTests` | 4 | **Stage 10b** — the Result scene read from disk and judged with `UiLayoutCheck`: the seven regions are pairwise disjoint and inside the summary column, every label is ≥ 22 px in a ≥ 32 px line box, the reading order (headline → lines → restart → title) holds, and the column carries a background at the camp panel's own alpha (read out of `Camp.unity`, not copied). Measured rectangles in [`artifacts/stage10/result-layout.md`](../../artifacts/stage10/result-layout.md) |
+| `TitleScreenTests` | 5 | **Stage 10d** — the screen's one action through the presenter and the shipped tables: the start caption and the heading come from the localization table (and every key exists in both languages), the control starts the run **once** and refuses a second press while the first move is in flight, a run that is already live is taken to the camp rather than started again (`RunSession.StartRun` refuses `WrongState`), and after a disposal the same control builds a **new** run |
+| `TitleScreenLayoutTests` | 4 | **Stage 10d** — `Title.unity` read from disk and judged with `UiLayoutCheck`: the heading, the build line and the control are pairwise disjoint and inside the canvas, every label is ≥ 22 px in a ≥ 32 px line box, the control is ≥ 44 px tall with a raycastable target, and the reading order (heading → build line → control) holds |
 
-### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (40 tests) → **Full**
+### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (45 tests) → **Full**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
@@ -180,9 +189,10 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `CampWorldPlayModeTests` | 8 | WASD walking, the walk clamp, `E` at a shelf, clicking without walking |
 | `SceneFlowPlayModeTests` | 5 | **Stage 10a** — the whole loop through the real scenes: the purse, bag and HP that went into the arena come back out of it (same `RunSession` object, same seed), a settled floor writes `BattleResult.FinalHp` back into the run and heals only what the run's own settlement heals, leaving the arena disposes its `IBattleSession`, arriving at the title leaves no run scope and no scene scope behind, the loader refuses a second transition and a scene that is not built, and **20 camp/battle round trips** leave exactly one scene scope and one run scope each time and grow the managed heap by ≤ 3 MiB (measured: 0.70 MiB; [`artifacts/stage10/loop-memory.md`](../../artifacts/stage10/loop-memory.md)) |
 | `ResultScenePlayModeTests` | 3 | **Stage 10b** — a lost floor lands on the summary screen and **Restart** starts a new run at floor 1 with the starting purse and an empty bag, a run can be won floor by floor and ends on the victory summary, and leaving the summary for the title leaves no run behind |
-| `ShellPlayModeTests` | 5 | scene loading, the title, the Thai spike's two stacks, UniTask cancellation in play mode. **Note:** the assembly's bulk payload reports four of these five — `Thai_spike_scene_measures_both_stacks_without_missing_glyphs` was absent from the 40-result payload of every Stage 10 run while the file still declares it; run the class on its own to see it (see §7) |
+| `TitleScenePlayModeTests` | 5 | **Stage 10d** — the loop's first screen through the real scenes: Boot hands over and **stops** there (the scene marker, the absent run and the screen's own report are read after the handover the boot scene performed by itself), pressing เริ่มเล่น with the mouse starts a run and walks into the camp as **one** run and one scene scope on floor 1, `Enter` and `Space` reach the same control (the focus is asserted first, because "the key did nothing" and "the button was never focused" are different defects), a second press while the move is in flight is refused by the presenter and by the loader with its typed reason, and playing a run to its summary, going back to the title and pressing again starts a run that is **new** (floor 1, starting purse, the starting bag as a `RunSession` built from scratch on the same seed) |
+| `ShellPlayModeTests` | 5 | scene loading, the title, the Thai spike's two stacks, UniTask cancellation in play mode. **Note:** the assembly's bulk payload reports four of these five — `Thai_spike_scene_measures_both_stacks_without_missing_glyphs` was absent from the payload of every run since Stage 10 while the file still declares it (see §7) |
 
-### Playwright — `tests/web` (9 gate tests) → **Full**
+### Playwright — `tests/web` (10 gate tests) → **Full**
 
 | Spec | Tests | What it covers |
 | --- | --- | --- |
@@ -190,6 +200,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `battle.spec.ts` | 2 | floor 1 played to a win or a loss in a real browser; a mid-floor report. Since Stage 10 the first test also rides the handover that follows: a **won** floor does not end the run, so the arena carries it back to the camp and the camp's own report has to be the same run — `__projectSurviveScene` becomes `Camp`, `floor` is 2 (a new run would be 1), `hp` is the arena's `finalHp`, `bia` is the run's purse and `canDepart` is true |
 | `camp.spec.ts` | 4 | the จัดย่าม flow end-to-end, the sala's controls, WASD + `E`, the layout at 1280×720 and 1920×1080. Its merge step presses `1` to pick the first card of the Stage 09g window after the drop (the camp report publishes no card rectangle, so the key path is the honest one) — that edit was unverified when it landed in 09g and **is verified now**: the Stage 10 Full run with the Editor closed ran this spec **4/4** against the Development player (`artifacts/stage10/full-suite-editor-closed.log`) |
 | `result.spec.ts` | 1 | **the last leg of Stage 10's loop in a built player** (2026-10-16): `?scene=Battle`, the dev menu's แพ้ทันที / lose now pressed through the centres `__projectSurviveDevMenu` publishes, then the handover to the summary screen, where `__projectSurviveResult` has to agree with the arena's own last report (`kills`, `bia`, `hp` = `finalHp`, `maxHp`), carry non-empty Thai lines with the run's numbers in them, and name both controls with a point inside the canvas. The player then presses **Restart** — the control the scene drew — and the camp has to come up with a run that is new: `flow` Camp, `floor` 1, `canDepart`, `hp` = the dead run's `maxHp`. Needs a Development build (that is what a dev menu means); a Release build publishes no menu document at all. Measured in a real player (2026-10-17, Full, Editor closed): the step reports **9 passed in Chrome, 140.0 s**, this spec 1/1 of them — after the `loseNow` fix below, and after its own second assertion was corrected (it compared the summary's *purse* with the arena's earned-currency counter; the two are different numbers and the spec now says so) |
+| `title.spec.ts` | 1 | **Stage 10d** — the first screen of the loop **in a built player**: the boot self-check hands over and the marker becomes `Title`, `__projectSurviveTitle` carries the two Thai strings the screen drew (heading and เริ่มเล่น) plus the build line, names exactly one control (`start`) inside the canvas, and the control is **at the canvas' centre** — 480 of 960 at the template's own size and 640 of 1280 after the canvas is resized to the GDD's second size, which is asserted by polling the published point so that a document frozen at the old size cannot pass. Then it clicks where the screen said the control is and asserts the game's own answer: `__projectSurviveScene` becomes `Camp` and the camp's report has `flow` Camp, `floor` 1, `canDepart` and a live purse and HP. The two facts that had to change to make this pass are in [10d's report](../stages/10d-report.md) §5 |
 | `screens.spec.ts` | 13 | **not a gate**: the screenshot generator, opt-in with `SCREENS=1` (`test.skip(process.env.SCREENS !== "1")`), skipped in a plain run |
 
 ### Process-level checks inside the harness → **Fast**
@@ -338,8 +349,24 @@ Re-measured on 2026-10-17 after the `loseNow` fix, the same split holds: bulk **
 `ShellPlayModeTests` 4/4 ([`artifacts/stage10/playmode-per-class-followup.md`](../../artifacts/stage10/playmode-per-class-followup.md)).
 One further oddity of the payload, recorded rather than explained away: it lists four of
 `ShellPlayModeTests`' five `[UnityTest]`s, and the one it drops
-(`Thai_spike_scene_measures_both_stacks_without_missing_glyphs`) is dropped from every Stage 10 payload
-without appearing as a failure, so a per-class run is the only thing that reports it.
+(`Thai_spike_scene_measures_both_stacks_without_missing_glyphs`) is dropped from every payload since
+Stage 10 without appearing as a failure, so a per-class run is the only thing that reports it — and
+running that class on its own on 2026-10-17 still reported **4 results with a summary row of
+`total 0`**, so the class' payload is internally inconsistent rather than the bulk assembly alone being
+the problem. The five counts come from the result rows, never from the summary.
+
+Stage 10d's own bulk run (2026-10-17, **45** tests, `artifacts/dotnet/unity-playmode-status.json`)
+failed **25 of 45** with the same two ambient messages, and it is worth naming what a *cascade* looks
+like, because the five `TitleScenePlayModeTests` failures in it read like real defects and are not: a
+test that dies on the log assert skips its own teardown, so the next fixture inherits a half-finished
+scene transition and reports `the boot flow did not stop at the title ... But was: "Boot"`,
+`no RootLifetimeScope is loaded`, or a `NullReferenceException` from a `Find<T>()` that returned null.
+Run on its own the same class is **5/5** (and `CampBagDragPlayModeTests` **12/12**,
+`CampMergeChooserPlayModeTests` **4/4**, `CampWorldPlayModeTests` **8/8**, `BattlePlayModeTests` **4/4**,
+`ResultScenePlayModeTests` **3/3**, `SceneFlowPlayModeTests` **5/5**, `ShellPlayModeTests` **4 reported,
+4 passed**) — every class, 45 tests, none failing:
+[`artifacts/stage10d/playmode-per-class.md`](../../artifacts/stage10d/playmode-per-class.md), which is
+where the per-class evidence for Stage 10d lives.
 
 Sixteen of the 28 PlayMode tests failed in the bulk run measured on 2026-10-16 for Stage 09f
 (`unity: PlayMode 16/28`, 12 passed; 12 `IndexOutOfRangeException` + 4 `Cached unprocessed`),

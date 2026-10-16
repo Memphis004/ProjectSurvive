@@ -30,6 +30,7 @@ architecture docs.
 | Battle simulation (EcsLite) | [`systems/battle-simulation.md`](systems/battle-simulation.md) | 07 | done |
 | 2.5D battle presentation (scene, clocks, pools, HUD, camera) | [`systems/battle-presentation.md`](systems/battle-presentation.md) | 08 | done |
 | Camp screen (ศาลาพัก: the sala, walkable, shelves as the shop, the จัดย่าม drag, the two published reports) | [`systems/camp.md`](systems/camp.md) | 09 | done |
+| The full loop: three scopes (App / Run / Scene), `SceneLoader`, the floor loop, the title's start control, the summary screen, dev cheats | [`systems/loop-and-scopes.md`](systems/loop-and-scopes.md) | 10, 10d | done |
 | Core foundation (RNG / clock / ticker / Result) | [ADR 0004](../docs/adr/0004-dotnet-layer-enforcement.md) + [`../docs/architecture/overview.md`](../docs/architecture/overview.md) | 01 | done |
 | Save / resume | *(pending)* | 12 | not started |
 
@@ -80,6 +81,8 @@ lands.
 | The view must copy the frame before the next `Step` | [ADR 0012](../docs/adr/0012-prev-cur-frame-double-buffer.md), [`systems/battle-presentation.md`](systems/battle-presentation.md#3-the-frame-copy-is-not-optional) | `BattleFrameSnapshot` is that copy, and it is taken inside the frame that stepped — rendering a live span is rendering a slot being overwritten |
 | Pool size is per kind, the frame cap is per frame | [`systems/battle-presentation.md`](systems/battle-presentation.md#5-pooling-nothing-is-created-after-warm-up-and-that-is-measured) | 1793 pooled views against `MaxRenderEntities` 1024: the pool must be the larger or a legal frame asks for a view that does not exist |
 | `.unity` YAML is not hand-editable | *(pending)* | Scenes/prefabs are created via the Editor API only |
+| A `CanvasScaler`'s virtual canvas **follows the aspect**, so 1920-wide arithmetic is not centred off 16:9 | [`systems/loop-and-scopes.md`](systems/loop-and-scopes.md#5-facts-that-cost-time-to-learn) | At the template's own 960×600 the reference rect is 1821.6 units wide, so a control placed 760 px from the canvas' top-left corner sits 26 px right of the centre while centre-anchored labels stay centred. Anchor centred content at `(0.5, 0.5)`; `ProjectSetup.CreateUiButton`'s optional `anchor` is how |
+| A layout report written in the frame a canvas resizes is a frame early | [`systems/loop-and-scopes.md`](systems/loop-and-scopes.md#5-facts-that-cost-time-to-learn) | `Screen` reports the new size in the frame the element changed; the canvas lays its widgets out of it during that frame's render. Publishing once per size change publishes the **new size with the old geometry** and stops — the title's director republishes while the point it published and the point the view reports disagree |
 
 Notes live in [`gotchas/`](gotchas/).
 

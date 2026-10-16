@@ -62,7 +62,7 @@ ways out.
 
 * The numbers come from `RunSession.Summary()` — a plain read over run state, with `GhostsDefeated`
   summed per settled floor because no floor outlives its battle.
-* Every string is a `result.*` row in `data/localization/localization.csv` (187 rows now) resolved by
+* Every string is a `result.*` row in `data/localization/localization.csv` (188 rows now) resolved by
   `ResultPresenter`; the view mirrors and forwards, and computes nothing.
 * **Restart is not a command on the run.** It records the intent, is committed by the loader, and
   `RunScopeOwner.DisposeRun()` is what makes the camp start a brand-new run (floor 1, starting purse,
@@ -142,6 +142,25 @@ document is how `tests/web/result.spec.ts` ends a floor on purpose to reach the 
   storm is 5 entries instead of 1 930. The general lesson: an overlay that survives `LoadScene` is a
   *scene-scoped* object living in an *app-scoped* one, and the per-frame warning it causes is what the
   loop's memory budget ends up measuring.
+* **A document written the frame a canvas resizes is a frame early.** `Screen.width` reports the new
+  size in the frame the element changed; the `CanvasScaler` lays the widgets out of it during that
+  same frame's render. So a report that publishes once per size change publishes the **new size with
+  the old geometry** and then stops — exactly what `tests/web/title.spec.ts` read from the player on
+  2026-10-17: `canvasWidth: 1280` with `buttons[0].x` still 505.964, the 960×600 position, 134 px from
+  the 640 the centre had moved to. The fix is a second trigger: the title director republishes while
+  the *point it published* and the point the view reports disagree, not only while the size does
+  (`CampScreenRects.TryCentre` allocates nothing, which is what makes reading it per frame acceptable —
+  the camp reads the same helper at the rate its picture moves). The camp's own geometry report has the
+  same first-frame staleness; it is corrected by its 4 Hz republish instead, which is why its browser
+  test never saw it.
+* **A centred screen must be centred by its anchors, not by arithmetic on a 1920 canvas.** The title's
+  three regions are `anchorMin = anchorMax = (0.5, 0.5)`, because a `CanvasScaler` in `ScaleWithScreenSize`
+  mode changes the canvas' **virtual width** with the screen's aspect: at the template's own 960×600
+  the reference rect is 1821.6 × 1138.5 units, so a control placed at `x = 760` from the canvas' top-left
+  corner (the arithmetic that centres it in 1920) lands ~26 px right of the centre, while the two
+  centre-anchored labels above it stay centred. The browser check caught it (`buttons[0].x = 505.964`
+  where 480 was expected); `ProjectSetup.CreateUiButton` now takes an optional `anchor`, defaulting to
+  the corner every panel and column in this project lays its controls out from.
 * **The summary screen could not be reached in a browser cheaply — and now is reached on purpose.**
   Floor 1 is *won* by a standing player, so the built player goes Battle → Camp; `?scene=Result` opens
   the scene but bounces to the camp because there is no finished run to summarise. The way out is the
@@ -156,3 +175,33 @@ document is how `tests/web/result.spec.ts` ends a floor on purpose to reach the 
   shows nothing and names no control. The Editor-side Route to the same screen is
   `ProjectSurvive/Tools/1. Capture UI` (the Result section) and `ResultReportTests`, both of which run
   in Fast.
+
+## 6. The title screen and its start control (Stage 10d)
+
+Boot hands over to the title and **stops** — that was already true — and until 10d nothing on the
+title could leave it, so the loop's first screen was a display. It now has the one control the
+screen's job implies.
+
+| Piece | File | What it does |
+| --- | --- | --- |
+| Logic | `Assets/Main/Scripts/Presentation/TitlePresenter.cs` | writes the heading, the เริ่มเล่น caption (`TitleKeys`) and the build line; `RequestStart()` starts the run and records the intent |
+| View | `.../Presentation/TitleView.cs` | mirrors three reactive strings, forwards one press, selects the control so `Enter` submits it, and reads `Space` (measured: the Input System version this project pins does not carry Space in the module's default submit bindings) |
+| Director | `.../Presentation/Flow/TitleSceneDirector.cs` | brings the screen up, publishes `__projectSurviveTitle`, and asks the `SceneLoader` for the camp once the presenter has a request |
+| Document | `.../Presentation/TitleReport.cs` | the page's copy: scene marker, the strings, the control's name and its centre in canvas pixels |
+| Scene | `Assets/Main/Scenes/Title.unity` | `ProjectSurvive/Stage 10d/7. Create Title scene (start control)` — three centre-anchored regions (1800×140 heading, 1800×60 build line, 400×76 control) |
+
+Three rules carry it, and each is [ADR 0022](../../docs/adr/0022-the-title-starts-a-run.md):
+
+* **The title starts the run, not the camp.** `RequestStart` calls the same `RunSession.StartRun` the
+  camp calls when it is opened without a run; the camp's own guard stays for the handovers that do not
+  come through here (a direct `?scene=Camp`). One place starts a run, one answer to what a new run is.
+* **The run is asked for lazily, never held.** The presenter is an **App-scope singleton** and arriving
+  at the title *disposes* the run scope, so it calls `RunScopeOwner.RequireRun()` at the moment of the
+  press. That is what makes "กลับ Title จาก Result แล้วกดเริ่มเกมต้องได้ run ใหม่" true by construction.
+* **The intent is recorded, the exit is the loader's.** A refusal (`transition.in_progress`, a scene
+  that is not built) is typed, logged once, and leaves the screen as it was; the request is retried
+  every frame until the fade takes over. Same shape as the summary screen's two ways out.
+
+What it publishes is coordinates, never a permission (the same reasoning as `DevMenuReport`): the
+browser spec clicks the point and asserts the game's own answer — the scene marker becoming `Camp` and
+the camp's report carrying a floor-1 run with a purse it can depart from.

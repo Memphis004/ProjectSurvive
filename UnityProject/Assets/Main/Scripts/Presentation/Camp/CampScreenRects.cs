@@ -17,8 +17,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
     /// both aim at what the report publishes (Stage 09b work item F).
     /// </para>
     /// <para>
-    /// Not on the per-frame path: it runs when a layout report is published, which happens on a
-    /// canvas resize rather than per frame, so the corner buffer is a static rather than a pool.
+    /// It allocates nothing, which is what lets two different callers read it at two different rates:
+    /// the camp publishes a layout report when its picture moved (a canvas resize, a camera move, the
+    /// panel opening), and the title's director compares its published point every frame so that a
+    /// document written in the frame a resize landed — before the canvas has laid its widgets out of
+    /// the new size — is rewritten once the geometry catches up. The corner buffer is a static because
+    /// of that: it is shared, it is only ever read on the main thread, and nothing keeps the result.
     /// </para>
     /// </remarks>
     public static class CampScreenRects

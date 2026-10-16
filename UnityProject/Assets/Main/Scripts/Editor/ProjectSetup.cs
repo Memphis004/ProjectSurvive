@@ -7,6 +7,7 @@ using ProjectSurvive.Game.Presentation;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.Camp;
+using ProjectSurvive.Game.Presentation.Flow;
 using ProjectSurvive.Game.Presentation.Thai;
 using ProjectSurvive.Game.ResultScene;
 using TMPro;
@@ -224,6 +225,29 @@ namespace ProjectSurvive.Game.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("ProjectSurvive: Result scene created and added to build settings.");
+        }
+
+        /// <summary>
+        /// Rebuilds the title scene with its start control, and refreshes the build list.
+        /// </summary>
+        /// <remarks>
+        /// Its own menu item even though <see cref="CreateTitleScene"/> is also what Stage 03's scene
+        /// item calls: a checkout that predates Stage 10d needs the title screen
+        /// <i>rebuilt</i> to gain the control, and running this cannot touch Boot, the spike scene or the
+        /// build list of the other stages. The two items produce byte-identical scenes — this one
+        /// simply says which change made you run it.
+        /// </remarks>
+        [MenuItem("ProjectSurvive/Stage 10d/7. Create Title scene (start control)", priority = 106)]
+        public static void CreateTitleSceneAndConfigure()
+        {
+            EnsureFolder(ScenesFolder);
+
+            CreateTitleScene();
+            ConfigureBuildSettings();
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("ProjectSurvive: Title scene created with its start control.");
         }
 
         // ------------------------------------------------------------------
@@ -699,24 +723,75 @@ namespace ProjectSurvive.Game.Editor
             EditorSceneManager.SaveScene(scene, BootScenePath);
         }
 
+        /// <summary>
+        /// Builds the title screen: the game's name, the build line under it, and the control that
+        /// starts a run (Stage 10d).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The screen is three centred regions with nothing in common: the heading (96 px) at the
+        /// canvas' centre +120, the build/config line (28 px) at −40, and a 400×76 control at −160.
+        /// Every one of them is authored above the 22 px Thai floor (Stage 09d) and each box is the
+        /// line box it holds rather than a 200 px placeholder, so that the layout the capture tool
+        /// <b>measures</b> is the layout on screen: the heading's box is 140 px, the build line's 60 px
+        /// and the button's 76 px, and the three are disjoint with ≥ 50 px between them.
+        /// </para>
+        /// <para>
+        /// <b>All three are anchored to the canvas' centre</b>, which is what makes the screen centred
+        /// at any canvas rather than only at the 1920×1080 reference: the two labels were already
+        /// (<see cref="CreateTmpLabel"/>), and the control is given the same anchor here. A corner
+        /// anchor would put it ~26 px right of the centre on the template's own 960×600 canvas — measured
+        /// in the browser before this was fixed. The control is the same size as the summary screen's two
+        /// (400×76), which are laid out from their columns' corners. Its caption comes from the
+        /// localization table at runtime (AGENTS rule 5): the scene authors an empty label, like every
+        /// other label here.
+        /// </para>
+        /// <para>
+        /// เริ่มเล่น is what leaves the screen. The button records the press, the
+        /// <see cref="TitlePresenter"/> starts the run through the Application layer, and
+        /// <c>TitleSceneDirector</c> — added here, on the scope object — performs the move through the
+        /// <c>SceneLoader</c>. Boot still stops at this screen on purpose.
+        /// </para>
+        /// </remarks>
         private static void CreateTitleScene()
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             RootLifetimeScope scope = CreateScopeObject();
+            TitleSceneDirector director = scope.gameObject.AddComponent<TitleSceneDirector>();
+
             CreateCamera();
             CreateEventSystem();
             Canvas canvas = CreateCanvas(out GameObject canvasObject);
+            var canvasRect = (RectTransform)canvas.transform;
 
             (TMP_FontAsset tmpFont, _) = EnsureFontAssets();
 
-            TMP_Text titleLabel = CreateTmpLabel(canvas, "TitleLabel", new Vector2(0f, 120f), 96f, tmpFont);
-            TMP_Text diagnosticsLabel = CreateTmpLabel(canvas, "DiagnosticsLabel", new Vector2(0f, -60f), 28f, tmpFont);
+            TMP_Text titleLabel = CreateTmpLabel(
+                canvas, "TitleLabel", new Vector2(0f, 120f), 96f, tmpFont, new Vector2(1800f, 140f));
+
+            TMP_Text diagnosticsLabel = CreateTmpLabel(
+                canvas, "DiagnosticsLabel", new Vector2(0f, -40f), 28f, tmpFont, new Vector2(1800f, 60f));
+
+            // Anchored to the canvas' centre rather than laid out from its top-left corner, because the
+            // control belongs to content that is centred: the heading and the build line above it are
+            // centre-anchored (CreateTmpLabel), and a CanvasScaler's virtual width follows the screen's
+            // aspect, so 1920 px of corner arithmetic would put this control ~26 px right of the centre
+            // on the template's own 960×600 canvas while the two labels stayed centred. 160 px below the
+            // centre is where 760/-662 put it at the 1920×1080 reference: the same place on screen, now
+            // the same place on any canvas (measured in the browser: 480 of 960 and 640 of 1280).
+            Button startButton = CreateUiButton(
+                canvasRect, "StartButton", new Vector2(0f, -160f), new Vector2(400f, 76f), tmpFont,
+                out TMP_Text startLabel, anchor: new Vector2(0.5f, 0.5f));
 
             TitleView view = canvasObject.AddComponent<TitleView>();
             SetObjectReference(view, "_scope", scope);
             SetObjectReference(view, "_titleLabel", titleLabel);
             SetObjectReference(view, "_diagnosticsLabel", diagnosticsLabel);
+            SetObjectReference(view, "_startButton", startButton);
+            SetObjectReference(view, "_startLabel", startLabel);
+
+            SetObjectReference(director, "_scope", scope);
 
             EditorSceneManager.SaveScene(scene, TitleScenePath);
         }
@@ -1542,12 +1617,24 @@ namespace ProjectSurvive.Game.Editor
         }
 
         /// <summary>A button with a centred label, laid out from its parent's top-left corner.</summary>
+        /// <summary>
+        /// A button on <paramref name="parent"/>, laid out from its top-left corner unless
+        /// <paramref name="anchor"/> says otherwise.
+        /// </summary>
+        /// <param name="anchor">
+        /// The point of the parent the button is placed against, used as both its anchor and its pivot,
+        /// so that <paramref name="anchoredPosition"/> is the offset of its <b>centre</b> when it is
+        /// <c>(0.5, 0.5)</c>. The default is the parent's top-left corner, which is what every panel and
+        /// column in this project lays its controls out from.
+        /// </param>
         private static Button CreateUiButton(
             RectTransform parent, string name, Vector2 anchoredPosition, Vector2 size,
-            TMP_FontAsset font, out TMP_Text label)
+            TMP_FontAsset font, out TMP_Text label, Vector2? anchor = null)
         {
+            Vector2 corner = anchor ?? new Vector2(0f, 1f);
+
             RectTransform rect = CreateUiRect(
-                parent, name, new Vector2(0f, 1f), new Vector2(0f, 1f), anchoredPosition, size);
+                parent, name, corner, corner, anchoredPosition, size);
 
             var image = rect.gameObject.AddComponent<Image>();
             image.color = new Color(0.25f, 0.26f, 0.30f, 1f);
@@ -1798,7 +1885,19 @@ namespace ProjectSurvive.Game.Editor
             return canvas;
         }
 
-        private static TMP_Text CreateTmpLabel(Canvas canvas, string name, Vector2 anchoredPosition, float fontSize, TMP_FontAsset font)
+        /// <summary>
+        /// A centred label on <paramref name="canvas"/>, <paramref name="anchoredPosition"/> being the
+        /// offset of its <b>centre</b> from the canvas' centre.
+        /// </summary>
+        /// <param name="size">
+        /// The label's box. The default is a roomy 1800×200 placeholder; a screen that is
+        /// <i>measured</i> passes the line box it really occupies, because a rectangle three times the
+        /// height of the line it holds reports a collision that is not on screen (the title screen's
+        /// own heading and build line did exactly that, which is why the parameter is here).
+        /// </param>
+        private static TMP_Text CreateTmpLabel(
+            Canvas canvas, string name, Vector2 anchoredPosition, float fontSize, TMP_FontAsset font,
+            Vector2? size = null)
         {
             var labelObject = new GameObject(name);
             labelObject.transform.SetParent(canvas.transform, false);
@@ -1815,7 +1914,7 @@ namespace ProjectSurvive.Game.Editor
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = new Vector2(1800f, 200f);
+            rect.sizeDelta = size ?? new Vector2(1800f, 200f);
 
             return label;
         }

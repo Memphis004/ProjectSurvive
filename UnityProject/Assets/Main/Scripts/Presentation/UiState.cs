@@ -26,6 +26,17 @@ namespace ProjectSurvive.Game.Presentation
         public ReactiveProperty<string> Title { get; } = new ReactiveProperty<string>(string.Empty);
 
         /// <summary>
+        /// Caption of the title screen's start control ("เริ่มเล่น").
+        /// </summary>
+        /// <remarks>
+        /// The caption is state like every other string here: it is written by
+        /// <see cref="TitlePresenter"/> from the localization table and mirrored into a label by
+        /// <see cref="TitleView"/> (AGENTS rules 5 and 10). Since Stage 10d the control it captions is
+        /// also the way a run begins, which is why the title screen needs one at all.
+        /// </remarks>
+        public ReactiveProperty<string> StartLabel { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>
         /// Secondary line. Used for build/diagnostics facts that are not
         /// player-facing content (version, config hash, smoke verdict), so it is
         /// the one string that is not required to come from localization.
@@ -42,6 +53,7 @@ namespace ProjectSurvive.Game.Presentation
         public void Dispose()
         {
             Title.Dispose();
+            StartLabel.Dispose();
             Diagnostics.Dispose();
             Language.Dispose();
             Ready.Dispose();

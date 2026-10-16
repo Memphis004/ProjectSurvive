@@ -29,10 +29,10 @@ namespace ProjectSurvive.Game.Editor
     /// WebGL player (Stage 09d), which costs a full build plus a Playwright boot to look at a
     /// rectangle that overlaps a label. This command opens the scene, renders it off-screen at the two
     /// sizes the GDD names, writes the images under <c>artifacts/ui/</c>, and fails when a panel that
-    /// is supposed to stand clear of another one does not. It covers all three screens of the loop the
-    /// player actually sees — ศาลาพัก (Camp), the arena (Battle) and the summary (Result) — so a
-    /// screen's look is judged from one tool's output at two sizes rather than from whatever a play
-    /// session happened to be showing.
+    /// is supposed to stand clear of another one does not. It covers every screen of the loop the
+    /// player actually sees — the title (Title), ศาลาพัก (Camp), the arena (Battle) and the summary
+    /// (Result) — so a screen's look is judged from one tool's output at two sizes rather than from
+    /// whatever a play session happened to be showing.
     /// </para>
     /// <para>
     /// How a shot is taken, and why this way. A canvas in <c>ScreenSpaceOverlay</c> is laid out to the
@@ -74,6 +74,7 @@ namespace ProjectSurvive.Game.Editor
     /// </remarks>
     public static class UiCaptureTool
     {
+        private const string TitleScenePath = "Assets/Main/Scenes/Title.unity";
         private const string CampScenePath = "Assets/Main/Scenes/Camp.unity";
         private const string BattleScenePath = "Assets/Main/Scenes/Battle.unity";
         private const string ResultScenePath = "Assets/Main/Scenes/Result.unity";
@@ -100,6 +101,23 @@ namespace ProjectSurvive.Game.Editor
             ("Altar", "_altarRect"),
             ("Instructions", "_instructionsRect"),
             ("Stats", "_statsRect"),
+        };
+
+        /// <summary>
+        /// The title screen's three regions, as <c>TitleView</c> serializes them: the heading, the
+        /// build/config line and the control that starts a run (Stage 10d).
+        /// </summary>
+        /// <remarks>
+        /// All three are <see cref="UiRegionKind.Control"/> and therefore have to stand clear of one
+        /// another, which is exactly the acceptance this screen has — "ไม่ทับข้อความ build/config". The
+        /// boxes are the line boxes the scene really occupies rather than placeholders, so a collision
+        /// this reports is one on screen (see <c>ProjectSetup.CreateTitleScene</c>).
+        /// </remarks>
+        private static readonly (string Name, string Field)[] TitleRegions =
+        {
+            ("TitleLabel", "_titleLabel"),
+            ("DiagnosticsLabel", "_diagnosticsLabel"),
+            ("StartButton", "_startButton"),
         };
 
         /// <summary>
@@ -161,7 +179,7 @@ namespace ProjectSurvive.Game.Editor
 
         /// <summary>Captures both scenes at both sizes and judges the layouts.</summary>
         [MenuItem(
-            "ProjectSurvive/Tools/1. Capture UI (Camp + Battle + Result, 1920x1080 + 1280x720)",
+            "ProjectSurvive/Tools/1. Capture UI (Title + Camp + Battle + Result, 1920x1080 + 1280x720)",
             priority = 130)]
         private static void CaptureFromMenu()
         {
@@ -233,6 +251,7 @@ namespace ProjectSurvive.Game.Editor
                 return 1;
             }
 
+            CaptureTitle(report);
             CaptureCamp(report);
             CaptureBattle(report);
             CaptureResult(report);
@@ -291,6 +310,65 @@ namespace ProjectSurvive.Game.Editor
         private static void CaptureChooserFromMenu()
         {
             ChooserCaptureRun.Start();
+        }
+
+        // ------------------------------------------------------------------
+        // the Title: shot and measured, so its control cannot land on the build line
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Shoots the first screen of the game at both sizes and measures its three regions.
+        /// </summary>
+        /// <remarks>
+        /// The screen the player meets before anything else, and (since Stage 10d) the one screen that
+        /// begins a run: this is where "เริ่มเล่น is on screen, is legible and is not drawn on the
+        /// build/config line" is judged. Measured from the scene, not from a run — the only thing that
+        /// moves on this screen is the text the runtime writes into it, and the strings themselves are
+        /// asserted by the tests that drive it.
+        /// </remarks>
+        private static void CaptureTitle(CaptureReport report)
+        {
+            if (!EnsureOpen(TitleScenePath, report))
+            {
+                return;
+            }
+
+            var view = Object.FindFirstObjectByType<TitleView>(FindObjectsInactive.Include);
+            Camera camera = Camera.main;
+
+            if (view == null || camera == null)
+            {
+                report.Failures.Add(
+                    "the Title scene is missing " + (view == null ? "TitleView " : string.Empty)
+                    + (camera == null ? "a MainCamera" : string.Empty));
+                return;
+            }
+
+            var fields = new SerializedObject(view);
+            var regions = new List<(string Name, UiRegionKind Kind, RectTransform Rect)>();
+            AddSerializedComponents(fields, TitleRegions, UiRegionKind.Control, regions);
+
+            if (regions.Count < TitleRegions.Length)
+            {
+                report.Failures.Add(
+                    "the Title scene wires " + regions.Count + " of its " + TitleRegions.Length
+                    + " regions, so a control that overlaps another one could go unnoticed");
+            }
+
+            report.Notes.Add(
+                "the title screen is measured from the authored scene: its heading, its build line and "
+                + "เริ่มเล่น are Control regions, which the overlap rule holds apart — a start control "
+                + "drawn over the build/config line fails this run rather than being noticed on a "
+                + "screenshot. Every label is empty in Title.unity until the runtime fills it from the "
+                + "localization tables, so what this reports is geometry; the strings (and the fact that "
+                + "pressing the control starts a run) are asserted by `TitleScreenTests` in EditMode and "
+                + "`TitleScenePlayModeTests` over the real scene");
+
+            for (int i = 0; i < CapturedSizes.Length; i++)
+            {
+                Vector2Int size = CapturedSizes[i];
+                Capture(SceneKind.Title, "start", "title", camera, size, regions, report);
+            }
         }
 
         // ------------------------------------------------------------------
@@ -1041,7 +1119,7 @@ namespace ProjectSurvive.Game.Editor
             string suffix = "",
             string takenBy = "`ProjectSurvive/Tools/1. Capture UI` (or `-executeMethod "
                 + "ProjectSurvive.Game.Editor.UiCaptureTool.CaptureAllAndExit`)",
-            string title = "Camp, Battle and Result, in the Editor")
+            string title = "Title, Camp, Battle and Result, in the Editor")
         {
             if (sDeliberateOverlap)
             {
@@ -1891,6 +1969,7 @@ namespace ProjectSurvive.Game.Editor
 
         private enum SceneKind
         {
+            Title,
             Camp,
             Battle,
             Result,

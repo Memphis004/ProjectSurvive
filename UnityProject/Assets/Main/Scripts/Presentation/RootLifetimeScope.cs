@@ -164,11 +164,16 @@ namespace ProjectSurvive.Game.Presentation
                 resolver => new SceneLoader(resolver.Resolve<RunScopeOwner>()),
                 Lifetime.Singleton);
 
+            // The title screen's presenter is an App-scope singleton, so it never holds the run: it
+            // asks the owner for it at the moment the player presses เริ่มเล่น (Stage 10d). Holding it
+            // would hand the screen the run a previous game ended — arriving at the title disposes the
+            // run scope, and this object outlives that.
             builder.Register(
                 resolver => new TitlePresenter(
                     resolver.Resolve<LocalizationService>(),
                     resolver.Resolve<UiState>(),
-                    resolver.Resolve<IGameConfig>()),
+                    resolver.Resolve<IGameConfig>(),
+                    resolver.Resolve<RunScopeOwner>()),
                 Lifetime.Singleton);
 
             builder.Register(

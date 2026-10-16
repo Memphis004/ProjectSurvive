@@ -11,7 +11,7 @@ namespace ProjectSurvive.Config
     public static class ConfigBuildMetadata
     {
         /// <summary>SHA-256 (upper-case hex) over the generated table bytes, in name order.</summary>
-        public const string ConfigHash = "0F88D48FAC47B0F73E3DE1F63561A1CC1B192C67A2EE875EEA4DFD4902BD6BFC";
+        public const string ConfigHash = "A4D6EB0B0B6ED5F1F25E5F2966DB411243A9FCAEA2FA9CD788E07FBD272C8EAA";
 
         /// <summary>Luban CLI version that produced the generated readers.</summary>
         public const string LubanVersion = "5.1.0";
