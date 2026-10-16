@@ -1,4 +1,5 @@
 using System;
+using ProjectSurvive.Game.Presentation.Camp;
 using R3;
 using TMPro;
 using UnityEngine;
@@ -53,6 +54,16 @@ namespace ProjectSurvive.Game.Presentation
         private IDisposable _hp;
         private IDisposable _restartLabelSubscription;
         private IDisposable _titleLabelSubscription;
+
+        /// <summary>The screen's two controls, named for the page's layout report.</summary>
+        public enum ResultButton
+        {
+            /// <summary>The control that starts a new run.</summary>
+            Restart = 0,
+
+            /// <summary>The control that leaves for the title.</summary>
+            BackToTitle = 1,
+        }
 
         /// <summary>True once the view has a state to read (a test may wait for it).</summary>
         public bool Bound => _state is not null;
@@ -138,6 +149,26 @@ namespace ProjectSurvive.Game.Presentation
             {
                 _presenter.Begin();
             }
+        }
+
+        /// <summary>
+        /// Where one of the screen's controls is on screen right now, in screen pixels with the
+        /// origin at the bottom-left.
+        /// </summary>
+        /// <remarks>
+        /// The page's layout report needs somewhere to aim a click, and a click has to land
+        /// <i>inside</i> the control: the conversion is the same one the camp's views publish with
+        /// (<see cref="CampScreenRects.TryCentre"/>) rather than a second copy of it here, because the
+        /// defect it exists for — a <c>RectTransform</c> whose pivot is a corner reporting that corner
+        /// as its position — is a property of the transform, not of the camp. A null control answers
+        /// false, which is what a release build's page has to see.
+        /// </remarks>
+        public bool TryGetButtonScreenPoint(ResultButton button, out Vector2 screen)
+        {
+            Button target = button == ResultButton.Restart ? _restartButton : _titleButton;
+
+            return CampScreenRects.TryCentre(
+                target is null ? null : target.transform as RectTransform, out screen);
         }
 
         /// <summary>What the restart control does. Public so a test can press it without a pointer.</summary>

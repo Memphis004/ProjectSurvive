@@ -229,6 +229,12 @@ namespace ProjectSurvive.Core.Simulation.Battle
                     return CommandResult.Ok;
 
                 case BattleCommandKind.DevLoseNow:
+                    // The HP is spent first, and only then is the floor finished. "Lose now" is the
+                    // player dying, which is the one defeat the rules produce (FloorEndSystem ends
+                    // the floor once HP has reached zero), so ending it with the health bar still
+                    // full would hand every reader of the result — BattleResult.FinalHp, the run,
+                    // and the summary screen the run ends on — a defeat that never happened.
+                    KillPlayer();
                     Finish(BattlePhase.Lost, BattleEndReason.PlayerDied);
                     return CommandResult.Ok;
 
@@ -443,6 +449,18 @@ namespace ProjectSurvive.Core.Simulation.Battle
             };
 
             _context.Emit(BattleEventType.BattleEnded, default, -1, (int)reason);
+        }
+
+        /// <summary>Spends the player's HP, the way the ordinary damage path would.</summary>
+        private void KillPlayer()
+        {
+            int player = _context.PlayerEntity;
+            if (!_context.IsAlive(player))
+            {
+                return;
+            }
+
+            _healths.Get(player).Hp = 0;
         }
 
         private int FinalHp()

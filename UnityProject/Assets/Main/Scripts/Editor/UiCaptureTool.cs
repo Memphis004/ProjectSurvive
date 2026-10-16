@@ -7,6 +7,7 @@ using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Game.Camp;
+using ProjectSurvive.Game.Presentation;
 using ProjectSurvive.Game.Presentation.Camp;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -28,7 +29,10 @@ namespace ProjectSurvive.Game.Editor
     /// WebGL player (Stage 09d), which costs a full build plus a Playwright boot to look at a
     /// rectangle that overlaps a label. This command opens the scene, renders it off-screen at the two
     /// sizes the GDD names, writes the images under <c>artifacts/ui/</c>, and fails when a panel that
-    /// is supposed to stand clear of another one does not.
+    /// is supposed to stand clear of another one does not. It covers all three screens of the loop the
+    /// player actually sees — ศาลาพัก (Camp), the arena (Battle) and the summary (Result) — so a
+    /// screen's look is judged from one tool's output at two sizes rather than from whatever a play
+    /// session happened to be showing.
     /// </para>
     /// <para>
     /// How a shot is taken, and why this way. A canvas in <c>ScreenSpaceOverlay</c> is laid out to the
@@ -72,6 +76,7 @@ namespace ProjectSurvive.Game.Editor
     {
         private const string CampScenePath = "Assets/Main/Scenes/Camp.unity";
         private const string BattleScenePath = "Assets/Main/Scenes/Battle.unity";
+        private const string ResultScenePath = "Assets/Main/Scenes/Result.unity";
 
         /// <summary>The Camp scene's name, which is what a play-mode load by name needs.</summary>
         private const string CampSceneName = "Camp";
@@ -95,6 +100,29 @@ namespace ProjectSurvive.Game.Editor
             ("Altar", "_altarRect"),
             ("Instructions", "_instructionsRect"),
             ("Stats", "_statsRect"),
+        };
+
+        /// <summary>
+        /// The summary screen's five lines, as <c>ResultView</c> serializes them. They are measured as
+        /// <see cref="UiRegionKind.Control"/> regions because that kind is the one the overlap rule lets
+        /// sit inside a surface it belongs to ("a control drawn inside its own surface is by design"):
+        /// what the check is for here is that no line escapes the panel and no two of them land on one
+        /// another, which is the same question the camp's controls answer.
+        /// </summary>
+        private static readonly (string Name, string Field)[] ResultLines =
+        {
+            ("Headline", "_headlineLabel"),
+            ("FloorLine", "_floorLabel"),
+            ("KillsLine", "_killsLabel"),
+            ("BiaLine", "_biaLabel"),
+            ("HpLine", "_hpLabel"),
+        };
+
+        /// <summary>The summary screen's two ways out, as the view serializes them.</summary>
+        private static readonly (string Name, string Field)[] ResultControls =
+        {
+            ("Restart", "_restartButton"),
+            ("BackToTitle", "_titleButton"),
         };
 
         /// <summary>
@@ -132,7 +160,9 @@ namespace ProjectSurvive.Game.Editor
             Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "artifacts", "ui"));
 
         /// <summary>Captures both scenes at both sizes and judges the layouts.</summary>
-        [MenuItem("ProjectSurvive/Tools/1. Capture UI (Camp + Battle, 1920x1080 + 1280x720)", priority = 130)]
+        [MenuItem(
+            "ProjectSurvive/Tools/1. Capture UI (Camp + Battle + Result, 1920x1080 + 1280x720)",
+            priority = 130)]
         private static void CaptureFromMenu()
         {
             CaptureAll(exitEditor: false);
@@ -205,6 +235,7 @@ namespace ProjectSurvive.Game.Editor
 
             CaptureCamp(report);
             CaptureBattle(report);
+            CaptureResult(report);
             RestoreScene(startedIn, report);
 
             WriteReports(report, started.ElapsedMilliseconds);
@@ -462,6 +493,83 @@ namespace ProjectSurvive.Game.Editor
             {
                 Vector2Int size = CapturedSizes[i];
                 Capture(SceneKind.Battle, "hud", "battle", camera, size, null, report);
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // the Result screen: shot and measured, like the camp
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Shoots the summary screen the run ends on (Stage 10b) at both sizes, and measures the
+        /// panel, its five lines and its two ways out.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Measured from the scene, not from a run: the screen's <i>geometry</i> is authored in
+        /// <c>Result.unity</c> — the panel, where each line sits in it, the two buttons under them —
+        /// and this command never enters play mode. That is the same division the camp's shots make:
+        /// a picture of what the scene says, with the numbers the screen prints proved by the tests
+        /// that run it (<c>ResultScreenTests</c> in EditMode, <c>ResultScenePlayModeTests</c> for the
+        /// real scene change).
+        /// </para>
+        /// <para>
+        /// Every label in the scene is empty until the runtime fills it from the localization tables,
+        /// so these shots show the panel, the lines' own rectangles and the two button backgrounds
+        /// without their text. The report says so rather than inventing strings: a shot filled in by
+        /// this tool would be a picture of the tool's own text, which is exactly the thing a layout
+        /// check must not be able to mistake for the game's.
+        /// </para>
+        /// </remarks>
+        private static void CaptureResult(CaptureReport report)
+        {
+            if (!EnsureOpen(ResultScenePath, report))
+            {
+                return;
+            }
+
+            var view = Object.FindFirstObjectByType<ResultView>(FindObjectsInactive.Include);
+            Camera camera = Camera.main;
+
+            if (view == null || camera == null)
+            {
+                report.Failures.Add(
+                    "the Result scene is missing " + (view == null ? "ResultView " : string.Empty)
+                    + (camera == null ? "a MainCamera" : string.Empty));
+                return;
+            }
+
+            var fields = new SerializedObject(view);
+            var panel = fields.FindProperty("_headlineLabel")?.objectReferenceValue as Component;
+            var summary = panel != null ? panel.transform.parent as RectTransform : null;
+
+            if (summary == null)
+            {
+                report.Failures.Add(
+                    "the Result screen's headline is not under a panel of its own, so there is nothing "
+                    + "to measure the lines against");
+                return;
+            }
+
+            var regions = new List<(string Name, UiRegionKind Kind, RectTransform Rect)>
+            {
+                ("Summary", UiRegionKind.Surface, summary),
+            };
+
+            AddSerializedComponents(fields, ResultLines, UiRegionKind.Control, regions);
+            AddSerializedComponents(fields, ResultControls, UiRegionKind.Control, regions);
+
+            report.Notes.Add(
+                "the Result screen is measured from the authored scene, so its five lines and two "
+                + "buttons are placeholders' rectangles: every label in Result.unity is empty until the "
+                + "runtime fills it from the localization tables, and the strings themselves (and the "
+                + "run's numbers in them) are asserted by `ResultScreenTests` and "
+                + "`ResultScenePlayModeTests`, which drive the real screen");
+
+            for (int i = 0; i < CapturedSizes.Length; i++)
+            {
+                Vector2Int size = CapturedSizes[i];
+                Capture(SceneKind.Result, "summary", "result", camera, size, regions, report);
             }
         }
 
@@ -878,6 +986,31 @@ namespace ProjectSurvive.Game.Editor
         }
 
         /// <summary>
+        /// The same as <see cref="AddSerializedRects"/>, for a view that serializes a <b>component</b>
+        /// rather than the <c>RectTransform</c> itself (the summary screen serializes its labels and
+        /// its buttons, which is what its view needs to write into them).
+        /// </summary>
+        private static void AddSerializedComponents(
+            SerializedObject source,
+            (string Name, string Field)[] fields,
+            UiRegionKind kind,
+            List<(string Name, UiRegionKind Kind, RectTransform Rect)> into)
+        {
+            for (int i = 0; i < fields.Length; i++)
+            {
+                SerializedProperty property = source.FindProperty(fields[i].Field);
+                var component = property?.objectReferenceValue as Component;
+                var rect = component != null ? component.transform as RectTransform : null;
+                if (rect == null)
+                {
+                    continue;
+                }
+
+                into.Add((fields[i].Name, kind, rect));
+            }
+        }
+
+        /// <summary>
         /// A transform's rectangle in the pixels of <paramref name="camera"/>'s target: for a camera
         /// whose target is a 1920×1080 texture, that is the 1920×1080 pixel space, bottom-left origin.
         /// </summary>
@@ -908,7 +1041,7 @@ namespace ProjectSurvive.Game.Editor
             string suffix = "",
             string takenBy = "`ProjectSurvive/Tools/1. Capture UI` (or `-executeMethod "
                 + "ProjectSurvive.Game.Editor.UiCaptureTool.CaptureAllAndExit`)",
-            string title = "Camp and Battle, in the Editor")
+            string title = "Camp, Battle and Result, in the Editor")
         {
             if (sDeliberateOverlap)
             {
@@ -1760,6 +1893,7 @@ namespace ProjectSurvive.Game.Editor
         {
             Camp,
             Battle,
+            Result,
         }
 
         private readonly struct Shot

@@ -138,6 +138,26 @@ namespace ProjectSurvive.Core.Tests
             Assert.Equal(BattleEndReason.BossDefeated, result.EndReason);
         }
 
+        /// <summary>
+        /// The lose-now cheat stands for the player dying, so the HP is spent before the floor is
+        /// finished. Everything downstream reads <c>FinalHp</c> — the run settles it, the summary
+        /// screen prints it — and a defeat reported at full health is a summary that lies about
+        /// the fight that just ended.
+        /// </summary>
+        [Fact]
+        public void Dev_lose_now_reports_the_death_it_stands_for()
+        {
+            IBattleSession session = CreateFactory().Create(CreateSetup(false));
+
+            session.Step(PlayerInputFrame.Idle);
+            Assert.Equal(CommandResult.Ok, session.Submit(BattleCommand.DevLoseNow()));
+
+            Assert.True(session.TryGetResult(out BattleResult result));
+            Assert.Equal(BattlePhase.Lost, result.Outcome);
+            Assert.Equal(BattleEndReason.PlayerDied, result.EndReason);
+            Assert.Equal(0, result.FinalHp);
+        }
+
         [Fact]
         public void TryGetResult_is_false_while_running_and_true_once_ended()
         {

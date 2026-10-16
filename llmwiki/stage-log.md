@@ -174,3 +174,32 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   needs a Web build. Tests
   514 → 522, each one mapped in [`docs/testing/test-suites.md`](../docs/testing/test-suites.md);
   [`process-fast-full-report`](../docs/stages/process-fast-full-report.md).
+
+- **Follow-up to Stage 10 (2026-10-16, not a Stage): the last leg of the loop is now covered twice.**
+  `ProjectSurvive/Tools/1. Capture UI` renders the summary screen too (both GDD sizes, its panel, five
+  lines and two buttons measured — `artifacts/ui/result-*.png`, `ui-report.md`), and the summary screen
+  and the *dev menu* publish documents to the page (`__projectSurviveResult`, `__projectSurviveDevMenu`)
+  so `tests/web/result.spec.ts` can play a standalone floor, press แพ้ทันที / lose now and assert the
+  summary the player really reaches — the gap Stage 10's report recorded as NOT RUN in a build.
+- The two new documents follow `CampReport`'s contract (globals the page reads; coordinates only, never
+  a decision): `ResultView.TryGetButtonScreenPoint` + `DevMenuView.TryGetButtonScreenPoint` publish
+  centres, and a release build writes no dev-menu document because its panel never shows. Fast has
+  `ResultReportTests` (4) and `DevMenuReportTests` (2) pinning the content, and `ResultScenePlayModeTests`
+  asserts both documents where the real scenes were reached.
+- The Closed-Editor Full run did re-do the web gate, and its **first** attempt found a real rule bug:
+  the `loseNow` dev command finished the floor `Lost` / `PlayerDied` with the player still at full HP, so
+  the run kept 100 HP and the summary screen printed a defeat at full health. It is fixed in both
+  sessions (`EcsBattleSimulation.KillPlayer` before `Finish`, `FakeBattleSession._hp = 0`) and pinned for
+  both by `BattleSessionContractTests.Dev_lose_now_reports_the_death_it_stands_for` (dotnet 466 → 468);
+  the failing run's own artifacts are kept in `artifacts/stage10/playwright-result-first-run/`. PlayMode
+  is green per class (41 results, 0 failures — `artifacts/stage10/playmode-per-class-followup.md`), the
+  20/40 bulk payload being the ambient Input-System/R3 log assert rather than an assertion of ours.
+- The capture tool's Result shots and a play-mode capture of the same size were compared rather than
+  assumed to agree: the white-text bands in `result-victory.png` fall inside the label rects the tool
+  measures. What that comparison also shows is that `Summary` has **no background image** — every other
+  named panel in `ProjectSetup` gets one — so the screen is white text on the clear colour plus its two
+  buttons. Left as authored, with the numbers in `docs/stages/10-report.md` §7.
+- Next: anything that still needs a real player — a Release-build dev-menu check, IL2CPP stripping of
+  the Result scene's DI beyond what the Development build exercises — stays named in
+  `docs/stages/10-report.md` rather than assumed; and the summary screen's look is now a decision with
+  evidence behind it rather than a guess.

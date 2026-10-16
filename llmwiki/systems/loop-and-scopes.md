@@ -70,7 +70,16 @@ ways out.
   run.
 
 The scene is 1200×1000 centred column: 96 px headline, 32 px lines 60 px apart, two 400×76 buttons —
-all above the 22 px Thai floor, measured in `artifacts/stage10/result-*.png`.
+all above the 22 px Thai floor, measured in `artifacts/stage10/result-*.png` and again, as rectangles at
+both GDD sizes, in `artifacts/ui/result-{1920x1080,1280x720}.png` + `artifacts/ui/ui-report.md`
+(`ProjectSurvive/Tools/1. Capture UI`, which now renders Camp, Battle and Result).
+
+**What it publishes.** `ResultReport.Publish` (called by `ResultSceneDirector` right after
+`Presenter.Begin()`) hands the page one document, `__projectSurviveResult`: the run's own outcome and
+numbers, the seven strings the screen is showing, and the screen-pixel centres of its two controls
+(`restart`, `title`) from `ResultView.TryGetButtonScreenPoint`. It is the mirror of `CampReport`'s job
+for the one screen whose content is *text*, and it is what makes the last leg of the loop assertable in
+a built player.
 
 ## 4. Dev cheats (development builds only)
 
@@ -91,6 +100,13 @@ The menu's whole vocabulary is `BattleCommand` (`DevGodMode`, `DevAddBia`, `DevS
 `IBattleSession.Submit`, i.e. the same port a surrender uses. Its strings are deliberately **not**
 localization rows: they are developer diagnostics in a menu that does not exist in a release build
 (the same reasoning that excludes the title screen's diagnostics line).
+
+**What it publishes.** `DevMenuView.Update` calls `DevMenuReport.Publish` when the panel is on screen
+and again when the canvas changes size, so the page carries `__projectSurviveDevMenu`: the six control
+centres, and `visible`. Coordinates only — whether a command may be pressed is still decided by the two
+gates above, and a release build writes no document at all because there is no panel to measure. That
+document is how `tests/web/result.spec.ts` ends a floor on purpose to reach the summary screen;
+`DevMenuReportTests` pins the hidden-panel half of it.
 
 ## 5. Facts that cost time to learn
 
@@ -119,9 +135,17 @@ localization rows: they are developer diagnostics in a menu that does not exist 
   storm is 5 entries instead of 1 930. The general lesson: an overlay that survives `LoadScene` is a
   *scene-scoped* object living in an *app-scoped* one, and the per-frame warning it causes is what the
   loop's memory budget ends up measuring.
-* **The summary screen cannot be reached in a browser cheaply.** Floor 1 is *won* by a standing player,
-  so the built player goes Battle → Camp; `?scene=Result` opens the scene but it bounces to the camp
-  because there is no finished run to summarise. Anything that only a real player can catch in the
-  Result scene (a stripped DI constructor, an unbaked font) is therefore still unverified, and the
-  budget for closing it is a browser run that ends a run — five floors, or a surrender the browser
-  cannot ask for.
+* **The summary screen could not be reached in a browser cheaply — and now is reached on purpose.**
+  Floor 1 is *won* by a standing player, so the built player goes Battle → Camp; `?scene=Result` opens
+  the scene but bounces to the camp because there is no finished run to summarise. The way out is the
+  **dev menu**, which the Development build the browser suite runs shows and its floor accepts
+  (`DevCheats.Allowed` is `Debug.isDebugBuild || Application.isEditor`): `tests/web/result.spec.ts` plays
+  a standalone `?scene=Battle` floor, presses แพ้ทันที / lose now through the centres
+  `__projectSurviveDevMenu` publishes, asserts `__projectSurviveResult` (the defeat headline, the four
+  lines carrying the arena's own `kills` / `bia` / `finalHp`, and both control points) and then presses
+  the screen's own **Restart** to land in a camp whose run is new (full HP, floor 1, `canDepart`).
+  A Release build publishes no dev menu at all, so that spec is a Development-build check by
+  construction — and the release half of the rule is `DevMenuReportTests`' subject: the authored scene
+  shows nothing and names no control. The Editor-side Route to the same screen is
+  `ProjectSurvive/Tools/1. Capture UI` (the Result section) and `ResultReportTests`, both of which run
+  in Fast.

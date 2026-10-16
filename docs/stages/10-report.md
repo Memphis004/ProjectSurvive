@@ -73,6 +73,15 @@ unity command screenshot --view game                                           #
 
 ## 5. Not tested, and risks
 
+> **Update (2026-10-16, the same day).** The two gaps this section opened have been closed by a
+> follow-up the user asked for, recorded in §7 below: the summary screen is now rendered by
+> `ProjectSurvive/Tools/1. Capture UI` at both GDD sizes and reached in a browser by
+> `tests/web/result.spec.ts`, and the "the dev menu is not reachable in a browser" half of the sentence
+> below was **wrong**: the menu is a Development-build feature and the suite's build *is* Development
+> (`DevCheats.Allows(isDebugBuild: true, isEditor: false)`), so its controls are on screen and a browser
+> test can press them. The paragraphs are left as they were written, with the correction here rather
+> than edited into them.
+
 - **The Result screen is never reached in a browser.** The suite's floor 1 is *won* by a standing
   player, so the run continues to the camp; reaching the summary in the player would need five floors
   (or a loss the browser cannot ask for — surrendering is not an input the suite has). IL2CPP stripping
@@ -104,3 +113,104 @@ unity command screenshot --view game                                           #
 - **No ADR.** The stage had one real choice — where a run lives — and AGENTS rule 3 and the GDD's own
   item 2 name the answer (the three scopes the architecture doc already describes as App / Run / Scene),
   so the decision is recorded in `llmwiki/systems/loop-and-scopes.md` rather than restated as an ADR.
+
+## 7. Follow-up (2026-10-16, same day): the last leg of the loop, twice over
+
+Asked for after the stage closed, in two steps: **(a)** render the summary screen with the Editor
+capture tool the way Camp and Battle are rendered, so its look is judged from tool output; **(b)** add
+a browser check that reaches the Result screen and asserts its summary, so the player build covers the
+last leg of the loop. Both are follow-ups to this stage, not a new one — nothing about the loop's rules
+changed.
+
+| # | Item | Verdict |
+| --- | --- | --- |
+| 1 | `ProjectSurvive/Tools/1. Capture UI` renders Camp, Battle **and Result** at 1920×1080 and 1280×720, measures the summary screen and fails on an overlap or an escaped region | **PASS** — 10 images, **1 098 ms**, 0 failures; the summary screen measures 8 regions at each size (its 1200×1000 column, five lines, two 400×76 buttons), 0 overlaps, every region inside the canvas — `artifacts/ui/result-{1920x1080,1280x720}.png` + `ui-report.md` / `.json` |
+| 2 | The summary screen publishes what it shows and where its two controls are (`__projectSurviveResult`) | **PASS** — `ResultReport.Publish` is called by `ResultSceneDirector` right after `Presenter.Begin()`, so the document carries the strings the player reads; `ResultReportTests` (4, Fast) asserts them against the shipped tables for both endings, and `ResultScenePlayModeTests` asserts the same document where the real scene was reached |
+| 3 | The dev menu publishes where its controls are (`__projectSurviveDevMenu`), and a build that hides it publishes nothing | **PASS** — `DevMenuView.Update` publishes on show and on a canvas resize; `DevMenuReportTests` (2, Fast) asserts every named control is wired in the shipped scene, that the panel is authored hidden, and that a hidden panel publishes an empty document. This is the missing piece the old "the dev menu is not reachable in a browser" assumed away: it *is* reachable in a Development build by design, which is what the suite builds |
+| 4 | A browser check reaches the Result screen and asserts its summary | **PASS** — `tests/web/result.spec.ts` now runs inside the harness's own web step (`tools/test.ps1` lists it beside smoke/battle/camp) and the closing run reports `web: Playwright (smoke + battle + camp + result)` **9 passed in Chrome**, 140.0 s — `artifacts/stage10/full-followup-editor-closed-web-final.log`, `artifacts/dotnet/playwright.log`. In the player: the dev menu's `loseNow` ends floor 1 (`phase` Lost, `endReason` PlayerDied, `finalHp` 0), the arena hands over, and `__projectSurviveResult` reads `outcome` Defeat, `floor` 1/5, `floorsCleared` 0, `hp` 0 of `maxHp` 100, `kills` = the arena's own `kills`, and the five localized lines the player reads — `พ่ายแพ้`, `ไปถึงชั้น 1/5`, `ปราบผี 0 ตน`, `เบี้ยคงเหลือ 6`, `HP คงเหลือ 0/100` — with both controls named and inside the canvas (restart 480,248; title 480,195 in 960×600). Pressing **Restart** brings the camp back with a run that is new: `flow` Camp, `floor` 1, `hp` 100 = `maxHp`, `bia` 15, `canDepart` |
+| 5 | (DoD) automated tests for the changed rules, run for real | **PASS** — 6 new Unity test methods (`ResultReportTests` 4 + `DevMenuReportTests` 2) take the EditMode assembly 115 → **119**; `-Suite Fast` **PASS 10 / FAIL 0 / NOT RUN 3**, 75.7 s, EditMode **119/119**, dotnet **466** (`artifacts/stage10/fast-followup.log`); `ResultScenePlayModeTests` **3/3** and `BattlePlayModeTests` **4/4** with the new assertions. After the rule fix in row 8 the closing runs are `artifacts/stage10/full-editor-open-result.log` (Editor open: EditMode **119/119**, PlayMode per class green — `playmode-per-class-followup.md`) and `artifacts/stage10/full-followup-editor-closed-web-final.log` (Editor closed: **PASS 11 | FAIL 0 | NOT RUN 2**, 245.9 s, WebGL **PASS** + Playwright **9 passed**), with dotnet **466 → 468** for the two contract cases row 8 adds |
+| 6 | (DoD) docs and commands | **PASS** — `knowledge.md`, `docs/testing/test-suites.md` (the tool's command and coverage, the browser spec table and the suite's step name), `llmwiki/systems/loop-and-scopes.md` (the two new documents), `llmwiki/systems/battle-contract.md` (the `DevLoseNow` rule), `llmwiki/systems/camp.md`, `llmwiki/stage-log.md`, and this section |
+| 7 | The summary screen's *look* is judged from the capture tool's output, not from play-mode shots | **PASS** — the 10 images are re-shot from the shipped scene at **00:29 on 2026-10-17** (10 shots, **PASS**, 0 failures, 0 overlaps) and the tool's measured rectangles are cross-checked against a play-mode capture of the same size: the white-text bands in `artifacts/stage10/result-victory.png` (1280×720) sit inside the label rects the report measures — headline 592–651 in the 573–667 box, floor 535–557 in 531–560, kills 496–516 in 491–520, bia 456–476 in 451–480, HP 415–436 in 411–440, and the two button labels 288–302 / 221–235 inside the 269–320 and 203–253 button boxes. What the screen *says* is still absent from the images (empty authored labels), which the report states |
+| 8 | A forced loss is the loss the rules produce (found by the gate, fixed) | **PASS** — `loseNow` used to finish as `Lost` / `PlayerDied` with the player still at full HP, so the run kept 100 HP through `ApplyBattleResult` and the summary screen printed a defeat at full health. The cheat now spends the HP first, in both sessions (the ECS simulation and the fake), and `BattleSessionContractTests.Dev_lose_now_reports_the_death_it_stands_for` pins `FinalHp == 0` for both factories (dotnet 466 → **468**). The first run of the browser check failed on exactly this (`Expected: 0, Received: 100`) and its own artifacts are kept: `artifacts/stage10/playwright-result-first-run/error-context.md`, `test-failed-1.png`, `trace.zip` |
+
+### How the web gate found the two things it found
+
+The first `-Suite Full` with the Editor closed (`full-followup-editor-closed-web.log`) built the player
+and ran the new spec — and failed it, twice over, both times on a fact rather than a flake:
+
+1. `Expected: 0, Received: 100` on `finalHp`. The dev menu's `loseNow` ended the floor as `Lost` /
+   `PlayerDied` with the player still at full health, so the run kept 100 HP through the settlement and
+   the summary screen printed `HP คงเหลือ 100/100` under a defeat headline. That is a **rule** defect,
+   not a test one, and it is fixed in row 8. The failing run's artifacts are kept in
+   `artifacts/stage10/playwright-result-first-run/` (`error-context.md` carries the message).
+2. `Expected: 0, Received: 6` on `bia` — this one was **the spec's own mistake**: it compared the
+   summary's purse (`RunSession.Wallet.Bia`, the run's 6 เบี้ย) with the arena's `bia`, which is
+   `hud.Currency` — the currency *earned inside the arena* (`BattleSimulationRunner.PublishReport`),
+   and 0 because no drop column pays yet. The assertion was replaced with what the screen can honestly
+   be held to (the purse is a real number and `biaLine` carries it), and the corrected spec passes in
+the player (1/1, 8.5 s). Neither the one nor the other was left green by loosening a check that should
+have held: the first fix tightened the game, the second deleted a wrong comparison and said why.
+
+### What changed
+
+- `UiCaptureTool` (Editor): a `Result` section beside Camp and Battle — `CaptureResult` reads the
+  screen's own serialized fields, measures the column it lives in plus its five lines and two buttons,
+  and shoots both sizes; `SceneKind.Result`, the menu item name and the report title follow. Its
+  pre-existing `<para>        /// A <b>third</b>` doc-comment typo was fixed while the block was open.
+- `Presentation/ResultReport.cs` (new) + `ResultView.ResultButton` / `TryGetButtonScreenPoint`: the
+  summary screen's document, mirroring `CampReport`'s contract — the strings the player reads, the run's
+  own numbers, and screen-pixel centres for the two controls. It reuses `CampScreenRects.TryCentre`
+  rather than copying the corner-pivot conversion.
+- `Presentation/Battle/DevMenuReport.cs` (new) + `DevMenuView.DevMenuButton` / `TryGetButtonScreenPoint`
+  / `Update`: the same for the dev panel. Coordinates only, never a permission.
+- `lib/Runtime/Simulation/Battle/EcsBattleSimulation.cs` + `lib/Runtime/Application/Battle/Fake/FakeBattleSession.cs` (**a rule fix**, not a UI one): `DevLoseNow` spends the player's HP (a one-call `KillPlayer` / a `_hp = 0`) before it finishes, so the result is `Lost` / `PlayerDied` / `FinalHp` 0 in both sessions. `lib/Tests~/Core.Tests/Battle/BattleSessionContractTests.cs` gains `Dev_lose_now_reports_the_death_it_stands_for`, which the shared suite runs against **both** factories (dotnet 466 → 468). The web gate is what found it: the summary screen's `hp` line was asserted against the arena's `finalHp`, and a forced defeat was reporting 100 of 100. Applied to the fake as well because a fixture that manufactures a different defeat than the rules do is how a preview and the game drift apart.
+- `tests/web/result.spec.ts` (new): the browser check, listed in `tools/test.ps1`'s web step beside
+  smoke/battle/camp so the step's own name (`… + result`) is true.
+
+### Commands run (this follow-up)
+
+```pwsh
+# the Editor UI capture, re-shot from the shipped scene at the two GDD sizes
+unity command menu --path "ProjectSurvive/Tools/1. Capture UI (Camp + Battle + Result, 1920x1080 + 1280x720)"
+#   -> 10 images, PASS, 0 failures, 1 265 ms; artifacts/ui/{camp,battle,result}-*.png + ui-report.md
+
+# Unity, Editor open
+pwsh -NoProfile -File tools/test.ps1 -Suite Full            # PASS 10 | FAIL 1 | NOT RUN 2, 222 s; EditMode 119/119,
+                                                            # PlayMode 20/40 = the ambient-log flake (playmode-per-class-followup.md)
+unity command run_tests --mode playmode --filter Camp --async_tests               # 25/25, 61.1 s
+unity command run_tests --mode playmode --filter ResultScenePlayModeTests --async_tests  # 3/3, 10.0 s
+unity command run_tests --mode playmode --filter SceneFlowPlayModeTests --async_tests    # 5/5, 48.4 s
+unity command run_tests --mode playmode --filter BattlePlayModeTests --async_tests       # 4/4, 8.3 s
+unity command run_tests --mode playmode --filter ShellPlayModeTests --async_tests        # 4/4, 0.2 s
+
+# the rule fix, then the web gate with the Editor closed
+dotnet test "lib/Tests~/ProjectSurvive.Core.sln" --filter FullyQualifiedName~Dev_lose_now   # 2/2 (both factories), 39 ms
+npx playwright test result.spec.ts                           # against the live player: 1 passed, 8.5 s
+pwsh -NoProfile -File tools/test.ps1 -Suite Full              # Editor closed -> PASS 11 | FAIL 0 | NOT RUN 2, 245.9 s,
+                                                             # WebGL PASS + Playwright 9 passed in Chrome (140.0 s)
+```
+
+### Not tested, and risks (this follow-up)
+
+- **The summary screen draws no panel, and the capture is what makes that visible.** `Result.unity`'s `Summary` column is a bare `RectTransform`: unlike every other named panel in the project (the camp's `StatusPanel` 0.88, `Board` 0.92, the tooltip 0.95, the battle's dev panel 0.88 — `ProjectSetup` gives each of them an `Image`), it carries no background, so a capture of it is 97 % one flat colour with the two buttons (2.8 %) and the text as the only other marks, and the live screen agrees (the same measurement on `result-victory.png`: 96 % background, 2.8 % buttons, white text). That is **legible and within the GDD's wording** for the screen (victory/defeat, floor, ghosts, ways out) and it is left as it is rather than restyled on the way past — but it is the one screen of the three whose look is "white text on the clear colour", and a panel background at the camp's alphas is a two-line change in `CreateResultScene` if that look is what the stage wants next.
+- **A stray server on port 8080 costs a run.** The first closed-Editor Full run reported the Playwright
+  step **NOT RUN** — `tools/serve-web.mjs did not start on port 8080` — because a `node` from an
+  earlier manual run was still listening; the harness's own server then exits on `EADDRINUSE` and the
+  step is correctly refused rather than reporting the *old* build as tested. One server at a time, and
+  the message means exactly that (`knowledge.md` now says so).
+- **The captured Result images hold no text.** Every label in `Result.unity` is empty until the runtime
+  fills it from the localization tables, exactly as the camp's and the battle's shots are — so the tool
+  proves the screen's geometry and its *look* as a layout, and what the screen says is proved by
+  `ResultScreenTests` / `ResultReportTests` (the table's strings) and by the browser check (the words in
+  a real build). Making the tool's own shots carry text would mean either writing strings into a scene
+  the tool is not allowed to change, or a Play-Mode entry point like the merge chooser's; neither is in
+  this follow-up.
+- **The browser check needs a Development build** — that is what a dev menu means
+  (`DevCheats.Allows(isDevelopmentBuild, isEditor)`), and it is the configuration `tools/build-web.ps1`
+  produces by default and the one the suite's web steps run. Pointed at a Release build, the check fails
+  with the dev-menu document missing rather than passing quietly, which is the honest outcome; a
+  Release-build browser check of the summary screen would need the run to be *played* to its end.
+- **The Result screen's own DI is exercised, but the stage's IL2CPP question is only narrowed.** The
+  check proves the scene's scope builds and its strings render in a real WebGL player; it does not
+  claim anything about a Release (stripped, non-development) build, which no browser step in this
+  project runs.

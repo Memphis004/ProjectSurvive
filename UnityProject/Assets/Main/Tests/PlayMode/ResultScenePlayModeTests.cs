@@ -8,6 +8,7 @@ using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Camp;
 using ProjectSurvive.Game.Presentation;
+using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Flow;
 using ProjectSurvive.Game.ResultScene;
 using UnityEngine;
@@ -48,6 +49,11 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_lost_floor_lands_on_the_summary_screen_and_restart_starts_a_new_run()
         {
+            // The page reports are process-wide mirrors, so a stale document from an earlier fixture
+            // must not be able to satisfy the assertions below.
+            DevMenuReport.Reset();
+            ResultReport.Reset();
+
             yield return SceneFlowHarness.EnterCamp();
 
             var camp = SceneFlowHarness.Find<CampSceneDirector>();
@@ -71,6 +77,29 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             var battle = SceneFlowHarness.Find<BattleSceneDirector>();
             yield return WaitForFloorToStart(battle);
+
+            // What the browser check presses to reach this screen in reasonable time. The Editor is a
+            // development environment exactly as the Development WebGL build the browser suite runs is,
+            // so the panel is on screen and every control is measurable; a release build publishes
+            // nothing here, which is the state `DevMenuReportTests` asserts on the authored scene.
+            yield return SceneFlowHarness.WaitUntil(
+                () => DevMenuReport.PublishCount > 0, "the dev menu published no controls");
+
+            var menu = JsonUtility.FromJson<MenuReportDto>(DevMenuReport.LastJson);
+            Assert.That(menu, Is.Not.Null, "the dev menu report is not valid JSON: " + DevMenuReport.LastJson);
+            Assert.That(menu.visible, Is.True, "the panel is on screen, so the report says so");
+            Assert.That(menu.buttons.Length, Is.EqualTo(6), "the report does not name every control");
+
+            var menuNames = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < menu.buttons.Length; i++)
+            {
+                menuNames.Add(menu.buttons[i].name);
+                Assert.That(menu.buttons[i].y, Is.GreaterThan(0f), menu.buttons[i].name + " has no y");
+            }
+
+            Assert.That(
+                menuNames, Does.Contain(DevMenuReport.Control.LoseNow),
+                "the control a browser test presses to end a floor is not in the report");
 
             Assert.That(
                 battle.Runner.Submit(BattleCommand.Surrender()), Is.EqualTo(CommandResult.Ok),
@@ -109,6 +138,43 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(state.FloorLine.Value, Does.Contain("1"), "the floor line does not name the floor reached");
             Assert.That(state.RestartLabel.Value, Is.EqualTo(text.Get(ResultKeys.Restart)));
             Assert.That(state.TitleLabel.Value, Is.EqualTo(text.Get(ResultKeys.BackToTitle)));
+
+            // The same state, as the page sees it: this is the document the browser check reads, so it
+            // is asserted at the one place the real scene was really reached.
+            Assert.That(result.Summary.IsVictory, Is.False);
+
+            var published = JsonUtility.FromJson<SummaryReportDto>(ResultReport.LastJson);
+            Assert.That(
+                published, Is.Not.Null,
+                "the summary screen published nothing for the page: " + ResultReport.LastJson);
+            Assert.That(published.scene, Is.EqualTo(SceneFlowHarness.ResultSceneName));
+            Assert.That(published.startError, Is.Empty);
+            Assert.That(published.outcome, Is.EqualTo(nameof(RunOutcome.Defeat)));
+            Assert.That(published.headline, Is.EqualTo(state.Headline.Value), "the page reads a different headline");
+            Assert.That(published.headline, Is.EqualTo(text.Get(ResultKeys.Defeat)));
+            Assert.That(published.floor, Is.EqualTo(1));
+            Assert.That(published.kills, Is.EqualTo(result.Summary.GhostsDefeated));
+            Assert.That(published.hp, Is.EqualTo(result.Summary.Hp));
+            Assert.That(published.maxHp, Is.EqualTo(result.Summary.MaxHp));
+            Assert.That(published.restartLabel, Is.EqualTo(text.Get(ResultKeys.Restart)));
+            Assert.That(published.titleLabel, Is.EqualTo(text.Get(ResultKeys.BackToTitle)));
+            Assert.That(published.seed, Is.EqualTo(result.Run.Seed.ToString()));
+            Assert.That(
+                (int)published.canvasWidth, Is.GreaterThan(0),
+                "the report does not name the canvas its control points belong to");
+
+            var controlNames = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < published.buttons.Length; i++)
+            {
+                controlNames.Add(published.buttons[i].name);
+                Assert.That(published.buttons[i].x, Is.GreaterThan(0f), published.buttons[i].name + " has no x");
+                Assert.That(published.buttons[i].y, Is.GreaterThan(0f), published.buttons[i].name + " has no y");
+            }
+
+            Assert.That(
+                controlNames,
+                Is.EquivalentTo(new[] { ResultReport.Control.Restart, ResultReport.Control.BackToTitle }),
+                "the screen's two ways out are not both in the report");
 
             // Restart: the run scope is replaced, and the camp starts a new run the way it starts the
             // first one.
@@ -186,6 +252,8 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 DevCheats.Allowed, Is.True,
                 "the Editor must allow the dev cheats for a test that skips floors");
 
+            ResultReport.Reset();
+
             yield return SceneFlowHarness.EnterCamp();
 
             var camp = SceneFlowHarness.Find<CampSceneDirector>();
@@ -235,6 +303,66 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             var state = scope.Container.Resolve<ResultUiState>();
             var text = scope.Container.Resolve<LocalizationService>();
             Assert.That(state.Headline.Value, Is.EqualTo(text.Get(ResultKeys.Victory)), "the headline is not the table's");
+
+            // And the page's copy of it: the same document, for the other ending.
+            var published = JsonUtility.FromJson<SummaryReportDto>(ResultReport.LastJson);
+            Assert.That(
+                published, Is.Not.Null,
+                "the summary screen published nothing for the page: " + ResultReport.LastJson);
+            Assert.That(published.outcome, Is.EqualTo(nameof(RunOutcome.Victory)));
+            Assert.That(published.headline, Is.EqualTo(text.Get(ResultKeys.Victory)));
+            Assert.That(published.floorsCleared, Is.EqualTo(totalFloors));
+            Assert.That(published.buttonCount(), Is.EqualTo(2), "the screen's two ways out must both be named");
+        }
+
+        // DTOs for JsonUtility: the Unity-side stand-in for the page's JSON.parse.
+        [System.Serializable]
+        private sealed class MenuReportDto
+        {
+            public string scene;
+            public bool visible;
+            public int canvasWidth;
+            public int canvasHeight;
+            public MenuControlDto[] buttons;
+        }
+
+        [System.Serializable]
+        private sealed class MenuControlDto
+        {
+            public string name;
+            public float x;
+            public float y;
+        }
+
+        [System.Serializable]
+        private sealed class SummaryReportDto
+        {
+            public string scene;
+            public string startError;
+            public string outcome;
+            public bool finished;
+            public bool victory;
+            public int floor;
+            public int totalFloors;
+            public int floorsCleared;
+            public int kills;
+            public int bia;
+            public int hp;
+            public int maxHp;
+            public string seed;
+            public string headline;
+            public string floorLine;
+            public string killsLine;
+            public string biaLine;
+            public string hpLine;
+            public string restartLabel;
+            public string titleLabel;
+            public int canvasWidth;
+            public int canvasHeight;
+            public MenuControlDto[] buttons;
+
+            /// <summary>How many controls the document names, or 0 when it names none.</summary>
+            public int buttonCount() => buttons is null ? 0 : buttons.Length;
         }
 
         private static IEnumerator WaitForFloorToStart(BattleSceneDirector battle)

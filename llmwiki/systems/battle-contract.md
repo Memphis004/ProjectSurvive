@@ -65,7 +65,7 @@ is Run's job, not the battle's.
 | `DevKillAll` | – | kill every enemy (and the boss → win on a boss floor) |
 | `DevGodMode` | 0 / 1 | invulnerability off / on. Any other arg → `RejectedInvalidArg` |
 | `DevWinNow` | – | force a win |
-| `DevLoseNow` | – | force a loss |
+| `DevLoseNow` | – | force a loss. **The HP is spent first**, so the result is the one the rules produce (`Lost` / `PlayerDied` / `FinalHp` 0) — the run settles it and the summary screen prints it, and a forced loss reported at full health is a defeat nobody could have reached |
 
 Every command except `Surrender` is a dev command and is rejected with
 `RejectedNotAllowed` when `BattleSetup.DevCheatsAllowed` is false.

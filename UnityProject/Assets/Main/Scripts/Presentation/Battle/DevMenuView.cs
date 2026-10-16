@@ -1,5 +1,6 @@
 using System;
 using ProjectSurvive.Core.Domain.Combat.Battle;
+using ProjectSurvive.Game.Presentation.Camp;
 using R3;
 using TMPro;
 using UnityEngine;
@@ -60,6 +61,30 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private IDisposable _visibleSubscription;
         private IDisposable _godModeSubscription;
         private IDisposable _statusSubscription;
+        private int _publishedCanvasWidth = -1;
+        private int _publishedCanvasHeight = -1;
+
+        /// <summary>The panel's controls, named for the page's layout report.</summary>
+        public enum DevMenuButton
+        {
+            /// <summary>อมตะ / god mode.</summary>
+            GodMode = 0,
+
+            /// <summary>เพิ่มเบี้ย / add bia.</summary>
+            AddBia = 1,
+
+            /// <summary>เพิ่มผี / spawn ghost.</summary>
+            SpawnGhost = 2,
+
+            /// <summary>ฆ่าผีทั้งหมด / kill all.</summary>
+            KillAll = 3,
+
+            /// <summary>ข้ามชั้น (ชนะ) / win now.</summary>
+            WinNow = 4,
+
+            /// <summary>แพ้ทันที / lose now.</summary>
+            LoseNow = 5,
+        }
 
         /// <summary>True once the view has a presenter (a test may wait for it).</summary>
         public bool Bound => _presenter is not null;
@@ -71,6 +96,31 @@ namespace ProjectSurvive.Game.Presentation.Battle
         public bool PanelVisible => _panel is not null && _panel.activeSelf;
 
         private void Start() => Bind();
+
+        /// <summary>
+        /// Publishes where the panel's controls are, once they are really on screen and again when the
+        /// canvas changed size.
+        /// </summary>
+        /// <remarks>
+        /// It is the view that knows this, and the page has no other way to learn it: a browser test
+        /// can press a control it can name only if something tells it where that control is (the camp
+        /// publishes the same thing for the same reason). The guard makes the cost of a hidden menu two
+        /// integer comparisons per frame, and the document is written <b>only</b> where the panel is up
+        /// — which in a release build is never, because <see cref="DevMenuPresenter.Visible"/> is false
+        /// there.
+        /// </remarks>
+        private void Update()
+        {
+            if (!PanelVisible
+                || (_publishedCanvasWidth == Screen.width && _publishedCanvasHeight == Screen.height))
+            {
+                return;
+            }
+
+            _publishedCanvasWidth = Screen.width;
+            _publishedCanvasHeight = Screen.height;
+            DevMenuReport.Publish(this);
+        }
 
         private void OnDestroy()
         {
@@ -121,6 +171,45 @@ namespace ProjectSurvive.Game.Presentation.Battle
             AddListener(_killAllButton, PressKillAll);
             AddListener(_winNowButton, PressWinNow);
             AddListener(_loseNowButton, PressLoseNow);
+        }
+
+        /// <summary>
+        /// Where one of the panel's controls is on screen right now, in screen pixels with the origin
+        /// at the bottom-left — the convention the camp's layout report already uses.
+        /// </summary>
+        /// <remarks>
+        /// False while the panel is hidden, which is the honest answer: a control that is not on screen
+        /// has nowhere to click. The conversion is shared with the camp's views rather than copied,
+        /// because the defect it exists for (a pivot on a corner reporting that corner as the position)
+        /// is a property of the transform.
+        /// </remarks>
+        public bool TryGetButtonScreenPoint(DevMenuButton button, out Vector2 screen)
+        {
+            Button target;
+            switch (button)
+            {
+                case DevMenuButton.GodMode:
+                    target = _godModeButton;
+                    break;
+                case DevMenuButton.AddBia:
+                    target = _addBiaButton;
+                    break;
+                case DevMenuButton.SpawnGhost:
+                    target = _spawnGhostButton;
+                    break;
+                case DevMenuButton.KillAll:
+                    target = _killAllButton;
+                    break;
+                case DevMenuButton.WinNow:
+                    target = _winNowButton;
+                    break;
+                default:
+                    target = _loseNowButton;
+                    break;
+            }
+
+            return CampScreenRects.TryCentre(
+                target is null ? null : target.transform as RectTransform, out screen);
         }
 
         /// <summary>What the god-mode control does. Public so a test can press it without a pointer.</summary>

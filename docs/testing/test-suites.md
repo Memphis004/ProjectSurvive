@@ -29,7 +29,7 @@ need to run, and the Web build moved behind the Full suite.
 | `unity: EditMode` | Fast | 115 tests in `ProjectSurvive.Game.Tests.EditMode` |
 | `unity: PlayMode` | **Full** | 40 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the three scopes and the 20-round-trip loop) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
-| `web: Playwright (smoke + battle + camp)` | **Full** | 8 browser tests against that build, in Chrome (13 more are the opt-in screenshot generator, skipped unless `SCREENS=1`) |
+| `web: Playwright (smoke + battle + camp + result)` | **Full** | 9 browser tests against that build, in Chrome (13 more are the opt-in screenshot generator, skipped unless `SCREENS=1`) |
 
 `-Release` moves the dotnet build and the WebGL build to Release. It is for a Stage gate or a
 measurement — a Development build's numbers may not be quoted ([ADR 0003](../adr/0003-performance-baseline-machine-and-browser.md)).
@@ -124,7 +124,7 @@ run — `-Release` is exercised there, not here.
 | --- | --- | --- |
 | `unity: PlayMode` | 42.7 | 24 tests; **12 failed** in this run — see §7 |
 | `web: WebGL build (Development)` | 269.3 cold / **16.5** warm | cold: a fresh IL2CPP translation (Unity's own `buildSeconds: 258.3`, 119,647,484 B, 5 scenes). warm: the second build minutes later reused the IL2CPP C++ cache (Unity: `buildSeconds: 6.7`, 119,647,478 B) |
-| `web: Playwright (smoke + battle + camp)` | 121.4 | 8 tests, 1 worker, Chrome channel |
+| `web: Playwright (smoke + battle + camp + result)` | 121.4 (2026-10-16: pending, 9 tests) | 9 tests, 1 worker, Chrome channel |
 
 `unity: EditMode` measured 9.2–13.6 s across the five runs above and `dotnet test` 2.2–2.7 s; the
 numbers quoted per run are the runs of record, not averages.
@@ -149,7 +149,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `ConfigLoadTests.cs`, `ConfigRulesTests.cs`, `ConfigEnumParityTests.cs`, `ConfigFixture.cs` | the generated tables, their rules and pinned counts |
 | `LocalizationServiceTests.cs` | localization lookup |
 | `ProbeSerializationTests.cs`, `EcsLiteSmokeTests.cs` | MessagePack/protobuf round trips, the vendored ECS |
-| `Battle/*.cs` | the battle contract suite over the fake and the real ECS session, the frame buffer, the event ring |
+| `Battle/*.cs` | the battle contract suite over the fake and the real ECS session, the frame buffer, the event ring. Includes `Dev_lose_now_reports_the_death_it_stands_for` (both factories, 2026-10-17): the cheat spends the player's HP before it finishes, so a forced loss is `PlayerDied` with `FinalHp` 0 rather than a defeat at full health |
 | `Inventory/*.cs` | Board/Backpack/BackpackEditor/Merge/Recycle/Rotation/Synergy/Loadout + the randomized bag tests |
 | `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay |
 
@@ -182,13 +182,14 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `ResultScenePlayModeTests` | 3 | **Stage 10b** — a lost floor lands on the summary screen and **Restart** starts a new run at floor 1 with the starting purse and an empty bag, a run can be won floor by floor and ends on the victory summary, and leaving the summary for the title leaves no run behind |
 | `ShellPlayModeTests` | 5 | scene loading, the title, the Thai spike's two stacks, UniTask cancellation in play mode. **Note:** the assembly's bulk payload reports four of these five — `Thai_spike_scene_measures_both_stacks_without_missing_glyphs` was absent from the 40-result payload of every Stage 10 run while the file still declares it; run the class on its own to see it (see §7) |
 
-### Playwright — `tests/web` (8 gate tests) → **Full**
+### Playwright — `tests/web` (9 gate tests) → **Full**
 
 | Spec | Tests | What it covers |
 | --- | --- | --- |
 | `smoke.spec.ts` | 2 | the player boots, passes its own 7-probe self-check, hands over to Title; the Thai spike's glyph coverage |
 | `battle.spec.ts` | 2 | floor 1 played to a win or a loss in a real browser; a mid-floor report. Since Stage 10 the first test also rides the handover that follows: a **won** floor does not end the run, so the arena carries it back to the camp and the camp's own report has to be the same run — `__projectSurviveScene` becomes `Camp`, `floor` is 2 (a new run would be 1), `hp` is the arena's `finalHp`, `bia` is the run's purse and `canDepart` is true |
 | `camp.spec.ts` | 4 | the จัดย่าม flow end-to-end, the sala's controls, WASD + `E`, the layout at 1280×720 and 1920×1080. Its merge step presses `1` to pick the first card of the Stage 09g window after the drop (the camp report publishes no card rectangle, so the key path is the honest one) — that edit was unverified when it landed in 09g and **is verified now**: the Stage 10 Full run with the Editor closed ran this spec **4/4** against the Development player (`artifacts/stage10/full-suite-editor-closed.log`) |
+| `result.spec.ts` | 1 | **the last leg of Stage 10's loop in a built player** (2026-10-16): `?scene=Battle`, the dev menu's แพ้ทันที / lose now pressed through the centres `__projectSurviveDevMenu` publishes, then the handover to the summary screen, where `__projectSurviveResult` has to agree with the arena's own last report (`kills`, `bia`, `hp` = `finalHp`, `maxHp`), carry non-empty Thai lines with the run's numbers in them, and name both controls with a point inside the canvas. The player then presses **Restart** — the control the scene drew — and the camp has to come up with a run that is new: `flow` Camp, `floor` 1, `canDepart`, `hp` = the dead run's `maxHp`. Needs a Development build (that is what a dev menu means); a Release build publishes no menu document at all. Measured in a real player (2026-10-17, Full, Editor closed): the step reports **9 passed in Chrome, 140.0 s**, this spec 1/1 of them — after the `loseNow` fix below, and after its own second assertion was corrected (it compared the summary's *purse* with the arena's earned-currency counter; the two are different numbers and the spec now says so) |
 | `screens.spec.ts` | 13 | **not a gate**: the screenshot generator, opt-in with `SCREENS=1` (`test.skip(process.env.SCREENS !== "1")`), skipped in a plain run |
 
 ### Process-level checks inside the harness → **Fast**
@@ -242,19 +243,31 @@ Cold total for Fast is 229 s and warm is 77 s, so "a few minutes" holds for both
 
 ## 6. The Editor UI capture (no WebGL build)
 
-`ProjectSurvive/Tools/1. Capture UI (Camp + Battle, 1920x1080 + 1280x720)` — or
-`-executeMethod ProjectSurvive.Game.Editor.UiCaptureTool.CaptureAllAndExit` — opens Camp and Battle in
-the Editor, renders each at both sizes into `artifacts/ui/`, measures every named panel and fails when
-two that must stand apart share pixels. Measured: 0.9–1.1 s for six images through the menu item, and
-9 s wall clock for the batch `-executeMethod` form (the Unity launch dominates) — both were run, and
-they produced **byte-identical images** and the same rectangles. A third entry point,
+`ProjectSurvive/Tools/1. Capture UI (Camp + Battle + Result, 1920x1080 + 1280x720)` — or
+`-executeMethod ProjectSurvive.Game.Editor.UiCaptureTool.CaptureAllAndExit` — opens Camp, Battle and the
+summary screen (Result) in the Editor, renders each at both sizes into `artifacts/ui/`, measures every
+named panel and fails when two that must stand apart share pixels. Measured: 0.9–1.1 s for six images
+through the menu item (**1 098 ms** on 2026-10-16 and **1 265 ms** on 2026-10-17 for the ten images it writes now, the Result section included, both PASS with 0 failures),
+and 9 s wall clock for the batch `-executeMethod` form (the Unity launch dominates) — both were run,
+and they produced **byte-identical images** and the same rectangles. A third entry point,
 `ProjectSurvive/Tools/3. Capture the merge chooser in Play Mode (Camp)`, shoots the Stage 09g
 upgrade-choice window, which does not exist in the authored scene at all — see the last bullet below.
 
-- Coverage: **8 images** — `artifacts/ui/{camp,battle}-{1920x1080,1280x720}.png` plus the closed camp
-  (`camp-closed-*`) and the tooltip state (`camp-tooltip-*`) — and `ui-report.md` / `ui-report.json`
-  with every rectangle in pixels **and the alpha of every region**, so the opacity floor is a measured
-  column rather than a claim (Board and ChestPanel 0.92, Instructions 0.85, Stats 1, Tooltip 0.95).
+- Coverage: **10 images** — `artifacts/ui/{camp,battle,result}-{1920x1080,1280x720}.png` plus the
+  closed camp (`camp-closed-*`) and the tooltip state (`camp-tooltip-*`) — and `ui-report.md` /
+  `ui-report.json` with every rectangle in pixels **and the alpha of every region**, so the opacity
+  floor is a measured column rather than a claim (Board and ChestPanel 0.92, Instructions 0.85, Stats 1,
+  Tooltip 0.95). The summary screen is measured the same way: its 1200×1000 column, its five lines and
+  its two 400×76 buttons, eight regions at each size, 0 overlaps — and its rectangles are the ones
+  `ResultScreenLayoutTests` judges in the column's own units, so the two checks agree rather than
+  duplicate a rule that could drift. What the screen *says* is not in these images: every label in
+  `Result.unity` is empty until the runtime fills it from the localization tables. That the measured
+  rectangles describe the **live** screen was checked rather than assumed (2026-10-17): the white-text
+  bands of a play-mode capture at 1280×720 fall inside the label boxes this report gives (headline
+  592–651 in 573–667, floor 535–557 in 531–560, kills 496–516 in 491–520, bia 456–476 in 451–480, HP
+  415–436 in 411–440, the two button labels 288–302 / 221–235 in the 269–320 and 203–253 button boxes).
+  A `Surface` here carries no background unless the scene author gave it one: the summary's column is a
+  bare `RectTransform`, which the capture shows as one flat colour behind the text.
 - The tooltip shot carries a **pixel proof of draw order**: the same frame is rendered with the overlay
   off and on, and five points inside the overlay's rectangle must land closer to the overlay's own
   background colour with it on (measured: 0.016 at four points, 0.188 at the one over a button). It is
@@ -314,6 +327,10 @@ and **not one is an assertion of ours** — twelve `IndexOutOfRangeException` (I
 (`ResultScenePlayModeTests` 3/3, `SceneFlowPlayModeTests` 5/5 incl. the 20-loop), and the camp and
 flow classes are green when the filter is applied (`--filter Camp` → **25/25**, `--filter
 SceneFlowPlayModeTests` → **5/5**); see [`artifacts/stage10/playmode-after-fix.md`](../../artifacts/stage10/playmode-after-fix.md).
+Re-measured on 2026-10-17 after the `loseNow` fix, the same split holds: bulk **20/40**
+(`artifacts/stage10/playmode-bulk-status-followup.json`) and every class green on its own — Camp 25/25,
+`ResultScenePlayModeTests` 3/3, `SceneFlowPlayModeTests` 5/5, `BattlePlayModeTests` 4/4,
+`ShellPlayModeTests` 4/4 ([`artifacts/stage10/playmode-per-class-followup.md`](../../artifacts/stage10/playmode-per-class-followup.md)).
 One further oddity of the payload, recorded rather than explained away: it lists four of
 `ShellPlayModeTests`' five `[UnityTest]`s, and the one it drops
 (`Thai_spike_scene_measures_both_stacks_without_missing_glyphs`) is dropped from every Stage 10 payload

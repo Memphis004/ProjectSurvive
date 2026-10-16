@@ -260,13 +260,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 -SizePro
                                                                                              # ^ a measured size configuration;
                                                                                              #   baseline | strip-high | optimize-size | minimal
 node tools/serve-web.mjs --port 8080          # then, in tests/web: npx playwright test
+#   the browser suite is smoke + battle + camp + result; `result.spec.ts` is the one that reaches
+#   the summary screen (Battle -> the dev menu's แพ้ทันที / lose now -> Result -> Restart -> Camp)
+#   through the player's own documents: __projectSurviveDevMenu and __projectSurviveResult
+#   ONE server at a time: a stray node left listening on 8080 makes the harness's own server exit on
+#   EADDRINUSE and the step report NOT RUN (that is what "did not start on port 8080" means)
 
 # UI layout without a WebGL build (the process stage + Stage 09e): open the scenes, shoot them at
 # the two sizes and fail when two panels overlap. Editor open, menu `ProjectSurvive/Tools/1. Capture UI`:
-unity command menu --path "ProjectSurvive/Tools/1. Capture UI (Camp + Battle, 1920x1080 + 1280x720)"
-#   -> artifacts/ui/{camp,battle}-{1920x1080,1280x720}.png, camp-closed-* and camp-tooltip-* (the
-#      tooltip's draw order is proved in pixels: the same frame off vs on), + ui-report.md with
-#      every rectangle AND every region's alpha (the opacity floor is a measured column)
+unity command menu --path "ProjectSurvive/Tools/1. Capture UI (Camp + Battle + Result, 1920x1080 + 1280x720)"
+#   -> artifacts/ui/{camp,battle,result}-{1920x1080,1280x720}.png, camp-closed-* and camp-tooltip-*
+#      (the tooltip's draw order is proved in pixels: the same frame off vs on; the Result screen's
+#      summary column, its five lines and its two buttons are measured the same way), + ui-report.md
+#      with every rectangle AND every region's alpha (the opacity floor is a measured column)
 # Scripted form (Editor closed): Unity.exe -batchmode -quit -projectPath UnityProject \
 #   -executeMethod ProjectSurvive.Game.Editor.UiCaptureTool.CaptureAllAndExit
 # Proof the check can fail: menu `ProjectSurvive/Tools/2. Capture UI self-test (expected to FAIL)`

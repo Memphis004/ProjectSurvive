@@ -121,9 +121,34 @@ namespace ProjectSurvive.Game.ResultScene
 
             Presenter.Begin();
 
+            // What the screen shows, and where its two ways out are, for the page: this is the only
+            // leg of the loop a browser test could not reach before (see ResultReport). Published after
+            // Begin, so the document carries the strings the player is about to read rather than the
+            // empty ones the state started with.
+            PublishReport();
+
             _started = true;
             Debug.Log("Result screen started: " + Summary, this);
             return true;
+        }
+
+        /// <summary>
+        /// Hands the screen's state and its controls to the page, and says so when the scene has no
+        /// <see cref="ResultView"/> to measure its buttons in (a wiring fault, not a display state).
+        /// </summary>
+        private void PublishReport()
+        {
+            var view = FindFirstObjectByType<ResultView>(FindObjectsInactive.Include);
+            if (view is null)
+            {
+                Debug.LogWarning(
+                    "The Result scene has no ResultView, so nothing was published for the page.", this);
+                return;
+            }
+
+            ResultReport.Publish(
+                Summary, _scope.Container.Resolve<ResultUiState>(), view, gameObject.scene.name,
+                StartError);
         }
 
         private void Update()

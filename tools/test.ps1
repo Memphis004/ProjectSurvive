@@ -540,7 +540,7 @@ else {
 # ---------------------------------------------------------------------------
 if ($Suite -ne 'Full') {
     Add-Step 'web: WebGL build (Development)' 'Full' 'NOT RUN' 'the Full suite was not requested (-Suite Full)'
-    Add-Step 'web: Playwright (smoke + battle + camp)' 'Full' 'NOT RUN' 'the Full suite was not requested (-Suite Full)'
+    Add-Step 'web: Playwright (smoke + battle + camp + result)' 'Full' 'NOT RUN' 'the Full suite was not requested (-Suite Full)'
 }
 else {
     $buildOk = $false
@@ -576,7 +576,7 @@ else {
         return @{ Status = 'PASS'; Detail = ("{0} configuration -> {1}" -f $script:WebConfiguration, $script:WebRoot) }
     } | Out-Null
 
-    Invoke-Step 'web: Playwright (smoke + battle + camp)' 'Full' {
+    Invoke-Step 'web: Playwright (smoke + battle + camp + result)' 'Full' {
         if (-not $script:WebBuildOk) {
             return @{ Status = 'NOT RUN'; Detail = 'the WebGL build step did not produce a player to test' }
         }
@@ -617,7 +617,7 @@ else {
             }
 
             $playwright = Invoke-Native $npx @(
-                'playwright', 'test', 'smoke.spec.ts', 'battle.spec.ts', 'camp.spec.ts'
+                'playwright', 'test', 'smoke.spec.ts', 'battle.spec.ts', 'camp.spec.ts', 'result.spec.ts'
             ) $testsDir
             Write-Artifact $script:DotnetDir 'playwright.log' $playwright.Output
 

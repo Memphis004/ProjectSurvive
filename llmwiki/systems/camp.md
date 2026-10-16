@@ -103,8 +103,9 @@ Unity-side: the EditMode fixtures are `CampPresenterTests` (rules and the seam, 
 `InputSystemUIInputModule`, plus the tooltip's draw order, the two-name rule and the link kinds) and
 `CampWorldPlayModeTests` (8, walking, `E`, clicking a station).
 
-Layout without a browser: `ProjectSurvive/Tools/1. Capture UI` renders Camp and Battle at 1920×1080
-and 1280×720 into `artifacts/ui/` and fails when two regions that must stand apart share pixels —
+Layout without a browser: `ProjectSurvive/Tools/1. Capture UI` renders Camp, Battle and the summary
+screen (Result) at 1920×1080 and 1280×720 into `artifacts/ui/` and fails when two regions that must
+stand apart share pixels —
 the rectangles and the per-region alpha come from the scene it renders, so a layout regression costs
 seconds rather than a WebGL build. Caveat: the labels in `Camp.unity` are empty until the runtime
 fills them, so the shots show panels without text and the runtime layout is measured in PlayMode.

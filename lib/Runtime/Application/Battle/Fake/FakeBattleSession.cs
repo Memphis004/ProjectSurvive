@@ -220,6 +220,12 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
                     return CommandResult.Ok;
 
                 case BattleCommandKind.DevLoseNow:
+                    // The health goes first, so the loss this reports is the loss the rules report
+                    // (PlayerDied with FinalHp 0), matching both the real session and the fake's
+                    // own death path in EvaluateEnd. A shortcut that leaves the player at full
+                    // health hands the run, and the summary screen after it, a defeat nobody could
+                    // have reached.
+                    _hp = 0;
                     Finish(BattlePhase.Lost, BattleEndReason.PlayerDied);
                     return CommandResult.Ok;
 
