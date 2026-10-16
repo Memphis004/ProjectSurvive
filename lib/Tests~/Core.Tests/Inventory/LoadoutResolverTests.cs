@@ -61,6 +61,33 @@ namespace ProjectSurvive.Core.Tests.Inventory
             Assert.Equal(string.Empty, consumable.SkillId);
         }
 
+        /// <summary>
+        /// Every casting entry names the board piece it was resolved from, which is the key a HUD uses
+        /// to draw a cooldown on the item the player placed (Stage 08b).
+        /// </summary>
+        /// <remarks>
+        /// The battle-side contract suite proves the frame republishes the id it was handed, but the id
+        /// itself is produced here and nowhere else: a resolver that forgot to set it would hand every
+        /// floor a loadout whose entries all claimed to come from no piece, and no fake or fixture could
+        /// catch that.
+        /// </remarks>
+        [Fact]
+        public void Every_caster_entry_names_the_board_piece_it_was_resolved_from()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            // The same placed pair <see cref="Snapshot_carries_the_full_contract_for_a_starter_build"/>
+            // uses, at the same cells: one weapon, one familiar, both fully on the bag.
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            PieceRef weapon = InventoryFixture.Place(editor, "item.kali_flame_yant", 1, 1);
+            PieceRef familiar = InventoryFixture.Place(editor, "item.kuman_thong", 0, 0);
+
+            CombatLoadoutSnapshot snapshot = Resolver(config).Resolve(backpack);
+
+            Assert.Equal(weapon.InstanceId, Assert.Single(snapshot.Weapons).InstanceId);
+            Assert.Equal(familiar.InstanceId, Assert.Single(snapshot.Summons).InstanceId);
+        }
+
         [Fact]
         public void An_empty_board_still_produces_a_valid_snapshot()
         {

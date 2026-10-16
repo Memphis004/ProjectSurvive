@@ -29,7 +29,8 @@ data. Both halves of the gap are closed:
    `BattleConstants.MaxLoadoutEntries = 64` (above the board's 9 × 7 = 63 cells, so a real bag cannot
    be truncated). The list is written into the **unpublished slot** of the one `BattleFrameBuffer` and
    swapped by `Publish`, so a reader holding a frame never sees a half-written list; the span is valid
-   until the next `Step`/`Submit`, exactly like `Entities`.
+   until the next `Step`/`Submit`, exactly like `Entities`. Both promises are pinned at the buffer level
+   (`A_cooldown_list_is_not_visible_until_publish_ran`, `The_cooldown_list_stops_at_the_loadout_cap`).
 4. **One implementation, both ends.** `BattleFrameBuffer` remains the only `IBattleFrame`. The EcsLite
    simulation publishes from the `Caster` components it already had; the fake manufactures a
    predictable cycle. No `IBattleFrame` was implemented anywhere else, and the reflection test that
@@ -69,6 +70,8 @@ them would be second-guessing the rule instead of reflecting it.
 | `lib/Runtime/Simulation/Battle/Systems/FramePublishSystem.cs` | `PublishCooldowns` — reads the casters, adds the MP-short reading |
 | `lib/Runtime/Application/Battle/Fake/FakeBattleSession.cs` | the manufactured cycle: `BuildCasters`, `AdvanceCooldowns`, the publish, `Ticks` |
 | `lib/Tests~/Core.Tests/Battle/BattleSessionContractTests.cs` | `CreateCasterSetup` + the four shared cases |
+| `lib/Tests~/Core.Tests/Battle/BattleFrameBufferTests.cs` | the list's lifetime (published, not mid-write) and its bound, and the existing allocation case now covers `AddCooldown`/`Cooldowns` too |
+| `lib/Tests~/Core.Tests/Inventory/LoadoutResolverTests.cs` | `Every_caster_entry_names_the_board_piece_it_was_resolved_from` — the one producer of `InstanceId`, checked against a real board |
 | `lib/Tests~/Core.Tests/Battle/BattleTestFixtures.cs` | the caster fixture: the two skill ids, their instance ids, `Weapon()`/`Summon()` built from the real `skill` rows |
 | `lib/Tests~/Core.Tests/Battle/{Ecs,Fake}BattleSessionContractTests.cs` | the seeded-hash pin, per factory |
 | `docs/adr/0023-cooldown-state-on-the-battle-frame.md` | **new** |
@@ -80,12 +83,12 @@ them would be second-guessing the rule instead of reflecting it.
 ```
 # the loop, while working (lib/Tests~):
 dotnet build ProjectSurvive.Core.sln -c Debug --nologo -v minimal     # Build succeeded.
-dotnet test  ProjectSurvive.Core.sln -c Debug --nologo -v minimal     # 478 passed, 0 failed (×6)
+dotnet test  ProjectSurvive.Core.sln -c Debug --nologo -v minimal     # 481 passed, 0 failed (×2)
 dotnet test  ... --filter "FullyQualifiedName~FakeBattleSessionContractTests"   # 23 passed
 
 # the project's own gate (Editor open, connected), from the repo root:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1    # Fast
-  PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0 — 147.1 s      (artifacts/stage08b/fast-suite.log)
+  PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0 — 218.8 s      (artifacts/stage08b/fast-suite.log)
 
 # Unity, through the Editor that was launched for this stage:
 unity-cli recompile        -> up_to_date (package imported at launch, 0 errors)
@@ -100,9 +103,9 @@ and `WebSizeProfiles.cs(123,19)` `CS0618`); neither is new and neither is from t
 
 | Evidence | Where |
 | --- | --- |
-| Fast suite, verbatim: **PASS 10 \| FAIL 0 \| NOT RUN 3 \| WARN 0**, 147.1 s, `dotnet test` **478 passed**, `unity: EditMode` **130/130** | `artifacts/stage08b/fast-suite.log`, `-summary.md`, `-summary.json` |
-| The xUnit run itself: `<Counters total="478" executed="478" passed="478" failed="0" ...>` | `artifacts/stage08b/core-tests.trx` |
-| Every new case is **in** that run (1 architecture + 2 + 2 + 2 + 2 + 2 hits, 0 failed) — the check the Stage 08 stale-assembly lesson demands | the same `.trx`, grepped by test name |
+| Fast suite, verbatim: **PASS 10 \| FAIL 0 \| NOT RUN 3 \| WARN 0**, 218.8 s, `dotnet test` **481 passed**, `unity: EditMode` **130/130** | `artifacts/stage08b/fast-suite.log`, `-summary.md`, `-summary.json` |
+| The xUnit run itself: `<Counters total="481" executed="481" passed="481" failed="0" ...>` | `artifacts/stage08b/core-tests.trx` |
+| Every new case is **in** that run — 14 case instances across the nine new/updated test methods (the four shared cases twice each, the two pins, the two buffer cases, the resolver case and the architecture guard), 0 failed — the check the Stage 08 stale-assembly lesson demands | the same `.trx`, grepped by test name |
 | EditMode 130/130 in the Editor | the `run_tests` result of this session |
 
 **The state hash did not move, and this was measured rather than argued.** The stage's own requirement
@@ -126,6 +129,10 @@ makes the fake and the real session answer the same sentence):
 | `A_ready_caster_the_player_cannot_afford_is_flagged_mana_short` | with a pool below the cheapest cost in the table, every entry sits at `0` and is flagged, and the flag is exactly `IsReady && MpCost > Hud.Mp`; with a pool that pays, the flag is never raised |
 | `Step_with_a_caster_loadout_does_not_allocate_after_warm_up` | 200 warm-up ticks then 200 measured: **0 bytes** with a caster loadout (the pre-existing allocation case runs a loadout with no casters, so this is the one that covers the publish path) |
 | `The_state_hash_of_a_seeded_floor_with_casters_is_unchanged` (per factory) | the recorded pre-change literal, above |
+| `A_cooldown_list_is_not_visible_until_publish_ran` (buffer) | a reader on the published frame still sees the **finished** list while the next frame is being written entry by entry — the difference between writing into the unpublished slot and overwriting in place |
+| `The_cooldown_list_stops_at_the_loadout_cap` (buffer) | 74 entries in, `MaxLoadoutEntries` (64) out, first and last kept in order |
+| `Publishing_and_reading_do_not_allocate` (buffer, extended) | the existing case now adds a cooldown and reads `Cooldowns` in its measured loop: still 0 bytes over 10 000 frames |
+| `Every_caster_entry_names_the_board_piece_it_was_resolved_from` (resolver) | the board piece of a real bag, placed through `BackpackEditor`, is the `InstanceId` the loadout carries — the field's **only** producer, which no fixture-built loadout could have checked |
 
 Two behaviours the cases encode are worth naming, because a HUD author would get them wrong otherwise:
 
@@ -143,9 +150,10 @@ Two behaviours the cases encode are worth naming, because a HUD author would get
   a cooldown *looks* right on a board item, no PlayMode/browser check, and no scene or prefab change.
   That belongs to the stage that builds the HUD, and it will be the first consumer of both the span and
   `InstanceId`.
-- **`MaxLoadoutEntries` is unreachable in practice** (a bag cannot hold 64 casters on a 63-cell board),
-  so the truncation branch has no test. It is the same policy `MaxRenderEntities` has, and the
-  bound's own justification is written on the constant.
+- **`MaxLoadoutEntries` cannot be reached by a real bag** (a bag cannot hold 64 casters on a 63-cell
+  board). The truncation branch is still tested — at the buffer level, with 74 entries pushed in — but
+  the *number* is a structural bound no floor can exercise end-to-end, which is the same position
+  `MaxRenderEntities` is in.
 - **No browser or WebGL run.** This stage changes no Unity-side asset and no player behaviour; the
   contract/number changes are covered by the dotnet suite and the Editor's compile + EditMode run. The
   Full suite (WebGL + Playwright) was not requested and is reported **NOT RUN** rather than assumed.
@@ -177,8 +185,8 @@ Two behaviours the cases encode are worth naming, because a HUD author would get
 
 | # | Acceptance | Verdict | Evidence |
 | --- | --- | --- | --- |
-| 1 | `CombatLoadoutSnapshot` maps each `WeaponLoadout`/`SummonLoadout` back to its board piece, added if absent (it was absent) | **PASS** | `InstanceId` on both types, set by `LoadoutResolver`; asserted per entry by `The_frames_cooldowns_are_the_loadout_entries_with_the_board_pieces_they_came_from` (both factories) |
-| 2 | `IBattleFrame` gains remaining ticks, full ticks and an MP-blocked flag per loadout entry; fixed capacity in `BattleConstants`; no allocation per tick; entities' span lifetime; `BattleFrameBuffer` still the only implementation and both ends write through it | **PASS** | `LoadoutCooldown` + `Cooldowns`; `MaxLoadoutEntries = 64`; `Step_with_a_caster_loadout_does_not_allocate_after_warm_up` = 0 bytes; `Battle_frame_has_exactly_one_implementation` green in the 478 |
+| 1 | `CombatLoadoutSnapshot` maps each `WeaponLoadout`/`SummonLoadout` back to its board piece, added if absent (it was absent) | **PASS** | `InstanceId` on both types, set by `LoadoutResolver` and checked against a real board by `Every_caster_entry_names_the_board_piece_it_was_resolved_from`; asserted per entry by `The_frames_cooldowns_are_the_loadout_entries_with_the_board_pieces_they_came_from` (both factories) |
+| 2 | `IBattleFrame` gains remaining ticks, full ticks and an MP-blocked flag per loadout entry; fixed capacity in `BattleConstants`; no allocation per tick; entities' span lifetime; `BattleFrameBuffer` still the only implementation and both ends write through it | **PASS** | `LoadoutCooldown` + `Cooldowns`; `MaxLoadoutEntries = 64` and `The_cooldown_list_stops_at_the_loadout_cap`; `A_cooldown_list_is_not_visible_until_publish_ran` for the lifetime; `Step_with_a_caster_loadout_does_not_allocate_after_warm_up` = 0 bytes; `Battle_frame_has_exactly_one_implementation` green in the 481 |
 | 3 | Simulation writes the values from existing caster components, no new cooldown rule, no change to any fight — proven by the seeded state hash | **PASS** | `FramePublishSystem.PublishCooldowns` reads `Caster`/`Mana` only; the pin was recorded on the pre-change build in a clean worktree (`3218847520` Ecs / `2633275827` fake) and asserts the same values now |
 | 4 | The fake produces predictable values to develop the UI against | **PASS** | `BuildCasters`/`AdvanceCooldowns`: one tick per tick, reset on a cast it can afford, periods from the loadout; the same four shared cases pass against it |
 | 5 | A short ADR (the change, why, the alternatives not chosen) and an updated `llmwiki/systems/battle-contract.md` | **PASS** | [`docs/adr/0023`](../adr/0023-cooldown-state-on-the-battle-frame.md); the wiki's §6 cooldown subsection (plus `index.md`, `stage-log.md`, `knowledge.md`) |
@@ -187,7 +195,7 @@ Two behaviours the cases encode are worth naming, because a HUD author would get
 | T3 | The MP flag goes up when MP is short | **PASS** | `A_ready_caster_the_player_cannot_afford_is_flagged_mana_short`, 2 cases, 0 failed |
 | T4 | `Step` does not allocate | **PASS** | `Step_does_not_allocate_after_warm_up` (pre-existing) and `Step_with_a_caster_loadout_does_not_allocate_after_warm_up`, both 0 bytes in the accepted run |
 | T5 | The state hash of the original seed is unchanged before/after | **PASS** | the per-factory pins against the pre-change literals |
-| A1 | `dotnet test` passes (Fast) | **PASS** | 478/478 in `artifacts/stage08b/core-tests.trx`; `tools/test.ps1` Fast **PASS 10 \| FAIL 0 \| NOT RUN 3** |
+| A1 | `dotnet test` passes (Fast) | **PASS** | 481/481 in `artifacts/stage08b/core-tests.trx`; `tools/test.ps1` Fast **PASS 10 \| FAIL 0 \| NOT RUN 3** |
 | A2 | An architecture test confirms `IBattleFrame` has a single implementation | **PASS** | `ArchitectureTests.Battle_frame_has_exactly_one_implementation` — present once in the `.trx`, 0 failed |
 | A3 | A short PASS/FAIL/NOT RUN report | **PASS** | this file |
 

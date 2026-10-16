@@ -19,7 +19,7 @@ need to run, and the Web build moved behind the Full suite.
 | --- | --- | --- |
 | `toolchain: .NET SDK` | Fast | an SDK ≥ 8 is present |
 | `dotnet build` | Fast | every `lib/` layer, the xUnit project and the Sim compile |
-| `dotnet test (xUnit)` | Fast | 478 tests: the rule engine, the architecture guards, the contract suites, the Sim |
+| `dotnet test (xUnit)` | Fast | 481 tests: the rule engine, the architecture guards, the contract suites, the Sim |
 | `sim: determinism` | Fast | the same seed prints the same `determinismDigest` twice, a different seed does not |
 | `sim: stream separation` | Fast | shop / battle / visual digests differ, `ticksProduced=300` |
 | `sim: bot smoke run` | Fast | the kiting bot plays 2 seeds and writes balance rows |
@@ -54,10 +54,11 @@ spread being the cold/warm behaviour §2 records. The three NOT RUN steps are
 `unity: PlayMode`, `web: WebGL build` and `web: Playwright`, which Fast does not request; `dotnet test`
 466 passed and `unity: EditMode` 115/115 in both runs.
 
-Stage 08b (2026-10-17) moved one count and no Unity one: `dotnet test` **468 → 478** (the ten cooldown
-cases, four of them run twice), EditMode **130/130** unchanged (the stage touched the contract and the
-simulation, not the shell) and its `-Suite Fast` run is `artifacts/stage08b/fast-suite.log` —
-**PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**, 147.1 s.
+Stage 08b (2026-10-17) moved one count and no Unity one: `dotnet test` **468 → 481** (the thirteen
+cooldown/frame cases, four of them run twice because the shared suite binds both factories), EditMode
+**130/130** unchanged (the stage touched the contract and the simulation, not the shell) and its
+`-Suite Fast` run is `artifacts/stage08b/fast-suite.log` — **PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**,
+218.8 s.
 
 Stage 10d (2026-10-17) moved all four counts: `dotnet test` **468** (the localization row count the
 title's one new string moved), EditMode **130/130** (`TitleScreenTests` 5 + `TitleScreenLayoutTests` 4),
@@ -147,7 +148,7 @@ Nothing was dropped when the suites were split: this table lists every test that
 split and where it runs now. "Fast" means the working loop, "Full" the closing one; a test cannot be in
 neither.
 
-### dotnet — `lib/Tests~/ProjectSurvive.Core.sln` (478 tests) → **Fast**
+### dotnet — `lib/Tests~/ProjectSurvive.Core.sln` (481 tests) → **Fast**
 
 Run by `dotnet test` in the `dotnet test (xUnit)` step. The project is the *same source* as the `lib/`
 asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the rule-engine tests.
@@ -161,7 +162,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `ConfigLoadTests.cs`, `ConfigRulesTests.cs`, `ConfigEnumParityTests.cs`, `ConfigFixture.cs` | the generated tables, their rules and pinned counts |
 | `LocalizationServiceTests.cs` | localization lookup |
 | `ProbeSerializationTests.cs`, `EcsLiteSmokeTests.cs` | MessagePack/protobuf round trips, the vendored ECS |
-| `Battle/*.cs` | the battle contract suite over the fake and the real ECS session, the frame buffer, the event ring. Includes `Dev_lose_now_reports_the_death_it_stands_for` (both factories, 2026-10-17): the cheat spends the player's HP before it finishes, so a forced loss is `PlayerDied` with `FinalHp` 0 rather than a defeat at full health. **Stage 08b** added four cases to the shared suite, so each runs against **both** factories — `The_frames_cooldowns_are_the_loadout_entries_with_the_board_pieces_they_came_from`, `A_cooldown_runs_down_one_tick_at_a_time_and_resets_to_its_full_period`, `A_ready_caster_the_player_cannot_afford_is_flagged_mana_short` and `Step_with_a_caster_loadout_does_not_allocate_after_warm_up` — plus `The_state_hash_of_a_seeded_floor_with_casters_is_unchanged` in each derived class, a literal recorded on the pre-change build in a clean `git worktree` of `HEAD` |
+| `Battle/*.cs` | the battle contract suite over the fake and the real ECS session, the frame buffer, the event ring. Includes `Dev_lose_now_reports_the_death_it_stands_for` (both factories, 2026-10-17): the cheat spends the player's HP before it finishes, so a forced loss is `PlayerDied` with `FinalHp` 0 rather than a defeat at full health. **Stage 08b** added four cases to the shared suite, so each runs against **both** factories — `The_frames_cooldowns_are_the_loadout_entries_with_the_board_pieces_they_came_from`, `A_cooldown_runs_down_one_tick_at_a_time_and_resets_to_its_full_period`, `A_ready_caster_the_player_cannot_afford_is_flagged_mana_short` and `Step_with_a_caster_loadout_does_not_allocate_after_warm_up` — plus `The_state_hash_of_a_seeded_floor_with_casters_is_unchanged` in each derived class, a literal recorded on the pre-change build in a clean `git worktree` of `HEAD`, `A_cooldown_list_is_not_visible_until_publish_ran` and `The_cooldown_list_stops_at_the_loadout_cap` in `BattleFrameBufferTests`, and `Every_caster_entry_names_the_board_piece_it_was_resolved_from` in `LoadoutResolverTests` (the board id's only producer) |
 | `Inventory/*.cs` | Board/Backpack/BackpackEditor/Merge/Recycle/Rotation/Synergy/Loadout + the randomized bag tests |
 | `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay |
 

@@ -145,6 +145,7 @@ namespace ProjectSurvive.Core.Tests
             var buffer = new BattleFrameBuffer(64);
             var entity = Render(1f);
             var hud = new HudState { Hp = 100 };
+            var cooldown = new LoadoutCooldown(7, 3, 27);
 
             // Warm up JIT.
             for (int i = 0; i < 10_000; i++)
@@ -152,6 +153,7 @@ namespace ProjectSurvive.Core.Tests
                 buffer.BeginFrame(i);
                 buffer.SetHud(hud);
                 buffer.Add(entity);
+                buffer.AddCooldown(cooldown);
                 buffer.Publish();
             }
 
@@ -162,18 +164,83 @@ namespace ProjectSurvive.Core.Tests
                 buffer.BeginFrame(i);
                 buffer.SetHud(hud);
                 buffer.Add(entity);
+                buffer.AddCooldown(cooldown);
                 buffer.Publish();
 
                 // Reading the spans is where a naive implementation would allocate;
                 // the count is used after the loop so the reads cannot be elided.
                 seen += buffer.Entities.Length;
                 seen += buffer.PreviousEntities.Length;
+                seen += buffer.Cooldowns.Length;
             }
 
             long after = GC.GetAllocatedBytesForCurrentThread();
 
             Assert.True(seen > 0);
             Assert.Equal(0L, after - before);
+        }
+
+        // -------------------------------------------------------------------
+        // The cooldown list (Stage 08b)
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// The cooldown list is published like the entities: a reader holding a frame sees the finished
+        /// list while the next one is being written, never a partially filled one.
+        /// </summary>
+        /// <remarks>
+        /// This is what the unpublished-slot write buys. A list overwritten in place would pass every
+        /// other test in this file — it would just be wrong for the one reader the contract cares about,
+        /// the HUD that reads a frame between ticks while the following tick is already building.
+        /// </remarks>
+        [Fact]
+        public void A_cooldown_list_is_not_visible_until_publish_ran()
+        {
+            var buffer = new BattleFrameBuffer(BattleConstants.MaxRenderEntities);
+
+            buffer.BeginFrame(0);
+            buffer.AddCooldown(new LoadoutCooldown(11, 5, 27));
+            buffer.AddCooldown(new LoadoutCooldown(22, 0, 45, LoadoutCooldownFlags.ManaShort));
+            buffer.Publish();
+
+            Assert.Equal(2, buffer.Cooldowns.Length);
+            Assert.Equal(11, buffer.Cooldowns[0].InstanceId);
+            Assert.Equal(5, buffer.Cooldowns[0].RemainingTicks);
+            Assert.True(buffer.Cooldowns[1].ReadyButManaShort);
+
+            // The next frame is built entry by entry, in the slot this reader is not on.
+            buffer.BeginFrame(1);
+            buffer.AddCooldown(new LoadoutCooldown(33, 1, 18));
+
+            Assert.Equal(2, buffer.Cooldowns.Length);
+            Assert.Equal(11, buffer.Cooldowns[0].InstanceId);
+            Assert.Equal(22, buffer.Cooldowns[1].InstanceId);
+
+            buffer.AddCooldown(new LoadoutCooldown(44, 2, 18));
+            buffer.Publish();
+
+            Assert.Equal(2, buffer.Cooldowns.Length);
+            Assert.Equal(33, buffer.Cooldowns[0].InstanceId);
+            Assert.Equal(44, buffer.Cooldowns[1].InstanceId);
+        }
+
+        /// <summary>The cooldown list stops at the contract's bound, like the entity span stops at the render cap.</summary>
+        [Fact]
+        public void The_cooldown_list_stops_at_the_loadout_cap()
+        {
+            var buffer = new BattleFrameBuffer(BattleConstants.MaxRenderEntities);
+
+            buffer.BeginFrame(0);
+            for (int i = 0; i < BattleConstants.MaxLoadoutEntries + 10; i++)
+            {
+                buffer.AddCooldown(new LoadoutCooldown(i + 1, 0, 27));
+            }
+
+            buffer.Publish();
+
+            Assert.Equal(BattleConstants.MaxLoadoutEntries, buffer.Cooldowns.Length);
+            Assert.Equal(1, buffer.Cooldowns[0].InstanceId);
+            Assert.Equal(BattleConstants.MaxLoadoutEntries, buffer.Cooldowns[BattleConstants.MaxLoadoutEntries - 1].InstanceId);
         }
     }
 }

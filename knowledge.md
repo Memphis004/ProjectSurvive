@@ -71,12 +71,13 @@ existed (plus "ready but the pool is short", compared against `HudState.Mp`), wi
 so a HUD can draw a cooldown on the piece the player placed. No rule and no combat
 outcome changed — `Caster.InstanceId` is not hashed, and the seeded state hash is
 pinned to a value recorded on the pre-change build.
-**478 xUnit tests pass** (57 Stage 01, 73
+**481 xUnit tests pass** (57 Stage 01, 73
 Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05,
 44 Stage 06, 28 Stage 07, 11 Stage 09, the 8 the carried-item rule added in Stage 09f, the 33
 the upgrade choice added — 31 for the engine and the chooser's own rules, 2 for the stat-direction
-rule the window colours a card line from — and the 8 the cooldown frame added in Stage 08b, plus
-the 2 seeded-hash pins). The bag rules, the combo rules, the economy, the run/scene flow
+rule the window colours a card line from — and the 11 the cooldown frame added in Stage 08b: a shared
+suite of 4 cases that runs twice, one case per factory, and the three that check the list's lifetime and
+bound at the buffer and the board id at its only producer). The bag rules, the combo rules, the economy, the run/scene flow
 and the **battle simulation** are real code now: `Domain/Combat/Battle` and `Application`
 hold the battle **contract** (v1) — which the fake implements as a contract exercise — and
 `lib/Runtime/Simulation` holds the real EcsLite battle that implements it, reached only
