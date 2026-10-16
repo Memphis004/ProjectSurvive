@@ -51,6 +51,16 @@
 ,floor.forest_3.name,ป่าช้าวัดร้าง ชั้น 3,Graveyard Forest F3
 ,floor.forest_4.name,ป่าช้าวัดร้าง ชั้น 4,Graveyard Forest F4
 ,floor.forest_5.name,ป่าช้าวัดร้าง ชั้น 5,Pob's Hollow
+,upgrade.arcane.keen_edge.name,คมอาคม,Keen Edge
+,upgrade.arcane.swift_chant.name,คาถาไว,Swift Chant
+,upgrade.arcane.frugal_mantra.name,มนต์ประหยัด,Frugal Mantra
+,upgrade.arcane.far_sight.name,ญาณไกล,Far Sight
+,upgrade.arcane.great_keen_edge.name,คมอาคมชั้นสูง,Greater Keen Edge
+,upgrade.arcane.great_swift_chant.name,คาถาไวชั้นสูง,Greater Swift Chant
+,upgrade.arcane.twin_bolt.name,คาถาคู่,Twin Bolt
+,upgrade.arcane.deep_pierce.name,ทะลุทะลวง,Deep Pierce
+,upgrade.fire.blazing_seal.name,ผนึกเพลิง,Blazing Seal
+,upgrade.fire.inferno_seal.name,ผนึกไฟนรก,Inferno Seal
 ,hud.hp,ชีวิต,HP
 ,hud.mp,พลังอาคม,MP
 ,hud.bia,เบี้ย,Bia
@@ -118,7 +128,10 @@
 ,error.inventory.locked,ย่ามถูกล็อกอยู่,The bag is locked
 ,error.inventory.merge_max_tier,รวมต่อไม่ได้แล้ว,That piece is already at the highest tier
 ,error.inventory.merge_mismatch,รวมได้เฉพาะของชนิดเดียวกันระดับเดียวกัน,Merge needs the same piece at the same tier
+,error.inventory.merge_needs_variant,ต้องเลือกของอัปเกรดก่อนรวม,Choose an upgrade before merging
 ,error.inventory.merge_not_item,รวมได้เฉพาะไอเทม,Only items can be merged
+,error.inventory.merge_variant_not_offered,ของอัปเกรดนี้ไม่ได้อยู่ในตัวเลือกที่เสนอ,That upgrade is not one of the offers
+,error.inventory.merge_variant_required,ต้องระบุของอัปเกรดที่เลือก,An upgrade choice is required
 ,error.inventory.not_enough_pieces,ของไม่พอ,There are not enough pieces
 ,error.inventory.not_on_board,ของชิ้นนี้ไม่ได้อยู่บนย่าม,That piece is not on the bag
 ,error.inventory.nothing_to_undo,ไม่มีอะไรให้ย้อนกลับ,There is nothing to undo
@@ -145,3 +158,23 @@
 ,camp.bag.lock_restore,ล็อกย่ามตอนคืนสภาพ,Lock bag on restore
 ,camp.depart.next,ไปชั้นถัดไป,Next Floor
 ,camp.back,กลับ,Back
+,camp.merge.title,เลือกของอัปเกรด,Choose an upgrade
+,camp.merge.hint,เลือก 1 ข้อ แล้วไอเทมจะเปลี่ยนขั้นทันที · กด 1 2 3 หรือคลิกการ์ด · ปิดได้โดยไม่เปลี่ยนอะไร,Pick 1 option and the item upgrades at once · press 1 2 3 or click a card · closing changes nothing
+,camp.merge.back,ย้อนกลับ,Back
+,camp.merge.source.title,ค่าปัจจุบันของไอเทม,Current values
+,camp.merge.level.format,ระดับ {0} → {1},Level {0} → {1}
+,camp.merge.card.title.format,{0} {1},{0} {1}
+,camp.merge.change.format,{0} {1},{0} {1}
+,upgrade.stat.damage,ดาเมจ,Damage
+,upgrade.stat.cooldown,คูลดาวน์,Cooldown
+,upgrade.stat.mp_cost,ใช้สมาธิ,Focus cost
+,upgrade.stat.projectile_speed,ความเร็วการยิง,Projectile speed
+,upgrade.stat.range,ระยะร่าย,Cast range
+,upgrade.stat.pierce_count,ทะลุ,Pierce
+,upgrade.stat.projectile_count,จำนวนลูก,Projectiles
+,upgrade.stat.max_hp,HP สูงสุด,Max HP
+,upgrade.stat.max_mp,MP สูงสุด,Max MP
+,upgrade.stat.move_speed,ความเร็วเดิน,Move speed
+,upgrade.stat.pickup_radius,รัศมีเก็บของ,Pickup radius
+,upgrade.stat.focus_per_second,สมาธิต่อวินาที,Focus per second
+,upgrade.stat.unknown,ค่าสถานะ,Stat

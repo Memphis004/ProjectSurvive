@@ -4,6 +4,7 @@ using ProjectSurvive.Core.Application.Run;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Domain.Shop;
+using ProjectSurvive.Core.Shared;
 
 namespace ProjectSurvive.Sim
 {
@@ -142,7 +143,20 @@ namespace ProjectSurvive.Sim
                     return merges;
                 }
 
-                if (run.MergeItems(source, target).IsFailure)
+                // Stage 09f: a pair with upgrade choices folds through ConfirmMerge with one of
+                // the choices the offer named, so the bot plays the same rule the player does —
+                // it takes the first choice, which keeps the bot's own decision deterministic.
+                Result<MergeOffer> offered = run.OfferMerge(source, target);
+                if (offered.IsFailure)
+                {
+                    return merges;
+                }
+
+                Result<MergeOutcome> merged = offered.Value.HasChoices
+                    ? run.ConfirmMerge(source, target, offered.Value.Options[0].Id)
+                    : run.MergeItems(source, target);
+
+                if (merged.IsFailure)
                 {
                     return merges;
                 }

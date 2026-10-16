@@ -3,6 +3,7 @@ using ProjectSurvive.Core.Contracts.Save;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Infrastructure.Save;
+using ProjectSurvive.Core.Shared;
 using Xunit;
 
 namespace ProjectSurvive.Core.Tests.Inventory
@@ -33,7 +34,11 @@ namespace ProjectSurvive.Core.Tests.Inventory
 
             Assert.Equal(1, restored.NextInstanceId);
             Assert.Empty(restored.Pieces);
-            Assert.Equal(1, restored.SchemaVersion);
+            Assert.Equal(0, restored.MergeCount);
+
+            // 2 since Stage 09f added `MergeCount` and the per-step upgrade variants to the
+            // shape, so an old payload can be recognised rather than misread.
+            Assert.Equal(2, restored.SchemaVersion);
         }
 
         [Fact]
@@ -123,7 +128,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
             PieceRef first = InventoryFixture.Add(editor, "item.mor_knife");
             PieceRef second = InventoryFixture.Add(editor, "item.mor_knife");
 
-            Assert.True(editor.Merge(second, first).IsSuccess);
+            Assert.True(InventoryFixture.Merge(editor, second, first).IsSuccess);
 
             BackpackSnapshot snapshot = new MessagePackBackpackSnapshotCodec()
                 .Decode(InventoryFixture.StateBytes(backpack));
@@ -131,6 +136,49 @@ namespace ProjectSurvive.Core.Tests.Inventory
             Assert.Single(snapshot.Pieces);
             Assert.Equal(2, snapshot.Pieces[0].Tier);
             Assert.Equal(first.InstanceId, snapshot.Pieces[0].InstanceId);
+        }
+
+        /// <summary>
+        /// Stage 09f: the chosen upgrade variants and the merge counter are undoable state, so
+        /// they have to survive the same codec the undo stack is stored in - and come back with
+        /// the right step order, because step 1 is what a 2 -> 3 merge inherits.
+        /// </summary>
+        [Fact]
+        public void The_chosen_upgrade_variants_and_the_merge_count_survive_the_round_trip()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            PieceRef[] pieces = new PieceRef[4];
+            for (int i = 0; i < pieces.Length; i++)
+            {
+                pieces[i] = InventoryFixture.Add(editor, "item.mor_knife");
+            }
+
+            Assert.True(InventoryFixture.Merge(editor, pieces[1], pieces[0]).IsSuccess);
+            Assert.True(InventoryFixture.Merge(editor, pieces[3], pieces[2]).IsSuccess);
+            Result<MergeOutcome> second = InventoryFixture.Merge(editor, pieces[2], pieces[0]);
+            Assert.True(second.IsSuccess, second.Error.ToString());
+
+            var codec = new MessagePackBackpackSnapshotCodec();
+            byte[] bytes = InventoryFixture.StateBytes(backpack);
+            BackpackSnapshot snapshot = codec.Decode(bytes);
+
+            Assert.Equal(3, backpack.MergeCount);
+            Assert.Equal(3, snapshot.MergeCount);
+            Assert.Equal(3, snapshot.Pieces[0].Tier);
+            Assert.Equal(2, snapshot.Pieces[0].VariantIds.Count);
+            Assert.Equal(
+                InventoryFixture.ItemOf(backpack, pieces[0]).VariantIds,
+                snapshot.Pieces[0].VariantIds);
+
+            // And through an undo, which is the restore path the game takes: the counter and
+            // the step slots come back with the pieces, so a repeated merge re-draws the same
+            // offer instead of a new one.
+            Assert.True(editor.Undo().IsSuccess);
+            Assert.Equal(2, backpack.MergeCount);
+            Assert.Equal(2, InventoryFixture.ItemOf(backpack, pieces[0]).Tier);
+            Assert.Single(InventoryFixture.ItemOf(backpack, pieces[0]).VariantIds);
+            Assert.True(backpack.TryValidate(out string? violation), violation);
         }
 
         [Fact]

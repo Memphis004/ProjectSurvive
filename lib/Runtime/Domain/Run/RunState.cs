@@ -54,6 +54,13 @@ namespace ProjectSurvive.Core.Domain.Run
         /// <summary>The backpack's next instance id.</summary>
         public int NextInstanceId { get; set; }
 
+        /// <summary>
+        /// How many merges the run has confirmed. In the hash because the upgrade offer is
+        /// drawn from it: a replay that confirmed a different number of merges has to fail
+        /// here rather than quietly resolve the same pieces into different variants.
+        /// </summary>
+        public int MergeCount { get; set; }
+
         /// <summary>Every shop slot, in panel order.</summary>
         public IReadOnlyList<ShopSlotState> ShopSlots { get; set; } = new List<ShopSlotState>();
 
@@ -81,6 +88,7 @@ namespace ProjectSurvive.Core.Domain.Run
                 hash = Mix(hash, (uint)RefreshCount);
                 hash = Mix(hash, (uint)BackpackRevision);
                 hash = Mix(hash, (uint)NextInstanceId);
+                hash = Mix(hash, (uint)MergeCount);
                 hash = Mix(hash, (uint)ShopSlots.Count);
                 hash = Mix(hash, (uint)Pieces.Count);
 
@@ -107,6 +115,15 @@ namespace ProjectSurvive.Core.Domain.Run
                     hash = Mix(hash, (uint)piece.OriginY);
                     hash = Mix(hash, (uint)piece.Rotation);
                     hash = Mix(hash, (uint)piece.ChestSlot);
+
+                    // One per completed merge step, in step order: the upgrade choice changes
+                    // the loadout without changing the piece's id, tier or placement, so the
+                    // hash is the only place it would show up.
+                    hash = Mix(hash, (uint)piece.VariantIds.Count);
+                    for (int step = 0; step < piece.VariantIds.Count; step++)
+                    {
+                        hash = MixString(hash, piece.VariantIds[step]);
+                    }
                 }
 
                 return hash;
@@ -116,7 +133,7 @@ namespace ProjectSurvive.Core.Domain.Run
         /// <inheritdoc />
         public override string ToString() =>
             FlowState + " floor " + FloorIndex + " hp " + Hp + "/" + MaxHp + " bia " + Bia
-            + " cleared " + FloorsCleared + " pieces " + Pieces.Count;
+            + " cleared " + FloorsCleared + " pieces " + Pieces.Count + " merges " + MergeCount;
 
         private static uint Mix(uint hash, uint value)
         {

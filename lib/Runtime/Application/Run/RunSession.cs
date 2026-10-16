@@ -667,6 +667,65 @@ namespace ProjectSurvive.Core.Application.Run
             return merged;
         }
 
+        /// <summary>
+        /// The upgrade choices merging <paramref name="source"/> into
+        /// <paramref name="target"/> would offer, without changing anything
+        /// (Stage 09f: <c>OfferMerge</c>).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A read model, so it is not recorded in the replay log: nothing happened. It is
+        /// also stable — the same pair in the same state returns the same choices in the same
+        /// order — because the draw is a pure function of the run seed, how many merges the run
+        /// has confirmed, the item and the tier step. Cancelling the chooser and opening it
+        /// again therefore cannot shop for a better roll, and neither can an undo.
+        /// </para>
+        /// <para>
+        /// An offer with no choices is the documented fallback: that pair folds immediately
+        /// through <see cref="MergeItems"/> (charms, tomes, offerings, familiars, bags).
+        /// </para>
+        /// </remarks>
+        public Result<MergeOffer> OfferMerge(PieceRef source, PieceRef target)
+        {
+            Result inCamp = RequireCamp();
+            if (inCamp.IsFailure)
+            {
+                return Result.Fail<MergeOffer>(inCamp.Error);
+            }
+
+            return Editor.OfferMerge(source, target, Seed);
+        }
+
+        /// <summary>
+        /// Merges <paramref name="source"/> into <paramref name="target"/> with
+        /// <paramref name="variantId"/> as the upgrade this step keeps (Stage 09f:
+        /// <c>ConfirmMerge</c>).
+        /// </summary>
+        /// <remarks>
+        /// Atomic and typed (AGENTS rule 7): the pair and the choice are validated against the
+        /// offer the <i>current</i> state produces before anything moves, so a stale or foreign
+        /// id is refused with the run untouched — and the accepted command is recorded with its
+        /// id, because which variant was chosen changes the loadout a replay must reproduce.
+        /// </remarks>
+        public Result<MergeOutcome> ConfirmMerge(PieceRef source, PieceRef target, string variantId)
+        {
+            Result inCamp = RequireCamp();
+            if (inCamp.IsFailure)
+            {
+                return Result.Fail<MergeOutcome>(inCamp.Error);
+            }
+
+            Result<MergeOutcome> merged = Editor.ConfirmMerge(source, target, variantId, Seed);
+            if (merged.IsFailure)
+            {
+                return merged;
+            }
+
+            Record(RunCommand.ConfirmMerge(source, target, variantId));
+            EmitBagChanged();
+            return merged;
+        }
+
         /// <summary>Undoes the last accepted bag edit.</summary>
         public Result Undo()
         {
@@ -746,6 +805,7 @@ namespace ProjectSurvive.Core.Application.Run
             RefreshCount = Stock.RefreshCount,
             BackpackRevision = Backpack.Revision,
             NextInstanceId = Backpack.NextInstanceId,
+            MergeCount = Backpack.MergeCount,
             ShopSlots = Stock.Capture(),
             Pieces = Backpack.CaptureSnapshot().Pieces,
         };
@@ -818,9 +878,18 @@ namespace ProjectSurvive.Core.Application.Run
                     PieceRef target = ItemAt(origin);
                     if (target.IsValid && target != piece)
                     {
-                        return Editor.CanMerge(piece, target, out Error mergeError)
-                            ? DropPreview.Accepted(BagDropAction.Merge, target)
-                            : DropPreview.Refused(mergeError.Code);
+                        if (!Editor.CanMerge(piece, target, out Error mergeError))
+                        {
+                            return DropPreview.Refused(mergeError.Code);
+                        }
+
+                        // Stage 09g: the gesture is the merge gesture whether or not the merge
+                        // asks a question. A pair the piece matches previews as Merge and names
+                        // the piece under the pointer; whether the fold can go ahead or the
+                        // player has to pick an upgrade first is answered by OfferMerge, which
+                        // the screen reads - so the preview stays a description of the gesture
+                        // rather than a second copy of that rule.
+                        return DropPreview.Accepted(BagDropAction.Merge, target);
                     }
 
                     return Editor.CanPlace(piece, origin, rotation, out Error placeError)

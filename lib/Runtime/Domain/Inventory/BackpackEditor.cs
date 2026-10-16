@@ -8,12 +8,13 @@ namespace ProjectSurvive.Core.Domain.Inventory
     /// <summary>What one successful <see cref="BackpackEditor.Merge"/> did.</summary>
     public readonly struct MergeOutcome
     {
-        internal MergeOutcome(ItemInstance survivor, PieceRef consumed)
+        internal MergeOutcome(ItemInstance survivor, PieceRef consumed, string variantId)
         {
             Survivor = survivor.Ref;
             NewTier = survivor.Tier;
             DefId = survivor.ItemId;
             Consumed = consumed;
+            VariantId = variantId ?? string.Empty;
         }
 
         /// <summary>The instance that stayed on the board or in the chest, at the new tier.</summary>
@@ -27,6 +28,13 @@ namespace ProjectSurvive.Core.Domain.Inventory
 
         /// <summary>The instance that was folded into <see cref="Survivor"/>.</summary>
         public PieceRef Consumed { get; }
+
+        /// <summary>
+        /// The upgrade variant this step picked, or empty when the step had no chooser
+        /// (Stage 09f). The survivor keeps it in its own per-step history;
+        /// this is the same id, handed back for the caller that just chose it.
+        /// </summary>
+        public string VariantId { get; }
 
         /// <inheritdoc />
         public override string ToString() => "merge " + DefId + " -> t" + NewTier + " (" + Consumed + ")";
@@ -93,6 +101,12 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// Reused rather than re-allocated, and refilled (or emptied) by every call of that predicate.
         /// </summary>
         private readonly List<BagCarry> _carry = new List<BagCarry>(8);
+
+        /// <summary>
+        /// Scratch for the upgrade pool of one query — which variants apply, before the draw
+        /// picks from them. Never handed to a caller (the offer owns its own choice list).
+        /// </summary>
+        private readonly List<UpgradeVariantConfig> _pool = new List<UpgradeVariantConfig>(8);
 
         private byte[] _campEntry;
 
@@ -487,6 +501,21 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// and same tier becomes the next tier, up to <c>constant.max_tier</c>. The
         /// survivor keeps its exact placement, so the footprint never changes.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>This is the fold of a pair with no upgrade choices</b> (charms, tomes,
+        /// offerings, familiars, bags). When the piece has choices the player has to pick
+        /// one, and the command that carries that pick is
+        /// <see cref="ConfirmMerge"/>; this one refuses with
+        /// <see cref="InventoryError.MergeNeedsVariant"/> rather than choosing for them,
+        /// which is what stops the chooser from being bypassable (Stage 09f).
+        /// </para>
+        /// <para>
+        /// The step still takes a variant slot on the survivor, empty, so that the 2 → 3
+        /// merge of a piece whose 1 → 2 merge offered nothing keeps its step numbering
+        /// (ADR 0021).
+        /// </para>
+        /// </remarks>
         public Result<MergeOutcome> Merge(PieceRef source, PieceRef target)
         {
             if (IsLocked)
@@ -513,10 +542,149 @@ namespace ProjectSurvive.Core.Domain.Inventory
             // survivor keeps its exact placement (the footprint never changes).
             var survivor = (ItemInstance)targetInstance;
 
+            if (HasChoices(survivor))
+            {
+                return Result.Fail<MergeOutcome>(InventoryError.MergeNeedsVariant, ErrorKind.Validation);
+            }
+
+            return Fold(sourceInstance, survivor, ItemInstance.NoVariant);
+        }
+
+        /// <summary>
+        /// The upgrade choices merging <paramref name="source"/> into
+        /// <paramref name="target"/> would offer, computed without changing anything
+        /// (Stage 09f: <c>OfferMerge</c>).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Read-only and repeatable: the same pair in the same state returns the same
+        /// choices, in the same order, because the draw is a pure function of the seed, the
+        /// merge count, the item and the tier step (<see cref="UpgradePool"/>). A caller may
+        /// therefore ask on every screen refresh, and a chooser that is opened, closed and
+        /// opened again cannot shop for a better offer.
+        /// </para>
+        /// <para>
+        /// An offer with no choices is not a refusal — it is the pair that folds
+        /// immediately, which <see cref="Merge"/> performs.
+        /// </para>
+        /// </remarks>
+        public Result<MergeOffer> OfferMerge(PieceRef source, PieceRef target, uint masterSeed)
+        {
+            if (IsLocked)
+            {
+                return Result.Fail<MergeOffer>(InventoryError.Locked, ErrorKind.InvalidState);
+            }
+
+            if (!_backpack.TryGetPiece(target, out PieceInstance? targetInstance) || targetInstance is null)
+            {
+                return Result.Fail<MergeOffer>(InventoryError.UnknownPiece, ErrorKind.NotFound);
+            }
+
+            if (!CanMerge(source, target, out Error error))
+            {
+                return Result.Fail<MergeOffer>(error);
+            }
+
+            var survivor = (ItemInstance)targetInstance;
+
+            if (!_config.TryGetItem(survivor.ItemId, out ItemConfig definition))
+            {
+                return Result.Fail<MergeOffer>(InventoryError.UnknownPiece, ErrorKind.NotFound);
+            }
+
+            // The choices list is allocated per offer: the returned offer reads it, so a
+            // shared scratch list would let a second call rewrite the first offer.
+            var choices = new List<UpgradeVariantConfig>(4);
+            MergeOffer offer = UpgradePool.Offer(
+                _config,
+                survivor.ItemId,
+                definition,
+                survivor.Tier,
+                masterSeed,
+                _backpack.MergeCount,
+                _pool,
+                choices);
+
+            return Result.Ok(offer);
+        }
+
+        /// <summary>
+        /// Merges <paramref name="source"/> into <paramref name="target"/> with
+        /// <paramref name="variantId"/> as the upgrade the survivor keeps for this step
+        /// (Stage 09f: <c>ConfirmMerge</c>).
+        /// </summary>
+        /// <remarks>
+        /// <b>Atomic.</b> The pair is validated, the offer is <i>recomputed</i> from the
+        /// current state and the id is checked against it, and only then is anything
+        /// written - so a stale id, an id for another tier step, or an id from an offer that
+        /// has since been undone is refused with the backpack byte-identical (AGENTS rule 7).
+        /// The offer is recomputed rather than trusted because a client could otherwise hold
+        /// one from before an undo and confirm into a choice the current state never offered.
+        /// </remarks>
+        public Result<MergeOutcome> ConfirmMerge(PieceRef source, PieceRef target, string variantId, uint masterSeed)
+        {
+            if (string.IsNullOrEmpty(variantId))
+            {
+                // A pair with no choices folds through Merge, not by confirming an empty id:
+                // one command per situation keeps "which id was chosen" answerable.
+                return Result.Fail<MergeOutcome>(InventoryError.MergeVariantRequired, ErrorKind.Validation);
+            }
+
+            if (!_backpack.TryGetPiece(source, out PieceInstance? sourceInstance) || sourceInstance is null)
+            {
+                return Result.Fail<MergeOutcome>(InventoryError.UnknownPiece, ErrorKind.NotFound);
+            }
+
+            if (!_backpack.TryGetPiece(target, out PieceInstance? targetInstance) || targetInstance is null)
+            {
+                return Result.Fail<MergeOutcome>(InventoryError.UnknownPiece, ErrorKind.NotFound);
+            }
+
+            Result<MergeOffer> offered = OfferMerge(source, target, masterSeed);
+            if (offered.IsFailure)
+            {
+                return Result.Fail<MergeOutcome>(offered.Error);
+            }
+
+            if (!offered.Value.Contains(variantId))
+            {
+                return Result.Fail<MergeOutcome>(InventoryError.MergeVariantNotOffered, ErrorKind.Validation);
+            }
+
+            // Precondition: OfferMerge ran CanMerge, which proved both pieces are items, so
+            // the cast holds and the survivor keeps its exact placement.
+            return Fold(sourceInstance, (ItemInstance)targetInstance, variantId);
+        }
+
+        /// <summary>
+        /// Writes one accepted merge: the undo snapshot, the consumed piece, the survivor's
+        /// new tier and step choice, and the merge counter the next offer is drawn from.
+        /// </summary>
+        /// <remarks>
+        /// Precondition: the pair passed <see cref="CanMerge"/> and
+        /// <paramref name="variantId"/> is either <see cref="ItemInstance.NoVariant"/> for a
+        /// step with no chooser or a choice the current offer contains.
+        /// </remarks>
+        private Result<MergeOutcome> Fold(PieceInstance sourceInstance, ItemInstance survivor, string variantId)
+        {
             PushUndo();
             _backpack.RemovePiece(sourceInstance);
             _backpack.RaiseTier(survivor, survivor.Tier + 1);
-            return Result.Ok(new MergeOutcome(survivor, source));
+            survivor.AddVariant(variantId);
+            _backpack.RecordMerge();
+            return Result.Ok(new MergeOutcome(survivor, sourceInstance.Ref, variantId));
+        }
+
+        /// <summary>True when merging this pair has upgrade choices to offer.</summary>
+        private bool HasChoices(ItemInstance survivor)
+        {
+            if (!_config.TryGetItem(survivor.ItemId, out ItemConfig definition))
+            {
+                return false;
+            }
+
+            UpgradePool.Collect(_config, definition, survivor.Tier, _pool);
+            return _pool.Count > 0;
         }
 
         /// <summary>

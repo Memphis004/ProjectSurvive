@@ -207,8 +207,149 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 Is.Empty);
         }
 
+        // ------------------------------------------------------------------
+        // Stage 09g: the merge chooser is a modal
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void The_merge_chooser_may_cover_the_panel_it_is_asking_about()
+        {
+            // "วางทับไอเทมแล้วเลือกอัปเกรด": the window lands on the board and the chest panel by
+            // construction, and the dim layer lands on everything. Reporting either would report the
+            // screen working as designed, which is why both are measured as overlays.
+            var layout = new List<UiRegion>
+            {
+                Surface("Board", 40f, 140f, 740f, 580f),
+                Surface(UiLayoutCheck.ChestPanel, 1104f, 200f, 776f, 400f),
+                Overlay(UiLayoutCheck.MergeChooserDim, 0f, 0f, 1920f, 1080f),
+                Overlay(UiLayoutCheck.MergeChooser, 420f, 200f, 1080f, 620f),
+                Modal(UiLayoutCheck.MergeChooserCard(0), 460f, 320f, 320f, 380f),
+                Modal(UiLayoutCheck.MergeChooserCard(1), 800f, 320f, 320f, 380f),
+                Modal(UiLayoutCheck.MergeChooserCard(2), 1140f, 320f, 320f, 380f),
+            };
+
+            Assert.That(
+                UiLayoutCheck.FindViolations(layout), Is.Empty,
+                "a modal covering the panels behind it is what a modal is for");
+            Assert.That(
+                UiLayoutCheck.FindModalEscapees(layout, UiLayoutCheck.MergeChooser), Is.Empty,
+                "every card is drawn inside the window's own frame");
+        }
+
+        [Test]
+        public void The_merge_chooser_does_not_excuse_the_panels_own_collisions()
+        {
+            // The overlay is exempt, the pair behind it is not — the same rule the tooltip is held to.
+            var layout = new List<UiRegion>
+            {
+                Surface("Altar", 822f, 16f, 210f, 106f),
+                Surface("StatusBar", 24f, 16f, 1400f, 190f),
+                Overlay(UiLayoutCheck.MergeChooserDim, 0f, 0f, 1920f, 1080f),
+                Overlay(UiLayoutCheck.MergeChooser, 420f, 200f, 1080f, 620f),
+            };
+
+            List<string> violations = UiLayoutCheck.FindViolations(layout);
+
+            Assert.That(violations, Has.Count.EqualTo(1));
+            Assert.That(violations[0], Does.Contain("Altar"));
+            Assert.That(violations[0], Does.Contain("StatusBar"));
+        }
+
+        [Test]
+        public void Two_cards_drawn_on_each_other_are_reported()
+        {
+            // The one collision inside a modal a player cannot read past: two choices sharing pixels.
+            var layout = new List<UiRegion>
+            {
+                Overlay(UiLayoutCheck.MergeChooser, 420f, 200f, 1080f, 620f),
+                Modal(UiLayoutCheck.MergeChooserCard(0), 460f, 320f, 320f, 380f),
+                Modal(UiLayoutCheck.MergeChooserCard(1), 700f, 320f, 320f, 380f),
+            };
+
+            List<string> violations = UiLayoutCheck.FindViolations(layout);
+
+            Assert.That(violations, Has.Count.EqualTo(1));
+            Assert.That(violations[0], Does.Contain(UiLayoutCheck.MergeChooserCard(0)));
+            Assert.That(violations[0], Does.Contain(UiLayoutCheck.MergeChooserCard(1)));
+        }
+
+        [Test]
+        public void Cards_that_touch_and_the_back_button_are_not_collisions()
+        {
+            // Three cards in a row share their edges with the gaps between them, and the back button
+            // stands under the row: none of these pairs shares a pixel.
+            var layout = new List<UiRegion>
+            {
+                Modal(UiLayoutCheck.MergeChooserCard(0), 460f, 320f, 320f, 380f),
+                Modal(UiLayoutCheck.MergeChooserCard(1), 780f, 320f, 320f, 380f),
+                Modal(UiLayoutCheck.MergeChooserCard(2), 1100f, 320f, 320f, 380f),
+                Modal(UiLayoutCheck.MergeChooserBack, 480f, 220f, 240f, 60f),
+            };
+
+            Assert.That(UiLayoutCheck.FindViolations(layout), Is.Empty);
+        }
+
+        [Test]
+        public void A_card_that_escapes_the_window_is_reported()
+        {
+            var inside = new List<UiRegion>
+            {
+                Overlay(UiLayoutCheck.MergeChooser, 420f, 200f, 1080f, 620f),
+                Modal(UiLayoutCheck.MergeChooserCard(0), 460f, 320f, 320f, 380f),
+            };
+
+            var outside = new List<UiRegion>
+            {
+                Overlay(UiLayoutCheck.MergeChooser, 420f, 200f, 1080f, 620f),
+                Modal(UiLayoutCheck.MergeChooserCard(0), 60f, 320f, 320f, 380f),
+            };
+
+            Assert.That(
+                UiLayoutCheck.FindModalEscapees(inside, UiLayoutCheck.MergeChooser), Is.Empty,
+                "a card inside the window is the normal case");
+
+            List<string> violations = UiLayoutCheck.FindModalEscapees(outside, UiLayoutCheck.MergeChooser);
+
+            Assert.That(violations, Has.Count.EqualTo(1));
+            Assert.That(violations[0], Does.Contain(UiLayoutCheck.MergeChooserCard(0)));
+            Assert.That(violations[0], Does.Contain(UiLayoutCheck.MergeChooser));
+        }
+
+        [Test]
+        public void A_run_that_never_measured_a_window_does_not_invent_an_escapee()
+        {
+            // The missing window is the caller's failure to report, not a layout one: with no region
+            // carrying the window's name there is nothing to be outside of.
+            var layout = new List<UiRegion>
+            {
+                Modal(UiLayoutCheck.MergeChooserCard(0), 60f, 320f, 320f, 380f),
+            };
+
+            Assert.That(
+                UiLayoutCheck.FindModalEscapees(layout, UiLayoutCheck.MergeChooser), Is.Empty);
+        }
+
+        [Test]
+        public void The_dim_layer_is_not_held_to_the_opacity_floor()
+        {
+            // A modal that dims the camp is translucent by design: the floor names the board and the
+            // chest panel, and adding the dim layer to that rule would fail every correct screen.
+            Assert.That(
+                UiLayoutCheck.FindOpacityViolations(new List<UiRegion>
+                {
+                    new UiRegion(
+                        UiLayoutCheck.MergeChooserDim, new Rect(0f, 0f, 1920f, 1080f), UiRegionKind.Overlay, 0.55f),
+                    new UiRegion(
+                        UiLayoutCheck.MergeChooser, new Rect(420f, 200f, 1080f, 620f), UiRegionKind.Overlay, 0.95f),
+                }),
+                Is.Empty);
+        }
+
         private static UiRegion Overlay(string name, float x, float y, float w, float h) =>
             new UiRegion(name, new Rect(x, y, w, h), UiRegionKind.Overlay, 0.95f);
+
+        private static UiRegion Modal(string name, float x, float y, float w, float h) =>
+            new UiRegion(name, new Rect(x, y, w, h), UiRegionKind.ModalControl, 1f);
 
         private static UiRegion Surface(string name, float x, float y, float w, float h, float alpha) =>
             new UiRegion(name, new Rect(x, y, w, h), UiRegionKind.Surface, alpha);

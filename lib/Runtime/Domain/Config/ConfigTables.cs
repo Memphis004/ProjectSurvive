@@ -152,6 +152,59 @@ namespace ProjectSurvive.Core.Domain.Config
         public string TargetId => string.IsNullOrEmpty(ItemId) ? BagId : ItemId;
     }
 
+    /// <summary>
+    /// One upgrade choice: the numbers a merge of two equal pieces may fold into the
+    /// survivor when the player picks this variant (Stage 09f).
+    /// </summary>
+    /// <remarks>
+    /// The variant matches a piece by <b>category or tag</b>, never by item id, so one
+    /// row covers a whole family — exactly one of <see cref="Category"/> /
+    /// <see cref="Tag"/> is set (the same shape <see cref="MergeRecipeConfig"/> uses for
+    /// its two optional ids). <see cref="Modifiers"/> is attached by the config adapter
+    /// from the <c>upgrade_variant_modifier</c> rows; it is never empty in shipped data,
+    /// which the data validator enforces.
+    /// </remarks>
+    public sealed class UpgradeVariantConfig
+    {
+        public string Id { get; set; } = string.Empty;
+
+        /// <summary>An <see cref="ItemCategory"/> name, or empty for a tag-scoped variant.</summary>
+        public string Category { get; set; } = string.Empty;
+
+        /// <summary>An item tag, or empty for a category-scoped variant.</summary>
+        public string Tag { get; set; } = string.Empty;
+
+        /// <summary>The tier step this choice belongs to (<c>1</c> = the 1 → 2 merge).</summary>
+        public int FromTier { get; set; }
+
+        /// <summary>The tier the survivor reaches; always <see cref="FromTier"/> + 1.</summary>
+        public int ToTier { get; set; }
+
+        /// <summary>The localization key of the choice's name.</summary>
+        public string NameKey { get; set; } = string.Empty;
+
+        /// <summary>Draw weight inside its pool; a higher weight is offered more often.</summary>
+        public int Weight { get; set; }
+
+        /// <summary>What this choice changes. Never empty in shipped data.</summary>
+        public IReadOnlyList<UpgradeModifierConfig> Modifiers { get; set; } =
+            new List<UpgradeModifierConfig>();
+    }
+
+    /// <summary>One stat change of an <see cref="UpgradeVariantConfig"/>.</summary>
+    public sealed class UpgradeModifierConfig
+    {
+        /// <summary>Row id, so a validator finding can name the modifier it is about.</summary>
+        public string Id { get; set; } = string.Empty;
+
+        public UpgradeStat Stat { get; set; }
+
+        public UpgradeMethod Method { get; set; }
+
+        /// <summary>How much, in the units <see cref="Method"/> implies. May be negative.</summary>
+        public float Magnitude { get; set; }
+    }
+
     public sealed class EnemyConfig
     {
         public string Id { get; set; } = string.Empty;
@@ -284,5 +337,12 @@ namespace ProjectSurvive.Core.Domain.Config
         public float MoveSpeed { get; set; }
 
         public int MaxTier { get; set; }
+
+        /// <summary>
+        /// How many upgrade choices a merge offers ("เลือก 1 จาก 3", Stage 09f). Read by
+        /// the offer builder as the size cap and by the data validator as the minimum a
+        /// non-empty pool must have: a pool of one or two could not fill the chooser.
+        /// </summary>
+        public int UpgradeChoiceCount { get; set; }
     }
 }

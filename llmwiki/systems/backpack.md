@@ -81,6 +81,13 @@ one at tier + 1 (capped by `constant.max_tier`), and the survivor keeps its exac
 placement, so the footprint never changes. A save file that stored only def ids could not
 tell a tier-3 weapon from three tier-1 ones.
 
+The survivor also carries its own **step history** (`ItemInstance.VariantIds`): one entry per
+completed merge step, in step order, holding the upgrade variant that step chose — or
+`ItemInstance.NoVariant` (an empty string) for a step that had no chooser. The history is what
+the loadout resolves from, so the slots are ordered rather than a set, and a save file that
+stored only a tier could not reproduce the numbers the player is playing with
+([ADR 0021](../../docs/adr/0021-merge-upgrade-choice.md)).
+
 ## 4. The command surface — `BackpackEditor`
 
 `Backpack` owns **state**; `BackpackEditor` owns **commands**. Mutators on `Backpack` are
@@ -92,7 +99,9 @@ changes nothing” structural rather than a promise.
 | `Move(piece, origin, rotation)` | Place/move from chest or board; a bag brings the items standing on it along (ADR 0020) |
 | `Rotate(piece)` | One clockwise quarter turn in place; a board-only operation, carrying the same riders |
 | `TransferToChest(piece)` | Refused when the chest (`economy.chest_slots`, 10) is full, and for a bag an item is standing on |
-| `Merge(source, target)` | Same item id **and** same tier → `tier + 1`, max `constant.max_tier`; refuses bags, mismatches and the cap |
+| `Merge(source, target)` | The **fold** for a pair with no upgrade choices: same item id **and** same tier → `tier + 1`, max `constant.max_tier`; refuses bags, mismatches, the cap, and — with `inventory.merge_needs_variant` — a pair the chooser would have to ask about |
+| `OfferMerge(source, target, seed)` | The choices that merge *would* offer, computed without changing anything; empty options mean “this pair folds immediately” |
+| `ConfirmMerge(source, target, variantId, seed)` | The same merge with one offered variant kept for that step; **atomic** — it recomputes the offer and checks the id against it before writing |
 | `Recycle(piece)` | Leaves the run; pays `floor(price × economy.sell_back_percent / 100)` of the **tier-1** price |
 | `Undo()` | Re-applies the previous snapshot |
 | `Reset()` | Returns to the state captured on `MarkCampEntry()` (“คืนสภาพตอนเข้าศาลา”) |
@@ -101,6 +110,21 @@ changes nothing” structural rather than a promise.
 Every one of them returns `Result` / `Result<T>` (`MergeOutcome`, `RecycleOutcome`) with a
 stable `InventoryError.*` code; player-facing text stays in localization as
 `error.<code>`.
+
+**Merge is two commands, one per situation** ([ADR 0021](../../docs/adr/0021-merge-upgrade-choice.md)).
+A piece with upgrade variants for its step (`constant.upgrade_choice_count` choices, drawn from
+the rows matching its category or tag) must be confirmed with an id; a piece with none folds
+through `Merge` exactly as before. `OfferMerge` is a **read model** — it never changes the
+backpack — and the draw is a **pure function** of `(run seed, Backpack.MergeCount, item id,
+from tier)` (`UpgradePool.DeriveSeed` → `Xoshiro128`), so asking twice returns the same choices
+in the same order, and cancelling the chooser, undoing the merge and repeating it cannot re-roll
+the offer. The chosen id is appended to the survivor's step history and recorded in the replay
+log (`RunCommandKind.ConfirmMerge`), and the unfilled step of a pair with no chooser still takes
+an empty slot so step numbering stays stable. On screen the drop is that question: releasing one piece
+on another with the same id and tier makes `CampPresenter` ask `OfferMerge`, and a pair with choices
+opens the **choice window** (Stage 09g) — whose left panel is the same five lines the tooltip shows,
+produced by the same presenter methods — while a pair with no choices folds on the drop as it always
+did.
 
 **Acquisition always lands in the chest** (`AddBag` / `AddItem`), per the GDD's
 “ของที่ซื้อเข้าหีบก่อนเสมอ”.
@@ -112,6 +136,10 @@ come from `IBackpackSnapshotCodec`, implemented in Infrastructure
 engine never sees a serializer while the bytes are real MessagePack Stage 12 can persist.
 The snapshot deliberately does **not** store a shape: it stores the rotation, and the
 shape is re-derived from the data table, so a rotation bug cannot desync two copies.
+Since Stage 09f the snapshot is **schema version 2** and carries, besides the pieces, the merge
+counter (`MergeCount`) and each item's step history — both are undoable state, and both are what
+a repeated merge redraws its offer from, so an undo that restored one without the other would
+change the next offer.
 
 ## 5. Weight → movement penalty
 
@@ -167,6 +195,12 @@ from the bag to the battle. No second loadout model exists.
   with tier and synergy multipliers applied to damage and cooldown.
 - `Consumables` (offerings) are aggregated per item id — the contract has no tier on a
   consumable, so N identical offerings is “one entry, N uses”.
+- **Upgrade variants fold in per step.** Each step of the history contributes its variant's
+  modifiers to the stat it names (`UpgradeAccumulator`): all `Add` summed, all `Percent` summed,
+  all `Multiply` folded, applied as `((base + add) × (1 + percent/100)) × factors`. The order is
+  the rule, not the CSV's row order, and a stat the whole board shares (max HP, move speed) sums
+  every piece's percentages *before* the base is touched. Only stats the contract already carries
+  can be named, so a data row cannot add a mechanic.
 - **Cooldown has a floor**: never below `constant.min_cooldown_seconds`, whatever the combo
   bonus says (“cooldown มีค่าต่ำสุด”).
 - **Chest contents contribute nothing** to the loadout.
@@ -181,18 +215,23 @@ from the bag to the battle. No second loadout model exists.
 
 `unknown_piece`, `wrong_zone`, `out_of_board`, `bag_overlap`, `item_not_covered`,
 `item_overlap`, `item_spans_bags`, `item_stranded`, `chest_full`, `locked`, `nothing_to_undo`,
-`merge_mismatch`, `merge_not_item`, `merge_max_tier`, `not_on_board`.
+`merge_mismatch`, `merge_not_item`, `merge_max_tier`, `merge_needs_variant`,
+`merge_variant_required`, `merge_variant_not_offered`, `not_on_board`.
 
 ## 9. Where the evidence is
 
 - `lib/Tests~/Core.Tests/Inventory/` — the rule suite over the **real** generated tables
   (no stub config), including a 10 000-operation randomized run that mixes bag gestures
-  with every other command and checks the structural invariants after each one.
+  with every other command and checks the structural invariants after each one, and
+  `UpgradeOfferTests.cs`, which pins the offer's determinism, the atomic refusals and the
+  hand-written loadout numbers each shipped variant must produce.
 - `UnityProject/Assets/Main/Tests/EditMode/BackpackRulesTests.cs` — the same real data
   through the Unity-compiled assemblies (loadout contract, codec, undo/lock, the carried
   item and both refusals).
 - `UnityProject/Assets/Main/Tests/PlayMode/CampBagDragPlayModeTests.cs` — the gesture with
   real pointer events, including the rider's ghost drawn where the item really lands
-  (Stage 09f).
+  (Stage 09f), and `CampMergeChooserPlayModeTests.cs` — the same kind of real pointer and keyboard
+  events through the Stage 09g choice window (drag opens it, a tap on a card confirms that card,
+  `Escape` / the back control change nothing).
 - `node tools/coverage-report.mjs <cobertura> "Inventory/" "Config/Footprint.cs"` — the
   measurement behind the acceptance number (90.92 % of the backpack rule set).

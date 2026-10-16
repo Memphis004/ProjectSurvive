@@ -180,6 +180,18 @@ namespace ProjectSurvive.Game.Presentation.Camp
         public ReactiveProperty<CampDragState> Drag { get; } =
             new ReactiveProperty<CampDragState>(CampDragState.None);
 
+        /// <summary>
+        /// The merge chooser (Stage 09g): the upgrade decision a merge of two equal pieces asks for,
+        /// or <see cref="CampMergeChooserModel.Closed"/>.
+        /// </summary>
+        /// <remarks>
+        /// A replaced model rather than a flag plus an array, for the same reason as <see cref="Bag"/>:
+        /// a decision is one picture, and the view re-renders the whole modal from it. Closed is a
+        /// shared constant, so shutting the chooser republishes one reference and allocates nothing.
+        /// </remarks>
+        public ReactiveProperty<CampMergeChooserModel> MergeChooser { get; } =
+            new ReactiveProperty<CampMergeChooserModel>(CampMergeChooserModel.Closed);
+
         /// <summary>Assigns an int without republishing an unchanged value.</summary>
         public static void Set(ReactiveProperty<int> property, int value)
         {
@@ -274,6 +286,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             Shop.Dispose();
             Bag.Dispose();
             Drag.Dispose();
+            MergeChooser.Dispose();
         }
     }
 }

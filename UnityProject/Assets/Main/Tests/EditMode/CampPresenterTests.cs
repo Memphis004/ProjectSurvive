@@ -47,6 +47,12 @@ namespace ProjectSurvive.Game.Tests.EditMode
         /// </summary>
         private const uint Seed = 5u;
 
+        /// <summary>
+        /// A charm: the piece no upgrade variant matches, so a pair of them folds immediately. Used to
+        /// prove the chooser only opens for a pair that has a choice to make (Stage 09g item 1).
+        /// </summary>
+        private const string CharmId = "item.tiger_fang";
+
         private IGameConfig _config;
         private IBackpackSnapshotCodec _codec;
         private LocalizationService _text;
@@ -118,7 +124,9 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(core.RotatePiece(twin).IsSuccess, Is.True, "the same rotation issued directly is accepted");
 
             // Merge: dropping the twin onto the piece it matches. The screen decides from the
-            // preview, and the preview is the run's own predicate.
+            // preview, and the preview is the run's own predicate. Stage 09g: two arcane weapons have
+            // upgrade choices, so the drop opens the chooser and the pick is what folds the pair —
+            // the same pick, issued directly to the second run, is what keeps the two states equal.
             PieceRef survivor = run.Backpack.Items[0].Ref;
 
             ui.Presenter.DragStart(twin, RotationOf(run, twin));
@@ -129,10 +137,17 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
             ui.Presenter.Drop();
 
+            Assert.That(ui.Presenter.IsMergeChooserOpen, Is.True, "an arcane pair asks which upgrade to keep first");
+            string chosen = ui.Presenter.MergeChooser.Choices[0].VariantId;
+            Assert.That(ui.Presenter.ConfirmMergeChoice(0), Is.True, "the card the player picks is the one confirmed");
+
             Assert.That(ui.Presenter.Counters.Merged, Is.EqualTo(1));
             Assert.That(run.Backpack.Items.Count, Is.EqualTo(1), "the merge consumed one of the two");
             Assert.That(run.Backpack.Items[0].Tier, Is.EqualTo(2), "the survivor went up a tier");
-            Assert.That(core.MergeItems(twin, survivor).IsSuccess, Is.True, "the same merge issued directly is accepted");
+            Assert.That(
+                core.ConfirmMerge(twin, survivor, chosen).IsSuccess,
+                Is.True,
+                "the same merge with the same pick issued directly is accepted");
 
             // Give back: the altar. The payout on screen is the run's own number, read before the drop.
             PieceRef merged = run.Backpack.Items[0].Ref;
@@ -173,6 +188,332 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 ui.State.Bag.Value.Pieces.Length,
                 Is.EqualTo(run.Backpack.Bags.Count + run.Backpack.Items.Count),
                 "the bag screen paints every piece the run holds");
+        }
+
+        // -------------------------------------------------------------------
+        // Stage 09g: the upgrade chooser
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// Stage 09g item 1: dropping a piece onto a matching piece that has upgrade choices opens the
+        /// chooser and changes nothing. The merge belongs to the pick, not to the drop.
+        /// </summary>
+        [Test]
+        public void Dropping_a_matching_pair_opens_the_chooser_and_changes_nothing()
+        {
+            Screen ui = AtACampWithAMergeablePair(out PieceRef survivor, out PieceRef twin);
+            RunSession run = ui.Run;
+
+            int bia = run.Wallet.Bia;
+            int chest = run.ChestUsed;
+            int pieces = run.Backpack.Items.Count;
+            uint hash = run.ComputeStateHash();
+
+            DropOnto(ui.Presenter, run, twin, survivor);
+
+            Assert.That(ui.Presenter.IsMergeChooserOpen, Is.True, "a pair with choices opens the modal");
+            Assert.That(ui.State.MergeChooser.Value.IsOpen, Is.True, "and the state the view renders from says so");
+            Assert.That(
+                ui.Presenter.MergeChooser.ChoiceCount,
+                Is.EqualTo(_config.Constant.UpgradeChoiceCount),
+                "the cards are the configured number of choices (เลือก 1 จาก 3)");
+            Assert.That(ui.Presenter.Counters.Merged, Is.EqualTo(0), "nothing was folded yet");
+            Assert.That(ui.Presenter.Counters.MergeChoicesOpened, Is.EqualTo(1), "the chooser was opened once");
+            Assert.That(run.Backpack.Items.Count, Is.EqualTo(pieces), "both pieces are still there");
+            Assert.That(TierOf(run, survivor), Is.EqualTo(1), "and the survivor is still at its own tier");
+            Assert.That(run.Wallet.Bia, Is.EqualTo(bia), "opening the chooser moves no bia");
+            Assert.That(run.ChestUsed, Is.EqualTo(chest), "and takes nothing out of the chest");
+            Assert.That(run.ComputeStateHash(), Is.EqualTo(hash), "and the run is byte for byte where it was");
+        }
+
+        /// <summary>
+        /// Stage 09g item 2: the cards are the offer's own choices — the same ids in the same order —
+        /// and every line is the variant's own data. In shipped data every modifier helps the player,
+        /// which is what the green colour on the card is chosen from.
+        /// </summary>
+        [Test]
+        public void The_cards_are_the_offer_and_every_line_is_the_variants_own_data()
+        {
+            Screen ui = AtACampWithAMergeablePair(out PieceRef survivor, out PieceRef twin);
+            RunSession run = ui.Run;
+
+            Result<MergeOffer> offer = run.OfferMerge(twin, survivor);
+            Assert.That(offer.IsSuccess, Is.True, "the offer is a read model: " + offer.Error);
+            Assert.That(offer.Value.HasChoices, Is.True, "an arcane weapon has choices at the 1 -> 2 step");
+
+            ItemConfig item = ItemOf(run, survivor);
+
+            DropOnto(ui.Presenter, run, twin, survivor);
+
+            CampMergeChooserModel chooser = ui.Presenter.MergeChooser;
+            Assert.That(chooser.ChoiceCount, Is.EqualTo(offer.Value.Options.Count), "one card per offered choice");
+            Assert.That(chooser.Title, Is.Not.Empty, "the modal has a heading");
+            Assert.That(chooser.Hint, Is.Not.Empty, "and the one-line explanation under the cards");
+            Assert.That(chooser.BackLabel, Is.Not.Empty, "and a back button caption");
+
+            for (int card = 0; card < chooser.ChoiceCount; card++)
+            {
+                UpgradeVariantConfig variant = VariantOf(chooser.Choices[card].VariantId);
+
+                Assert.That(
+                    chooser.Choices[card].VariantId,
+                    Is.EqualTo(offer.Value.Options[card].Id),
+                    "the cards are the offer, in the order it named them");
+                Assert.That(
+                    chooser.Choices[card].Title,
+                    Is.EqualTo(Format("camp.merge.card.title.format", Text(variant.NameKey), Text(item.NameKey))),
+                    "ชื่อรุ่น is the variant's name plus the item's");
+                Assert.That(
+                    chooser.Choices[card].LevelLine,
+                    Is.EqualTo(Format("camp.merge.level.format", offer.Value.FromTier, offer.Value.ToTier)),
+                    "ระดับ N -> N+1");
+                Assert.That(
+                    chooser.Choices[card].ChangeCount,
+                    Is.EqualTo(variant.Modifiers.Count),
+                    "one line per stat the variant changes");
+                Assert.That(
+                    chooser.Choices[card].Improvements.Length,
+                    Is.EqualTo(chooser.Choices[card].ChangeCount),
+                    "every line has a colour to draw");
+
+                for (int line = 0; line < variant.Modifiers.Count; line++)
+                {
+                    UpgradeModifierConfig modifier = variant.Modifiers[line];
+
+                    Assert.That(
+                        chooser.Choices[card].Changes[line],
+                        Is.EqualTo(Format("camp.merge.change.format", Text(StatKey(modifier.Stat)), Amount(modifier))),
+                        "the line is the data row, formatted by the presenter");
+                    Assert.That(
+                        chooser.Choices[card].Improvements[line],
+                        Is.True,
+                        "every upgrade in shipped data helps the player, so its line is drawn green");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Stage 09g item 2: the left panel of the modal is the same content the tooltip shows — one
+        /// producer feeds both, so the two can never disagree.
+        /// </summary>
+        [Test]
+        public void The_left_panel_is_the_same_content_the_tooltip_shows()
+        {
+            Screen ui = AtACampWithAMergeablePair(out PieceRef survivor, out PieceRef twin);
+            RunSession run = ui.Run;
+
+            ui.Presenter.Hover(survivor);
+            Assert.That(ui.State.TooltipVisible.Value, Is.True, "the tooltip is up, so there is content to compare");
+
+            var expected = new[]
+            {
+                ui.State.TooltipTitle.Value,
+                ui.State.TooltipTier.Value,
+                ui.State.TooltipStatus.Value,
+                ui.State.TooltipDescription.Value,
+                ui.State.TooltipCombos.Value,
+            };
+
+            DropOnto(ui.Presenter, run, twin, survivor);
+
+            Assert.That(
+                ui.Presenter.MergeChooser.SourceLines,
+                Is.EqualTo(expected),
+                "แผงซ้ายแสดงค่าปัจจุบันของไอเทม, in the tooltip's own five lines");
+            Assert.That(
+                ui.State.TooltipVisible.Value,
+                Is.False,
+                "and the floating tooltip is taken off screen while the modal is up (item 4)");
+        }
+
+        /// <summary>
+        /// Stage 09g item 5: confirming a card raises the tier in the same cell, recomputes the
+        /// loadout, and leaves bia and the chest alone — and the card that was picked is the one the
+        /// battle numbers came from.
+        /// </summary>
+        [Test]
+        public void Confirming_a_card_raises_the_tier_and_the_pick_is_what_the_loadout_gets()
+        {
+            Screen first = AtACampWithAMergeablePair(out PieceRef firstSurvivor, out PieceRef firstTwin);
+            Screen second = AtACampWithAMergeablePair(out PieceRef secondSurvivor, out PieceRef secondTwin);
+
+            int bia = first.Run.Wallet.Bia;
+            int chest = first.Run.ChestUsed;
+            CellOffset origin = OriginOf(first.Run, firstSurvivor);
+
+            DropOnto(first.Presenter, first.Run, firstTwin, firstSurvivor);
+
+            string pick = first.Presenter.MergeChooser.Choices[0].VariantId;
+            Assert.That(
+                first.Presenter.MergeChooser.ChoiceCount,
+                Is.GreaterThan(1),
+                "the second card exists, so there is a different choice to compare against");
+
+            Assert.That(first.Presenter.ConfirmMergeChoice(0), Is.True, "the first card is confirmed");
+
+            Assert.That(first.Presenter.IsMergeChooserOpen, Is.False, "confirming closes the modal");
+            Assert.That(first.Run.Backpack.Items.Count, Is.EqualTo(1), "the merge consumed one of the two");
+            Assert.That(TierOf(first.Run, firstSurvivor), Is.EqualTo(2), "ไอเทมเป็นขั้นใหม่");
+            Assert.That(OriginOf(first.Run, firstSurvivor), Is.EqualTo(origin), "in the same cell it stood in");
+            Assert.That(first.Run.Wallet.Bia, Is.EqualTo(bia), "เบี้ยไม่เปลี่ยน");
+            Assert.That(
+                first.Run.ChestUsed,
+                Is.EqualTo(chest - 1),
+                "และหีบไม่เปลี่ยน beyond the copy the merge consumed: the twin was carried in the chest, "
+                + "the merge ate it, and nothing new was stored (one fewer, not one more)");
+            Assert.That(first.Presenter.Counters.Merged, Is.EqualTo(1), "one merge happened");
+            Assert.That(first.Presenter.Counters.MergeChoicesConfirmed, Is.EqualTo(1), "from one confirmed card");
+            Assert.That(first.State.Bag.Value.CanUndo, Is.True, "the merge is one undoable edit");
+            Assert.That(
+                first.State.Bag.Value.Pieces.Length,
+                Is.EqualTo(first.Run.Backpack.Bags.Count + first.Run.Backpack.Items.Count),
+                "and the bag screen was recomputed from the new state");
+
+            IReadOnlyList<string> steps = VariantSteps(first.Run, firstSurvivor);
+            Assert.That(steps.Count, Is.EqualTo(1), "one merge step is on record");
+            Assert.That(steps[0], Is.EqualTo(pick), "and it kept the card that was picked");
+
+            // The same gesture, the same seed, the other card: the two runs differ in nothing else, so
+            // two loadouts that agreed would mean the pick never reached the battle.
+            DropOnto(second.Presenter, second.Run, secondTwin, secondSurvivor);
+            Assert.That(second.Presenter.ConfirmMergeChoice(1), Is.True, "the second run picks the other card");
+            Assert.That(
+                VariantSteps(second.Run, secondSurvivor)[0],
+                Is.Not.EqualTo(pick),
+                "with a different variant on record");
+
+            CombatLoadoutSnapshot one = Loadout(first.Run);
+            CombatLoadoutSnapshot two = Loadout(second.Run);
+
+            Assert.That(one.Weapons.Count, Is.GreaterThan(0), "the upgraded piece resolves to a weapon");
+            Assert.That(
+                WeaponLine(one),
+                Is.Not.EqualTo(WeaponLine(two)),
+                "the card the player picked is the one the battle numbers came from");
+        }
+
+        /// <summary>
+        /// Stage 09g item 3: closing without choosing changes nothing, and the determinism the offer is
+        /// built on means reopening asks the same question (ADR 0021).
+        /// </summary>
+        [Test]
+        public void Cancelling_changes_nothing_and_reopening_offers_the_same_cards()
+        {
+            Screen ui = AtACampWithAMergeablePair(out PieceRef survivor, out PieceRef twin);
+            RunSession run = ui.Run;
+
+            uint hash = run.ComputeStateHash();
+            int revision = run.Backpack.Revision;
+
+            DropOnto(ui.Presenter, run, twin, survivor);
+            string[] first = CardIds(ui.Presenter);
+
+            ui.Presenter.CancelMergeChooser();
+
+            Assert.That(ui.Presenter.IsMergeChooserOpen, Is.False, "the back button or Escape closes the modal");
+            Assert.That(ui.State.MergeChooser.Value.IsOpen, Is.False, "and the view is told to stop drawing it");
+            Assert.That(ui.Presenter.Counters.MergeChoicesCancelled, Is.EqualTo(1), "the cancel was counted");
+            Assert.That(ui.Presenter.Counters.Merged, Is.EqualTo(0), "nothing was merged");
+            Assert.That(run.ComputeStateHash(), Is.EqualTo(hash), "and nothing changed");
+            Assert.That(run.Backpack.Revision, Is.EqualTo(revision), "not even the revision");
+
+            DropOnto(ui.Presenter, run, twin, survivor);
+
+            Assert.That(ui.Presenter.IsMergeChooserOpen, Is.True, "the gesture opens it again");
+            Assert.That(
+                CardIds(ui.Presenter),
+                Is.EqualTo(first),
+                "with the same cards in the same order: the offer is a function of the run's state");
+        }
+
+        /// <summary>
+        /// Stage 09g item 1: the other half of the rule — a pair no variant matches still folds on the
+        /// drop, with no modal in the way.
+        /// </summary>
+        [Test]
+        public void A_pair_without_choices_still_folds_on_the_drop()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            RunSession run = ui.Run;
+
+            Result<PieceRef> one = run.Backpack.AddItem(CharmId);
+            Result<PieceRef> two = run.Backpack.AddItem(CharmId);
+            Assert.That(one.IsSuccess, Is.True, "the charm must be addable: " + one.Error);
+            Assert.That(two.IsSuccess, Is.True, "twice: " + two.Error);
+
+            CellOffset cell = FirstPlaceableCell(ui.Presenter, one.Value, out BagDropAction action);
+            Assert.That(action, Is.EqualTo(BagDropAction.Place), "the charm goes onto the board");
+            ui.Presenter.Drop();
+            Assert.That(OriginOf(run, one.Value), Is.EqualTo(cell), "where the preview said it would go");
+
+            DropOnto(ui.Presenter, run, two.Value, one.Value);
+
+            Assert.That(ui.Presenter.IsMergeChooserOpen, Is.False, "a charm has no upgrade variants, so no modal opens");
+            Assert.That(ui.Presenter.Counters.MergeChoicesOpened, Is.EqualTo(0), "the chooser was never opened");
+            Assert.That(ui.Presenter.Counters.Merged, Is.EqualTo(1), "the drop folded the pair, as it always did");
+            Assert.That(TierOf(run, one.Value), Is.EqualTo(2), "and the survivor went up a tier");
+            Assert.That(run.Backpack.Items.Count, Is.EqualTo(2), "one charm was consumed");
+        }
+
+        /// <summary>
+        /// Stage 09g item 4: while the modal is up the board behind it is locked, the tooltip stays off
+        /// screen, and a second pick cannot fold anything a second time.
+        /// </summary>
+        [Test]
+        public void While_the_chooser_is_open_the_board_is_locked_and_a_second_pick_cannot_fold_twice()
+        {
+            Screen ui = AtACampWithAMergeablePair(out PieceRef survivor, out PieceRef twin);
+            RunSession run = ui.Run;
+
+            ui.Presenter.Hover(survivor);
+            string[] panel = { ui.State.TooltipTitle.Value, ui.State.TooltipStatus.Value };
+
+            DropOnto(ui.Presenter, run, twin, survivor);
+
+            // ล็อกการลากในหน้าจัดย่าม: nothing behind the dim layer may be picked up.
+            ui.Presenter.DragStart(survivor, RotationOf(run, survivor));
+            Assert.That(ui.Presenter.IsDragging, Is.False, "the board behind the modal is not draggable");
+            ui.Presenter.DragMove(BagDropZone.Board, new CellOffset(0, 0));
+            Assert.That(ui.Presenter.Drag.IsActive, Is.False, "and a pointer move cannot revive the gesture");
+
+            // tooltip ไม่โผล่ทับ: hovering behind the modal neither shows it nor rewrites the panel.
+            ui.Presenter.Hover(twin);
+            Assert.That(ui.State.TooltipVisible.Value, Is.False, "the floating tooltip stays off screen");
+            Assert.That(
+                ui.Presenter.MergeChooser.SourceLines[0],
+                Is.EqualTo(panel[0]),
+                "and the panel still shows the piece the merge is about");
+            Assert.That(ui.Presenter.MergeChooser.SourceLines[2], Is.EqualTo(panel[1]), "including its สถานะ line");
+
+            // กันคลิกซ้ำ: an index no card has is refused, and the modal stays up.
+            Assert.That(ui.Presenter.ConfirmMergeChoice(-1), Is.False, "an index no card has is refused");
+            Assert.That(
+                ui.Presenter.ConfirmMergeChoice(ui.Presenter.MergeChooser.ChoiceCount),
+                Is.False,
+                "and so is one past the last card");
+            Assert.That(ui.Presenter.Counters.Merged, Is.EqualTo(0), "neither refusal changed anything");
+            Assert.That(ui.Presenter.IsMergeChooserOpen, Is.True, "the modal is still up");
+
+            Assert.That(ui.Presenter.ConfirmMergeChoice(0), Is.True, "the real click goes through");
+            Assert.That(ui.Presenter.ConfirmMergeChoice(0), Is.False, "a second one finds nothing to confirm");
+            Assert.That(ui.Presenter.Counters.Merged, Is.EqualTo(1), "so the pair folded exactly once");
+            Assert.That(ui.Presenter.Counters.MergeChoicesConfirmed, Is.EqualTo(1), "and one card was confirmed");
+            Assert.That(run.Backpack.Items.Count, Is.EqualTo(1), "with one piece left");
+        }
+
+        /// <summary>Stage 09g item 3: a pick when nothing is on screen is refused and changes nothing.</summary>
+        [Test]
+        public void A_pick_with_no_chooser_open_is_refused_and_changes_nothing()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            RunSession run = ui.Run;
+
+            uint hash = run.ComputeStateHash();
+
+            Assert.That(ui.Presenter.ConfirmMergeChoice(0), Is.False, "there is nothing to confirm");
+            Assert.That(run.ComputeStateHash(), Is.EqualTo(hash), "and nothing changed");
+            Assert.That(ui.Presenter.Counters.Merged, Is.EqualTo(0), "nothing was merged");
+            Assert.That(ui.Presenter.Counters.MergeChoicesConfirmed, Is.EqualTo(0), "and nothing was confirmed");
         }
 
         // -------------------------------------------------------------------
@@ -1161,6 +1502,179 @@ namespace ProjectSurvive.Game.Tests.EditMode
             presenter.CancelDrag();
             return new CellOffset(-1, -1);
         }
+
+        // -------------------------------------------------------------------
+        // helpers for the upgrade chooser (Stage 09g)
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// A camp whose board holds the starting weapon and whose chest holds a second copy of it:
+        /// the only pair the shipped shop can make reachable at this seed, and one with upgrade
+        /// choices, because an arcane weapon matches the four <c>ArcaneWeapon</c> variants at the
+        /// 1 → 2 step.
+        /// </summary>
+        private Screen AtACampWithAMergeablePair(out PieceRef survivor, out PieceRef twin)
+        {
+            Screen ui = ScreenAtFirstCamp();
+            RunSession run = ui.Run;
+
+            survivor = run.Backpack.Items[0].Ref;
+
+            int slot = SlotOffering(run, RunDefaults.InitialWeaponId);
+            Assert.That(
+                slot,
+                Is.GreaterThanOrEqualTo(0),
+                "seed " + Seed + " must offer " + RunDefaults.InitialWeaponId + " for a merge; re-pin the seed");
+
+            ui.Presenter.Rent(slot);
+            Assert.That(ui.Presenter.Counters.Rented, Is.EqualTo(1), "the rent went through the screen");
+
+            twin = OnlyChestItem(run);
+            Assert.That(twin.IsValid, Is.True, "a rented piece is carried in the chest");
+            return ui;
+        }
+
+        /// <summary>
+        /// The merge gesture through the screen's own surface: pick the piece up, hover the piece it
+        /// matches, release. Asserts the gesture is a merge on the piece under the pointer before the
+        /// drop, so a chooser that failed to open could not be blamed on the drop going elsewhere.
+        /// </summary>
+        private static void DropOnto(CampPresenter presenter, RunSession run, PieceRef piece, PieceRef target)
+        {
+            presenter.DragStart(piece, RotationOf(run, piece));
+            presenter.DragMove(BagDropZone.Board, OriginOf(run, target));
+
+            Assert.That(presenter.Drag.IsValid, Is.True, "the gesture is legal");
+            Assert.That(presenter.Drag.Action, Is.EqualTo(BagDropAction.Merge), "the gesture is the merge");
+            Assert.That(presenter.Drag.Target, Is.EqualTo(target), "and it names the piece under the pointer");
+
+            presenter.Drop();
+        }
+
+        /// <summary>The variant ids of the cards on screen, in the order they are shown.</summary>
+        private static string[] CardIds(CampPresenter presenter)
+        {
+            CampMergeChooserModel chooser = presenter.MergeChooser;
+            var ids = new string[chooser.ChoiceCount];
+
+            for (int i = 0; i < ids.Length; i++)
+            {
+                ids[i] = chooser.Choices[i].VariantId;
+            }
+
+            return ids;
+        }
+
+        /// <summary>The step history of a piece: which upgrade each completed merge step kept.</summary>
+        private static IReadOnlyList<string> VariantSteps(RunSession run, PieceRef piece)
+        {
+            Assert.That(
+                run.Backpack.TryGetPiece(piece, out PieceInstance? instance) && instance is ItemInstance,
+                Is.True,
+                "the piece exists and is an item");
+            return ((ItemInstance)instance!).VariantIds;
+        }
+
+        /// <summary>The tier of a piece ("ระดับ" on screen).</summary>
+        private static int TierOf(RunSession run, PieceRef piece) =>
+            run.Backpack.TryGetPiece(piece, out PieceInstance? instance) && instance is not null
+                ? instance.Tier
+                : -1;
+
+        /// <summary>The item row of a piece, asserted to exist.</summary>
+        private ItemConfig ItemOf(RunSession run, PieceRef piece)
+        {
+            Assert.That(
+                run.Backpack.TryGetPiece(piece, out PieceInstance? instance) && instance is not null,
+                Is.True,
+                "the piece exists");
+            Assert.That(
+                _config.TryGetItem(instance!.DefId, out ItemConfig item),
+                Is.True,
+                "item " + instance.DefId + " has a row");
+            return item;
+        }
+
+        /// <summary>The variant row of a card, asserted to exist.</summary>
+        private UpgradeVariantConfig VariantOf(string variantId)
+        {
+            Assert.That(
+                _config.TryGetUpgradeVariant(variantId, out UpgradeVariantConfig variant),
+                Is.True,
+                "variant " + variantId + " has a row");
+            return variant;
+        }
+
+        /// <summary>
+        /// The localization key of a stat's name — the vocabulary a card's line is built from, spelled
+        /// here so a rename in the screen has to break this test rather than pass silently.
+        /// </summary>
+        private static string StatKey(UpgradeStat stat)
+        {
+            switch (stat)
+            {
+                case UpgradeStat.Damage: return "upgrade.stat.damage";
+                case UpgradeStat.Cooldown: return "upgrade.stat.cooldown";
+                case UpgradeStat.MpCost: return "upgrade.stat.mp_cost";
+                case UpgradeStat.ProjectileSpeed: return "upgrade.stat.projectile_speed";
+                case UpgradeStat.Range: return "upgrade.stat.range";
+                case UpgradeStat.PierceCount: return "upgrade.stat.pierce_count";
+                case UpgradeStat.ProjectileCount: return "upgrade.stat.projectile_count";
+                case UpgradeStat.MaxHp: return "upgrade.stat.max_hp";
+                case UpgradeStat.MaxMp: return "upgrade.stat.max_mp";
+                case UpgradeStat.MoveSpeed: return "upgrade.stat.move_speed";
+                case UpgradeStat.PickupRadius: return "upgrade.stat.pickup_radius";
+                case UpgradeStat.FocusPerSecond: return "upgrade.stat.focus_per_second";
+                default: return "upgrade.stat.unknown";
+            }
+        }
+
+        /// <summary>The amount a modifier shows, sign included: the data row, written the way a card writes it.</summary>
+        private static string Amount(UpgradeModifierConfig modifier)
+        {
+            if (modifier.Method == UpgradeMethod.Percent)
+            {
+                return modifier.Magnitude.ToString("+0.##;-0.##", CultureInfo.InvariantCulture) + "%";
+            }
+
+            return modifier.Method == UpgradeMethod.Multiply
+                ? "×" + modifier.Magnitude.ToString("0.##", CultureInfo.InvariantCulture)
+                : modifier.Magnitude.ToString("+0.##;-0.##", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>The battle loadout of a run, resolved by the same resolver the run itself uses.</summary>
+        private CombatLoadoutSnapshot Loadout(RunSession run) =>
+            new LoadoutResolver(_config, new SynergyEvaluator(_config)).Resolve(run.Backpack);
+
+        /// <summary>
+        /// The numbers of a one-weapon loadout as one comparable line. Used to prove that two runs
+        /// which differ only in the card they picked resolve to different battle numbers.
+        /// </summary>
+        private static string WeaponLine(CombatLoadoutSnapshot loadout)
+        {
+            if (loadout.Weapons.Count == 0)
+            {
+                return "no weapon";
+            }
+
+            WeaponLoadout weapon = loadout.Weapons[0];
+            return string.Join(
+                " ",
+                new List<string>(9)
+                {
+                    weapon.SkillId,
+                    "t" + weapon.Tier,
+                    "dmg" + weapon.Damage,
+                    "mp" + weapon.MpCost,
+                    "cd" + Number(weapon.CooldownSeconds),
+                    "spd" + Number(weapon.ProjectileSpeed),
+                    "range" + Number(weapon.Range),
+                    "pierce" + weapon.PierceCount,
+                    "count" + weapon.ProjectileCount,
+                });
+        }
+
+        private static string Number(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
         /// <summary>The screen and the run behind it, at the first camp of a fresh run.</summary>
         private Screen ScreenAtFirstCamp()

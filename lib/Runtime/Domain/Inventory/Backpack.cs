@@ -65,6 +65,17 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// <summary>Instance id that will be handed to the next created piece.</summary>
         public int NextInstanceId => _nextInstanceId;
 
+        /// <summary>
+        /// How many merges this run has confirmed (Stage 09f).
+        /// </summary>
+        /// <remarks>
+        /// Part of the backpack's undoable state rather than a run statistic: the upgrade
+        /// offer is a function of <c>(run seed, this count, item id, tier step)</c>, so
+        /// <c>Undo</c> and <c>Reset</c> have to bring it back with the pieces. Otherwise
+        /// undoing a merge and repeating it would draw a fresh set of choices.
+        /// </remarks>
+        public int MergeCount { get; private set; }
+
         /// <summary>Every bag piece this run owns, board and chest, in creation order.</summary>
         public IReadOnlyList<BagPieceInstance> Bags => _bags;
 
@@ -460,6 +471,16 @@ namespace ProjectSurvive.Core.Domain.Inventory
             MarkChanged();
         }
 
+        /// <summary>Records that a merge was confirmed, and restores its counter.</summary>
+        internal void RecordMerge()
+        {
+            MergeCount++;
+            MarkChanged();
+        }
+
+        /// <summary>Restores the merge counter while restoring a snapshot.</summary>
+        internal void RestoreMergeCount(int mergeCount) => MergeCount = mergeCount < 0 ? 0 : mergeCount;
+
         /// <summary>
         /// True when <paramref name="piece"/> would still be fully covered by ActiveSlots
         /// after the bag <paramref name="bagInstanceId"/> changed to
@@ -814,8 +835,9 @@ namespace ProjectSurvive.Core.Domain.Inventory
 
             return new BackpackSnapshot
             {
-                SchemaVersion = 1,
+                SchemaVersion = 2,
                 NextInstanceId = _nextInstanceId,
+                MergeCount = MergeCount,
                 Pieces = pieces,
             };
         }
@@ -838,6 +860,7 @@ namespace ProjectSurvive.Core.Domain.Inventory
             ClearAll();
             Chest.ClearAllSlots();
             RestoreNextInstanceId(snapshot.NextInstanceId < 1 ? 1 : snapshot.NextInstanceId);
+            RestoreMergeCount(snapshot.MergeCount);
 
             IReadOnlyList<PieceSnapshot> pieces = snapshot.Pieces;
             for (int i = 0; i < pieces.Count; i++)
@@ -877,10 +900,15 @@ namespace ProjectSurvive.Core.Domain.Inventory
             }
 
             _config.TryGetItem(captured.DefId, out ItemConfig itemDefinition);
-            return new ItemInstance(captured.InstanceId, captured.DefId, captured.Tier, itemDefinition.Footprint)
+            var item = new ItemInstance(captured.InstanceId, captured.DefId, captured.Tier, itemDefinition.Footprint)
             {
                 Tags = itemDefinition.Tags,
             };
+
+            // The chosen variants survive the round trip, and they are restored before the
+            // board is rebuilt so a restored piece is complete the moment it exists.
+            item.SetVariants(captured.VariantIds);
+            return item;
         }
 
         private static PieceSnapshot CapturePiece(PieceInstance piece) => new PieceSnapshot
@@ -894,7 +922,29 @@ namespace ProjectSurvive.Core.Domain.Inventory
             OriginY = piece.Origin.Y,
             Rotation = piece.Rotation,
             ChestSlot = piece.ChestSlot,
+            VariantIds = piece is ItemInstance item ? ItemVariants(item) : Array.Empty<string>(),
         };
+
+        /// <summary>
+        /// An item's chosen variants as a snapshot list. A copy, so a snapshot never holds a
+        /// live view of a piece the game keeps mutating.
+        /// </summary>
+        private static IReadOnlyList<string> ItemVariants(ItemInstance item)
+        {
+            IReadOnlyList<string> variants = item.VariantIds;
+            if (variants.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var copy = new string[variants.Count];
+            for (int i = 0; i < copy.Length; i++)
+            {
+                copy[i] = variants[i];
+            }
+
+            return copy;
+        }
 
         /// <summary>Raises <see cref="Revision"/> by one.</summary>
         internal void MarkChanged() => Revision++;
@@ -940,6 +990,32 @@ namespace ProjectSurvive.Core.Domain.Inventory
                 {
                     violation = "item " + item.InstanceId + " has tier " + item.Tier;
                     return false;
+                }
+
+                // One variant slot per completed merge step (Stage 09f), and a filled slot
+                // must name a variant that still exists in data - the two things a restored
+                // or replayed item could otherwise get wrong silently.
+                if (item.VariantStepCount != item.Tier - 1)
+                {
+                    violation = "item " + item.InstanceId + " is tier " + item.Tier + " with "
+                        + item.VariantStepCount + " upgrade variant slot(s)";
+                    return false;
+                }
+
+                for (int step = 0; step < item.VariantStepCount; step++)
+                {
+                    string variantId = item.VariantIds[step];
+                    if (variantId.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    if (!_config.TryGetUpgradeVariant(variantId, out _))
+                    {
+                        violation = "item " + item.InstanceId + " step " + (step + 1)
+                            + " names upgrade variant '" + variantId + "' which does not exist";
+                        return false;
+                    }
                 }
 
                 if (!ValidatePieceShape(item, out violation))

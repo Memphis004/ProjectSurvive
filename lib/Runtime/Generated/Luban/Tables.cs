@@ -19,6 +19,8 @@ public partial class Tables
     public TbItem TbItem {get; }
     public TbSynergy TbSynergy {get; }
     public TbMergeRecipe TbMergeRecipe {get; }
+    public TbUpgradeVariant TbUpgradeVariant {get; }
+    public TbUpgradeVariantModifier TbUpgradeVariantModifier {get; }
     public TbEnemy TbEnemy {get; }
     public TbFloor TbFloor {get; }
     public TbWave TbWave {get; }
@@ -34,6 +36,8 @@ public partial class Tables
         TbItem = new TbItem(loader("tbitem"));
         TbSynergy = new TbSynergy(loader("tbsynergy"));
         TbMergeRecipe = new TbMergeRecipe(loader("tbmergerecipe"));
+        TbUpgradeVariant = new TbUpgradeVariant(loader("tbupgradevariant"));
+        TbUpgradeVariantModifier = new TbUpgradeVariantModifier(loader("tbupgradevariantmodifier"));
         TbEnemy = new TbEnemy(loader("tbenemy"));
         TbFloor = new TbFloor(loader("tbfloor"));
         TbWave = new TbWave(loader("tbwave"));
@@ -51,6 +55,8 @@ public partial class Tables
         TbItem.ResolveRef(this);
         TbSynergy.ResolveRef(this);
         TbMergeRecipe.ResolveRef(this);
+        TbUpgradeVariant.ResolveRef(this);
+        TbUpgradeVariantModifier.ResolveRef(this);
         TbEnemy.ResolveRef(this);
         TbFloor.ResolveRef(this);
         TbWave.ResolveRef(this);

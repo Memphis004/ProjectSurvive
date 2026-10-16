@@ -19,15 +19,15 @@ need to run, and the Web build moved behind the Full suite.
 | --- | --- | --- |
 | `toolchain: .NET SDK` | Fast | an SDK ≥ 8 is present |
 | `dotnet build` | Fast | every `lib/` layer, the xUnit project and the Sim compile |
-| `dotnet test (xUnit)` | Fast | 433 tests: the rule engine, the architecture guards, the contract suites, the Sim |
+| `dotnet test (xUnit)` | Fast | 466 tests: the rule engine, the architecture guards, the contract suites, the Sim |
 | `sim: determinism` | Fast | the same seed prints the same `determinismDigest` twice, a different seed does not |
 | `sim: stream separation` | Fast | shop / battle / visual digests differ, `ticksProduced=300` |
 | `sim: bot smoke run` | Fast | the kiting bot plays 2 seeds and writes balance rows |
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
-| `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 17 broken data sets rejected for the right reason |
-| `unity: EditMode` | Fast | 79 tests in `ProjectSurvive.Game.Tests.EditMode` |
-| `unity: PlayMode` | **Full** | 28 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking) |
+| `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 20 broken data sets rejected for the right reason |
+| `unity: EditMode` | Fast | 94 tests in `ProjectSurvive.Game.Tests.EditMode` |
+| `unity: PlayMode` | **Full** | 33 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
 | `web: Playwright (smoke + battle + camp)` | **Full** | 8 browser tests against that build, in Chrome |
 
@@ -46,6 +46,12 @@ Rules around the two suites, from `AGENTS.md`: the working loop is Fast; Full is
 or committing one; a Stage's own gate (stages 10, 12, 14, 15) may name Full with `-Release`. A layout
 change is not a reason to build Web — `ProjectSurvive/Tools/1. Capture UI` renders the scene in the
 Editor at both sizes instead (§6).
+
+Measured on 2026-10-16 for Stage 09g, both runs **PASS 10 | FAIL 0 | NOT RUN 3**: **127.3 s** while the
+stage was being built and **86.2 s** on the closing run (`artifacts/stage09g/fast-suite.log`) — the same
+WARN 0 result, the spread being the cold/warm behaviour §2 records. The three NOT RUN steps are
+`unity: PlayMode`, `web: WebGL build` and `web: Playwright`, which Fast does not request; `dotnet test`
+466 passed and `unity: EditMode` 94/94 in both runs.
 
 ## 2. Measured timings
 
@@ -122,7 +128,7 @@ Nothing was dropped when the suites were split: this table lists every test that
 split and where it runs now. "Fast" means the working loop, "Full" the closing one; a test cannot be in
 neither.
 
-### dotnet — `lib/Tests~/ProjectSurvive.Core.sln` (433 tests) → **Fast**
+### dotnet — `lib/Tests~/ProjectSurvive.Core.sln` (466 tests) → **Fast**
 
 Run by `dotnet test` in the `dotnet test (xUnit)` step. The project is the *same source* as the `lib/`
 asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the rule-engine tests.
@@ -140,27 +146,28 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `Inventory/*.cs` | Board/Backpack/BackpackEditor/Merge/Recycle/Rotation/Synergy/Loadout + the randomized bag tests |
 | `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay |
 
-### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (79 tests) → **Fast**
+### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (94 tests) → **Fast**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
 | `ShellSmokeTests` | 12 | the 7-probe smoke suite, config hash, R3/UniTask/serialization in the Editor |
 | `BattlePresentationTests` | 15 | the battle HUD/state/presenter seam without a scene |
-| `CampPresenterTests` | 11 | every camp command through the presenter, the preview/command agreement, the 0-byte drag, the drawn-link kinds |
+| `CampPresenterTests` | 22 | every camp command through the presenter, the preview/command agreement, the 0-byte drag, the drawn-link kinds, and (Stage 09g) the upgrade-choice window: dropping a matching pair opens it with nothing changed, the cards are the offer's own rows in order with their data lines, the left panel is the tooltip's own five lines, confirming raises the tier in the same cell and reaches the loadout, cancelling changes nothing and reopening offers the same cards, a pair with no choices still folds on the drop, and the board is locked while the window is up |
 | `CampTooltipPlacementTests` | 4 | the tooltip stays on screen, flips at the edges and never covers the pointer |
 | `RunFlowEditModeTests` | 4 | the run flow against the shipped `Resources` tables |
 | `WebSizeProfilesTests` | 8 | the size profiles and their recorded configuration |
-| `BackpackRulesTests` | 9 | the bag rules as the Editor sees them |
-| `UiLayoutCheckTests` | 12 | the overlap rule the UI capture command applies, the overlay exemption and the opacity floor, including the deliberate-overlap case |
+| `BackpackRulesTests` | 10 | the bag rules as the Editor sees them |
+| `UiLayoutCheckTests` | 19 | the overlap rule the UI capture command applies, the overlay exemption, the opacity floor and (Stage 09g) the modal rules: a window may cover the panel it is asking about, two cards sharing pixels are still reported, a card inside its window passes and one outside it does not; includes the deliberate-overlap case |
 
-### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (28 tests) → **Full**
+### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (33 tests) → **Full**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
 | `BattlePlayModeTests` | 4 | the battle scene starts, ticks, re-enters and disposes |
-| `CampBagDragPlayModeTests` | 11 | the จัดย่าม screen driven by real pointer events, plus the tooltip's draw order, the two-name rule and the line/badge kinds |
+| `CampBagDragPlayModeTests` | 12 | the จัดย่าม screen driven by real pointer events, plus the tooltip's draw order, the two-name rule and the line/badge kinds |
+| `CampMergeChooserPlayModeTests` | 4 | **Stage 09g** — the upgrade-choice window through real pointer/keyboard events: drag onto the twin opens it (measured geometry: the dim covers the canvas, the cards do not overlap), a tap on the second card upgrades in the same cell with that card's variant id, `Escape` and the back control close it with the run's hash byte-identical and the same cards offered again, the board behind it stays locked and no tooltip is drawn, and `2` picks the second card |
 | `CampWorldPlayModeTests` | 8 | WASD walking, the walk clamp, `E` at a shelf, clicking without walking |
-| `ShellPlayModeTests` | 4 | scene loading, the title, UniTask cancellation in play mode |
+| `ShellPlayModeTests` | 5 | scene loading, the title, the Thai spike's two stacks, UniTask cancellation in play mode |
 
 ### Playwright — `tests/web` (8 gate tests) → **Full**
 
@@ -168,7 +175,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | --- | --- | --- |
 | `smoke.spec.ts` | 2 | the player boots, passes its own 7-probe self-check, hands over to Title; the Thai spike's glyph coverage |
 | `battle.spec.ts` | 2 | floor 1 played to a win or a loss in a real browser; a mid-floor report |
-| `camp.spec.ts` | 4 | the จัดย่าม flow end-to-end, the sala's controls, WASD + `E`, the layout at 1280×720 and 1920×1080 |
+| `camp.spec.ts` | 4 | the จัดย่าม flow end-to-end, the sala's controls, WASD + `E`, the layout at 1280×720 and 1920×1080. Its merge step presses `1` to pick the first card of the Stage 09g window after the drop (the camp report publishes no card rectangle, so the key path is the honest one) — **this edit is unverified**: the browser suite was not run for Stage 09g, and a future Full run must confirm it |
 | `screens.spec.ts` | 13 | **not a gate**: the screenshot generator, opt-in with `SCREENS=1` (`test.skip(process.env.SCREENS !== "1")`), skipped in a plain run |
 
 ### Process-level checks inside the harness → **Fast**
@@ -205,10 +212,11 @@ Measured above, in order of what they cost:
    finished in 16.5 s. Nothing in the working loop needs the player at all, which is why the step is in
    Full; a Release-with-`OptimizeSize` profile is a *different* configuration (not a like-for-like
    swap) and is what `-SizeProfile` builds are for.
-2. **`data: broken fixtures rejected` — 48.2 s warm, 52.3 s cold.** The step is stable but expensive:
-   it validates 17 broken fixture sets, one process each, so it is 17 × (process start + table load).
-   A single process that walks all 17 would remove most of it — the tool already has the loop; it
-   spawns per fixture for isolation. This is the first thing to fix if Fast must get shorter.
+2. **`data: broken fixtures rejected` — 48.2 s warm, 52.3 s cold** (60.9 s for the 20 fixtures of
+   2026-10-16's run). The step is stable but expensive: it validates every broken fixture set, one
+   process each, so it is N × (process start + table load). A single process that walks all of them
+   would remove most of it — the tool already has the loop; it spawns per fixture for isolation. This
+   is the first thing to fix if Fast must get shorter.
 3. **`sim: bot smoke run` and `sim: determinism` — 49.0 s / 36.5 s cold, 2.6 s / 1.3 s warm.** Cold-only
    cost (JIT + first config load); nothing to do.
 4. **`unity: EditMode` — 9–14 s.** Already a bridge call into the running Editor, no batch spawn.
@@ -226,7 +234,9 @@ Cold total for Fast is 229 s and warm is 77 s, so "a few minutes" holds for both
 the Editor, renders each at both sizes into `artifacts/ui/`, measures every named panel and fails when
 two that must stand apart share pixels. Measured: 0.9–1.1 s for six images through the menu item, and
 9 s wall clock for the batch `-executeMethod` form (the Unity launch dominates) — both were run, and
-they produced **byte-identical images** and the same rectangles.
+they produced **byte-identical images** and the same rectangles. A third entry point,
+`ProjectSurvive/Tools/3. Capture the merge chooser in Play Mode (Camp)`, shoots the Stage 09g
+upgrade-choice window, which does not exist in the authored scene at all — see the last bullet below.
 
 - Coverage: **8 images** — `artifacts/ui/{camp,battle}-{1920x1080,1280x720}.png` plus the closed camp
   (`camp-closed-*`) and the tooltip state (`camp-tooltip-*`) — and `ui-report.md` / `ui-report.json`
@@ -244,7 +254,32 @@ they produced **byte-identical images** and the same rectangles.
   same screen in Stage 09 — the Editor shot and the player agree.
 - What the images do **not** contain: text. Every label in `Camp.unity` is empty until the runtime fills
   it from the localization tables, and the board's cells are built at runtime; `ui-report.md` says so,
-  and the PlayMode suite is where that runtime layout is measured.
+  and the PlayMode suite is where that runtime layout is measured. Since Stage 09g the edit-mode report
+  also **says** that the merge-chooser window is built at runtime, that it therefore has no rectangle to
+  measure without Play Mode, and that entry point 3 is what shoots it — a gap named in the report rather
+  than left silent.
+- **`ProjectSurvive/Tools/3. Capture the merge chooser in Play Mode (Camp)`** (added at Stage 09g) — the
+  window is created at runtime by `CampBagScreenView`, so it is photographed from Play Mode: the run
+  opens `Camp.unity`, enters Play Mode, starts the camp, opens จัดย่าม, adds and places a second copy of
+  the camp's first item and raises the window through the **real rule** (`DragStart` / `DragMove(Board, …)`
+  / `Drop` — the calls the pointer handlers make, so a run that stops offering a choice fails instead of
+  photographing an empty panel), then measures, shoots the window open and closed, and judges: the dim
+  layer covers the canvas, the window is nested inside it, the cards are pairwise disjoint and in `1 2 3`
+  order left to right, the back button is inside the window, every region is inside the canvas, and five
+  points inside the window must change when it closes. It writes `artifacts/ui/camp-merge-chooser-<w>x<h>.png`
+  plus `...-closed-<w>x<h>.png` and `artifacts/ui/ui-report-playmode.md` / `.json`. It is **interactive
+  only** (entering Play Mode needs real frames, and a window that is not in the foreground does not
+  render), and **the Game View's own resolution is the layout size** — so the two sizes the GDD names are
+  taken by resizing the Game View between runs; for Stage 09g that was the open Game View's
+  `UnityEditor.GameView.SetCustomResolution(Vector2, string)`, and the four images the stage quotes
+  (`stage09g-chooser-{1920x1080,1280x720}.png` and `stage09g-chooser-closed-{...}.png`) were taken that
+  way with the entry point's own steps **by hand**, not by running the menu item.
+- What entry point 3 cannot measure, and what Stage 09g measured instead: the view hands back rectangles,
+  not labels or images, so the modal's **font sizes** and the dim layer's own alpha are not in its report.
+  They were read from the live Editor at 1920×1080 (canvas scaler reference 1920×1080, scale factor 1):
+  the window's title 30 px, a card's title 24 px, and every other modal line — ระดับ, the stat changes, the
+  hint, the back caption and the left panel's lines — 22 px, the project's own floor; and the dim layer
+  is a 0.72 black image that raycasts, which is also what makes the board behind it unclickable.
 - Why this mechanism: a canvas in `ScreenSpaceOverlay` is laid out to the game view's size, and the
   Editor cannot be asked for that size from a script without undocumented `GameView` internals. The
   documented alternative — `Screen.SetResolution`, whose Unity 6 scripting reference says *"in the
@@ -262,13 +297,15 @@ they produced **byte-identical images** and the same rectangles.
 Sixteen of the 28 PlayMode tests failed in the bulk run measured on 2026-10-16 for Stage 09f
 (`unity: PlayMode 16/28`, 12 passed; 12 `IndexOutOfRangeException` + 4 `Cached unprocessed`),
 fifteen of 27 on the same day for Stage 09e (`unity: PlayMode
-15/27`, 12 passed) and twelve of 24 in every bulk run measured on 2026-10-15 (`unity: PlayMode
-12/24`), with **no failed assertion**: the failures are Unity's own ambient-message log asserts
+15/27`, 12 passed) and twelve of 24 in every bulk run measured on 2026-10-15(`unity: PlayMode 12/24`), with **no failed assertion**: the failures are Unity's own ambient-message log asserts
 (`[Exception] IndexOutOfRangeException` inside `InputSystem.InputManagerStateMonitors` via
 `InputSystemUIInputModule.OnEnable`, and `[Error] Cached unprocessed value unexpectedly became
 outdated`). The same tests pass individually and Stage 09 recorded 24/24 on the same code — this is the
 unsolved item in [`llmwiki/stage-log.md`](../../llmwiki/stage-log.md) ("The bulk PlayMode suite fails on
-ambient Input System log-asserts").
+ambient Input System log-asserts"). The bulk suite was **not** re-run for Stage 09g (which took the
+count to 33: one more in `CampBagDragPlayModeTests` plus the four chooser cases); the two camp fixtures were run on their own through the open Editor and were green —
+`CampBagDragPlayModeTests` **12/12** and the new `CampMergeChooserPlayModeTests` **4/4** — which is the
+same per-class check this section asks for, and is not a claim about the suite as a suite.
 
 The harness reports it as **FAIL**, because that is what it is: the suite, run as a suite, does not pass.
 Do not read it as a pass, and do not read it as a regression in whatever was just changed either — check

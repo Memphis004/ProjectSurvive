@@ -2,6 +2,7 @@ using System;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Infrastructure.Save;
+using ProjectSurvive.Core.Shared;
 
 namespace ProjectSurvive.Core.Tests.Inventory
 {
@@ -68,6 +69,33 @@ namespace ProjectSurvive.Core.Tests.Inventory
         /// </summary>
         internal static byte[] StateBytes(Backpack backpack) =>
             new MessagePackBackpackSnapshotCodec().Encode(backpack.CaptureSnapshot());
+
+        /// <summary>The seed these tests pass to the upgrade draw.</summary>
+        internal const uint MergeSeed = 20261016u;
+
+        /// <summary>
+        /// Folds a pair the way the game does (Stage 09f): offers the choices, confirms the
+        /// first one when there is a chooser, and falls back to the immediate merge when there
+        /// is not.
+        /// </summary>
+        /// <remarks>
+        /// The merge RULE tests use this instead of picking a variant by hand, so they exercise
+        /// the real two-phase command without each of them re-implementing the branch. The
+        /// choice-specific behaviour has its own tests (UpgradeOfferTests).
+        /// </remarks>
+        internal static Result<MergeOutcome> Merge(
+            BackpackEditor editor, PieceRef source, PieceRef target, uint seed = MergeSeed)
+        {
+            Result<MergeOffer> offered = editor.OfferMerge(source, target, seed);
+            if (offered.IsFailure)
+            {
+                return Result.Fail<MergeOutcome>(offered.Error);
+            }
+
+            return offered.Value.HasChoices
+                ? editor.ConfirmMerge(source, target, offered.Value.Options[0].Id, seed)
+                : editor.Merge(source, target);
+        }
 
         /// <summary>Checks every structural invariant and fails the test with the reason.</summary>
         internal static void AssertValid(Backpack backpack)

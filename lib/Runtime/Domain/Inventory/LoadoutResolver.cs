@@ -76,6 +76,7 @@ namespace ProjectSurvive.Core.Domain.Inventory
     {
         private readonly IGameConfig _config;
         private readonly SynergyEvaluator _evaluator;
+        private readonly UpgradeAccumulator _upgrades = new UpgradeAccumulator();
         private Backpack? _cachedFor;
         private int _cachedRevision = -1;
         private CombatLoadoutSnapshot? _cached;
@@ -122,13 +123,18 @@ namespace ProjectSurvive.Core.Domain.Inventory
 
             int speedPenalty = WeightPenalty.Percent(backpack.BoardWeight, constant);
 
+            // The player's own numbers carry the upgrade variants of every item on the
+            // board, resolved exactly like a weapon's (Stage 09f). The weight penalty comes
+            // first so a move-speed upgrade scales the speed the player actually has.
             var stats = new PlayerStatBlock
             {
-                MaxHp = constant.MaxHp,
-                MaxMp = constant.MaxMp,
-                MoveSpeed = constant.MoveSpeed * (1f - (speedPenalty / 100f)),
-                PickupRadius = constant.PickupRadius,
-                FocusPerSecond = constant.FocusPerSecond,
+                MaxHp = AtLeast(ResolvePlayerStat(UpgradeStat.MaxHp, constant.MaxHp, items), 1),
+                MaxMp = AtLeast(ResolvePlayerStat(UpgradeStat.MaxMp, constant.MaxMp, items), 0),
+                MoveSpeed = ResolvePlayerStat(
+                    UpgradeStat.MoveSpeed, constant.MoveSpeed * (1f - (speedPenalty / 100f)), items),
+                PickupRadius = ResolvePlayerStat(UpgradeStat.PickupRadius, constant.PickupRadius, items),
+                FocusPerSecond = ResolvePlayerStat(
+                    UpgradeStat.FocusPerSecond, constant.FocusPerSecond, items),
                 SpeedPenaltyPercent = speedPenalty,
             };
 
@@ -208,19 +214,30 @@ namespace ProjectSurvive.Core.Domain.Inventory
 
             ItemModifiers modifiers = evaluation.For(item.InstanceId);
 
+            // The upgrades apply to the number the combos already resolved: a synergy is a
+            // property of the layout, an upgrade is a property of this piece's history.
+            IReadOnlyList<string> upgrades = item.VariantIds;
+
             weapon = new WeaponLoadout
             {
                 SkillId = skill.Id,
                 Tier = item.Tier,
                 Behavior = skill.Behavior,
                 Element = skill.Element != Element.None ? skill.Element : definition.Element,
-                CooldownSeconds = ResolveCooldown(skill.CooldownSeconds, modifiers),
-                MpCost = skill.MpCost,
-                Damage = Scale(skill.Damage, modifiers.DamageMultiplier),
-                ProjectileSpeed = skill.ProjectileSpeed,
-                Range = skill.Range,
-                PierceCount = skill.PierceCount,
-                ProjectileCount = skill.ProjectileCount,
+                CooldownSeconds = ResolveCooldown(
+                    _upgrades.Resolve(skill.CooldownSeconds, _config, upgrades, UpgradeStat.Cooldown), modifiers),
+                MpCost = AtLeast(
+                    _upgrades.Resolve(skill.MpCost, _config, upgrades, UpgradeStat.MpCost), 0),
+                Damage = AtLeast(
+                    _upgrades.Resolve(
+                        Scale(skill.Damage, modifiers.DamageMultiplier), _config, upgrades, UpgradeStat.Damage), 0),
+                ProjectileSpeed = Math.Max(
+                    _upgrades.Resolve(skill.ProjectileSpeed, _config, upgrades, UpgradeStat.ProjectileSpeed), 0f),
+                Range = Math.Max(_upgrades.Resolve(skill.Range, _config, upgrades, UpgradeStat.Range), 0f),
+                PierceCount = AtLeast(
+                    _upgrades.Resolve(skill.PierceCount, _config, upgrades, UpgradeStat.PierceCount), 0),
+                ProjectileCount = AtLeast(
+                    _upgrades.Resolve(skill.ProjectileCount, _config, upgrades, UpgradeStat.ProjectileCount), 1),
             };
 
             return true;
@@ -238,15 +255,20 @@ namespace ProjectSurvive.Core.Domain.Inventory
             }
 
             ItemModifiers modifiers = evaluation.For(item.InstanceId);
+            IReadOnlyList<string> upgrades = item.VariantIds;
 
             summon = new SummonLoadout
             {
                 SkillId = skill.Id,
                 Tier = item.Tier,
-                CooldownSeconds = ResolveCooldown(skill.CooldownSeconds, modifiers),
-                MpCost = skill.MpCost,
-                Damage = Scale(skill.Damage, modifiers.DamageMultiplier),
-                Range = skill.Range,
+                CooldownSeconds = ResolveCooldown(
+                    _upgrades.Resolve(skill.CooldownSeconds, _config, upgrades, UpgradeStat.Cooldown), modifiers),
+                MpCost = AtLeast(
+                    _upgrades.Resolve(skill.MpCost, _config, upgrades, UpgradeStat.MpCost), 0),
+                Damage = AtLeast(
+                    _upgrades.Resolve(
+                        Scale(skill.Damage, modifiers.DamageMultiplier), _config, upgrades, UpgradeStat.Damage), 0),
+                Range = Math.Max(_upgrades.Resolve(skill.Range, _config, upgrades, UpgradeStat.Range), 0f),
             };
 
             return true;
@@ -264,6 +286,34 @@ namespace ProjectSurvive.Core.Domain.Inventory
         {
             float scaled = damage * multiplier;
             return scaled <= 0f ? 0 : (int)Math.Round(scaled, MidpointRounding.AwayFromZero);
+        }
+
+        /// <summary>
+        /// One player stat after every upgrade on the board that targets it, resolved as a
+        /// whole: the flat, the percentage and the factors of all pieces combine before the
+        /// base is touched, so two "+20% move speed" upgrades are +40% and not +44%.
+        /// </summary>
+        private float ResolvePlayerStat(UpgradeStat stat, float baseValue, List<ItemInstance> items)
+        {
+            _upgrades.Reset();
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                _upgrades.Include(_config, items[i].VariantIds, stat);
+            }
+
+            return _upgrades.Apply(baseValue);
+        }
+
+        /// <summary>Rounds an upgraded value to the nearest int, never below <paramref name="minimum"/>.</summary>
+        private static int AtLeast(float value, int minimum)
+        {
+            if (value <= minimum)
+            {
+                return minimum;
+            }
+
+            return (int)Math.Round(value, MidpointRounding.AwayFromZero);
         }
 
         private static int CompareConsumables(ConsumableLoadout left, ConsumableLoadout right) =>

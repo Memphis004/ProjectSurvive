@@ -5,6 +5,8 @@
 ,TbItem,Item,id,,,,,tables/item.csv,,
 ,TbSynergy,Synergy,id,,,,,tables/synergy.csv,,
 ,TbMergeRecipe,MergeRecipe,id,,,,,tables/merge_recipe.csv,,
+,TbUpgradeVariant,UpgradeVariant,id,,,,,tables/upgrade_variant.csv,,
+,TbUpgradeVariantModifier,UpgradeVariantModifier,id,,,,,tables/upgrade_variant_modifier.csv,,
 ,TbEnemy,Enemy,id,,,,,tables/enemy.csv,,
 ,TbFloor,Floor,id,,,,,tables/floor.csv,,
 ,TbWave,Wave,id,,,,,tables/wave.csv,,

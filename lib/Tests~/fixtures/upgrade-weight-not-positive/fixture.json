@@ -1,0 +1,8 @@
+{
+  "name": "upgrade-weight-not-positive",
+  "stage": "semantic",
+  "why": "an upgrade variant drawn with weight 0 can never be offered, so the row is dead content and its step's pool is one choice short",
+  "expectedCodes": [
+    "upgrade_variant.weight_not_positive"
+  ]
+}

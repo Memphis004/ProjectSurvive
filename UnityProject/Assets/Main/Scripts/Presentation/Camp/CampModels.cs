@@ -512,4 +512,109 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>Bumps whenever the pieces or their placement changed.</summary>
         public int Revision { get; }
     }
+
+    /// <summary>
+    /// One card of the merge chooser (Stage 09g): an upgrade variant a merge could keep, with the
+    /// lines that card draws.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every string is formatted by <c>CampPresenter</c>. The view assigns them and picks a colour
+    /// from <see cref="Improvements"/>; it composes nothing and decides nothing (AGENTS rule 10).
+    /// </para>
+    /// <para>
+    /// <see cref="Changes"/> and <see cref="Improvements"/> are parallel: entry <c>i</c> of the
+    /// first is the formatted line for entry <c>i</c> of the second, which is true when that change
+    /// helps the player (drawn green) and false when it hurts (drawn red). Which direction helps is
+    /// the <i>Domain</i>'s answer (<c>UpgradeVocabulary.HigherIsBetter</c>), never the screen's.
+    /// </para>
+    /// </remarks>
+    public sealed class CampMergeChoiceModel
+    {
+        /// <summary>Captures one card.</summary>
+        public CampMergeChoiceModel(
+            string variantId, string title, string levelLine, string[] changes, bool[] improvements)
+        {
+            VariantId = variantId;
+            Title = title;
+            LevelLine = levelLine;
+            Changes = changes;
+            Improvements = improvements;
+        }
+
+        /// <summary>The variant the card confirms, as <c>UpgradeVariantConfig.Id</c>.</summary>
+        public string VariantId { get; }
+
+        /// <summary>The variant's own name plus the item's — "ชื่อรุ่น (คำนำหน้า + ชื่อไอเทม)".</summary>
+        public string Title { get; }
+
+        /// <summary>ระดับ <c>N</c> → <c>N+1</c>, the step this merge takes.</summary>
+        public string LevelLine { get; }
+
+        /// <summary>One line per stat the variant changes.</summary>
+        public string[] Changes { get; }
+
+        /// <summary>Parallel to <see cref="Changes"/>: true is a change for the better.</summary>
+        public bool[] Improvements { get; }
+
+        /// <summary>How many stat lines the card has.</summary>
+        public int ChangeCount => Changes.Length;
+    }
+
+    /// <summary>
+    /// The merge chooser: the 1-from-N decision a merge of two equal pieces asks for before the tier
+    /// rises (Stage 09g), or the closed state.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Replaced wholesale, like the bag screen: a merge command (or a cancel) produces one new
+    /// picture and the view re-renders from it. Nothing here is per frame.
+    /// </para>
+    /// <para>
+    /// <see cref="SourceLines"/> is the item the merge is about, in exactly the five lines the
+    /// tooltip shows (ชื่อ, ระดับ, สถานะ, คำอธิบาย, คอมโบที่ทำงานอยู่) — the same content, formatted by
+    /// the same <c>CampPresenter</c> methods. The chooser hides the floating tooltip while it is open,
+    /// so this panel is where those lines are read.
+    /// </para>
+    /// </remarks>
+    public sealed class CampMergeChooserModel
+    {
+        /// <summary>No chooser on screen.</summary>
+        public static CampMergeChooserModel Closed { get; } = new CampMergeChooserModel(
+            false, string.Empty, string.Empty, string.Empty, new string[0], new CampMergeChoiceModel[0]);
+
+        /// <summary>Captures the chooser.</summary>
+        public CampMergeChooserModel(
+            bool isOpen, string title, string hint, string backLabel,
+            string[] sourceLines, CampMergeChoiceModel[] choices)
+        {
+            IsOpen = isOpen;
+            Title = title;
+            Hint = hint;
+            BackLabel = backLabel;
+            SourceLines = sourceLines;
+            Choices = choices;
+        }
+
+        /// <summary>True while the decision is on screen.</summary>
+        public bool IsOpen { get; }
+
+        /// <summary>The modal's heading.</summary>
+        public string Title { get; }
+
+        /// <summary>The one-line explanation under the cards.</summary>
+        public string Hint { get; }
+
+        /// <summary>The back button's caption — the same thing Escape does.</summary>
+        public string BackLabel { get; }
+
+        /// <summary>The lines of the left panel: the item as the tooltip would show it.</summary>
+        public string[] SourceLines { get; }
+
+        /// <summary>The cards, in the order the offer named them.</summary>
+        public CampMergeChoiceModel[] Choices { get; }
+
+        /// <summary>How many cards are offered.</summary>
+        public int ChoiceCount => Choices.Length;
+    }
 }

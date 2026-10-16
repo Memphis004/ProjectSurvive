@@ -3,7 +3,7 @@ using System;
 namespace ProjectSurvive.Core.Shared
 {
     /// <summary>
-    /// The three separated random streams of a run, all derived from one run seed.
+    /// The separated random streams of a run, all derived from one run seed.
     /// </summary>
     /// <remarks>
     /// Derivation is deterministic and stream-independent: a stream's seed is a
@@ -36,6 +36,13 @@ namespace ProjectSurvive.Core.Shared
         /// <summary>Cosmetic stream.</summary>
         public IRandomSource Visual { get; }
 
+        /// <remarks>
+        /// There is deliberately <b>no</b> <c>Upgrade</c> stream property: the upgrade
+        /// draw is <see cref="DeriveStreamSeed"/> with <see cref="RandomStreamKind.Upgrade"/>,
+        /// never a stateful stream, so an offer cannot depend on how many offers came
+        /// before it (ADR 0021).
+        /// </remarks>
+
         /// <summary>
         /// The seed of one stream. Depends only on <paramref name="masterSeed"/>
         /// and <paramref name="kind"/> — never on how much another stream was used.
@@ -57,6 +64,7 @@ namespace ProjectSurvive.Core.Shared
                 case RandomStreamKind.Shop: return 0x5348_4F50u;
                 case RandomStreamKind.Battle: return 0x4241_5454u;
                 case RandomStreamKind.Visual: return 0x5649_5355u;
+                case RandomStreamKind.Upgrade: return 0x5550_4752u;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown random stream.");
             }

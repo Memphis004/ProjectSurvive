@@ -38,6 +38,8 @@ namespace ProjectSurvive.Core.Infrastructure.Config
             "tbitem",
             "tbsynergy",
             "tbmergerecipe",
+            "tbupgradevariant",
+            "tbupgradevariantmodifier",
             "tbenemy",
             "tbfloor",
             "tbwave",
@@ -49,6 +51,8 @@ namespace ProjectSurvive.Core.Infrastructure.Config
         private readonly Dictionary<string, BagConfig> _bags = new Dictionary<string, BagConfig>(StringComparer.Ordinal);
         private readonly Dictionary<string, ItemConfig> _items = new Dictionary<string, ItemConfig>(StringComparer.Ordinal);
         private readonly Dictionary<string, SkillConfig> _skills = new Dictionary<string, SkillConfig>(StringComparer.Ordinal);
+        private readonly Dictionary<string, UpgradeVariantConfig> _upgradeVariants =
+            new Dictionary<string, UpgradeVariantConfig>(StringComparer.Ordinal);
         private readonly Dictionary<string, EnemyConfig> _enemies = new Dictionary<string, EnemyConfig>(StringComparer.Ordinal);
         private readonly Dictionary<string, FloorConfig> _floors = new Dictionary<string, FloorConfig>(StringComparer.Ordinal);
         private readonly Dictionary<string, LocalizationEntry> _localization = new Dictionary<string, LocalizationEntry>(StringComparer.Ordinal);
@@ -58,6 +62,7 @@ namespace ProjectSurvive.Core.Infrastructure.Config
         private readonly List<SkillConfig> _skillList = new List<SkillConfig>();
         private readonly List<SynergyConfig> _synergyList = new List<SynergyConfig>();
         private readonly List<MergeRecipeConfig> _mergeRecipeList = new List<MergeRecipeConfig>();
+        private readonly List<UpgradeVariantConfig> _upgradeVariantList = new List<UpgradeVariantConfig>();
         private readonly List<EnemyConfig> _enemyList = new List<EnemyConfig>();
         private readonly List<FloorConfig> _floorList = new List<FloorConfig>();
         private readonly List<WaveConfig> _waveList = new List<WaveConfig>();
@@ -167,6 +172,66 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                 });
             }
 
+            // The variants first, so the modifier rows below have somewhere to attach. The
+            // lists are held here while they fill: a variant's modifiers are one list, and
+            // reading the DTO back is what a second copy of the same lookup would cost.
+            var modifierLists = new Dictionary<string, List<UpgradeModifierConfig>>(StringComparer.Ordinal);
+
+            foreach (ProjectSurvive.Config.UpgradeVariant row in tables.TbUpgradeVariant.DataList)
+            {
+                var modifiers = new List<UpgradeModifierConfig>();
+                var variant = new UpgradeVariantConfig
+                {
+                    Id = row.Id,
+                    Category = row.Category,
+                    Tag = row.Tag,
+                    FromTier = row.FromTier,
+                    ToTier = row.ToTier,
+                    NameKey = row.NameKey,
+                    Weight = row.Weight,
+                    Modifiers = modifiers,
+                };
+                _upgradeVariants.Add(variant.Id, variant);
+                _upgradeVariantList.Add(variant);
+                modifierLists.Add(variant.Id, modifiers);
+            }
+
+            foreach (ProjectSurvive.Config.UpgradeVariantModifier row in tables.TbUpgradeVariantModifier.DataList)
+            {
+                if (!modifierLists.TryGetValue(row.VariantId, out List<UpgradeModifierConfig>? modifiers))
+                {
+                    // Luban's `#ref` already rejects the dangling id under `--strict`;
+                    // this guard exists so the adapter can never drop a modifier row if
+                    // that ever stops being true (the same shape the localization guard has).
+                    throw new ConfigLoadException(ConfigError.UpgradeModifierOrphan, "tbupgradevariantmodifier['" + row.Id + "']",
+                        "variant '" + row.VariantId + "' does not exist");
+                }
+
+                if (!UpgradeVocabulary.TryParseStat(row.Stat, out UpgradeStat stat))
+                {
+                    throw new ConfigLoadException(ConfigError.UpgradeStatUnknown,
+                        "tbupgradevariantmodifier['" + row.Id + "'].stat",
+                        "stat '" + row.Stat + "' is not one the battle loadout carries ("
+                        + string.Join(", ", UpgradeVocabulary.StatNames) + ")");
+                }
+
+                if (!UpgradeVocabulary.TryParseMethod(row.Method, out UpgradeMethod method))
+                {
+                    throw new ConfigLoadException(ConfigError.UpgradeMethodUnknown,
+                        "tbupgradevariantmodifier['" + row.Id + "'].method",
+                        "method '" + row.Method + "' is not known ("
+                        + string.Join(", ", UpgradeVocabulary.MethodNames) + ")");
+                }
+
+                modifiers.Add(new UpgradeModifierConfig
+                {
+                    Id = row.Id,
+                    Stat = stat,
+                    Method = method,
+                    Magnitude = row.Magnitude,
+                });
+            }
+
             foreach (ProjectSurvive.Config.Enemy row in tables.TbEnemy.DataList)
             {
                 var enemy = new EnemyConfig
@@ -244,6 +309,7 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                 FocusPerSecond = constant.FocusPerSecond,
                 MoveSpeed = constant.MoveSpeed,
                 MaxTier = constant.MaxTier,
+                UpgradeChoiceCount = constant.UpgradeChoiceCount,
             };
 
             ProjectSurvive.Config.TbEconomy economy = tables.TbEconomy;
@@ -275,6 +341,8 @@ namespace ProjectSurvive.Core.Infrastructure.Config
 
         public IReadOnlyList<MergeRecipeConfig> MergeRecipes => _mergeRecipeList;
 
+        public IReadOnlyList<UpgradeVariantConfig> UpgradeVariants => _upgradeVariantList;
+
         public IReadOnlyList<EnemyConfig> Enemies => _enemyList;
 
         public IReadOnlyList<FloorConfig> Floors => _floorList;
@@ -290,6 +358,9 @@ namespace ProjectSurvive.Core.Infrastructure.Config
         public bool TryGetItem(string id, out ItemConfig value) => TryGet(_items, id, out value);
 
         public bool TryGetSkill(string id, out SkillConfig value) => TryGet(_skills, id, out value);
+
+        public bool TryGetUpgradeVariant(string id, out UpgradeVariantConfig value) =>
+            TryGet(_upgradeVariants, id, out value);
 
         public bool TryGetEnemy(string id, out EnemyConfig value) => TryGet(_enemies, id, out value);
 
@@ -389,6 +460,9 @@ namespace ProjectSurvive.Core.Infrastructure.Config
         public const string TableMissing = "config.table_missing";
         public const string TableUnreadable = "config.table_unreadable";
         public const string DuplicateLocalizationKey = "localization.duplicate_key";
+        public const string UpgradeStatUnknown = "upgrade_variant.unknown_stat";
+        public const string UpgradeMethodUnknown = "upgrade_variant.unknown_method";
+        public const string UpgradeModifierOrphan = "upgrade_variant.orphan_modifier";
     }
 
     /// <summary>

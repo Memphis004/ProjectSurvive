@@ -1,0 +1,8 @@
+##,id,category,tag,from_tier,to_tier,name_key,weight
+,variant.arcane.keen_edge,ArcaneWeapon,,1,2,upgrade.arcane.keen_edge.name,12
+,variant.fire.blazing_seal,,fire,1,2,upgrade.fire.blazing_seal.name,8
+,variant.arcane.great_keen_edge,ArcaneWeapon,,2,3,upgrade.arcane.great_keen_edge.name,12
+,variant.arcane.great_swift_chant,ArcaneWeapon,,2,3,upgrade.arcane.great_swift_chant.name,12
+,variant.arcane.twin_bolt,ArcaneWeapon,,2,3,upgrade.arcane.twin_bolt.name,10
+,variant.arcane.deep_pierce,ArcaneWeapon,,2,3,upgrade.arcane.deep_pierce.name,10
+,variant.fire.inferno_seal,,fire,2,3,upgrade.fire.inferno_seal.name,8

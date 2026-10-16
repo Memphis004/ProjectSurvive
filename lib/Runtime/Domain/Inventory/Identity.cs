@@ -144,6 +144,22 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// <summary>The piece is already at <c>constant.max_tier</c>.</summary>
         public const string MergeMaxTier = "inventory.merge_max_tier";
 
+        /// <summary>
+        /// This pair has upgrade choices, so it must be confirmed with one of them: the
+        /// plain <c>Merge</c> command would fold the pieces without asking the player
+        /// (Stage 09f).
+        /// </summary>
+        public const string MergeNeedsVariant = "inventory.merge_needs_variant";
+
+        /// <summary>The confirm carried no choice, and this pair has a chooser.</summary>
+        public const string MergeVariantRequired = "inventory.merge_variant_required";
+
+        /// <summary>
+        /// The choice is not one this state offers — a stale id, an id for another tier
+        /// step, or a piece whose pool does not contain it.
+        /// </summary>
+        public const string MergeVariantNotOffered = "inventory.merge_variant_not_offered";
+
         /// <summary>Rotating only means something for a piece on the board.</summary>
         public const string NotOnBoard = "inventory.not_on_board";
 

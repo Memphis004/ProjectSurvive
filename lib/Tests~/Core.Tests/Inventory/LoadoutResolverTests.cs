@@ -337,7 +337,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
             PieceRef first = InventoryFixture.Place(editor, "item.mor_knife", 0, 0);
             PieceRef second = InventoryFixture.Add(editor, "item.mor_knife");
 
-            Assert.True(editor.Merge(second, first).IsSuccess);
+            Assert.True(InventoryFixture.Merge(editor, second, first).IsSuccess);
 
             CombatLoadoutSnapshot snapshot = Resolver(config).Resolve(backpack);
 

@@ -38,6 +38,7 @@ public partial class TbConstant
      public float FocusPerSecond => _data.FocusPerSecond;
      public float MoveSpeed => _data.MoveSpeed;
      public int MaxTier => _data.MaxTier;
+     public int UpgradeChoiceCount => _data.UpgradeChoiceCount;
     
     public void ResolveRef(Tables tables)
     {

@@ -225,7 +225,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
             Assert.Equal(InventoryError.Locked, editor.Move(knife, new CellOffset(1, 1), Rotation.Degrees0).Error.Code);
             Assert.Equal(InventoryError.Locked, editor.Rotate(knife).Error.Code);
             Assert.Equal(InventoryError.Locked, editor.TransferToChest(knife).Error.Code);
-            Assert.Equal(InventoryError.Locked, editor.Merge(spare, knife).Error.Code);
+            Assert.Equal(InventoryError.Locked, InventoryFixture.Merge(editor, spare, knife).Error.Code);
             Assert.Equal(InventoryError.Locked, editor.Recycle(knife).Error.Code);
             Assert.Equal(InventoryError.Locked, editor.Undo().Error.Code);
             Assert.Equal(InventoryError.Locked, editor.Reset().Error.Code);
@@ -355,7 +355,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
 
             Assert.True(editor.Move(spare, new CellOffset(0, 0), Rotation.Degrees0).IsFailure);
             Assert.True(editor.Rotate(spare).IsFailure);
-            Assert.True(editor.Merge(spare, spare).IsFailure);
+            Assert.True(InventoryFixture.Merge(editor, spare, spare).IsFailure);
             Assert.True(editor.Move(new PieceRef(PieceKind.Item, 99), new CellOffset(0, 0), Rotation.Degrees0).IsFailure);
             Assert.Equal(revision, backpack.Revision);
 

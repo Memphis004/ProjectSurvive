@@ -19,6 +19,21 @@ namespace ProjectSurvive.Game.Editor
         /// it lives on sorts above the screen's.
         /// </summary>
         Overlay,
+
+        /// <summary>
+        /// A control <b>inside</b> a modal: a card of the merge chooser and the window's own back
+        /// button (Stage 09g).
+        /// </summary>
+        /// <remarks>
+        /// Not a <see cref="Control"/> and not an <see cref="Overlay"/> either. A card sits on a modal
+        /// that dims the whole screen, so it is expected to land on top of surfaces and controls that
+        /// are not the modal at all — a rule that demanded it stand clear of the board it covers would
+        /// fail every time. What it <i>must</i> not do is land on another card, because two cards on
+        /// one another is the one collision a player cannot read past; that pair is reported by
+        /// <see cref="IsAllowed"/>, and whether a card escaped the modal's own frame is reported by
+        /// <see cref="FindModalEscapees"/>.
+        /// </remarks>
+        ModalControl,
     }
 
     /// <summary>One named screen rectangle, in pixels with the origin at the bottom-left (Unity's own convention).</summary>
@@ -68,9 +83,12 @@ namespace ProjectSurvive.Game.Editor
     /// </para>
     /// <para>
     /// <see cref="UiRegionKind.Overlay"/> is the one kind the overlap rule never applies to: a
-    /// tooltip drawn over the board is the point of it. Everything an overlay <i>must</i> satisfy is
-    /// checked where the canvas is known — <see cref="UiCaptureTool"/> measures it in the pixels of
-    /// the shot it took.
+    /// tooltip drawn over the board is the point of it, and the merge chooser's frame and dim layer
+    /// are overlays for exactly that reason. Everything an overlay <i>must</i> satisfy is checked
+    /// where the canvas is known — <see cref="UiCaptureTool"/> measures it in the pixels of the shot
+    /// it took. Inside a modal the rule turns back on for one pair only: two
+    /// <see cref="UiRegionKind.ModalControl"/> regions may not share pixels, and none of them may
+    /// leave the modal's frame (<see cref="FindModalEscapees"/>).
     /// </para>
     /// <para>
     /// The rules, in the words of the PlayMode test: a control drawn inside its own surface is by
@@ -89,6 +107,34 @@ namespace ProjectSurvive.Game.Editor
 
         /// <summary>The piece tooltip, on its own canvas above the screen.</summary>
         public const string Tooltip = "Tooltip";
+
+        /// <summary>
+        /// The merge chooser's own frame — the modal panel the cards are drawn in (Stage 09g).
+        /// </summary>
+        /// <remarks>
+        /// An overlay, like the tooltip, and for a stronger version of the same reason: a modal is a
+        /// layer the player has to answer before anything behind it applies, so it is <i>supposed</i>
+        /// to cover whatever panel it happens to land on. Reporting it as a collision with the panel
+        /// under it would report the screen working as designed.
+        /// </remarks>
+        public const string MergeChooser = "MergeChooser";
+
+        /// <summary>
+        /// The merge chooser's dim layer: the translucent sheet that takes the board out of play while
+        /// the decision is made. Also an overlay, and the one region that should cover the whole
+        /// canvas.
+        /// </summary>
+        public const string MergeChooserDim = "MergeChooserDim";
+
+        /// <summary>The chooser's back button, the control that closes the window without changing anything.</summary>
+        public const string MergeChooserBack = "MergeChooserBack";
+
+        /// <summary>
+        /// One offer card's region id. A card is registered as one rectangle — its own background —
+        /// rather than as a rectangle per label, because the collision that matters is card against
+        /// card; the labels inside a card are that card's business.
+        /// </summary>
+        public static string MergeChooserCard(int index) => "MergeChooserCard" + index;
 
         /// <summary>
         /// The opacity a background has to reach for the world behind the overlay not to be read
@@ -123,7 +169,28 @@ namespace ProjectSurvive.Game.Editor
             if (a.Kind == UiRegionKind.Overlay || b.Kind == UiRegionKind.Overlay)
             {
                 // An overlay is drawn above the screen on a canvas of its own; what it must satisfy is
-                // checked separately (inside the canvas, on the higher canvas), not here.
+                // checked separately (inside the canvas, on the higher canvas), not here. The merge
+                // chooser's frame and its dim layer are overlays for this rule as well: a modal is
+                // meant to cover the screen it is asking about.
+                return true;
+            }
+
+            bool aModal = a.Kind == UiRegionKind.ModalControl;
+            bool bModal = b.Kind == UiRegionKind.ModalControl;
+
+            if (aModal && bModal)
+            {
+                // Two cards (or a card and the back button) drawn on each other: the one collision
+                // inside a modal that has to be reported, because the player would have to read both.
+                return false;
+            }
+
+            if (aModal || bModal)
+            {
+                // A card is drawn on the modal, and the modal dims everything behind it, so covering a
+                // surface or a control underneath is the modal working rather than a defect. The one
+                // thing a card may not do is escape the modal's own frame, which is a containment
+                // question this method has no way to answer — FindModalEscapees answers it.
                 return true;
             }
 
@@ -144,6 +211,60 @@ namespace ProjectSurvive.Game.Editor
         /// <summary>True when the pair is one of the overlaps the screen intends.</summary>
         public static bool IsNestedByDesign(string first, string second) =>
             (first == ChestPanel && second == Chest) || (first == Chest && second == ChestPanel);
+
+        /// <summary>
+        /// Every modal control that is <b>not inside</b> the modal it belongs to, as readable lines.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The overlap rule answers "may these two share pixels", and for a card it answers yes to
+        /// almost everything — because the modal it sits on is allowed to cover the screen. What that
+        /// leaves unchecked is the opposite mistake: a card drawn <i>outside</i> the modal's frame, on
+        /// the panel's border or off the edge of the canvas, where it looks like a stray label rather
+        /// than a choice.
+        /// </para>
+        /// <para>
+        /// The modal is named rather than inferred: the caller measured which region <i>is</i> the modal
+        /// (<see cref="MergeChooser"/>), and a run whose rectangles do not contain that name gets an
+        /// empty list — the missing modal is the caller's failure to report, not a layout one, and
+        /// inventing a violation here would double-report it.
+        /// </para>
+        /// </remarks>
+        public static List<string> FindModalEscapees(IReadOnlyList<UiRegion> regions, string modalName)
+        {
+            var violations = new List<string>();
+
+            Rect modal = default;
+            bool measured = false;
+
+            for (int i = 0; i < regions.Count; i++)
+            {
+                if (string.Equals(regions[i].Name, modalName, System.StringComparison.Ordinal))
+                {
+                    modal = regions[i].Rect;
+                    measured = true;
+                }
+            }
+
+            if (!measured)
+            {
+                return violations;
+            }
+
+            for (int i = 0; i < regions.Count; i++)
+            {
+                UiRegion region = regions[i];
+                if (region.Kind != UiRegionKind.ModalControl || Contains(modal, region.Rect))
+                {
+                    continue;
+                }
+
+                violations.Add(
+                    region.Name + " " + region.Rect + " is not inside " + modalName + " " + modal);
+            }
+
+            return violations;
+        }
 
         /// <summary>
         /// Every measured region the stage requires to be opaque that is not, as readable lines.

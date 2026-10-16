@@ -161,6 +161,7 @@ namespace ProjectSurvive.Data.Validator
                     + ", skills " + config.Skills.Count
                     + ", synergies " + config.Synergies.Count
                     + ", mergeRecipes " + config.MergeRecipes.Count
+                    + ", upgradeVariants " + config.UpgradeVariants.Count
                     + ", enemies " + config.Enemies.Count
                     + ", floors " + config.Floors.Count
                     + ", waves " + config.Waves.Count

@@ -124,3 +124,50 @@ cd tests/web; npx playwright test smoke.spec.ts camp.spec.ts           # rerun a
 So: the **camp and battle specs pass in the real WebGL player**, including the panel, the drag counters and
 the published geometry; the single repeatable failure is the spike scene's URL route, whose allow-list the
 working tree has lost.
+
+## 7. Second half — the upgrade choice
+
+Merging two equal pieces no longer folds them silently: a piece whose step has upgrade variants
+offers **`constant.upgrade_choice_count` = 3** choices ("เลือก 1 จาก 3") and the player's pick is what
+the survivor keeps for that step, while a piece no variant matches (charms, tomes, offerings,
+familiars, bags) still folds immediately through the path it always used. The two situations are two
+commands: `MergeItems` refuses a pair with choices with the new `inventory.merge_needs_variant`, and
+`ConfirmMerge` validates the pair, **re-computes** the offer, checks the id against it and only then
+writes — so a stale or foreign id is refused with the backpack byte-identical. The offer is a **pure
+function of the run**, not a consumed stream: `UpgradePool.DeriveSeed(run seed, MergeCount, item id,
+from tier)` drives a `Xoshiro128` that draws the choices weighted and without replacement, so
+cancelling the chooser and opening it again — or undoing the merge and repeating it — cannot re-roll
+the offer. The chosen id is recorded (`RunCommandKind.ConfirmMerge = 12`, appended) and carried by
+the snapshot, which moved to **schema version 2** (`MergeCount` plus each item's per-step
+`VariantIds`), because which variant was picked changes the loadout a replay must reproduce. The
+modifiers reach `CombatLoadoutSnapshot` through `UpgradeAccumulator` and may only name a stat that
+contract already carries, so `data/` cannot smuggle a new combat mechanic in; the choice itself
+([ADR 0021](../adr/0021-merge-upgrade-choice.md)), the gesture that will read it (the chooser screen,
+Stage 09g), and the numbers (`data/tables/upgrade_variant.csv`, 10 variants, and
+`upgrade_variant_modifier.csv`, 12 modifiers) are all in one place each.
+
+| # | Item | Verdict |
+| --- | --- | --- |
+| 1 | A matching pair offers the configured number of **distinct** choices | **PASS** — `An_arcane_weapon_offers_the_configured_number_of_distinct_choices`; `ConfigLoadTests` pins `UpgradeChoiceCount` = 3, 10 variants and 12 modifiers; `data/tables/constant.csv` carries `upgrade_choice_count` = 3 |
+| 2 | A piece with no matching variant folds immediately, as before | **PASS** — `A_piece_no_variant_matches_still_folds_immediately` (empty `VariantId`, the step still takes an `ItemInstance.NoVariant` slot) |
+| 3 | The offer is the same every time it is asked, and asking changes nothing | **PASS** — `Offer_is_the_same_every_time_and_changes_nothing` (byte-identical state, `Revision` and `MergeCount` untouched, another seed differs), `The_draw_is_a_function_of_every_input_in_its_key`, `Undo_restores_the_counter_so_repeating_the_merge_offers_the_same_choices` |
+| 4 | The offer is not a re-roll: a second merge draws its own choices | **PASS** — `A_second_merge_in_the_same_run_draws_its_own_choices`; the deterministic derivation is `UpgradePool.DeriveSeed` + `RandomStreamKind.Upgrade` (ADR 0021 §3) |
+| 5 | The fold refuses a pair with choices, changing nothing | **PASS** — `Merge_is_refused_for_a_pair_with_choices_and_changes_nothing`. The drop preview does **not** carry that refusal: as of Stage 09g it accepts the gesture (`BagDropAction.Merge`, naming the piece under the pointer, `BagDropPreviewTests.The_merge_gesture_names_the_piece_under_the_pointer_and_refuses_a_mismatch`) and the choice window asks the question — see [`09g-report`](09g-report.md) |
+| 6 | A stale, foreign or absent id is refused atomically | **PASS** — `Confirming_an_id_that_is_not_offered_is_refused_and_changes_nothing` (an invented id **and** an id belonging to the next step), `Confirming_without_a_choice_is_refused_and_changes_nothing` |
+| 7 | The pick is kept on the survivor for that step, and step 1 survives a 2 → 3 merge | **PASS** — `Confirming_keeps_the_chosen_variant_on_the_survivor_for_that_step`, `The_result_keeps_the_step_one_variant_of_the_piece_it_folded_into` |
+| 8 | The modifier actually reaches the battle loadout | **PASS** — `Every_step_modifier_reaches_the_battle_loadout` (hand-written expectations from `upgrade_variant_modifier.csv`, one and two steps), `A_player_stat_variant_reaches_the_stat_block_of_the_board` (a player stat through the same accumulator) |
+| 9 | The choice is recorded and a replay reproduces it | **PASS** — `Run/ReplayTests.A_run_that_chose_an_upgrade_variant_replays_to_the_same_state_hash` (the log carries `VariantId`), `BackpackSnapshotCodecTests.The_chosen_upgrade_variants_and_the_merge_count_survive_the_round_trip` (schema version 2) |
+| 10 | The data gate refuses a chooser that cannot be filled, a dead variant and an unusable name | **PASS** — eleven `ConfigRulesTests` cases (`upgrade_variant.weight_not_positive`, `too_few_choices`, `tag_unknown`, `condition_unknown`, `category_not_an_item`, `condition_ambiguous`, `tier_not_sequential` / `tier_exceeds_max`, `name_key_missing` / `no_modifier`, `magnitude_zero`, `constant.upgrade_choice_count_invalid`, `Every_step_that_has_choices_can_fill_the_chooser`) plus the fixtures `upgrade-pool-too-small`, `upgrade-weight-not-positive` and `upgrade-stat-unknown` through `check-fixtures` |
+| 11 | Every new player-facing string exists in both languages | **PASS** — `data/localization/localization.csv`: the 10 `upgrade.*.name` rows and the 3 `error.inventory.merge_*` rows (146 → **159** rows, pinned by `ConfigLoadTests`); the validator rejects a row missing `th` or `en` |
+| 12 | Unity EditMode / PlayMode and WebGL / Playwright for this half | **NOT RUN here** — these verdicts are in [`docs/stages/09g-report.md`](09g-report.md), written by the coordinator in parallel; this section claims no Unity or browser number |
+
+Commands run for this half (measured in this working tree):
+
+```pwsh
+pwsh -NoProfile -File tools/gen.ps1                                     # after the two new tables and the 13 localization rows
+dotnet test lib/Tests~/Core.Tests/ProjectSurvive.Core.Tests.csproj -c Debug   # 464 passed / 0 failed
+dotnet build lib/Tests~/Sim/ProjectSurvive.Sim.csproj -c Debug          # the bot now folds through OfferMerge + ConfirmMerge
+```
+
+The Unity EditMode / PlayMode screens for this half, and the WebGL + Playwright verdict, are recorded
+in [`docs/stages/09g-report.md`](09g-report.md); this section deliberately stops at the Core boundary.

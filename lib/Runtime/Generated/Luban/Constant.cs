@@ -27,6 +27,7 @@ public sealed partial class Constant : Luban.BeanBase
         FocusPerSecond = _buf.ReadFloat();
         MoveSpeed = _buf.ReadFloat();
         MaxTier = _buf.ReadInt();
+        UpgradeChoiceCount = _buf.ReadInt();
     }
 
     public static Constant DeserializeConstant(ByteBuf _buf)
@@ -45,6 +46,7 @@ public sealed partial class Constant : Luban.BeanBase
     public readonly float FocusPerSecond;
     public readonly float MoveSpeed;
     public readonly int MaxTier;
+    public readonly int UpgradeChoiceCount;
    
     public const int __ID__ = -503167036;
     public override int GetTypeId() => __ID__;
@@ -67,6 +69,7 @@ public sealed partial class Constant : Luban.BeanBase
         + "focusPerSecond:" + FocusPerSecond + ","
         + "moveSpeed:" + MoveSpeed + ","
         + "maxTier:" + MaxTier + ","
+        + "upgradeChoiceCount:" + UpgradeChoiceCount + ","
         + "}";
     }
 }

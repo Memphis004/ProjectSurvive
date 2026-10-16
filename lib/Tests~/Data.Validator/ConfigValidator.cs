@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using ProjectSurvive.Core.Domain.Config;
+using ProjectSurvive.Core.Domain.Inventory;
 
 namespace ProjectSurvive.Data.Validator
 {
@@ -58,6 +59,7 @@ namespace ProjectSurvive.Data.Validator
             ValidateSkills(config, findings);
             ValidateSynergies(config, findings);
             ValidateMergeRecipes(config, findings);
+            ValidateUpgradeVariants(config, findings);
             ValidateEnemies(config, findings);
             ValidateFloors(config, findings);
             ValidateWaves(config, findings);
@@ -341,6 +343,124 @@ namespace ProjectSurvive.Data.Validator
                 Check(rungs.Contains(id + "#" + tier), findings, "merge_recipe.ladder_incomplete",
                     Row(table, id) + ".merge",
                     "no merge recipe takes '" + id + "' from tier " + tier + " to " + (tier + 1));
+            }
+        }
+
+        // -- 6b. upgrade variants (Stage 09f) ---------------------------------
+
+        /// <summary>
+        /// The rules of the upgrade table, and the one acceptance rule that spans it: a
+        /// piece either has no choices at its step (it folds immediately, as before) or
+        /// enough of them to fill the chooser.
+        /// </summary>
+        /// <remarks>
+        /// The pool below is computed with <see cref="UpgradePool.Collect"/> - the very rule the
+        /// runtime uses - so the validator cannot certify a pool the game would not build.
+        /// A modifier's <c>stat</c> / <c>method</c> name is not checked here: an unknown name
+        /// cannot be mapped by the config adapter, so it fails at LOAD with
+        /// <c>upgrade_variant.unknown_stat</c> / <c>upgrade_variant.unknown_method</c>.
+        /// </remarks>
+        private static void ValidateUpgradeVariants(IGameConfig config, List<Finding> findings)
+        {
+            int choiceCount = config.Constant.UpgradeChoiceCount;
+            int maxTier = config.Constant.MaxTier;
+
+            // The tag vocabulary is whatever the item table carries, exactly as the synergy
+            // rules read it: a tag no item carries can never match.
+            var vocabulary = new HashSet<string>(StringComparer.Ordinal);
+            foreach (ItemConfig item in config.Items)
+            {
+                foreach (string tag in item.Tags)
+                {
+                    vocabulary.Add(tag);
+                }
+            }
+
+            foreach (UpgradeVariantConfig variant in config.UpgradeVariants)
+            {
+                string row = Row("upgrade_variant", variant.Id);
+                bool hasCategory = Present(variant.Category);
+                bool hasTag = Present(variant.Tag);
+
+                // Exactly one of the two, the shape merge_recipe uses for its two ids.
+                if (hasCategory == hasTag)
+                {
+                    findings.Add(new Finding("upgrade_variant.condition_ambiguous", row,
+                        hasCategory
+                            ? "exactly one of category / tag may be set, both are"
+                            : "one of category / tag must be set"));
+                    continue;
+                }
+
+                if (hasCategory)
+                {
+                    bool known = UpgradeVocabulary.TryParseCategory(variant.Category, out ItemCategory category);
+                    Check(known, findings, "upgrade_variant.condition_unknown", row + ".category",
+                        "category '" + variant.Category + "' is not one of "
+                        + string.Join(", ", UpgradeVocabulary.ItemCategoryNames));
+
+                    // A bag piece lives in the bag table, so a Bag-scoped variant could never
+                    // reach anything: matches are looked up against item rows.
+                    Check(!known || category != ItemCategory.Bag, findings,
+                        "upgrade_variant.category_not_an_item", row + ".category",
+                        "variants are matched against items; bag pieces have no chooser");
+                }
+                else
+                {
+                    Check(vocabulary.Contains(variant.Tag), findings, "upgrade_variant.tag_unknown",
+                        row + ".tag", "no item carries the tag '" + variant.Tag + "'");
+                }
+
+                Check(variant.Weight > 0, findings, "upgrade_variant.weight_not_positive",
+                    row + ".weight", "weight must be >= 1, was " + variant.Weight);
+
+                Check(variant.ToTier == variant.FromTier + 1, findings,
+                    "upgrade_variant.tier_not_sequential", row,
+                    "to_tier " + variant.ToTier + " must be from_tier + 1 (" + (variant.FromTier + 1) + ")");
+
+                Check(variant.FromTier >= 1, findings, "upgrade_variant.from_tier_invalid",
+                    row + ".from_tier", "from_tier must be >= 1");
+
+                Check(variant.ToTier <= maxTier, findings, "upgrade_variant.tier_exceeds_max",
+                    row + ".to_tier", "to_tier " + variant.ToTier + " exceeds constant.max_tier " + maxTier);
+
+                Check(config.TryGetLocalization(variant.NameKey, out _), findings,
+                    "upgrade_variant.name_key_missing", row + ".name_key",
+                    "localization key '" + variant.NameKey + "' does not exist");
+
+                // A variant that changes nothing is a choice that is strictly worse than the
+                // ones beside it: it would waste one of the three slots.
+                Check(variant.Modifiers.Count > 0, findings, "upgrade_variant.no_modifier", row,
+                    "a variant with no modifier row changes nothing");
+
+                foreach (UpgradeModifierConfig modifier in variant.Modifiers)
+                {
+                    Check(Math.Abs(modifier.Magnitude) > float.Epsilon, findings,
+                        "upgrade_variant.magnitude_zero",
+                        row + ".modifier['" + modifier.Id + "']",
+                        "magnitude 0 changes nothing; drop the row instead");
+                }
+            }
+
+            // The acceptance rule that spans item and variant: for every item and every tier
+            // step, the pool is either empty (no chooser, immediate merge - the documented
+            // fallback) or big enough for the configured number of choices.
+            var pool = new List<UpgradeVariantConfig>(8);
+            foreach (ItemConfig item in config.Items)
+            {
+                for (int tier = 1; tier < maxTier; tier++)
+                {
+                    UpgradePool.Collect(config, item, tier, pool);
+                    if (pool.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    Check(pool.Count >= choiceCount, findings, "upgrade_variant.too_few_choices",
+                        Row("item", item.Id) + ".merge t" + tier,
+                        "the pool has " + pool.Count + " variant(s); a chooser needs " + choiceCount
+                        + " - author at least that many, or leave the step with none so it merges immediately");
+                }
             }
         }
 
@@ -672,6 +792,13 @@ namespace ProjectSurvive.Data.Validator
             Check(constant.WeightSpeedPercentPerUnit >= 1, findings,
                 "constant.weight_speed_slope_invalid", "constant.weight_speed_percent_per_unit",
                 "weight_speed_percent_per_unit must be >= 1, was " + constant.WeightSpeedPercentPerUnit);
+
+            // Stage 09f: a chooser of zero choices is not a chooser. The floor is 2 because
+            // "เลือก 1 จาก" needs a pick to make a difference, and the ceiling keeps a
+            // hand-typed number from turning one merge into nineteen options.
+            Check(constant.UpgradeChoiceCount is >= 2 and <= 5, findings,
+                "constant.upgrade_choice_count_invalid", "constant.upgrade_choice_count",
+                "upgrade_choice_count must be within 2..5, was " + constant.UpgradeChoiceCount);
         }
     }
 }

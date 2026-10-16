@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Domain.Run;
@@ -111,6 +112,31 @@ namespace ProjectSurvive.Game.Presentation.Camp
         [SerializeField] private Color _ghostMerge = new Color(0.95f, 0.80f, 0.35f, 0.90f);
 
         /// <summary>
+        /// The choice modal's dim layer (Stage 09g): dark enough to say "the screen is waiting for an
+        /// answer", light enough that the board stays recognisable behind it.
+        /// </summary>
+        [SerializeField] private Color _chooserDim = new Color(0f, 0f, 0f, 0.72f);
+
+        /// <summary>The modal's own panel, opaque so the cards read against it.</summary>
+        [SerializeField] private Color _chooserPanel = new Color(0.07f, 0.08f, 0.11f, 0.97f);
+
+        /// <summary>One card's background.</summary>
+        [SerializeField] private Color _chooserCard = new Color(0.14f, 0.16f, 0.20f, 1f);
+
+        /// <summary>The strip that names the card's key and is also its pick affordance.</summary>
+        [SerializeField] private Color _chooserPick = new Color(0.24f, 0.38f, 0.26f, 1f);
+
+        /// <summary>
+        /// A change for the better ("สีเขียวเมื่อดีขึ้น"). The green is light enough to hold contrast
+        /// against <see cref="_chooserCard"/> at the 22 px floor, which is the whole point of the colour:
+        /// it is the only thing distinguishing a stat line that helps from one that hurts.
+        /// </summary>
+        [SerializeField] private Color _chooserBetter = new Color(0.45f, 0.92f, 0.45f, 1f);
+
+        /// <summary>A change for the worse ("สีแดงเมื่อแย่ลง").</summary>
+        [SerializeField] private Color _chooserWorse = new Color(0.95f, 0.42f, 0.38f, 1f);
+
+        /// <summary>
         /// How tall a bag's secondary name strip is, in canvas units. Tall enough for the 22 px
         /// floor's line box; an item's rectangle reaching it is what hides the bag's name.
         /// </summary>
@@ -138,6 +164,43 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         /// <summary>A drag that carries nothing: shared, because it is constant.</summary>
         private static readonly CampCarryGhost[] NoCarryPlans = new CampCarryGhost[0];
+
+        /// <summary>
+        /// How many cards the choice modal can show (Stage 09g). Three, because
+        /// <c>constant.upgrade_choice_count</c> is 3 and the data validator refuses a pool smaller than
+        /// two — so one pool of three cards covers every offer the run can make.
+        /// </summary>
+        private const int ChooserCardCapacity = 3;
+
+        /// <summary>
+        /// How many stat lines one card can show. The widest shipped variant changes two stats; the
+        /// spare lines are pooled and hidden rather than created per open.
+        /// </summary>
+        private const int ChooserChangeLineCapacity = 4;
+
+        /// <summary>The modal's own size in canvas units at the 1920×1080 reference resolution.</summary>
+        private static readonly Vector2 ChooserPanelSize = new Vector2(1560f, 600f);
+
+        /// <summary>
+        /// The three choice cards, built once. Pooled rather than rebuilt per open, because the modal is
+        /// published whenever the state replaces its model and a rebuild would allocate on every open.
+        /// </summary>
+        private readonly List<MergeCardView> _chooserCards = new List<MergeCardView>(ChooserCardCapacity);
+
+        /// <summary>The five lines of the left panel, one label each, so an empty one is hidden.</summary>
+        private readonly TMP_Text[] _chooserSourceLines = new TMP_Text[5];
+
+        private RectTransform _chooserRoot;
+        private RectTransform _chooserDimRect;
+        private RectTransform _chooserPanelRect;
+        private RectTransform _chooserBackRect;
+        private TMP_Text _chooserTitleLabel;
+        private TMP_Text _chooserHintLabel;
+        private TMP_Text _chooserBackLabel;
+
+        /// <summary>How many cards the last published chooser filled (a test reads it).</summary>
+        private int _chooserCardsShown;
+
         private readonly List<IDisposable> _subscriptions = new List<IDisposable>(16);
 
         private CampUiState _state;
@@ -199,6 +262,68 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// How many item ghosts are drawn right now — the items that would ride with the dragged bag.
         /// </summary>
         public int VisibleCarryGhostCount { get; private set; }
+
+        /// <summary>
+        /// True while the choice modal is on screen. The presenter is the source of truth for
+        /// <i>whether</i> a merge is asking; this mirrors what the screen is actually drawing.
+        /// </summary>
+        public bool ChooserVisible => _chooserRoot != null && _chooserRoot.gameObject.activeSelf;
+
+        /// <summary>How many cards are on screen right now.</summary>
+        public int ChooserCardCount => _chooserCardsShown;
+
+        /// <summary>
+        /// The centre of card <paramref name="index"/> in screen pixels — what a real pointer taps.
+        /// </summary>
+        /// <remarks>
+        /// The <b>centre</b>, not a corner, and the whole card is the hit area: a corner lies on the
+        /// rectangle's own boundary where <c>Rect.Contains</c> excludes it, which is the defect
+        /// <see cref="CampScreenRects"/> exists to prevent.
+        /// </remarks>
+        public bool TryGetChoiceScreenPoint(int index, out Vector2 point)
+        {
+            point = default;
+            RectTransform card = ChooserCardRect(index);
+            return card != null && CampScreenRects.TryCentre(card, out point);
+        }
+
+        /// <summary>Card <paramref name="index"/>'s screen rectangle, or false when there is none.</summary>
+        public bool TryGetChoiceRect(int index, out Rect rect)
+        {
+            rect = default;
+            RectTransform card = ChooserCardRect(index);
+            return card != null && CampScreenRects.TryOf(card, out rect);
+        }
+
+        /// <summary>The back button's screen point, or false while the modal is closed.</summary>
+        public bool TryGetChooserBackScreenPoint(out Vector2 point)
+        {
+            point = default;
+            return _chooserBackRect != null && CampScreenRects.TryCentre(_chooserBackRect, out point);
+        }
+
+        /// <summary>The modal panel's screen rectangle, for the layout report. False while closed.</summary>
+        public bool TryGetChooserPanelRect(out Rect rect)
+        {
+            rect = default;
+            return _chooserPanelRect != null && CampScreenRects.TryOf(_chooserPanelRect, out rect);
+        }
+
+        /// <summary>The dim layer's screen rectangle, for the layout report. False while closed.</summary>
+        public bool TryGetChooserDimRect(out Rect rect)
+        {
+            rect = default;
+            return _chooserDimRect != null && CampScreenRects.TryOf(_chooserDimRect, out rect);
+        }
+
+        /// <summary>
+        /// The card at <paramref name="index"/> when it is on screen, or null. The range check is the
+        /// count that was published, so a card the offer did not fill is never reported as tappable.
+        /// </summary>
+        private RectTransform ChooserCardRect(int index) =>
+            index >= 0 && index < _chooserCardsShown && index < _chooserCards.Count
+                ? _chooserCards[index].Root
+                : null;
 
         /// <summary>
         /// The screen rectangle of a piece's name, or false when the piece has no name on screen.
@@ -263,10 +388,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
             _presenter = _scope.Container.Resolve<CampPresenter>();
 
             CreateGhost();
+            CreateMergeChooser();
             BindButtons();
 
             _subscriptions.Add(_state.Bag.Subscribe(RenderBag));
             _subscriptions.Add(_state.Drag.Subscribe(RenderDrag));
+            _subscriptions.Add(_state.MergeChooser.Subscribe(RenderMergeChooser));
 
             // The panel starts closed. Stage 09c's camp is a place the player walks, so the sala is
             // what is on screen at the start and จัดย่าม is the control that opens the screen — which
@@ -298,6 +425,14 @@ namespace ProjectSurvive.Game.Presentation.Camp
             if (!visible && _presenter != null)
             {
                 _presenter.ClearHover();
+            }
+
+            // The choice modal belongs to this panel and can only exist while it is open: closing
+            // จัดย่าม with a decision pending closes the decision too, rather than leaving a modal the
+            // player has no way to answer on top of the sala (Stage 09g).
+            if (!visible && _presenter != null && _presenter.IsMergeChooserOpen)
+            {
+                _presenter.CancelMergeChooser();
             }
 
             _selectedPiece = PieceRef.None;
@@ -472,6 +607,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// </remarks>
         public void OnPointerDown(PointerEventData eventData)
         {
+            if (ChooserVisible)
+            {
+                // The dim layer is the physical lock; this is the logical one, so a stray event that
+                // somehow reaches the panel cannot rotate or pick a piece behind the modal.
+                return;
+            }
+
             if (eventData.button == PointerEventData.InputButton.Right)
             {
                 if (_presenter != null && _presenter.IsDragging)
@@ -520,6 +662,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
+            if (ChooserVisible)
+            {
+                // "ล็อกการลากในหน้าจัดย่าม": while a choice is pending, nothing on the board is picked up.
+                return;
+            }
+
             if (!TryLocate(eventData.pressPosition, out BagDropZone zone, out CellOffset cell))
             {
                 return;
@@ -537,6 +685,11 @@ namespace ProjectSurvive.Game.Presentation.Camp
         public void OnDrag(PointerEventData eventData)
         {
             if (_presenter == null || !_presenter.IsDragging)
+            {
+                return;
+            }
+
+            if (ChooserVisible)
             {
                 return;
             }
@@ -569,9 +722,35 @@ namespace ProjectSurvive.Game.Presentation.Camp
             _pointerDown = false;
         }
 
+        /// <summary>
+        /// Confirms the card the player picked (Stage 09g). One caller for the card's own button and
+        /// for the 1/2/3 keys, so there is exactly one path into the command.
+        /// </summary>
+        private void OnChoiceClicked(int index)
+        {
+            if (_presenter != null)
+            {
+                _presenter.ConfirmMergeChoice(index);
+            }
+        }
+
+        /// <summary>The back button: the same thing Escape does — close without changing anything.</summary>
+        private void OnChooserBackClicked()
+        {
+            if (_presenter != null)
+            {
+                _presenter.CancelMergeChooser();
+            }
+        }
+
         public void OnPointerClick(PointerEventData eventData)
         {
             if (eventData.dragging)
+            {
+                return;
+            }
+
+            if (ChooserVisible)
             {
                 return;
             }
@@ -627,6 +806,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
+            if (ChooserVisible)
+            {
+                // No hover behind the modal: the chooser's left panel is already showing the piece
+                // this merge is about, and a tooltip may not appear over it (item 4).
+                return;
+            }
+
             if (!TryLocate(eventData.position, out BagDropZone zone, out CellOffset cell))
             {
                 _presenter.ClearHover();
@@ -638,6 +824,11 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         public void OnPointerExit(PointerEventData eventData)
         {
+            if (ChooserVisible)
+            {
+                return;
+            }
+
             if (_presenter != null && !_presenter.IsDragging)
             {
                 _presenter.ClearHover();
@@ -673,6 +864,32 @@ namespace ProjectSurvive.Game.Presentation.Camp
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null)
             {
+                return;
+            }
+
+            // Stage 09g: while a choice is pending the keys belong to the modal. 1/2/3 confirm the
+            // card with that number, Escape closes it without changing anything — and the board's own
+            // keys (R to rotate) do nothing until it closes, so the key handling stops here rather
+            // than falling through.
+            if (_presenter.IsMergeChooserOpen)
+            {
+                if (keyboard.escapeKey.wasPressedThisFrame)
+                {
+                    _presenter.CancelMergeChooser();
+                }
+                else if (keyboard.digit1Key.wasPressedThisFrame || keyboard.numpad1Key.wasPressedThisFrame)
+                {
+                    _presenter.ConfirmMergeChoice(0);
+                }
+                else if (keyboard.digit2Key.wasPressedThisFrame || keyboard.numpad2Key.wasPressedThisFrame)
+                {
+                    _presenter.ConfirmMergeChoice(1);
+                }
+                else if (keyboard.digit3Key.wasPressedThisFrame || keyboard.numpad3Key.wasPressedThisFrame)
+                {
+                    _presenter.ConfirmMergeChoice(2);
+                }
+
                 return;
             }
 
@@ -1694,6 +1911,369 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         private bool IsDraggingPiece(PieceRef piece) =>
             _presenter != null && _presenter.IsDragging && _presenter.DraggedPiece == piece;
+
+        // ------------------------------------------------------------------
+        // the merge chooser (Stage 09g)
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Builds the choice modal once, at runtime, under this panel.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Built rather than authored, the way the tooltip's own widgets are: the modal is only ever
+        /// seen while จัดย่าม is open, every string on it arrives from the state, and building it here
+        /// means it needs no `ProjectSetup` pass and no scene rebuild.
+        /// </para>
+        /// <para>
+        /// It is parented to this panel, which is the full-screen surface the whole จัดย่าม screen hangs
+        /// off, so its dim layer covers everything the player could otherwise press.
+        /// </para>
+        /// </remarks>
+        private void CreateMergeChooser()
+        {
+            if (_chooserRoot != null)
+            {
+                return;
+            }
+
+            var rootObject = new GameObject("MergeChooser", typeof(RectTransform));
+            _chooserRoot = (RectTransform)rootObject.transform;
+            _chooserRoot.SetParent(transform, false);
+            _chooserRoot.anchorMin = Vector2.zero;
+            _chooserRoot.anchorMax = Vector2.one;
+            _chooserRoot.offsetMin = Vector2.zero;
+            _chooserRoot.offsetMax = Vector2.zero;
+
+            var dimObject = new GameObject("Dim", typeof(RectTransform));
+            _chooserDimRect = (RectTransform)dimObject.transform;
+            _chooserDimRect.SetParent(_chooserRoot, false);
+            _chooserDimRect.anchorMin = Vector2.zero;
+            _chooserDimRect.anchorMax = Vector2.one;
+            _chooserDimRect.offsetMin = Vector2.zero;
+            _chooserDimRect.offsetMax = Vector2.zero;
+            var dim = dimObject.AddComponent<Image>();
+            dim.color = _chooserDim;
+            // Raycast-blocking on purpose: this half is the lock. Everything the player might press
+            // lives behind it, and the EventSystem never delivers a pointer event to a graphic that a
+            // raycast target sits in front of.
+            dim.raycastTarget = true;
+
+            var panelObject = new GameObject("Panel", typeof(RectTransform));
+            _chooserPanelRect = (RectTransform)panelObject.transform;
+            _chooserPanelRect.SetParent(_chooserRoot, false);
+            _chooserPanelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            _chooserPanelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            _chooserPanelRect.pivot = new Vector2(0.5f, 0.5f);
+            _chooserPanelRect.anchoredPosition = Vector2.zero;
+            _chooserPanelRect.sizeDelta = ChooserPanelSize;
+            var background = panelObject.AddComponent<Image>();
+            background.color = _chooserPanel;
+            // Also a raycast target: a press that misses every card lands here and does nothing, which
+            // is better than falling through to the board.
+            background.raycastTarget = true;
+
+            // The heading, top-left rather than centred: it heads both the column below it and the row
+            // of cards beside it.
+            _chooserTitleLabel = CreateChooserLabel(
+                _chooserPanelRect, "Title", new Vector2(28f, -18f), new Vector2(900f, 40f), 30f,
+                TextAlignmentOptions.TopLeft, _font);
+
+            // The left column: the item as the tooltip describes it — ชื่อ, ระดับ, สถานะ, คำอธิบาย,
+            // คอมโบที่ทำงานอยู่ — one label per line, so an empty line is hidden rather than drawn blank.
+            // The item's own name is the column's heading; the modal's heading above it says what the
+            // screen is for.
+            for (int i = 0; i < _chooserSourceLines.Length; i++)
+            {
+                _chooserSourceLines[i] = CreateChooserLabel(
+                    _chooserPanelRect, "Source" + i, new Vector2(28f, -78f - (i * 34f)),
+                    new Vector2(420f, 32f), 22f, TextAlignmentOptions.TopLeft, _font);
+                _chooserSourceLines[i].gameObject.SetActive(false);
+            }
+
+            // Three cards in one row, centred in the space to the right of the left column.
+            const float cardWidth = 328f;
+            const float cardHeight = 400f;
+            const float cardGap = 16f;
+            const float cardsLeft = 480f;
+            const float cardsWidth = 1056f;
+            float total = (ChooserCardCapacity * cardWidth) + ((ChooserCardCapacity - 1) * cardGap);
+            float first = cardsLeft + ((cardsWidth - total) * 0.5f);
+
+            for (int i = 0; i < ChooserCardCapacity; i++)
+            {
+                _chooserCards.Add(MergeCardView.Create(
+                    _chooserPanelRect,
+                    _font,
+                    i,
+                    first + (i * (cardWidth + cardGap)),
+                    -78f,
+                    cardWidth,
+                    cardHeight,
+                    _chooserCard,
+                    _chooserPick,
+                    OnChoiceClicked));
+            }
+
+            // The short explanation under the row: what a pick does, and that closing changes nothing.
+            _chooserHintLabel = CreateChooserLabel(
+                _chooserPanelRect, "Hint", new Vector2(28f, -520f), new Vector2(1210f, 30f), 22f,
+                TextAlignmentOptions.TopLeft, _font);
+
+            // ย้อนกลับ, top-right: the same thing Escape does.
+            var backObject = new GameObject("Back", typeof(RectTransform));
+            _chooserBackRect = (RectTransform)backObject.transform;
+            _chooserBackRect.SetParent(_chooserPanelRect, false);
+            _chooserBackRect.anchorMin = new Vector2(0f, 1f);
+            _chooserBackRect.anchorMax = new Vector2(0f, 1f);
+            _chooserBackRect.pivot = new Vector2(0f, 1f);
+            _chooserBackRect.anchoredPosition = new Vector2(ChooserPanelSize.x - 168f, -18f);
+            _chooserBackRect.sizeDelta = new Vector2(140f, 44f);
+            var backImage = backObject.AddComponent<Image>();
+            backImage.color = _chooserPick;
+            backImage.raycastTarget = true;
+            var backButton = backObject.AddComponent<Button>();
+            backButton.targetGraphic = backImage;
+            backButton.onClick.AddListener(OnChooserBackClicked);
+            _chooserBackLabel = CreateChooserLabel(
+                _chooserBackRect, "BackLabel", Vector2.zero, new Vector2(140f, 44f), 22f,
+                TextAlignmentOptions.Center, _font, stretch: true);
+
+            // Closed until a merge asks: the modal is published as a replaced model, and Closed is a
+            // shared constant, so this is the state it starts in.
+            _chooserRoot.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// One label of the modal. Anchored to its parent's top-left like every authored label on this
+        /// panel, at the same 22 px floor (Stage 09d item 2), unless <paramref name="stretch"/> asks it
+        /// to fill its parent instead — which is what a button's own caption wants.
+        /// </summary>
+        /// <remarks>
+        /// Static and font-passed so <see cref="MergeCardView"/>, a class of its own, builds its labels
+        /// the same way instead of repeating this.
+        /// </remarks>
+        private static TMP_Text CreateChooserLabel(
+            RectTransform parent, string name, Vector2 position, Vector2 size, float fontSize,
+            TextAlignmentOptions alignment, TMP_FontAsset font, bool stretch = false)
+        {
+            var labelObject = new GameObject(name, typeof(RectTransform));
+            var rect = (RectTransform)labelObject.transform;
+            rect.SetParent(parent, false);
+
+            if (stretch)
+            {
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
+            }
+            else
+            {
+                rect.anchorMin = new Vector2(0f, 1f);
+                rect.anchorMax = new Vector2(0f, 1f);
+                rect.pivot = new Vector2(0f, 1f);
+                rect.anchoredPosition = position;
+                rect.sizeDelta = size;
+            }
+
+            var label = labelObject.AddComponent<TextMeshProUGUI>();
+            label.raycastTarget = false;
+            label.fontSize = fontSize;
+            label.alignment = alignment;
+            label.color = Color.white;
+            if (font != null)
+            {
+                label.font = font;
+            }
+
+            return label;
+        }
+
+        /// <summary>
+        /// Draws the chooser from one replaced model, the way the bag screen redraws from
+        /// <see cref="CampBagScreen"/>. Closed hides the root and leaves every widget where it is, so
+        /// opening the modal again — which ADR 0021 makes the same decision every time — allocates
+        /// nothing.
+        /// </summary>
+        private void RenderMergeChooser(CampMergeChooserModel chooser)
+        {
+            if (_chooserRoot == null)
+            {
+                return;
+            }
+
+            bool open = chooser != null && chooser.IsOpen;
+
+            if (_chooserRoot.gameObject.activeSelf != open)
+            {
+                _chooserRoot.gameObject.SetActive(open);
+            }
+
+            if (!open)
+            {
+                _chooserCardsShown = 0;
+                return;
+            }
+
+            _chooserTitleLabel.text = chooser.Title;
+            _chooserHintLabel.text = chooser.Hint;
+            _chooserBackLabel.text = chooser.BackLabel;
+
+            string[] source = chooser.SourceLines;
+            for (int i = 0; i < _chooserSourceLines.Length; i++)
+            {
+                string line = source != null && i < source.Length ? source[i] : string.Empty;
+                bool drawn = !string.IsNullOrEmpty(line);
+
+                if (_chooserSourceLines[i].gameObject.activeSelf != drawn)
+                {
+                    _chooserSourceLines[i].gameObject.SetActive(drawn);
+                }
+
+                if (drawn)
+                {
+                    _chooserSourceLines[i].text = line;
+                }
+            }
+
+            int cards = Mathf.Clamp(chooser.ChoiceCount, 0, _chooserCards.Count);
+
+            for (int i = 0; i < _chooserCards.Count; i++)
+            {
+                if (i < cards)
+                {
+                    _chooserCards[i].Show(chooser.Choices[i], _chooserBetter, _chooserWorse);
+                }
+                else
+                {
+                    _chooserCards[i].Hide();
+                }
+            }
+
+            _chooserCardsShown = cards;
+        }
+
+        /// <summary>
+        /// One pooled card of the choice modal (Stage 09g): a numbered strip, the variant's name over
+        /// the step, and one line per stat the variant changes.
+        /// </summary>
+        /// <remarks>
+        /// The whole card is the pick target — a mouse click and a tap both land on it, and the strip
+        /// under it only names the key that does the same thing. The strip's own graphics do not raycast,
+        /// so a press on the strip is a press on the card and there is exactly one listener per card.
+        /// </remarks>
+        private sealed class MergeCardView
+        {
+            private TMP_Text _titleLabel;
+            private TMP_Text _levelLabel;
+            private TMP_Text[] _changeLabels;
+
+            /// <summary>The card's rectangle: the hit area, and what a test or the report measures.</summary>
+            public RectTransform Root { get; private set; }
+
+            public static MergeCardView Create(
+                RectTransform parent, TMP_FontAsset font, int index, float x, float y, float width,
+                float height, Color background, Color pick, Action<int> onPick)
+            {
+                var gameObject = new GameObject("Choice" + index, typeof(RectTransform));
+                var rect = (RectTransform)gameObject.transform;
+                rect.SetParent(parent, false);
+                rect.anchorMin = new Vector2(0f, 1f);
+                rect.anchorMax = new Vector2(0f, 1f);
+                rect.pivot = new Vector2(0f, 1f);
+                rect.anchoredPosition = new Vector2(x, y);
+                rect.sizeDelta = new Vector2(width, height);
+
+                var image = gameObject.AddComponent<Image>();
+                image.color = background;
+                image.raycastTarget = true;
+
+                var button = gameObject.AddComponent<Button>();
+                button.targetGraphic = image;
+                button.onClick.AddListener(() => onPick(index));
+
+                var card = new MergeCardView
+                {
+                    Root = rect,
+                    _changeLabels = new TMP_Text[ChooserChangeLineCapacity],
+                };
+
+                var pickObject = new GameObject("Pick", typeof(RectTransform));
+                var pickRect = (RectTransform)pickObject.transform;
+                pickRect.SetParent(rect, false);
+                pickRect.anchorMin = new Vector2(0f, 1f);
+                pickRect.anchorMax = new Vector2(0f, 1f);
+                pickRect.pivot = new Vector2(0f, 1f);
+                pickRect.anchoredPosition = new Vector2(12f, -(height - 56f));
+                pickRect.sizeDelta = new Vector2(width - 24f, 44f);
+
+                var pickImage = pickObject.AddComponent<Image>();
+                pickImage.color = pick;
+                pickImage.raycastTarget = false;
+
+                TMP_Text key = CreateChooserLabel(
+                    pickRect, "Key", Vector2.zero, Vector2.zero, 24f, TextAlignmentOptions.Center, font,
+                    stretch: true);
+
+                // Not player text: this is the number of the 1/2/3 shortcut, and it is written once, at
+                // build time, so opening the modal composes no string at all.
+                key.text = (index + 1).ToString(CultureInfo.InvariantCulture);
+
+                card._titleLabel = CreateChooserLabel(
+                    rect, "Title", new Vector2(12f, -48f), new Vector2(width - 24f, 64f), 24f,
+                    TextAlignmentOptions.TopLeft, font);
+                card._levelLabel = CreateChooserLabel(
+                    rect, "Level", new Vector2(12f, -118f), new Vector2(width - 24f, 30f), 22f,
+                    TextAlignmentOptions.TopLeft, font);
+
+                for (int i = 0; i < card._changeLabels.Length; i++)
+                {
+                    card._changeLabels[i] = CreateChooserLabel(
+                        rect, "Change" + i, new Vector2(12f, -152f - (i * 32f)),
+                        new Vector2(width - 24f, 28f), 22f, TextAlignmentOptions.TopLeft, font);
+                }
+
+                return card;
+            }
+
+            /// <summary>
+            /// Paints one card: the name over the step, then one line per stat the variant changes, in
+            /// the colour the model's own improvement flag chose for it. The model formats every string
+            /// and decides every direction; this only assigns (AGENTS rule 10).
+            /// </summary>
+            public void Show(CampMergeChoiceModel choice, Color better, Color worse)
+            {
+                Root.gameObject.SetActive(true);
+
+                _titleLabel.text = choice.Title;
+                _levelLabel.text = choice.LevelLine;
+
+                for (int i = 0; i < _changeLabels.Length; i++)
+                {
+                    bool changed = choice.Changes != null && i < choice.Changes.Length;
+
+                    if (_changeLabels[i].gameObject.activeSelf != changed)
+                    {
+                        _changeLabels[i].gameObject.SetActive(changed);
+                    }
+
+                    if (!changed)
+                    {
+                        continue;
+                    }
+
+                    _changeLabels[i].text = choice.Changes[i];
+                    _changeLabels[i].color = choice.Improvements != null
+                        && i < choice.Improvements.Length && choice.Improvements[i]
+                            ? better
+                            : worse;
+                }
+            }
+
+            /// <summary>Hides the card, for an offer with fewer choices than the pool has cards.</summary>
+            public void Hide() => Root.gameObject.SetActive(false);
+        }
 
         /// <summary>One pooled piece rectangle: a tinted box and its localized name.</summary>
         private sealed class CampPieceView

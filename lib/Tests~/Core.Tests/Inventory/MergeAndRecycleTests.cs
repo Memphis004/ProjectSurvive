@@ -21,7 +21,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
             int massBefore = InventoryFixture.TierMass(backpack);
             int countBefore = backpack.Items.Count;
 
-            var result = editor.Merge(right, left);
+            var result = InventoryFixture.Merge(editor, right, left);
 
             Assert.True(result.IsSuccess, result.Error.ToString());
             Assert.Equal(2, result.Value.NewTier);
@@ -44,9 +44,9 @@ namespace ProjectSurvive.Core.Tests.Inventory
             PieceRef b = InventoryFixture.Add(editor, "item.tiger_fang");
             PieceRef c = InventoryFixture.Add(editor, "item.tiger_fang");
 
-            Assert.Equal(2, editor.Merge(b, a).Value.NewTier);
+            Assert.Equal(2, InventoryFixture.Merge(editor, b, a).Value.NewTier);
             // c is still tier 1, so it cannot merge with the tier-2 survivor.
-            Assert.Equal(InventoryError.MergeMismatch, editor.Merge(c, a).Error.Code);
+            Assert.Equal(InventoryError.MergeMismatch, InventoryFixture.Merge(editor, c, a).Error.Code);
         }
 
         [Fact]
@@ -61,17 +61,17 @@ namespace ProjectSurvive.Core.Tests.Inventory
             }
 
             // Two full 1 -> 2 -> 3 ladders: 'a' and 'e' end at the maximum tier.
-            Assert.Equal(2, editor.Merge(pieces[1], pieces[0]).Value.NewTier);
-            Assert.Equal(2, editor.Merge(pieces[3], pieces[2]).Value.NewTier);
-            Assert.Equal(3, editor.Merge(pieces[2], pieces[0]).Value.NewTier);
-            Assert.Equal(2, editor.Merge(pieces[5], pieces[4]).Value.NewTier);
-            Assert.Equal(2, editor.Merge(pieces[7], pieces[6]).Value.NewTier);
-            Assert.Equal(3, editor.Merge(pieces[6], pieces[4]).Value.NewTier);
+            Assert.Equal(2, InventoryFixture.Merge(editor, pieces[1], pieces[0]).Value.NewTier);
+            Assert.Equal(2, InventoryFixture.Merge(editor, pieces[3], pieces[2]).Value.NewTier);
+            Assert.Equal(3, InventoryFixture.Merge(editor, pieces[2], pieces[0]).Value.NewTier);
+            Assert.Equal(2, InventoryFixture.Merge(editor, pieces[5], pieces[4]).Value.NewTier);
+            Assert.Equal(2, InventoryFixture.Merge(editor, pieces[7], pieces[6]).Value.NewTier);
+            Assert.Equal(3, InventoryFixture.Merge(editor, pieces[6], pieces[4]).Value.NewTier);
 
             byte[] before = InventoryFixture.StateBytes(backpack);
             int revision = backpack.Revision;
 
-            var result = editor.Merge(pieces[4], pieces[0]);
+            var result = InventoryFixture.Merge(editor, pieces[4], pieces[0]);
 
             Assert.True(result.IsFailure);
             Assert.Equal(InventoryError.MergeMaxTier, result.Error.Code);
@@ -90,12 +90,12 @@ namespace ProjectSurvive.Core.Tests.Inventory
             PieceRef fang = InventoryFixture.Add(editor, "item.tiger_fang");
             PieceRef knife2 = InventoryFixture.Add(editor, "item.mor_knife");
 
-            Assert.Equal(InventoryError.MergeMismatch, editor.Merge(fang, knife).Error.Code);
-            Assert.Equal(ErrorKind.Validation, editor.Merge(fang, knife).Error.Kind);
-            Assert.Equal(2, editor.Merge(knife2, knife).Value.NewTier);
+            Assert.Equal(InventoryError.MergeMismatch, InventoryFixture.Merge(editor, fang, knife).Error.Code);
+            Assert.Equal(ErrorKind.Validation, InventoryFixture.Merge(editor, fang, knife).Error.Kind);
+            Assert.Equal(2, InventoryFixture.Merge(editor, knife2, knife).Value.NewTier);
 
             PieceRef knife3 = InventoryFixture.Add(editor, "item.mor_knife");
-            Assert.Equal(InventoryError.MergeMismatch, editor.Merge(knife3, knife).Error.Code);
+            Assert.Equal(InventoryError.MergeMismatch, InventoryFixture.Merge(editor, knife3, knife).Error.Code);
         }
 
         [Fact]
@@ -105,7 +105,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
             BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
             PieceRef knife = InventoryFixture.Add(editor, "item.mor_knife");
 
-            var result = editor.Merge(knife, knife);
+            var result = InventoryFixture.Merge(editor, knife, knife);
 
             Assert.True(result.IsFailure);
             Assert.Equal(InventoryError.MergeMismatch, result.Error.Code);
@@ -120,7 +120,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
             PieceRef bag2 = InventoryFixture.Add(editor, "bag.raw_cotton_bag");
             byte[] before = InventoryFixture.StateBytes(backpack);
 
-            var result = editor.Merge(bag2, bag);
+            var result = InventoryFixture.Merge(editor, bag2, bag);
 
             Assert.True(result.IsFailure);
             Assert.Equal(InventoryError.MergeNotItem, result.Error.Code);
@@ -138,7 +138,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
             PieceRef placed = InventoryFixture.Place(editor, "item.kuman_thong", 0, 0, Rotation.Degrees90);
             PieceRef other = InventoryFixture.Add(editor, "item.kuman_thong");
 
-            var result = editor.Merge(other, placed);
+            var result = InventoryFixture.Merge(editor, other, placed);
 
             Assert.True(result.IsSuccess, result.Error.ToString());
             ItemInstance merged = InventoryFixture.ItemOf(backpack, placed);
@@ -161,7 +161,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
             PieceRef onBoard = InventoryFixture.Place(editor, "item.tiger_fang", 0, 0);
             PieceRef inChest = InventoryFixture.Add(editor, "item.tiger_fang");
 
-            var result = editor.Merge(inChest, onBoard);
+            var result = InventoryFixture.Merge(editor, inChest, onBoard);
 
             Assert.True(result.IsSuccess, result.Error.ToString());
             Assert.Equal(2, InventoryFixture.ItemOf(backpack, onBoard).Tier);
@@ -176,7 +176,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
             BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
             PieceRef knife = InventoryFixture.Add(editor, "item.mor_knife");
 
-            var result = editor.Merge(new PieceRef(PieceKind.Item, 88), knife);
+            var result = InventoryFixture.Merge(editor, new PieceRef(PieceKind.Item, 88), knife);
 
             Assert.True(result.IsFailure);
             Assert.Equal(InventoryError.UnknownPiece, result.Error.Code);

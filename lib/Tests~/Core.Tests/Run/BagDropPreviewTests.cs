@@ -156,15 +156,26 @@ namespace ProjectSurvive.Core.Tests.Run
             Result<PieceRef> second = run.Backpack.AddItem(first.DefIdOf(run));
             Assert.True(second.IsSuccess, "a second copy of the starting weapon must be addable");
 
+            // Stage 09g: the gesture is the merge gesture whether or not the merge asks a question,
+            // so the preview names the piece under the pointer and says what releasing would do. The
+            // decision the pair needs is the screen's next step, read from OfferMerge below.
             DropPreview merge = run.PreviewDrop(second.Value, BagDropZone.Board, cell, Rotation.Degrees0);
             Assert.True(merge.IsValid, merge.ErrorCode);
             Assert.Equal(BagDropAction.Merge, merge.Action);
             Assert.Equal(first, merge.Target);
 
-            // The real command agrees, and the tier rises.
-            Result<MergeOutcome> merged = run.MergeItems(second.Value, first);
+            Result<MergeOffer> offered = run.OfferMerge(second.Value, first);
+            Assert.True(offered.IsSuccess, offered.Error.ToString());
+            Assert.True(offered.Value.HasChoices, "an arcane weapon offers upgrade choices");
+            Assert.Equal(first.DefIdOf(run), offered.Value.ItemId);
+            Assert.Equal(1, offered.Value.FromTier);
+            Assert.Equal(2, offered.Value.ToTier);
+
+            // Confirming the choice the offer named is the merge, and the tier rises.
+            Result<MergeOutcome> merged = run.ConfirmMerge(second.Value, first, offered.Value.Options[0].Id);
             Assert.True(merged.IsSuccess, merged.Error.ToString());
             Assert.Equal(2, merged.Value.NewTier);
+            Assert.Equal(offered.Value.Options[0].Id, merged.Value.VariantId);
 
             // A different item on the same cell is a mismatch, and nothing is lost.
             string otherId = OtherItemId(config, first.DefIdOf(run));
@@ -178,6 +189,16 @@ namespace ProjectSurvive.Core.Tests.Run
             Assert.Equal(InventoryError.MergeMismatch, mismatch.ErrorCode);
             Assert.Equal(itemsBefore, run.Backpack.Items.Count);
             Assert.Equal(InventoryError.MergeMismatch, run.MergeItems(other.Value, first).Error.Code);
+
+            // And a pair that folds without a choice is still drop-and-go: the preview names the
+            // target, which is the gesture the test is named for.
+            Assert.True(config.TryGetItem("item.tiger_fang", out ItemConfig charm));
+            Assert.Equal(ItemCategory.Charm, charm.Category);
+            PieceRef charmA = run.Backpack.AddItem(charm.Id).Value;
+            PieceRef charmB = run.Backpack.AddItem(charm.Id).Value;
+            Assert.True(run.MergeItems(charmA, charmB).IsSuccess);
+            Assert.True(run.Backpack.TryGetPiece(charmB, out PieceInstance? charmSurvivor));
+            Assert.Equal(2, charmSurvivor!.Tier);
         }
 
         /// <summary>

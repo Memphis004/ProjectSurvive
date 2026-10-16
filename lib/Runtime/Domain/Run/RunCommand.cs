@@ -65,6 +65,14 @@ namespace ProjectSurvive.Core.Domain.Run
 
         /// <summary>Restore the bag to its camp-entry state.</summary>
         Reset = 11,
+
+        /// <summary>
+        /// Merge <c>Piece</c> into <c>Second</c> keeping upgrade variant <c>VariantId</c>
+        /// (Stage 09f). The chosen id is part of the record: a replay that picked a different
+        /// variant would resolve a different loadout from the same bag shape, so the log has
+        /// to carry it and not just the pair.
+        /// </summary>
+        ConfirmMerge = 12,
     }
 
     /// <summary>
@@ -88,7 +96,8 @@ namespace ProjectSurvive.Core.Domain.Run
             PieceRef second = default,
             int x = 0,
             int y = 0,
-            Rotation rotation = Rotation.Degrees0)
+            Rotation rotation = Rotation.Degrees0,
+            string variantId = "")
         {
             Kind = kind;
             Index = index;
@@ -98,6 +107,7 @@ namespace ProjectSurvive.Core.Domain.Run
             X = x;
             Y = y;
             Rotation = rotation;
+            VariantId = variantId ?? string.Empty;
         }
 
         /// <summary>Which command this is.</summary>
@@ -123,6 +133,9 @@ namespace ProjectSurvive.Core.Domain.Run
 
         /// <summary>Orientation for <see cref="RunCommandKind.MovePiece"/>.</summary>
         public Rotation Rotation { get; }
+
+        /// <summary>The chosen upgrade variant for <see cref="RunCommandKind.ConfirmMerge"/>; empty otherwise.</summary>
+        public string VariantId { get; }
 
         /// <summary>Records that the run started.</summary>
         public static RunCommand StartRun() => new RunCommand(RunCommandKind.StartRun);
@@ -159,6 +172,10 @@ namespace ProjectSurvive.Core.Domain.Run
         public static RunCommand MergeItems(PieceRef source, PieceRef target) =>
             new RunCommand(RunCommandKind.MergeItems, -1, false, source, target);
 
+        /// <summary>Records a merge confirmed with an upgrade choice.</summary>
+        public static RunCommand ConfirmMerge(PieceRef source, PieceRef target, string variantId) =>
+            new RunCommand(RunCommandKind.ConfirmMerge, -1, false, source, target, 0, 0, Rotation.Degrees0, variantId);
+
         /// <summary>Records an undo.</summary>
         public static RunCommand Undo() => new RunCommand(RunCommandKind.Undo);
 
@@ -179,6 +196,8 @@ namespace ProjectSurvive.Core.Domain.Run
                 case RunCommandKind.RotatePiece: return "RotatePiece(" + Piece + ")";
                 case RunCommandKind.TransferToChest: return "TransferToChest(" + Piece + ")";
                 case RunCommandKind.MergeItems: return "MergeItems(" + Piece + " -> " + Second + ")";
+                case RunCommandKind.ConfirmMerge:
+                    return "ConfirmMerge(" + Piece + " -> " + Second + " with " + VariantId + ")";
                 default: return Kind.ToString();
             }
         }
@@ -186,7 +205,8 @@ namespace ProjectSurvive.Core.Domain.Run
         /// <summary>True when the two commands would do the same thing.</summary>
         public bool Equals(RunCommand other) =>
             Kind == other.Kind && Index == other.Index && Flag == other.Flag && Piece == other.Piece
-            && Second == other.Second && X == other.X && Y == other.Y && Rotation == other.Rotation;
+            && Second == other.Second && X == other.X && Y == other.Y && Rotation == other.Rotation
+            && string.Equals(VariantId, other.VariantId, System.StringComparison.Ordinal);
 
         /// <inheritdoc />
         public override bool Equals(object? obj) => obj is RunCommand other && Equals(other);
@@ -194,7 +214,8 @@ namespace ProjectSurvive.Core.Domain.Run
         /// <inheritdoc />
         public override int GetHashCode() =>
             ((int)Kind * 397) ^ (Index * 31) ^ (Flag ? 7 : 0) ^ Piece.GetHashCode()
-            ^ (Second.GetHashCode() * 17) ^ (X * 13) ^ (Y * 11) ^ ((int)Rotation * 5);
+            ^ (Second.GetHashCode() * 17) ^ (X * 13) ^ (Y * 11) ^ ((int)Rotation * 5)
+            ^ (VariantId.Length * 23);
 
         public static bool operator ==(RunCommand left, RunCommand right) => left.Equals(right);
 

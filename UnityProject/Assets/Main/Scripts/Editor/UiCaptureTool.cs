@@ -2,6 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using ProjectSurvive.Core.Application.Run;
+using ProjectSurvive.Core.Domain.Config;
+using ProjectSurvive.Core.Domain.Inventory;
+using ProjectSurvive.Core.Domain.Run;
+using ProjectSurvive.Game.Camp;
 using ProjectSurvive.Game.Presentation.Camp;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -50,6 +55,14 @@ namespace ProjectSurvive.Game.Editor
     /// the project lock at a time.
     /// </para>
     /// <para>
+    /// A <b>third</b> entry point shoots one screen this one cannot: the merge chooser (Stage 09g) is
+    /// built by its view at <i>runtime</i> from the state the presenter publishes, so there is no
+    /// rectangle in the scene to measure and no accessor answers before the window is up. That run
+    /// therefore enters play mode, opens the window through the real merge rule and writes its own
+    /// report (<c>ui-report-playmode.md</c>); everything it measures, it measures with the same
+    /// <see cref="UiLayoutCheck"/> verdicts as the states above.
+    /// </para>
+    /// <para>
     /// The tool never saves a scene. It restores the panel state and the canvases it borrowed, and it
     /// leaves whatever scene the Editor started in open — unless one of them is dirty, in which case
     /// it says so instead of opening a scene Unity would ask a human about.
@@ -59,6 +72,9 @@ namespace ProjectSurvive.Game.Editor
     {
         private const string CampScenePath = "Assets/Main/Scenes/Camp.unity";
         private const string BattleScenePath = "Assets/Main/Scenes/Battle.unity";
+
+        /// <summary>The Camp scene's name, which is what a play-mode load by name needs.</summary>
+        private const string CampSceneName = "Camp";
 
         /// <summary>The two sizes the GDD names, in the order it names them.</summary>
         private static readonly Vector2Int[] CapturedSizes =
@@ -203,6 +219,50 @@ namespace ProjectSurvive.Game.Editor
         }
 
         // ------------------------------------------------------------------
+        // the merge chooser: play mode, because the window is built at runtime
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Captures the merge chooser at the Game View's own resolution, in Play Mode.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Why this is a second entry point rather than one more state of <see cref="CaptureFromMenu"/>:
+        /// the window is built by <c>CampBagScreenView</c> at <b>runtime</b> from the state the
+        /// presenter publishes, and the states above are measured from the <i>authored</i> scene with no
+        /// play mode at all. There is no rectangle in <c>Camp.unity</c> for a window that does not exist
+        /// until a merge asks a question, and the view's own geometry accessors only answer while it is
+        /// showing that window — so the window has to be opened for real.
+        /// </para>
+        /// <para>
+        /// Opened through the <b>real rule</b>, not by hand: a second copy of the camp's first item is
+        /// added and placed, and the presenter's own <c>DragStart</c>/<c>DragMove</c>/<c>Drop</c> — the
+        /// calls the pointer handlers make — are what raises the window. If the rule stops offering a
+        /// choice, this run fails and says so instead of photographing an empty panel.
+        /// </para>
+        /// <para>
+        /// The Game View's resolution <i>is</i> the layout size here, so the two sizes the GDD names are
+        /// taken by running this twice with the Game View set to each; the report names the size it
+        /// actually shot, so a third size cannot be mistaken for one of them, and the picture is a
+        /// <c>ScreenCapture</c> of that same view — the image and the rectangles are of one state at one
+        /// size. It is deliberately <b>not</b> re-rendered through a RenderTexture the way the states
+        /// above are: borrowing the canvases into camera mode invalidates the view's accessors, which
+        /// resolve against an overlay canvas.
+        /// </para>
+        /// <para>
+        /// Interactive only, and the Game View has to be the focused window while it runs: entering play
+        /// mode needs real frames, so there is no batch <c>-executeMethod</c> form, and a window that is
+        /// not in the foreground does not render (the same fact that made the test harness submit
+        /// asynchronous test runs).
+        /// </para>
+        /// </remarks>
+        [MenuItem("ProjectSurvive/Tools/3. Capture the merge chooser in Play Mode (Camp)", priority = 132)]
+        private static void CaptureChooserFromMenu()
+        {
+            ChooserCaptureRun.Start();
+        }
+
+        // ------------------------------------------------------------------
         // the Camp: the panel's layout is what this command is for
         // ------------------------------------------------------------------
 
@@ -252,6 +312,13 @@ namespace ProjectSurvive.Game.Editor
             // it cannot be clicked. Both are properties of the authored scene, so they are read from it
             // rather than inferred from the picture.
             CheckTooltipContract(tooltip, bag, report);
+
+            report.Notes.Add(
+                "the merge chooser (Stage 09g) is built by the view at runtime, so this command — which "
+                + "never enters play mode — has no rectangle in the scene to measure for it, and the "
+                + "view's accessors answer only while the window is up: it is shot by "
+                + "`ProjectSurvive/Tools/3. Capture the merge chooser in Play Mode (Camp)`, which opens the "
+                + "window through the real merge rule and writes `ui-report-playmode.md`");
 
             var barFields = new SerializedObject(bar);
             var statusBar = barFields.FindProperty("_panelRect")?.objectReferenceValue as RectTransform;
@@ -835,16 +902,24 @@ namespace ProjectSurvive.Game.Editor
         // the report
         // ------------------------------------------------------------------
 
-        private static void WriteReports(CaptureReport report, long elapsedMs)
+        private static void WriteReports(
+            CaptureReport report,
+            long elapsedMs,
+            string suffix = "",
+            string takenBy = "`ProjectSurvive/Tools/1. Capture UI` (or `-executeMethod "
+                + "ProjectSurvive.Game.Editor.UiCaptureTool.CaptureAllAndExit`)",
+            string title = "Camp and Battle, in the Editor")
         {
-            string suffix = sDeliberateOverlap ? "-selftest" : string.Empty;
+            if (sDeliberateOverlap)
+            {
+                suffix += "-selftest";
+            }
 
             var text = new StringBuilder();
-            text.AppendLine("# UI capture — Camp and Battle, in the Editor");
+            text.AppendLine("# UI capture — " + title);
             text.AppendLine();
             text.AppendLine(
-                "Taken by `ProjectSurvive/Tools/1. Capture UI` (or `-executeMethod "
-                + "ProjectSurvive.Game.Editor.UiCaptureTool.CaptureAllAndExit`), "
+                "Taken by " + takenBy + ", "
                 + (report.Failures.Count == 0 ? "**PASS**" : "**FAIL**")
                 + $" — {report.Failures.Count} failure(s), {elapsedMs} ms total.");
             text.AppendLine();
@@ -995,6 +1070,690 @@ namespace ProjectSurvive.Game.Editor
             }
 
             return builder.Append('"').ToString();
+        }
+
+        /// <summary>
+        /// One run of the play-mode capture of the merge chooser: opens the window through the real
+        /// merge rule, shoots it, takes the window away and judges the rectangles.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A frame at a time out of <c>EditorApplication.update</c>, because entering play mode returns
+        /// immediately and the scene is only up a few frames later. Every step either advances or waits;
+        /// the whole run is bounded (<see cref="FrameBudget"/>) so a window that never appears fails with
+        /// a reason instead of leaving the Editor in play mode for ever.
+        /// </para>
+        /// <para>
+        /// The window is judged twice over: from its <b>rectangles</b> — the cards may not overlap each
+        /// other, none may leave the window's frame, the window has to be inside its dim layer, the dim
+        /// layer has to cover the screen, and the cards have to be in the left-to-right order the 1/2/3
+        /// keys promise — and from the <b>pixels</b>, by taking a second shot with the window closed and
+        /// requiring the pixels inside the window's own rectangle to have changed. The second half is what
+        /// separates "drawn where it says" from "measured where it says", which is the same distinction
+        /// the tooltip's proof draws.
+        /// </para>
+        /// </remarks>
+        private sealed class ChooserCaptureRun
+        {
+            private const int FrameBudget = 900;
+            private const int WindowWaitFrames = 300;
+            private const int SettleFrames = 2;
+
+            private static ChooserCaptureRun sRunning;
+
+            private readonly CaptureReport _report = new CaptureReport();
+            private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+            private readonly string _startedIn = SceneManager.GetActiveScene().path;
+
+            private Step _step = Step.Prepare;
+            private int _frames;
+            private int _waited;
+
+            private CampSceneDirector _director;
+            private CampBagScreenView _bag;
+            private PieceRef _twin;
+            private CellOffset _target;
+
+            private Vector2Int _size;
+            private string _file = string.Empty;
+            private Rect _dim;
+            private Rect _panel;
+            private Rect[] _cards = new Rect[0];
+            private Vector2 _back;
+            private string[] _texts = new string[0];
+            private Texture2D _withWindow;
+            private Texture2D _withoutWindow;
+
+            private enum Step
+            {
+                Prepare,
+                StartCamp,
+                OpenPanel,
+                BuildPair,
+                OpenChooser,
+                WaitForWindow,
+                Settle,
+                ShootOpen,
+                ShootClosed,
+                Judge,
+                Done,
+            }
+
+            /// <summary>Starts the run when one is not already in flight.</summary>
+            internal static void Start()
+            {
+                if (sRunning != null)
+                {
+                    Debug.LogWarning("[ProjectSurvive] the merge-chooser capture is already running.");
+                    return;
+                }
+
+                if (EditorApplication.isPlaying)
+                {
+                    Debug.LogWarning(
+                        "[ProjectSurvive] the merge-chooser capture starts from edit mode: leave play "
+                        + "mode, then run the menu item again.");
+                    return;
+                }
+
+                sRunning = new ChooserCaptureRun();
+                EditorApplication.update += sRunning.Tick;
+            }
+
+            private void Tick()
+            {
+                _frames++;
+                _waited++;
+
+                if (_frames > FrameBudget)
+                {
+                    Fail("the run did not finish within " + FrameBudget + " frames");
+                    Finish();
+                }
+
+                try
+                {
+                    switch (_step)
+                    {
+                        case Step.Prepare:
+                            if (!EnsureOpen(CampScenePath, _report))
+                            {
+                                _report.Notes.Add("the camp scene could not be opened, so nothing was shot");
+                                Finish();
+                                return;
+                            }
+
+                            EditorApplication.isPlaying = true;
+                            Advance(Step.StartCamp);
+                            return;
+
+                        case Step.StartCamp:
+                        {
+                            if (!EditorApplication.isPlaying || EditorApplication.isCompiling)
+                            {
+                                return;
+                            }
+
+                            if (SceneManager.GetActiveScene().name != CampSceneName)
+                            {
+                                return;
+                            }
+
+                            _director = Object.FindFirstObjectByType<CampSceneDirector>();
+                            if (_director == null)
+                            {
+                                return;
+                            }
+
+                            if (!_director.TryStart())
+                            {
+                                Fail("the camp did not start: " + _director.StartError);
+                                Finish();
+                                return;
+                            }
+
+                            Advance(Step.OpenPanel);
+                            return;
+                        }
+
+                        case Step.OpenPanel:
+                        {
+                            _bag = Object.FindFirstObjectByType<CampBagScreenView>(FindObjectsInactive.Include);
+                            if (_bag == null)
+                            {
+                                Fail("the Camp scene has no CampBagScreenView");
+                                Finish();
+                                return;
+                            }
+
+                            _bag.ShowPanel(true);
+                            Canvas.ForceUpdateCanvases();
+                            Advance(Step.BuildPair);
+                            return;
+                        }
+
+                        case Step.BuildPair:
+                        {
+                            RunSession run = _director.Run;
+                            if (run == null || run.Backpack.Items.Count == 0)
+                            {
+                                Fail("the camp's run holds no item to merge");
+                                Finish();
+                                return;
+                            }
+
+                            ItemInstance first = run.Backpack.Items[0];
+                            var added = run.Backpack.AddItem(first.ItemId);
+                            if (added.IsFailure)
+                            {
+                                Fail("a second " + first.ItemId + " could not be added: " + added.Error.Code);
+                                Finish();
+                                return;
+                            }
+
+                            _twin = added.Value;
+                            _target = first.Origin;
+
+                            if (!TryPlaceTwin(run, _twin))
+                            {
+                                Fail("no board cell accepted the second " + first.ItemId);
+                                Finish();
+                                return;
+                            }
+
+                            _director.Presenter.Refresh();
+                            Canvas.ForceUpdateCanvases();
+                            Advance(Step.OpenChooser);
+                            return;
+                        }
+
+                        case Step.OpenChooser:
+                        {
+                            CampPresenter presenter = _director.Presenter;
+                            presenter.DragStart(_twin, Rotation.Degrees0);
+
+                            if (!presenter.IsDragging)
+                            {
+                                Fail(
+                                    "the drag never started, so no merge could be asked for (the bag is "
+                                    + (presenter.Run.IsBagLocked ? "locked" : "not locked")
+                                    + ", the flow state is " + presenter.Run.FlowState + ")");
+                                Finish();
+                                return;
+                            }
+
+                            presenter.DragMove(BagDropZone.Board, _target);
+                            presenter.Drop();
+                            Advance(Step.WaitForWindow);
+                            return;
+                        }
+
+                        case Step.WaitForWindow:
+                        {
+                            if (_bag.ChooserVisible && _director.Presenter.IsMergeChooserOpen)
+                            {
+                                Advance(Step.Settle);
+                                return;
+                            }
+
+                            if (_waited <= WindowWaitFrames)
+                            {
+                                return;
+                            }
+
+                            Fail(
+                                "the merge never opened the window: after " + WindowWaitFrames
+                                + " frames the rule " + (_director.Presenter.IsMergeChooserOpen ? "has it open" : "has not opened it")
+                                + " and the screen draws " + _bag.ChooserCardCount + " card(s)");
+                            Finish();
+                            return;
+                        }
+
+                        case Step.Settle:
+                        {
+                            if (_waited < SettleFrames)
+                            {
+                                return;
+                            }
+
+                            if (!Measure())
+                            {
+                                Finish();
+                                return;
+                            }
+
+                            Advance(Step.ShootOpen);
+                            return;
+                        }
+
+                        case Step.ShootOpen:
+                        {
+                            if (!Shoot(withWindow: true))
+                            {
+                                Finish();
+                                return;
+                            }
+
+                            _texts = Texts();
+                            _director.Presenter.CancelMergeChooser();
+                            Canvas.ForceUpdateCanvases();
+                            Advance(Step.ShootClosed);
+                            return;
+                        }
+
+                        case Step.ShootClosed:
+                        {
+                            if (_waited < SettleFrames || _bag.ChooserVisible)
+                            {
+                                return;
+                            }
+
+                            if (!Shoot(withWindow: false))
+                            {
+                                Finish();
+                                return;
+                            }
+
+                            Advance(Step.Judge);
+                            return;
+                        }
+
+                        case Step.Judge:
+                            Judge();
+                            Finish();
+                            return;
+
+                        case Step.Done:
+                            if (EditorApplication.isPlaying || _waited < SettleFrames)
+                            {
+                                return;
+                            }
+
+                            Complete();
+                            return;
+
+                        default:
+                            return;
+                    }
+                }
+                catch (Exception error)
+                {
+                    Fail(error.GetType().Name + ": " + error.Message);
+                    Finish();
+                }
+            }
+
+            private void Advance(Step next)
+            {
+                _step = next;
+                _waited = 0;
+            }
+
+            /// <summary>Leaves play mode and moves to the reporting step.</summary>
+            private void Finish()
+            {
+                EditorApplication.isPlaying = false;
+                _step = Step.Done;
+                _waited = 0;
+            }
+
+            private void Fail(string reason) => _report.Failures.Add("merge chooser: " + reason);
+
+            /// <summary>
+            /// Stands the twin on the first board cell the run accepts, scanning from the far corner. The
+            /// placement rule is the run's — this asks it and never re-implements it.
+            /// </summary>
+            private static bool TryPlaceTwin(RunSession run, PieceRef twin)
+            {
+                for (int y = run.Backpack.Board.Height - 1; y >= 0; y--)
+                {
+                    for (int x = run.Backpack.Board.Width - 1; x >= 0; x--)
+                    {
+                        if (run.MovePiece(twin, new CellOffset(x, y), Rotation.Degrees0).IsSuccess)
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            /// <summary>Reads the window's own rectangles. False, with a failure, when one is missing.</summary>
+            private bool Measure()
+            {
+                if (!_bag.TryGetChooserDimRect(out _dim))
+                {
+                    Fail("the window is up but the view did not report its dim layer");
+                    return false;
+                }
+
+                if (!_bag.TryGetChooserPanelRect(out _panel))
+                {
+                    Fail("the window is up but the view did not report its own frame");
+                    return false;
+                }
+
+                int cards = _bag.ChooserCardCount;
+                if (cards < 2)
+                {
+                    Fail("the window is offering " + cards + " card(s): there is nothing to choose between");
+                    return false;
+                }
+
+                _cards = new Rect[cards];
+                for (int i = 0; i < cards; i++)
+                {
+                    if (!_bag.TryGetChoiceRect(i, out _cards[i]))
+                    {
+                        Fail("card " + i + " has no rectangle on screen");
+                        return false;
+                    }
+                }
+
+                if (!_bag.TryGetChooserBackScreenPoint(out _back))
+                {
+                    Fail("the window's back button is not on screen");
+                    return false;
+                }
+
+                _size = new Vector2Int(Screen.width, Screen.height);
+                _file = "camp-merge-chooser-" + _size.x + "x" + _size.y + ".png";
+                return true;
+            }
+
+            /// <summary>One shot of the Game View as it stands, with the window up or taken away.</summary>
+            private bool Shoot(bool withWindow)
+            {
+                Canvas.ForceUpdateCanvases();
+
+                Texture2D shot = ScreenCapture.CaptureScreenshotAsTexture();
+                if (shot == null)
+                {
+                    Fail("the Game View could not be captured");
+                    return false;
+                }
+
+                if (shot.width != _size.x || shot.height != _size.y)
+                {
+                    // Fatal on purpose: the whole reason this run does not re-render the screen through a
+                    // RenderTexture is that the picture and the rectangles have to be of one size.
+                    Fail(
+                        "the shot came back " + shot.width + "x" + shot.height + " while the screen reports "
+                        + _size.x + "x" + _size.y + ": the picture and the rectangles are not of one size");
+                    Object.DestroyImmediate(shot);
+                    return false;
+                }
+
+                if (withWindow)
+                {
+                    _withWindow = shot;
+                }
+                else
+                {
+                    _withoutWindow = shot;
+                }
+
+                return true;
+            }
+
+            /// <summary>The strings the window is drawing, so the picture and the report can be read together.</summary>
+            private string[] Texts()
+            {
+                CampMergeChooserModel chooser = _director.Presenter.MergeChooser;
+                var texts = new List<string>(chooser.ChoiceCount + 3)
+                {
+                    "title=\"" + chooser.Title + "\"",
+                    "hint=\"" + chooser.Hint + "\"",
+                    "back=\"" + chooser.BackLabel + "\"",
+                };
+
+                for (int i = 0; i < chooser.ChoiceCount; i++)
+                {
+                    CampMergeChoiceModel card = chooser.Choices[i];
+                    texts.Add(
+                        "card " + (i + 1) + "=\"" + card.Title + "\" " + card.LevelLine + " ["
+                        + string.Join(" · ", card.Changes) + "]");
+                }
+
+                return texts.ToArray();
+            }
+
+            /// <summary>
+            /// The layout verdict for the window: the same rules the other states are judged by, plus the
+            /// two a modal adds — its controls stay inside its frame, and its cards are laid out in the
+            /// left-to-right order the number keys promise.
+            /// </summary>
+            private void Judge()
+            {
+                var regions = new List<UiRegion>
+                {
+                    new UiRegion(UiLayoutCheck.MergeChooserDim, _dim, UiRegionKind.Overlay),
+                    new UiRegion(UiLayoutCheck.MergeChooser, _panel, UiRegionKind.Overlay),
+                };
+
+                for (int i = 0; i < _cards.Length; i++)
+                {
+                    regions.Add(new UiRegion(
+                        UiLayoutCheck.MergeChooserCard(i), _cards[i], UiRegionKind.ModalControl));
+                }
+
+                CheckInside(regions, _size, "merge chooser", _report);
+
+                var violations = UiLayoutCheck.FindViolations(regions);
+                violations.AddRange(UiLayoutCheck.FindModalEscapees(regions, UiLayoutCheck.MergeChooser));
+
+                for (int i = 1; i < _cards.Length; i++)
+                {
+                    if (_cards[i].center.x <= _cards[i - 1].center.x)
+                    {
+                        violations.Add(
+                            UiLayoutCheck.MergeChooserCard(i) + " is not to the right of "
+                            + UiLayoutCheck.MergeChooserCard(i - 1)
+                            + ": the 1/2/3 keys and the cards would disagree");
+                    }
+                }
+
+                if (!UiLayoutCheck.Contains(_panel, _dim) && !UiLayoutCheck.Contains(_dim, _panel))
+                {
+                    violations.Add("the window " + _panel + " and its dim layer " + _dim + " are not nested");
+                }
+
+                if (!UiLayoutCheck.Contains(new Rect(0f, 0f, _size.x, _size.y), _dim))
+                {
+                    violations.Add("the dim layer " + _dim + " does not cover the screen");
+                }
+
+                if (!_panel.Contains(_back))
+                {
+                    violations.Add("the back button " + _back + " is not inside the window " + _panel);
+                }
+
+                for (int i = 0; i < violations.Count; i++)
+                {
+                    _report.Failures.Add("merge chooser " + _size.x + "x" + _size.y + ": " + violations[i]);
+                }
+
+                _report.Notes.Add("the window is drawing: " + string.Join(" | ", _texts));
+
+                // The pixel half is wrapped on its own: a shot whose pixels cannot be read is worth a
+                // note, and it must not cost the run the images and the rectangles it already has.
+                try
+                {
+                    _report.Notes.Add("dimming: " + Dimming());
+                    _report.Notes.Add("painted: " + PaintedProof());
+                }
+                catch (Exception error)
+                {
+                    _report.Notes.Add(
+                        "the shots' pixels could not be read (" + error.GetType().Name + ": "
+                        + error.Message + "), so the pixel proof and the dimming number are missing");
+                }
+
+                _report.Notes.Add(
+                    "two numbers this command reads for the other panels are not read here, because the "
+                    + "view hands back rectangles rather than labels and images: the window's label sizes "
+                    + "(the 22 px floor is therefore not a number in this report) and the dim layer's own "
+                    + "opacity (what is measured instead is the luminance change over its rectangle, above)");
+
+                byte[] png = Save(_withWindow, _file);
+                if (png == null)
+                {
+                    return;
+                }
+
+                Save(_withoutWindow, "camp-merge-chooser-closed-" + _size.x + "x" + _size.y + ".png");
+
+                _report.Shots.Add(new Shot(
+                    SceneKind.Camp, "merge-chooser", _file, _size.x, _size.y, png.Length,
+                    _clock.ElapsedMilliseconds, regions, violations));
+            }
+
+            /// <summary>
+            /// The pixel half of the judgement: five points inside the window's own rectangle have to have
+            /// changed when the window was taken away, which is what separates "drawn there" from
+            /// "measured there".
+            /// </summary>
+            private string PaintedProof()
+            {
+                if (_withWindow == null || _withoutWindow == null)
+                {
+                    return "not measured (a shot is missing)";
+                }
+
+                var points = new Vector2[5];
+                points[0] = _panel.center;
+                points[1] = new Vector2(Mathf.Lerp(_panel.xMin, _panel.xMax, 0.25f), Mathf.Lerp(_panel.yMin, _panel.yMax, 0.25f));
+                points[2] = new Vector2(Mathf.Lerp(_panel.xMin, _panel.xMax, 0.75f), Mathf.Lerp(_panel.yMin, _panel.yMax, 0.25f));
+                points[3] = new Vector2(Mathf.Lerp(_panel.xMin, _panel.xMax, 0.25f), Mathf.Lerp(_panel.yMin, _panel.yMax, 0.75f));
+                points[4] = new Vector2(Mathf.Lerp(_panel.xMin, _panel.xMax, 0.75f), Mathf.Lerp(_panel.yMin, _panel.yMax, 0.75f));
+
+                int moved = 0;
+                float best = 0f;
+                for (int i = 0; i < points.Length; i++)
+                {
+                    Color shown = _withWindow.GetPixel(
+                        Mathf.Clamp(Mathf.RoundToInt(points[i].x), 0, _withWindow.width - 1),
+                        Mathf.Clamp(Mathf.RoundToInt(points[i].y), 0, _withWindow.height - 1));
+                    Color behind = _withoutWindow.GetPixel(
+                        Mathf.Clamp(Mathf.RoundToInt(points[i].x), 0, _withoutWindow.width - 1),
+                        Mathf.Clamp(Mathf.RoundToInt(points[i].y), 0, _withoutWindow.height - 1));
+
+                    float difference = Distance(shown, behind);
+                    if (difference > OverlayPixelProofFloor)
+                    {
+                        moved++;
+                    }
+
+                    if (difference > best)
+                    {
+                        best = difference;
+                    }
+                }
+
+                if (moved == 0)
+                {
+                    _report.Failures.Add(
+                        "merge chooser " + _size.x + "x" + _size.y
+                        + ": none of the " + points.Length + " sample points inside the window's own rectangle "
+                        + "changed when it was closed, so the window is not drawn where it says (best "
+                        + best.ToString("0.###") + ", floor " + OverlayPixelProofFloor.ToString("0.###") + ")");
+                }
+
+                return moved + " of " + points.Length + " sample points inside the window changed when it was "
+                    + "closed (best " + best.ToString("0.###") + ", floor "
+                    + OverlayPixelProofFloor.ToString("0.###") + ")";
+            }
+
+            /// <summary>How dark the dim layer makes the screen, as a mean over its own rectangle.</summary>
+            private string Dimming()
+            {
+                if (_withWindow == null || _withoutWindow == null)
+                {
+                    return "not measured (a shot is missing)";
+                }
+
+                return "mean luminance over the dim layer "
+                    + MeanLuminance(_withWindow, _dim).ToString("0.###") + " with the window up, "
+                    + MeanLuminance(_withoutWindow, _dim).ToString("0.###") + " with it closed";
+            }
+
+            /// <summary>The mean 0..1 luminance of a rectangle of a shot, over a 16×9 grid of samples.</summary>
+            private static float MeanLuminance(Texture2D image, Rect rect)
+            {
+                const int Columns = 16;
+                const int Rows = 9;
+
+                float total = 0f;
+                int samples = 0;
+
+                for (int row = 0; row < Rows; row++)
+                {
+                    for (int column = 0; column < Columns; column++)
+                    {
+                        float x = Mathf.Lerp(rect.xMin, rect.xMax, (column + 0.5f) / Columns);
+                        float y = Mathf.Lerp(rect.yMin, rect.yMax, (row + 0.5f) / Rows);
+
+                        if (x < 0f || y < 0f || x >= image.width || y >= image.height)
+                        {
+                            continue;
+                        }
+
+                        Color color = image.GetPixel(Mathf.RoundToInt(x), Mathf.RoundToInt(y));
+                        total += (color.r + color.g + color.b) / 3f;
+                        samples++;
+                    }
+                }
+
+                return samples == 0 ? 0f : total / samples;
+            }
+
+            private byte[] Save(Texture2D texture, string fileName)
+            {
+                if (texture == null)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    byte[] png = texture.EncodeToPNG();
+                    File.WriteAllBytes(Path.Combine(OutputDirectory, fileName), png);
+                    return png;
+                }
+                catch (Exception error)
+                {
+                    Fail("could not write " + fileName + ": " + error.Message);
+                    return null;
+                }
+            }
+
+            private void Complete()
+            {
+                EditorApplication.update -= Tick;
+                sRunning = null;
+
+                if (_withWindow != null)
+                {
+                    Object.DestroyImmediate(_withWindow);
+                }
+
+                if (_withoutWindow != null)
+                {
+                    Object.DestroyImmediate(_withoutWindow);
+                }
+
+                RestoreScene(_startedIn, _report);
+
+                string title = _size.x > 0 && _size.y > 0
+                    ? "the merge chooser, in Play Mode (" + _size.x + "x" + _size.y + ")"
+                    : "the merge chooser, in Play Mode (no shot was taken)";
+
+                WriteReports(
+                    _report, _clock.ElapsedMilliseconds, "-playmode",
+                    "`ProjectSurvive/Tools/3. Capture the merge chooser in Play Mode (Camp)`",
+                    title);
+            }
         }
 
         private enum SceneKind

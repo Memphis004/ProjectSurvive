@@ -1,0 +1,8 @@
+{
+  "name": "upgrade-stat-unknown",
+  "stage": "semantic",
+  "why": "an upgrade modifier adjusts a stat name the battle loadout does not carry, so the choice could never be applied",
+  "expectedCodes": [
+    "upgrade_variant.unknown_stat"
+  ]
+}

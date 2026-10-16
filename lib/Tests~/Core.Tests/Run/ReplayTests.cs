@@ -6,6 +6,7 @@ using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Infrastructure.Save;
 using ProjectSurvive.Core.Shared;
+using ProjectSurvive.Core.Tests.Inventory;
 using Xunit;
 
 namespace ProjectSurvive.Core.Tests.Run
@@ -192,6 +193,125 @@ namespace ProjectSurvive.Core.Tests.Run
             Assert.Equal(2, run.Log.CommandCount);
             Assert.Equal(RunCommandKind.Sell, run.Log.Commands[1].Kind);
             Assert.Equal(weapon, run.Log.Commands[1].Piece);
+        }
+
+        /// <summary>
+        /// Stage 09f: a merge that picked an upgrade variant is recorded WITH its choice, so a
+        /// replay reaches the same state hash - and the choice it re-draws has to be the one the
+        /// log confirms, which is what makes the offer a function of the run's own state rather
+        /// than of how many times a screen asked.
+        /// </summary>
+        [Fact]
+        public void A_run_that_chose_an_upgrade_variant_replays_to_the_same_state_hash()
+        {
+            IGameConfig config = RunFixture.Config();
+            var codec = new MessagePackBackpackSnapshotCodec();
+            var factory = new ScriptedBattleSessionFactory(config);
+            RunSession run = CampWithASecondStartingWeapon(config, out int slot);
+
+            // Buy the twin, then choose a variant for the fold, then undo it and fold again
+            // choosing the SAME id: a second draw that had been re-rolled would refuse this
+            // command on replay and the log would diverge.
+            Assert.True(run.Purchase(slot).IsSuccess);
+            PieceRef twin = LastChestItem(run).Value;
+            PieceRef survivor = RunFixture.StartingWeapon(run);
+
+            Result<MergeOffer> offered = run.OfferMerge(twin, survivor);
+            Assert.True(offered.IsSuccess, offered.Error.ToString());
+            Assert.True(offered.Value.HasChoices, "the starting weapon is an arcane weapon");
+            string chosen = offered.Value.Options[1].Id;
+
+            Result<MergeOutcome> merged = run.ConfirmMerge(twin, survivor, chosen);
+            Assert.True(merged.IsSuccess, merged.Error.ToString());
+            Assert.Equal(2, merged.Value.NewTier);
+            Assert.Equal(1, run.Backpack.MergeCount);
+
+            Assert.True(run.Undo().IsSuccess);
+            Assert.Equal(0, run.Backpack.MergeCount);
+
+            // Undo brings the same offer back, so the log can confirm the same id again.
+            string[] beforeUndo = Ids(offered);
+            string[] afterUndo = Ids(run.OfferMerge(twin, survivor));
+            Assert.Equal(beforeUndo, afterUndo);
+
+            Result<MergeOutcome> again = run.ConfirmMerge(twin, survivor, chosen);
+            Assert.True(again.IsSuccess, again.Error.ToString());
+
+            Assert.Equal(RunCommandKind.ConfirmMerge, run.Log.Commands[run.Log.CommandCount - 1].Kind);
+            Assert.Equal(chosen, run.Log.Commands[run.Log.CommandCount - 1].VariantId);
+
+            RunSession replayed = run.Log.Replay(config, codec, factory);
+
+            Assert.Equal(run.ComputeStateHash(), replayed.ComputeStateHash());
+            Assert.Equal(run.Backpack.MergeCount, replayed.Backpack.MergeCount);
+            Assert.Equal(
+                InventoryFixture.ItemOf(run.Backpack, survivor).VariantIds,
+                InventoryFixture.ItemOf(replayed.Backpack, survivor).VariantIds);
+            Assert.Equal(new[] { chosen }, InventoryFixture.ItemOf(replayed.Backpack, survivor).VariantIds);
+        }
+
+        /// <summary>
+        /// A started run whose shop offers a second copy of the starting weapon, with the slot
+        /// that offers it. The seed is searched rather than hard-coded so re-tuning the shop pool
+        /// cannot turn this into a mystery failure; the search is deterministic for a given data
+        /// set, and the recorded commands (rent, choose, undo, choose) are what the replay uses.
+        /// </summary>
+        private static RunSession CampWithASecondStartingWeapon(IGameConfig config, out int slot)
+        {
+            for (uint seed = 90_000u; seed < 90_400u; seed++)
+            {
+                RunSession candidate = RunFixture.StartedRun(config, seed);
+                int offered = SlotOffering(candidate, RunDefaults.InitialWeaponId);
+                if (offered >= 0 && candidate.Stock[offered].Price <= candidate.Wallet.Bia)
+                {
+                    slot = offered;
+                    return candidate;
+                }
+            }
+
+            throw new System.InvalidOperationException(
+                "no seed in 90000..90400 offers a second copy of " + RunDefaults.InitialWeaponId);
+        }
+
+        private static int SlotOffering(RunSession run, string pieceId)
+        {
+            for (int i = 0; i < run.Stock.SlotCount; i++)
+            {
+                if (run.Stock[i].OfferedId == pieceId)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static string[] Ids(Result<MergeOffer> offer)
+        {
+            Assert.True(offer.IsSuccess, offer.Error.ToString());
+            var ids = new string[offer.Value.Options.Count];
+            for (int i = 0; i < ids.Length; i++)
+            {
+                ids[i] = offer.Value.Options[i].Id;
+            }
+
+            return ids;
+        }
+
+        private static Result<PieceRef> LastChestItem(RunSession run)
+        {
+            PieceRef found = PieceRef.None;
+            for (int slot = 0; slot < run.Backpack.Chest.SlotCount; slot++)
+            {
+                if (run.Backpack.Chest[slot].IsItem)
+                {
+                    found = run.Backpack.Chest[slot];
+                }
+            }
+
+            return found.IsValid
+                ? Result.Ok(found)
+                : Result.Fail<PieceRef>(InventoryError.UnknownPiece, ErrorKind.NotFound);
         }
 
         [Fact]

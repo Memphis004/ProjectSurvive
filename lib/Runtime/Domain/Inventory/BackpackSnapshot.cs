@@ -40,6 +40,14 @@ namespace ProjectSurvive.Core.Domain.Inventory
 
         /// <summary>Chest slot; -1 for a board piece.</summary>
         public int ChestSlot { get; set; } = PieceInstance.NoChestSlot;
+
+        /// <summary>
+        /// The upgrade variants this piece chose, one entry per completed merge step, empty
+        /// for a bag (Stage 09f). Part of the snapshot because undo, reset and the run-state
+        /// hash all have to see them: a restored tier-3 item must keep the two choices that
+        /// made it, or a replay would rebuild a different loadout from the same commands.
+        /// </summary>
+        public IReadOnlyList<string> VariantIds { get; set; } = new List<string>();
     }
 
     /// <summary>
@@ -62,11 +70,22 @@ namespace ProjectSurvive.Core.Domain.Inventory
     /// </remarks>
     public sealed class BackpackSnapshot
     {
-        /// <summary>Shape version of this snapshot, so a future format can migrate.</summary>
-        public int SchemaVersion { get; set; } = 1;
+        /// <summary>
+        /// Shape version of this snapshot, so a future format can migrate. <c>2</c> added
+        /// <see cref="MergeCount"/> and <see cref="PieceSnapshot.VariantIds"/> (Stage 09f).
+        /// </summary>
+        public int SchemaVersion { get; set; } = 2;
 
         /// <summary>The id counter, so a restored backpack does not reuse ids.</summary>
         public int NextInstanceId { get; set; } = 1;
+
+        /// <summary>
+        /// How many merges the run has confirmed so far. Undoable state, not a statistic:
+        /// the upgrade offer is drawn from <c>(run seed, this count, item id, tier step)</c>,
+        /// so restoring it is what makes repeating an undone merge offer the same choices
+        /// again instead of re-rolling them (ADR 0021).
+        /// </summary>
+        public int MergeCount { get; set; }
 
         /// <summary>Every owned piece, board and chest.</summary>
         public IReadOnlyList<PieceSnapshot> Pieces { get; set; } = new List<PieceSnapshot>();

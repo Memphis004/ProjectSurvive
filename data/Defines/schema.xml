@@ -164,6 +164,40 @@
     <var name="to_tier" type="int#(range=[1,3])"/>
   </bean>
 
+  <!-- One upgrade choice offered when two equal pieces fold (Stage 09f).
+
+       The condition is a category OR a tag, and exactly one of the two is set -
+       the same "one of two, the other empty" shape `merge_recipe` uses, because a
+       `#ref` cannot express an optional reference. `category` holds an
+       ItemCategory NAME ("ArcaneWeapon"); `tag` holds an item tag. The whole
+       selection rule lives in Domain (UpgradePool): every variant whose
+       (category, from_tier) or (tag, from_tier) matches the piece is a candidate,
+       and the pool is either empty - the pair folds immediately, as before - or
+       big enough for `constant.upgrade_choice_count` choices. -->
+  <bean name="UpgradeVariant">
+    <var name="id" type="string"/>
+    <var name="category" type="string"/>
+    <var name="tag" type="string"/>
+    <var name="from_tier" type="int#(range=[1,3])"/>
+    <var name="to_tier" type="int#(range=[1,3])"/>
+    <var name="name_key" type="string#ref=TbLocalization"/>
+    <var name="weight" type="int"/>
+  </bean>
+
+  <!-- One stat change of a variant. `stat` and `method` are NAMES, not enums, so
+       that a typo is a validator finding with a row to point at instead of a Luban
+       parse error: the vocabulary is the one the battle loadout actually carries
+       (UpgradeStat / UpgradeMethod in Domain/Config/UpgradeStats.cs) and
+       tools/validate-data.ps1 rejects a name outside it. A variant with no
+       modifier row changes nothing, which is also a finding. -->
+  <bean name="UpgradeVariantModifier">
+    <var name="id" type="string"/>
+    <var name="variant_id" type="string#ref=TbUpgradeVariant"/>
+    <var name="stat" type="string"/>
+    <var name="method" type="string"/>
+    <var name="magnitude" type="float"/>
+  </bean>
+
   <bean name="Enemy">
     <var name="id" type="string"/>
     <var name="name_key" type="string#ref=TbLocalization"/>
@@ -239,6 +273,10 @@
     <var name="focus_per_second" type="float"/>
     <var name="move_speed" type="float"/>
     <var name="max_tier" type="int#(range=[1,3])"/>
+    <!-- How many upgrade choices a merge offers (Stage 09f). A pool that exists
+         but is smaller than this cannot fill the chooser, so the data validator
+         requires every (piece, tier step) pool to be empty or at least this big. -->
+    <var name="upgrade_choice_count" type="int"/>
   </bean>
 
 </module>

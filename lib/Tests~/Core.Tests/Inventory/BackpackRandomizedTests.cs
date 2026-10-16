@@ -105,7 +105,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
                         // reaches tier changes instead of only mismatches.
                         PieceRef mergeSource = Choice(rng, pieces);
                         PieceRef mergeTarget = MatchingTarget(rng, pieces, mergeSource);
-                        Result<MergeOutcome> merge = editor.Merge(mergeSource, mergeTarget);
+                        Result<MergeOutcome> merge = InventoryFixture.Merge(editor, mergeSource, mergeTarget);
                         acceptedStep = RecordValue(merge);
                         mergeStep = merge.IsSuccess;
                         break;

@@ -26,6 +26,12 @@ namespace ProjectSurvive.Core.Application.Run
     /// recorded run commands applied in order, and each floor settled from its
     /// replayed battle. Anything that diverges throws — a log that no longer
     /// reproduces its own run is a bug in the recorder, not a player-facing failure.
+    /// <para>
+    /// A <c>ConfirmMerge</c> replays through <c>RunSession.ConfirmMerge</c>, which re-draws
+    /// the offer from the state it is in. That is why the id is checked rather than trusted
+    /// and why the merge counter is part of <c>RunState</c>: a changed draw shows up as a
+    /// divergence at the command, not as a silently different loadout (Stage 09f).
+    /// </para>
     /// </para>
     /// <para>
     /// This is a development and verification path, so it may allocate (unlike
@@ -136,6 +142,10 @@ namespace ProjectSurvive.Core.Application.Run
 
                     case RunCommandKind.MergeItems:
                         Require(run.MergeItems(command.Piece, command.Second), command, i);
+                        break;
+
+                    case RunCommandKind.ConfirmMerge:
+                        Require(run.ConfirmMerge(command.Piece, command.Second, command.VariantId), command, i);
                         break;
 
                     case RunCommandKind.Undo:

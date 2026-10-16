@@ -68,6 +68,20 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>The mark set of a layout with no working combo: shared, because it is constant.</summary>
         private static readonly CampLink[] NoLinks = new CampLink[0];
 
+        /// <summary>
+        /// The merge chooser's scratch: the five source lines of the piece being upgraded, the cards
+        /// built for the offer, and each card's stat lines. Reused, because opening the chooser must
+        /// not allocate a fresh list per open (Stage 09g).
+        /// </summary>
+        private readonly List<string> _sourceScratch = new List<string>(5);
+        private readonly List<CampMergeChoiceModel> _choiceScratch = new List<CampMergeChoiceModel>(4);
+        private readonly List<string> _changeScratch = new List<string>(4);
+        private readonly List<bool> _improveScratch = new List<bool>(4);
+
+        private CampMergeChooserModel _chooser = CampMergeChooserModel.Closed;
+        private PieceRef _mergeSource = PieceRef.None;
+        private PieceRef _mergeTarget = PieceRef.None;
+
         private CampDragState _drag = CampDragState.None;
         private Rotation _dragRotation = Rotation.Degrees0;
         private CellOffset _dragAnchor;
@@ -386,6 +400,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
+            if (_chooser.IsOpen)
+            {
+                // The modal is the screen's decision right now: nothing on the board behind the dim
+                // layer may be picked up until it closes (Stage 09g, "ล็อกการลากในหน้าจัดย่าม").
+                return;
+            }
+
             _selected = piece;
 
             if (_run.FlowState != RunFlowState.Camp)
@@ -527,6 +548,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
+            if (_chooser.IsOpen)
+            {
+                // The chooser's left panel is already showing the piece this merge is about; a hover
+                // behind the modal must not rewrite it.
+                return;
+            }
+
             _hovered = piece;
             PublishTooltip();
             PublishBag();
@@ -534,6 +562,228 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         /// <summary>Drops the tooltip.</summary>
         public void ClearHover() => Hover(PieceRef.None);
+
+        // ------------------------------------------------------------------
+        // the merge chooser (Stage 09g)
+        // ------------------------------------------------------------------
+
+        /// <summary>The upgrade decision on screen, or <see cref="CampMergeChooserModel.Closed"/>.</summary>
+        public CampMergeChooserModel MergeChooser => _chooser;
+
+        /// <summary>True while the chooser is open ("ระหว่างเปิด" — the board is locked).</summary>
+        public bool IsMergeChooserOpen => _chooser.IsOpen;
+
+        /// <summary>
+        /// Closes the chooser without changing anything — the back button and Escape both land here
+        /// ("ปิดโดยไม่เปลี่ยนอะไร").
+        /// </summary>
+        /// <remarks>
+        /// Nothing is undone because nothing was done: the merge command only ran if a card was
+        /// confirmed. Reopening the same gesture offers the same choices, because the offer is a pure
+        /// function of the run's state (ADR 0021), which is what makes closing a chooser free.
+        /// </remarks>
+        public void CancelMergeChooser()
+        {
+            if (!_chooser.IsOpen)
+            {
+                return;
+            }
+
+            Counters.MergeChoicesCancelled++;
+            CloseMergeChooser();
+            ClearStatus();
+        }
+
+        /// <summary>
+        /// Confirms the card at <paramref name="index"/>: the click on a card and the 1/2/3 keys both
+        /// call this. False when there was nothing to confirm.
+        /// </summary>
+        /// <remarks>
+        /// The chooser is closed <i>before</i> the command runs, so a second click has nothing left to
+        /// confirm and cannot fold the pair twice ("กันคลิกซ้ำ"). The command itself is atomic
+        /// (<c>RunSession.ConfirmMerge</c> recomputes the offer and checks the id against it), so even a
+        /// racing caller cannot apply a choice the current state does not offer.
+        /// </remarks>
+        public bool ConfirmMergeChoice(int index)
+        {
+            if (!_chooser.IsOpen || index < 0 || index >= _chooser.ChoiceCount)
+            {
+                return false;
+            }
+
+            string variantId = _chooser.Choices[index].VariantId;
+            PieceRef source = _mergeSource;
+            PieceRef target = _mergeTarget;
+
+            CloseMergeChooser();
+
+            Result<MergeOutcome> merged = _run.ConfirmMerge(source, target, variantId);
+
+            if (merged.IsFailure)
+            {
+                SetStatus(merged.Error.Code);
+                Refresh();
+                return false;
+            }
+
+            Counters.Merged++;
+            Counters.MergeChoicesConfirmed++;
+            ClearStatus();
+            Refresh();
+            return true;
+        }
+
+        /// <summary>Builds the chooser for an offer and puts it on screen.</summary>
+        private void OpenMergeChooser(MergeOffer offer, PieceRef source, PieceRef target)
+        {
+            _mergeSource = source;
+            _mergeTarget = target;
+
+            _sourceScratch.Clear();
+            CollectSourceLines(ModelOf(target), _sourceScratch);
+
+            _choiceScratch.Clear();
+            for (int i = 0; i < offer.Options.Count; i++)
+            {
+                _choiceScratch.Add(Choice(offer, offer.Options[i]));
+            }
+
+            Counters.MergeChoicesOpened++;
+
+            _chooser = new CampMergeChooserModel(
+                true,
+                Lookup("camp.merge.title"),
+                Lookup("camp.merge.hint"),
+                Lookup("camp.merge.back"),
+                _sourceScratch.ToArray(),
+                _choiceScratch.ToArray());
+
+            // Order matters: the chooser is published first so the tooltip publisher's guard sees it,
+            // then the floating tooltip is taken off screen (item 4: it must not draw over the modal).
+            PublishMergeChooser();
+            PublishTooltip();
+        }
+
+        private void CloseMergeChooser()
+        {
+            _mergeSource = PieceRef.None;
+            _mergeTarget = PieceRef.None;
+            _chooser = CampMergeChooserModel.Closed;
+            _sourceScratch.Clear();
+            _choiceScratch.Clear();
+            _changeScratch.Clear();
+            _improveScratch.Clear();
+            PublishMergeChooser();
+        }
+
+        private void PublishMergeChooser()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _state.MergeChooser.Value = _chooser;
+        }
+
+        /// <summary>One card: the variant's name over the item's, the step, and one line per stat.</summary>
+        private CampMergeChoiceModel Choice(MergeOffer offer, UpgradeVariantConfig variant)
+        {
+            string title = Format(
+                "camp.merge.card.title.format",
+                Lookup(variant.NameKey),
+                PieceName(PieceKind.Item, offer.ItemId));
+            string level = Format("camp.merge.level.format", offer.FromTier, offer.ToTier);
+
+            _changeScratch.Clear();
+            _improveScratch.Clear();
+
+            IReadOnlyList<UpgradeModifierConfig> modifiers = variant.Modifiers;
+            for (int i = 0; i < modifiers.Count; i++)
+            {
+                UpgradeModifierConfig modifier = modifiers[i];
+
+                _changeScratch.Add(Format(
+                    "camp.merge.change.format",
+                    Lookup(StatKey(modifier.Stat)),
+                    ModifierValue(modifier)));
+                _improveScratch.Add(UpgradeVocabulary.IsImprovement(modifier.Stat, Signed(modifier)));
+            }
+
+            return new CampMergeChoiceModel(
+                variant.Id, title, level, _changeScratch.ToArray(), _improveScratch.ToArray());
+        }
+
+        /// <summary>
+        /// The signed change a modifier makes, in the units the direction rule reads: <c>Multiply</c>
+        /// is stated as a factor (<c>0.8</c> is a reduction), so it is turned into the difference from
+        /// one before anyone asks whether it helps.
+        /// </summary>
+        private static float Signed(UpgradeModifierConfig modifier) =>
+            modifier.Method == UpgradeMethod.Multiply ? modifier.Magnitude - 1f : modifier.Magnitude;
+
+        /// <summary>How a modifier's amount is written on a card, sign included.</summary>
+        private static string ModifierValue(UpgradeModifierConfig modifier)
+        {
+            switch (modifier.Method)
+            {
+                case UpgradeMethod.Percent:
+                    return modifier.Magnitude.ToString("+0.##;-0.##", CultureInfo.InvariantCulture) + "%";
+                case UpgradeMethod.Multiply:
+                    return "×" + modifier.Magnitude.ToString("0.##", CultureInfo.InvariantCulture);
+                default:
+                    return modifier.Magnitude.ToString("+0.##;-0.##", CultureInfo.InvariantCulture);
+            }
+        }
+
+        /// <summary>The localization key of a stat's name, or the key of the unknown fallback.</summary>
+        private static string StatKey(UpgradeStat stat)
+        {
+            switch (stat)
+            {
+                case UpgradeStat.Damage: return "upgrade.stat.damage";
+                case UpgradeStat.Cooldown: return "upgrade.stat.cooldown";
+                case UpgradeStat.MpCost: return "upgrade.stat.mp_cost";
+                case UpgradeStat.ProjectileSpeed: return "upgrade.stat.projectile_speed";
+                case UpgradeStat.Range: return "upgrade.stat.range";
+                case UpgradeStat.PierceCount: return "upgrade.stat.pierce_count";
+                case UpgradeStat.ProjectileCount: return "upgrade.stat.projectile_count";
+                case UpgradeStat.MaxHp: return "upgrade.stat.max_hp";
+                case UpgradeStat.MaxMp: return "upgrade.stat.max_mp";
+                case UpgradeStat.MoveSpeed: return "upgrade.stat.move_speed";
+                case UpgradeStat.PickupRadius: return "upgrade.stat.pickup_radius";
+                case UpgradeStat.FocusPerSecond: return "upgrade.stat.focus_per_second";
+                default: return "upgrade.stat.unknown";
+            }
+        }
+
+        /// <summary>
+        /// The five lines the tooltip shows for a piece, in order: ชื่อ, ระดับ, สถานะ, คำอธิบาย,
+        /// คอมโบที่ทำงานอยู่. One producer for both the tooltip and the chooser's left panel, which is
+        /// what "เนื้อหาเดียวกับ tooltip" means in practice.
+        /// </summary>
+        private void CollectSourceLines(CampPieceModel model, List<string> lines)
+        {
+            lines.Add(model.Name);
+            lines.Add(TierLine(model));
+            lines.Add(StatusLine(model));
+            lines.Add(DescriptionLine(model));
+            lines.Add(ComboLine(model));
+        }
+
+        /// <summary>The model of a piece the screen already built, or a default when it is unknown.</summary>
+        private CampPieceModel ModelOf(PieceRef piece)
+        {
+            for (int i = 0; i < _pieces.Count; i++)
+            {
+                if (_pieces[i].Piece == piece)
+                {
+                    return _pieces[i];
+                }
+            }
+
+            return default;
+        }
 
         // ------------------------------------------------------------------
         // departure
@@ -758,6 +1008,22 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
                 case BagDropAction.Merge:
                 {
+                    // Stage 09g: the drop asks the run what the merge would offer. A pair with
+                    // choices opens the chooser and changes nothing yet; a pair with no choices
+                    // folds immediately, exactly as it did before. Neither the gesture nor the
+                    // screen decides which of the two commands runs — the offer does.
+                    Result<MergeOffer> offered = _run.OfferMerge(piece, preview.Target);
+                    if (offered.IsFailure)
+                    {
+                        return Result.Fail(offered.Error);
+                    }
+
+                    if (offered.Value.HasChoices)
+                    {
+                        OpenMergeChooser(offered.Value, piece, preview.Target);
+                        return Result.Ok();
+                    }
+
                     Result<MergeOutcome> merged = _run.MergeItems(piece, preview.Target);
                     if (merged.IsSuccess)
                     {
@@ -1073,26 +1339,23 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
+            if (_chooser.IsOpen)
+            {
+                // The chooser's left panel shows the piece the merge is about, so the floating
+                // tooltip stays off screen for as long as the modal is up (Stage 09g, item 4).
+                CampUiState.Set(_state.TooltipVisible, false);
+                return;
+            }
+
             if (!_hovered.IsValid)
             {
                 CampUiState.Set(_state.TooltipVisible, false);
                 return;
             }
 
-            CampPieceModel model = default;
-            bool found = false;
+            CampPieceModel model = ModelOf(_hovered);
 
-            for (int i = 0; i < _pieces.Count; i++)
-            {
-                if (_pieces[i].Piece == _hovered)
-                {
-                    model = _pieces[i];
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
+            if (!model.Piece.IsValid)
             {
                 CampUiState.Set(_state.TooltipVisible, false);
                 return;
@@ -1331,5 +1594,14 @@ namespace ProjectSurvive.Game.Presentation.Camp
         public int DragRotations;
         public int DragCancels;
         public int Departures;
+
+        /// <summary>How many times a merge opened the upgrade chooser (Stage 09g).</summary>
+        public int MergeChoicesOpened;
+
+        /// <summary>How many upgrades were confirmed from the chooser.</summary>
+        public int MergeChoicesConfirmed;
+
+        /// <summary>How many choosers were closed without changing anything.</summary>
+        public int MergeChoicesCancelled;
     }
 }

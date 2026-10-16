@@ -1,0 +1,13 @@
+##,id,variant_id,stat,method,magnitude
+,mod.arcane.keen_edge.damage,variant.arcane.keen_edge,Damage,Percent,25
+,mod.arcane.swift_chant.cooldown,variant.arcane.swift_chant,Cooldown,Percent,-15
+,mod.arcane.frugal_mantra.mp,variant.arcane.frugal_mantra,MpCost,Add,-2
+,mod.arcane.far_sight.range,variant.arcane.far_sight,Range,Percent,20
+,mod.fire.blazing_seal.damage,variant.fire.blazing_seal,Damage,Percent,20
+,mod.fire.blazing_seal.mp,variant.fire.blazing_seal,MpCost,Add,-1
+,mod.arcane.great_keen_edge.damage,variant.arcane.great_keen_edge,Damage,Percent,35
+,mod.arcane.great_swift_chant.cooldown,variant.arcane.great_swift_chant,Cooldown,Percent,-20
+,mod.arcane.twin_bolt.count,variant.arcane.twin_bolt,ProjectileCount,Add,1
+,mod.arcane.deep_pierce.pierce,variant.arcane.deep_pierce,PierceCount,Add,1
+,mod.fire.inferno_seal.damage,variant.fire.inferno_seal,Damage,Add,4
+,mod.fire.inferno_seal.range,variant.fire.inferno_seal,Range,Percent,15

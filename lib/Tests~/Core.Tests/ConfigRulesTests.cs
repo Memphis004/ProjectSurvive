@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ProjectSurvive.Core.Domain.Config;
+using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Infrastructure.Config;
 using ProjectSurvive.Data.Validator;
 using Xunit;
@@ -629,6 +630,180 @@ namespace ProjectSurvive.Core.Tests
                 Assert.False(string.IsNullOrWhiteSpace(entry.Th), entry.Key + " has no Thai text");
                 Assert.False(string.IsNullOrWhiteSpace(entry.En), entry.Key + " has no English text");
             });
+        }
+
+        // -- upgrade variants (Stage 09f) ---------------------------------------
+
+        [Fact]
+        public void An_upgrade_variant_with_a_non_positive_weight_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            config.UpgradeVariants[0].Weight = 0;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("upgrade_variant.weight_not_positive", Codes(findings));
+            Assert.Contains(
+                "upgrade_variant['" + config.UpgradeVariants[0].Id + "'].weight", Targets(findings));
+        }
+
+        [Fact]
+        public void A_step_whose_pool_is_too_small_for_the_chooser_is_reported()
+        {
+            // Three of the four 1 -> 2 variants move to the next step, which leaves the pool
+            // one choice short of constant.upgrade_choice_count with no fallback declared.
+            LubanGameConfig config = ConfigFixture.Load();
+            int moved = 0;
+            foreach (UpgradeVariantConfig variant in config.UpgradeVariants)
+            {
+                if (variant.FromTier == 1 && variant.Category == "ArcaneWeapon" && moved < 3)
+                {
+                    variant.FromTier = 2;
+                    variant.ToTier = 3;
+                    moved++;
+                }
+            }
+
+            Assert.Equal(3, moved);
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("upgrade_variant.too_few_choices", Codes(findings));
+            Assert.Contains("item['item.mor_knife'].merge t1", Targets(findings));
+        }
+
+        [Fact]
+        public void An_upgrade_variant_matching_a_tag_no_item_carries_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            UpgradeVariantConfig variant = config.UpgradeVariants[4];
+            Assert.Equal("fire", variant.Tag);
+            variant.Tag = "phoenix";
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("upgrade_variant.tag_unknown", Codes(findings));
+            Assert.Contains("upgrade_variant['" + variant.Id + "'].tag", Targets(findings));
+        }
+
+        [Fact]
+        public void An_upgrade_variant_naming_an_unknown_category_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            UpgradeVariantConfig variant = config.UpgradeVariants[0];
+            variant.Category = "Wand";
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("upgrade_variant.condition_unknown", Codes(findings));
+            Assert.Contains("upgrade_variant['" + variant.Id + "'].category", Targets(findings));
+        }
+
+        [Fact]
+        public void A_scope_of_bag_pieces_is_reported_because_it_could_never_match()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            UpgradeVariantConfig variant = config.UpgradeVariants[0];
+            variant.Category = "Bag";
+
+            Assert.Contains("upgrade_variant.category_not_an_item", Codes(ConfigValidator.Validate(config)));
+        }
+
+        [Fact]
+        public void A_variant_with_both_or_neither_condition_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            UpgradeVariantConfig both = config.UpgradeVariants[0];
+            both.Tag = "weapon";
+            UpgradeVariantConfig neither = config.UpgradeVariants[1];
+            neither.Category = string.Empty;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("upgrade_variant.condition_ambiguous", Codes(findings));
+            Assert.Contains(Targets(findings), target => target == "upgrade_variant['" + both.Id + "']");
+            Assert.Contains(Targets(findings), target => target == "upgrade_variant['" + neither.Id + "']");
+        }
+
+        [Fact]
+        public void A_variant_that_skips_a_tier_or_exceeds_the_maximum_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            UpgradeVariantConfig skip = config.UpgradeVariants[0];
+            skip.ToTier = 3;
+            UpgradeVariantConfig beyond = config.UpgradeVariants[5];
+            beyond.ToTier = 4;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("upgrade_variant.tier_not_sequential", Codes(findings));
+            Assert.Contains("upgrade_variant.tier_exceeds_max", Codes(findings));
+        }
+
+        [Fact]
+        public void A_variant_with_a_missing_name_key_or_no_modifier_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            UpgradeVariantConfig unnamed = config.UpgradeVariants[0];
+            unnamed.NameKey = "upgrade.does_not_exist.name";
+            UpgradeVariantConfig empty = config.UpgradeVariants[1];
+            empty.Modifiers = new List<UpgradeModifierConfig>();
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("upgrade_variant.name_key_missing", Codes(findings));
+            Assert.Contains("upgrade_variant.no_modifier", Codes(findings));
+            Assert.Contains(Targets(findings), target => target == "upgrade_variant['" + empty.Id + "']");
+        }
+
+        [Fact]
+        public void An_upgrade_modifier_that_changes_nothing_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            UpgradeModifierConfig modifier = config.UpgradeVariants[0].Modifiers[0];
+            modifier.Magnitude = 0f;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("upgrade_variant.magnitude_zero", Codes(findings));
+            Assert.Contains(
+                Targets(findings),
+                target => target == "upgrade_variant['" + config.UpgradeVariants[0].Id + "'].modifier['"
+                    + modifier.Id + "']");
+        }
+
+        [Fact]
+        public void A_choice_count_a_chooser_cannot_use_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            config.Constant.UpgradeChoiceCount = 1;
+
+            Assert.Contains("constant.upgrade_choice_count_invalid", Codes(ConfigValidator.Validate(config)));
+        }
+
+        [Fact]
+        public void Every_step_that_has_choices_can_fill_the_chooser()
+        {
+            // Guards the fixture the rule above breaks on purpose: the shipped data must have
+            // pools of at least the configured choice count, which is what makes "1 จาก 3" real.
+            IGameConfig config = ConfigFixture.Load();
+            var pool = new List<UpgradeVariantConfig>(8);
+
+            foreach (ItemConfig item in config.Items)
+            {
+                for (int tier = 1; tier < config.Constant.MaxTier; tier++)
+                {
+                    UpgradePool.Collect(config, item, tier, pool);
+                    if (pool.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    Assert.True(
+                        pool.Count >= config.Constant.UpgradeChoiceCount,
+                        "item '" + item.Id + "' tier " + tier + " has only " + pool.Count + " choice(s)");
+                }
+            }
         }
 
         private static HashSet<string> Codes(IReadOnlyList<Finding> findings) =>

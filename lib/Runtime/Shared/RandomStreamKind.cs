@@ -16,5 +16,15 @@ namespace ProjectSurvive.Core.Shared
 
         /// <summary>Cosmetic only — particle jitter, idle offsets. Never read back by rules.</summary>
         Visual = 3,
+
+        /// <summary>
+        /// The upgrade-choice draw (Stage 09f). Its seed is <i>derived from</i> rather than
+        /// drawn from: a merge's three choices are a pure function of the run seed, the
+        /// merge ordinal, the item and the tier step, so asking twice about one state
+        /// gives the same three (ADR 0021). Consuming a shared stream here would make the
+        /// offer depend on how many offers had been asked before — which is exactly the
+        /// re-roll an undo would then buy.
+        /// </summary>
+        Upgrade = 4,
     }
 }

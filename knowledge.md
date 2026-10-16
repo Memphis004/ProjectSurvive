@@ -27,6 +27,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **09d** | **Thai text sharpness (font report, 22 px floor, on-screen measurements)** | **DONE** — see [`docs/stages/09d-report.md`](docs/stages/09d-report.md) |
 | **09e** | **จัดย่าม layout & compositing (stats strip, panel alpha, tooltip, synergy marks)** | **DONE** — see [`docs/stages/09e-report.md`](docs/stages/09e-report.md) |
 | **09f** | **A bag move or turn carries the items standing on it** | **DONE** — see [`docs/stages/09f-report.md`](docs/stages/09f-report.md), [ADR 0020](docs/adr/0020-bag-moves-carry-the-items-on-them.md) |
+| **09g** | **Upgrade-choice window on SceneCamp** | **DONE** — see [`docs/stages/09g-report.md`](docs/stages/09g-report.md), [ADR 0021](docs/adr/0021-merge-upgrade-choice.md) |
 | 10 | Full loop (vertical slice) | not started |
 | 11 | Thai ghost AI, Pob boss, balance | not started |
 | 12 | Save, resume, settings | not started |
@@ -43,12 +44,13 @@ tested 0.92 alpha floor, the tooltip as a second root canvas at sorting order 10
 chosen from the rule's own `synergy.kind`) and **09f** (a bag now **carries** the items standing on
 it — one rigid assembly through `FootprintRotation.Rotate(..., out shift)`, a new
 `inventory.item_spans_bags` refusal, one revision and one undo step per gesture, and a ghost per
-rider drawn from the run's plan; see [ADR 0020](docs/adr/0020-bag-moves-carry-the-items-on-them.md)). `lib/` is a real UPM package
+rider drawn from the run's plan; see [ADR 0020](docs/adr/0020-bag-moves-carry-the-items-on-them.md)), and **09g** (the camp screen now asks the question the merge raised: dropping one piece on another with the same id and tier opens a **dimmed window** over ศาลาพัก when that step has upgrade variants, with the item's current lines on the left — the same five lines the tooltip publishes — and one card per choice, each naming its variant plus the item, its ระดับ N → N+1 and one line per stat it changes in green when the change helps and red when it hurts; a card is picked with a click or `1 2 3`, `Escape` and the back button close the window without changing anything, the board is locked and the floating tooltip suppressed while it is up, and a pair with **no** variants still folds on the drop. The offer behind the window is the second half of 09f — `OfferMerge` / `ConfirmMerge`, per-step variant ids, [ADR 0021](docs/adr/0021-merge-upgrade-choice.md) — and it is a pure function of the run, so closing and reopening the window offers the same cards; the drop preview therefore *accepts* the merge gesture instead of refusing `inventory.merge_needs_variant`; the 20 new localization rows take `data/localization/localization.csv` to **179**, EditMode is **94/94**, and the two camp PlayMode fixtures are green on their own — the drag suite **12/12** and the new chooser suite **4/4** — with real pointer and keyboard events). `lib/` is a real UPM package
 (`com.projectsurvive.core`) with six hand-written layer `.asmdef`s plus two
 generated ones, the vendored EcsLite, the deterministic `Shared`/`Infrastructure`
 primitives (`IRandomSource` / `Xoshiro128`, `RandomStreams`, `IClock` /
 `SystemClock`, `FixedTicker`, `Result` / `Error`), and the Stage 02 data pipeline:
-twelve Luban tables under `data/`, generated C# under `lib/Runtime/Generated/`,
+fourteen Luban tables under `data/` (the two upgrade tables landed in 09f's second half), generated
+C# under `lib/Runtime/Generated/`,
 the `IGameConfig` port with its Infrastructure adapter, and the config hash in
 build metadata. Stage 02b added the **battle contract v1**
 (`Domain/Combat/Battle`: `IBattleSession`, `IBattleFrame`, `IBattleEventSource`,
@@ -59,9 +61,11 @@ build metadata. Stage 02b added the **battle contract v1**
 `Entities` and `PreviousEntities` so Stage 08 interpolates between two ticks through
 the one port it is allowed to read, and exactly one `IBattleFrame` implementation is
 allowed (the fake and Stage 07 share it, enforced by a reflection test).
-**433 xUnit tests pass** (57 Stage 01, 73
+**466 xUnit tests pass** (57 Stage 01, 73
 Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05,
-44 Stage 06, 28 Stage 07, 11 Stage 09, and the 8 the carried-item rule added in Stage 09f). The bag rules, the combo rules, the economy, the run/scene flow
+44 Stage 06, 28 Stage 07, 11 Stage 09, the 8 the carried-item rule added in Stage 09f, and the 33
+the upgrade choice added — 31 for the engine and the chooser's own rules, 2 for the stat-direction
+rule the window colours a card line from). The bag rules, the combo rules, the economy, the run/scene flow
 and the **battle simulation** are real code now: `Domain/Combat/Battle` and `Application`
 hold the battle **contract** (v1) — which the fake implements as a contract exercise — and
 `lib/Runtime/Simulation` holds the real EcsLite battle that implements it, reached only

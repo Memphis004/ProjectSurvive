@@ -57,6 +57,7 @@ namespace ProjectSurvive.Core.Infrastructure.Save
             {
                 SchemaVersion = snapshot.SchemaVersion,
                 NextInstanceId = snapshot.NextInstanceId,
+                MergeCount = snapshot.MergeCount,
                 Pieces = new List<BackpackPieceDto>(pieces.Count),
             };
 
@@ -74,6 +75,7 @@ namespace ProjectSurvive.Core.Infrastructure.Save
                     OriginY = piece.OriginY,
                     Rotation = (int)piece.Rotation,
                     ChestSlot = piece.ChestSlot,
+                    VariantIds = ToVariantList(piece.VariantIds),
                 });
             }
 
@@ -98,6 +100,7 @@ namespace ProjectSurvive.Core.Infrastructure.Save
                     OriginY = piece.OriginY,
                     Rotation = ToRotation(piece.Rotation),
                     ChestSlot = piece.ChestSlot,
+                    VariantIds = FromVariantList(piece.VariantIds),
                 });
             }
 
@@ -105,8 +108,38 @@ namespace ProjectSurvive.Core.Infrastructure.Save
             {
                 SchemaVersion = dto.SchemaVersion,
                 NextInstanceId = dto.NextInstanceId,
+                MergeCount = dto.MergeCount,
                 Pieces = pieces,
             };
+        }
+
+        /// <summary>Domain variant history to a wire list (a copy, never the live list).</summary>
+        private static List<string> ToVariantList(IReadOnlyList<string> variantIds)
+        {
+            var list = new List<string>(variantIds.Count);
+            for (int i = 0; i < variantIds.Count; i++)
+            {
+                list.Add(variantIds[i] ?? string.Empty);
+            }
+
+            return list;
+        }
+
+        /// <summary>Wire list to the domain shape; a null entry cannot become a variant id.</summary>
+        private static IReadOnlyList<string> FromVariantList(List<string>? variantIds)
+        {
+            if (variantIds is null || variantIds.Count == 0)
+            {
+                return System.Array.Empty<string>();
+            }
+
+            var list = new string[variantIds.Count];
+            for (int i = 0; i < list.Length; i++)
+            {
+                list[i] = variantIds[i] ?? string.Empty;
+            }
+
+            return list;
         }
 
         private static PieceKind ToKind(int value) =>

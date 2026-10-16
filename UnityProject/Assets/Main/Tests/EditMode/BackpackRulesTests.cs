@@ -338,7 +338,15 @@ namespace ProjectSurvive.Game.Tests.EditMode
             PieceRef survivor = PlaceItem("item.mor_knife", 0, 0);
             PieceRef consumed = PlaceItem("item.mor_knife", 1, 0);
 
-            Result<MergeOutcome> merge = _editor.Merge(consumed, survivor);
+            // Stage 09f: an arcane weapon has upgrade choices, so the merge that carries one is the
+            // one that names the pick — the fold refuses rather than choosing for the player.
+            const uint Seed = 20261016u;
+            Result<MergeOffer> offered = _editor.OfferMerge(consumed, survivor, Seed);
+            Assert.That(offered.IsSuccess, Is.True, offered.Error.ToString());
+            Assert.That(offered.Value.HasChoices, Is.True, "an arcane weapon has choices at the 1 -> 2 step");
+
+            Result<MergeOutcome> merge = _editor.ConfirmMerge(
+                consumed, survivor, offered.Value.Options[0].Id, Seed);
             Assert.That(merge.IsSuccess, Is.True, merge.Error.ToString());
             Assert.That(merge.Value.NewTier, Is.EqualTo(2));
             Assert.That(_backpack.Items.Count, Is.EqualTo(1), "the consumed instance must be gone, not duplicated");

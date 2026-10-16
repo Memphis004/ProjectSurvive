@@ -42,6 +42,13 @@ namespace ProjectSurvive.Core.Domain.Config
 
         IReadOnlyList<MergeRecipeConfig> MergeRecipes { get; }
 
+        /// <summary>
+        /// Every upgrade choice, in data-file order (Stage 09f). The pool for one merge is
+        /// selected from this list by the piece's category and tags; a piece no variant
+        /// matches folds immediately, exactly as before the stage.
+        /// </summary>
+        IReadOnlyList<UpgradeVariantConfig> UpgradeVariants { get; }
+
         IReadOnlyList<EnemyConfig> Enemies { get; }
 
         IReadOnlyList<FloorConfig> Floors { get; }
@@ -57,6 +64,8 @@ namespace ProjectSurvive.Core.Domain.Config
         bool TryGetItem(string id, out ItemConfig value);
 
         bool TryGetSkill(string id, out SkillConfig value);
+
+        bool TryGetUpgradeVariant(string id, out UpgradeVariantConfig value);
 
         bool TryGetEnemy(string id, out EnemyConfig value);
 

@@ -217,6 +217,8 @@ namespace ProjectSurvive.Core.Domain.Inventory
     /// </remarks>
     public sealed class ItemInstance : PieceInstance
     {
+        private readonly List<string> _variantIds = new List<string>(4);
+
         internal ItemInstance(int instanceId, string itemId, int tier, Footprint shape)
             : base(PieceKind.Item, instanceId, itemId, tier, shape)
         {
@@ -227,5 +229,51 @@ namespace ProjectSurvive.Core.Domain.Inventory
 
         /// <summary>Tags the synergy rules match on, straight from <c>item.csv</c>.</summary>
         public IReadOnlyList<string> Tags { get; internal set; } = Array.Empty<string>();
+
+        /// <summary>
+        /// The upgrade variant chosen at <b>each completed merge step</b>, indexed by
+        /// step: entry <c>i</c> is the choice made by the merge that produced tier
+        /// <c>i + 2</c>, so a tier-3 item has two of them (Stage 09f: "เก็บ variantId ของ
+        /// แต่ละขั้น").
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A step that had no chooser stores <see cref="NoVariant"/> rather than being
+        /// skipped, which is what keeps the entry at its step's index: the 2 → 3 merge of
+        /// a piece whose 1 → 2 merge offered nothing still has a step-1 slot to inherit
+        /// from (ADR 0021).
+        /// </para>
+        /// <para>
+        /// There is no tier here on purpose: the modifiers of every step apply, so a tier-3
+        /// item is the sum of two choices rather than one. The loadout resolver reads the
+        /// whole list.
+        /// </para>
+        /// </remarks>
+        public IReadOnlyList<string> VariantIds => _variantIds;
+
+        /// <summary>The value stored for a step that had no offer to choose from.</summary>
+        public const string NoVariant = "";
+
+        /// <summary>How many merge steps this instance has been through.</summary>
+        public int VariantStepCount => _variantIds.Count;
+
+        /// <summary>Replaces the whole step history (snapshot restore).</summary>
+        internal void SetVariants(IReadOnlyList<string> variantIds)
+        {
+            _variantIds.Clear();
+
+            if (variantIds is null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < variantIds.Count; i++)
+            {
+                _variantIds.Add(variantIds[i] ?? NoVariant);
+            }
+        }
+
+        /// <summary>Appends the choice of one merge step (merge, and nothing else).</summary>
+        internal void AddVariant(string variantId) => _variantIds.Add(variantId ?? NoVariant);
     }
 }

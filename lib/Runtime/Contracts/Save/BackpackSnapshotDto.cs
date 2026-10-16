@@ -51,6 +51,15 @@ namespace ProjectSurvive.Core.Contracts.Save
         /// <summary>Chest slot, or -1 for a board piece.</summary>
         [Key(8)]
         public int ChestSlot { get; set; } = -1;
+
+        /// <summary>
+        /// The upgrade variants this item chose, one entry per completed merge step, in step
+        /// order (Stage 09f). Empty for a bag, and an entry is the empty string for a step
+        /// that had no chooser. On the wire as a plain string list so the DTO still carries
+        /// only primitives.
+        /// </summary>
+        [Key(9)]
+        public List<string> VariantIds { get; set; } = new List<string>();
     }
 
     /// <summary>
@@ -72,9 +81,12 @@ namespace ProjectSurvive.Core.Contracts.Save
     [MessagePackObject]
     public sealed class BackpackSnapshotDto
     {
-        /// <summary>Bumped whenever the shape below changes.</summary>
+        /// <summary>
+        /// Bumped whenever the shape below changes. <c>2</c> added
+        /// <see cref="MergeCount"/> and <see cref="BackpackPieceDto.VariantIds"/> (Stage 09f).
+        /// </summary>
         [Key(0)]
-        public int SchemaVersion { get; set; } = 1;
+        public int SchemaVersion { get; set; } = 2;
 
         /// <summary>The instance-id counter, so a restored backpack does not reuse ids.</summary>
         [Key(1)]
@@ -83,5 +95,12 @@ namespace ProjectSurvive.Core.Contracts.Save
         /// <summary>Every owned piece, bags first then items, each in creation order.</summary>
         [Key(2)]
         public List<BackpackPieceDto> Pieces { get; set; } = new List<BackpackPieceDto>();
+
+        /// <summary>
+        /// How many merges the run had confirmed when this snapshot was taken. Undoable
+        /// state: the upgrade offer is drawn from it (Stage 09f, ADR 0021).
+        /// </summary>
+        [Key(3)]
+        public int MergeCount { get; set; }
     }
 }

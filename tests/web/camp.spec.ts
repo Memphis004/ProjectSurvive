@@ -362,6 +362,39 @@ async function clickUntilPublished(
 }
 
 /**
+ * Presses a key until the run shows the command it stands for.
+ *
+ * The camp's upgrade chooser (Stage 09g) is opened by a merge drag and then decided by one of three
+ * cards — with the mouse, with a touch, or with the 1/2/3 keys. This test takes the key path
+ * because the report publishes no rectangle for a card: the layout document names the board, the
+ * chest, the pot, the shelves and the panel's own controls, and aiming a click at a card coordinate
+ * this test remembered would be exactly the guessed pixel the rest of this file avoids. Picking a
+ * card with the mouse is asserted where it can be read — the PlayMode chooser fixture drives real
+ * pointer events onto the card, and the Editor capture records the modal itself.
+ *
+ * Retried for the same measured reason as `clickUntilPublished`: a keystroke into the WebGL player
+ * can be lost, and a lost press is a command that never happened. Three attempts is what that
+ * helper settled on for a click, so it is what this one uses too.
+ */
+async function pressUntilPublished(
+  page: Page,
+  key: string,
+  observed: () => Promise<boolean>,
+  attempts = 3,
+): Promise<void> {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    await page.keyboard.press(key);
+    await page.waitForTimeout(FRAME_PAUSE_MS);
+
+    if (await observed()) {
+      return;
+    }
+
+    console.log(`the '${key}' press was not registered (attempt ${attempt} of ${attempts})`);
+  }
+}
+
+/**
  * Resizes the player's **canvas element** — the size path a player has, because the template's own
  * fullscreen button and a HiDPI backing store both change the element rather than the window.
  *
@@ -762,12 +795,25 @@ test.describe("ProjectSurvive ศาลาพัก in the browser", () => {
       .poll(async () => (await counters(page)).rotated, { timeout: COMMAND_TIMEOUT_MS, polling: 250 })
       .toBe(1);
 
-    // --- 6. รวม: drop it onto the piece it matches --------------------------------------------
+    // --- 6. รวม: drop it onto the piece it matches, then pick the upgrade ----------------------
     await dragOnCanvas(
       page,
       toPage(box, opened, boardCell(opened, target.column, target.row)),
       toPage(box, opened, boardCell(opened, itemCell.x, itemCell.y)),
     );
+
+    // Since Stage 09g two equal pieces do not fold on the drop alone: the merge opens the camp's
+    // upgrade chooser and the tier rises only once one of its cards is picked. The read below is
+    // the report as of its last publish — no key has been pressed yet — so it is what the drop by
+    // itself did: with the chooser up the run is untouched and the counter stays 0. A pair whose
+    // piece has no upgrade variants still merges immediately, and then the first press below simply
+    // finds the counter already moved.
+    expect(
+      (await counters(page)).merged,
+      "the drop alone must not fold a pair that still has an upgrade to choose",
+    ).toBe(0);
+
+    await pressUntilPublished(page, "1", async () => (await counters(page)).merged === 1);
 
     await expect
       .poll(async () => (await counters(page)).merged, { timeout: COMMAND_TIMEOUT_MS, polling: 250 })
