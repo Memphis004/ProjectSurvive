@@ -61,6 +61,11 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         /// <summary>Loads the camp and hands back the sala, the walker and the bag screen.</summary>
         private IEnumerator LoadCamp()
         {
+            // A shell this fixture owns: see SceneFlowHarness. The App scope persists once a
+            // fixture loads Boot, so a test that did not reset would inherit a live run.
+            SceneFlowHarness.ResetShell();
+            yield return null;
+
             SceneManager.LoadScene(CampSceneName, LoadSceneMode.Single);
             yield return null;
 

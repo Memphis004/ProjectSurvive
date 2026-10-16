@@ -90,6 +90,27 @@ namespace ProjectSurvive.Game.Presentation.Battle
         public BattleResult Result => _result;
 
         /// <summary>
+        /// Sends an out-of-band command to the running floor — surrender today, and the dev menu's
+        /// cheats from Stage 10c.
+        /// </summary>
+        /// <remarks>
+        /// The session answers, and its answer is passed through untouched: a command the floor does
+        /// not accept (or one the setup did not allow) is refused with the session's own typed
+        /// result rather than silently dropped. Movement never goes through here; it is part of
+        /// <see cref="PlayerInputFrame"/>.
+        /// </remarks>
+        /// <returns><see cref="CommandResult.RejectedWrongPhase"/> when no floor is running.</returns>
+        public CommandResult Submit(in BattleCommand command)
+        {
+            if (_session is null)
+            {
+                return CommandResult.RejectedWrongPhase;
+            }
+
+            return _session.Submit(command);
+        }
+
+        /// <summary>
         /// Starts a floor: builds the view, creates the session through the port, and begins
         /// stepping. Called by the scene's composition root.
         /// </summary>

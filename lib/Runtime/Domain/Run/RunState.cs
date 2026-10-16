@@ -42,6 +42,16 @@ namespace ProjectSurvive.Core.Domain.Run
         /// <summary>How many floors have been cleared.</summary>
         public int FloorsCleared { get; set; }
 
+        /// <summary>
+        /// Ghosts the run has killed, over every floor it fought.
+        /// </summary>
+        /// <remarks>
+        /// In the hash because the summary screen reports it ("ผีที่ปราบ") and it is the one run
+        /// stat that comes from the battle rather than from a run command: a replay that killed a
+        /// different number of ghosts has diverged, and this is where that shows up.
+        /// </remarks>
+        public int GhostsDefeated { get; set; }
+
         /// <summary>Id of the last settlement paid out.</summary>
         public int LastSettlementId { get; set; }
 
@@ -84,6 +94,7 @@ namespace ProjectSurvive.Core.Domain.Run
                 hash = Mix(hash, (uint)MaxHp);
                 hash = Mix(hash, (uint)Bia);
                 hash = Mix(hash, (uint)FloorsCleared);
+                hash = Mix(hash, (uint)GhostsDefeated);
                 hash = Mix(hash, (uint)LastSettlementId);
                 hash = Mix(hash, (uint)RefreshCount);
                 hash = Mix(hash, (uint)BackpackRevision);
@@ -133,7 +144,8 @@ namespace ProjectSurvive.Core.Domain.Run
         /// <inheritdoc />
         public override string ToString() =>
             FlowState + " floor " + FloorIndex + " hp " + Hp + "/" + MaxHp + " bia " + Bia
-            + " cleared " + FloorsCleared + " pieces " + Pieces.Count + " merges " + MergeCount;
+            + " cleared " + FloorsCleared + " kills " + GhostsDefeated
+            + " pieces " + Pieces.Count + " merges " + MergeCount;
 
         private static uint Mix(uint hash, uint value)
         {

@@ -59,7 +59,19 @@ namespace ProjectSurvive.Game.Presentation
 
         private void Awake() => _lifetime = new CancellationTokenSource();
 
-        private void Start() => BootAsync(_lifetime.Token).Forget();
+        private void Start()
+        {
+            // The shell scope outlives every scene (Stage 10a): Title, Camp, Battle and Result are
+            // its children, so the run it owns survives a scene load and the wallet is not rebuilt
+            // every time the player walks back to the camp. This runs before the first handover,
+            // because Boot is what performs it.
+            if (_scope is not null)
+            {
+                _scope.PersistAcrossScenes();
+            }
+
+            BootAsync(_lifetime.Token).Forget();
+        }
 
         private void OnDestroy()
         {

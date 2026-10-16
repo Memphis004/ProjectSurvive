@@ -8,6 +8,7 @@ using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.Camp;
 using ProjectSurvive.Game.Presentation.Thai;
+using ProjectSurvive.Game.ResultScene;
 using TMPro;
 using UnityEditor;
 using UnityEditor.Build;
@@ -76,11 +77,18 @@ namespace ProjectSurvive.Game.Editor
         /// <summary>The Stage 09 camp scene (ศาลาพัก).</summary>
         public const string CampScenePath = ScenesFolder + "/Camp.unity";
 
+        /// <summary>The Stage 10 run-summary scene.</summary>
+        public const string ResultScenePath = ScenesFolder + "/Result.unity";
+
         /// <summary>
         /// Scenes a page URL may request with <c>?scene=&lt;name&gt;</c>. One list, used both when
-        /// the Boot scene is created and when the camp scene is added, so the two cannot drift.
+        /// the Boot scene is created and when a scene that should be reachable is added, so the two
+        /// cannot drift.
         /// </summary>
-        private static readonly string[] UrlSceneAllowList = { "ThaiTextSpike", "Battle", "Camp" };
+        private static readonly string[] UrlSceneAllowList = { "ThaiTextSpike", "Battle", "Camp", "Result" };
+
+        /// <summary>The summary screen's own line size: comfortably above the 22 px Thai floor.</summary>
+        private const float ResultLineFontSize = 32f;
 
         private const string SourceFontFile = FontsFolder + "/Sarabun-Regular.ttf";
 
@@ -188,11 +196,34 @@ namespace ProjectSurvive.Game.Editor
 
             CreateCampScene();
             ConfigureBuildSettings();
-            AllowCampSceneFromUrl();
+            RefreshUrlSceneAllowList();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("ProjectSurvive: Camp scene created and added to build settings.");
+        }
+
+        /// <summary>
+        /// Creates the Stage 10 summary scene and refreshes the build list.
+        /// </summary>
+        /// <remarks>
+        /// Its own menu item for the same reason Stage 08 and Stage 09 have one: the scene a stage
+        /// owns is the scene that stage's item builds, so re-running an older stage's item on an
+        /// existing checkout cannot silently rewrite it. Run the Stage 03 items first on a fresh
+        /// clone — this one reuses the URP assets, the runtime theme and the baked font they create.
+        /// </remarks>
+        [MenuItem("ProjectSurvive/Stage 10/6. Create Result scene", priority = 105)]
+        public static void CreateResultSceneAndConfigure()
+        {
+            EnsureFolder(ScenesFolder);
+
+            CreateResultScene();
+            ConfigureBuildSettings();
+            RefreshUrlSceneAllowList();
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("ProjectSurvive: Result scene created and added to build settings.");
         }
 
         // ------------------------------------------------------------------
@@ -753,20 +784,28 @@ namespace ProjectSurvive.Game.Editor
                 scenes.Add(new EditorBuildSettingsScene(CampScenePath, true));
             }
 
+            // The summary scene likewise joins only once it exists: a Stage 09-only checkout keeps
+            // a build list of scenes that are really there, and the battle's departure to it is
+            // refused (with a typed error) rather than attempted against a missing scene.
+            if (File.Exists(ResultScenePath))
+            {
+                scenes.Add(new EditorBuildSettingsScene(ResultScenePath, true));
+            }
+
             EditorBuildSettings.scenes = scenes.ToArray();
         }
 
         /// <summary>
-        /// Adds <c>Camp</c> to the Boot scene's URL allow-list if it is not there yet.
+        /// Writes the current URL allow-list into the Boot scene, if it is there.
         /// </summary>
         /// <remarks>
         /// Boot's allow-list is the only way a browser can choose a scene, and Stage 08 had to
-        /// re-run the Boot menu item to get <c>Battle</c> into it. Doing it here means creating the
-        /// camp scene is enough to make it reachable — the two halves of the feature (a scene that
+        /// re-run the Boot menu item to get <c>Battle</c> into it. Doing it here means creating a
+        /// scene is enough to make it reachable — the two halves of the feature (a scene that
         /// publishes its own name, and an allow-list that permits it) stay in step without a second
         /// manual step nobody remembers.
         /// </remarks>
-        private static void AllowCampSceneFromUrl()
+        private static void RefreshUrlSceneAllowList()
         {
             if (!File.Exists(BootScenePath))
             {
@@ -839,7 +878,90 @@ namespace ProjectSurvive.Game.Editor
             SetObjectReference(director, "_scope", scope);
             SetObjectReference(director, "_runner", runner);
 
+            BuildDevMenu(font, scope, runner);
+
             EditorSceneManager.SaveScene(scene, BattleScenePath);
+        }
+
+        /// <summary>
+        /// The dev menu (Stage 10c): a panel of six test controls and a status line, authored on its
+        /// own canvas above the HUD and <b>inactive</b>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// "ตั้งชื่อ test-only ให้ชัดเจน" is why the heading says <c>DEV MENU (test only)</c> in
+        /// capitals and why the panel sits in a corner rather than among the run's own controls: it
+        /// is not part of the game, and nothing about it should be mistaken for one.
+        /// </para>
+        /// <para>
+        /// The panel starts inactive because that is the honest authored state — a release build
+        /// must never show it, and the view is what turns it on, from
+        /// <c>DevCheats.Allowed</c> (a development build or the Editor). The captions are written
+        /// from <see cref="DevMenuText"/> rather than typed here, so the words exist in one place and
+        /// a test can compare what it reads on screen with what the presenter sends.
+        /// </para>
+        /// <para>
+        /// It is on its own canvas with <c>sortingOrder</c> 200: above the HUD (0), below the scene
+        /// loader's fade (3000), so a control is never drawn under the HUD and is never drawn over a
+        /// transition.
+        /// </para>
+        /// </remarks>
+        private static void BuildDevMenu(TMP_FontAsset font, BattleSceneScope scope, BattleSimulationRunner runner)
+        {
+            Canvas canvas = CreateCanvas(out GameObject canvasObject, sortingOrder: 200, withRaycaster: true);
+            var canvasRect = (RectTransform)canvas.transform;
+
+            RectTransform panel = CreateUiRect(
+                canvasRect, "DevPanel", new Vector2(0f, 0f), new Vector2(0f, 0f),
+                new Vector2(32f, 32f), new Vector2(460f, 320f));
+
+            var background = panel.gameObject.AddComponent<Image>();
+            background.color = new Color(0.08f, 0.10f, 0.13f, 0.88f);
+            background.raycastTarget = true;
+
+            TMP_Text heading = CreateUiText(
+                panel, "DevHeading", new Vector2(12f, -8f), new Vector2(436f, 30f), UiFontSize, font);
+            heading.color = new Color(1f, 0.82f, 0.35f, 1f);
+            heading.text = DevMenuText.Title;
+
+            Button godMode = CreateUiButton(panel, "DevGodMode", new Vector2(12f, -44f), new Vector2(210f, 44f), font, out TMP_Text godModeLabel);
+            godModeLabel.text = DevMenuText.GodModeOff;
+
+            Button addBia = CreateUiButton(panel, "DevAddBia", new Vector2(234f, -44f), new Vector2(214f, 44f), font, out TMP_Text addBiaLabel);
+            addBiaLabel.text = DevMenuText.AddBia;
+
+            Button spawnGhost = CreateUiButton(panel, "DevSpawnGhost", new Vector2(12f, -96f), new Vector2(210f, 44f), font, out TMP_Text spawnGhostLabel);
+            spawnGhostLabel.text = DevMenuText.SpawnGhost;
+
+            Button killAll = CreateUiButton(panel, "DevKillAll", new Vector2(234f, -96f), new Vector2(214f, 44f), font, out TMP_Text killAllLabel);
+            killAllLabel.text = DevMenuText.KillAll;
+
+            Button winNow = CreateUiButton(panel, "DevWinNow", new Vector2(12f, -148f), new Vector2(210f, 44f), font, out TMP_Text winNowLabel);
+            winNowLabel.text = DevMenuText.WinNow;
+
+            Button loseNow = CreateUiButton(panel, "DevLoseNow", new Vector2(234f, -148f), new Vector2(214f, 44f), font, out TMP_Text loseNowLabel);
+            loseNowLabel.text = DevMenuText.LoseNow;
+
+            TMP_Text status = CreateUiText(
+                panel, "DevStatus", new Vector2(12f, -200f), new Vector2(436f, 60f), UiFontSize, font);
+            status.text = DevMenuText.Disabled;
+
+            DevMenuView view = canvasObject.AddComponent<DevMenuView>();
+            SetObjectReference(view, "_scope", scope);
+            SetObjectReference(view, "_runner", runner);
+            SetObjectReference(view, "_panel", panel.gameObject);
+            SetObjectReference(view, "_statusLabel", status);
+            SetObjectReference(view, "_godModeLabel", godModeLabel);
+            SetObjectReference(view, "_godModeButton", godMode);
+            SetObjectReference(view, "_addBiaButton", addBia);
+            SetObjectReference(view, "_spawnGhostButton", spawnGhost);
+            SetObjectReference(view, "_killAllButton", killAll);
+            SetObjectReference(view, "_winNowButton", winNow);
+            SetObjectReference(view, "_loseNowButton", loseNow);
+
+            // Authored hidden: the one build that must never show it is the one that cannot turn it
+            // on, and a scene saved with the panel off says so in the scene itself.
+            panel.gameObject.SetActive(false);
         }
 
         /// <summary>
@@ -1496,6 +1618,101 @@ namespace ProjectSurvive.Game.Editor
             Image fillImage = fill.gameObject.AddComponent<Image>();
             fillImage.color = fillColour;
             return fill;
+        }
+
+        // ------------------------------------------------------------------
+        // Stage 10: the Result scene
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Builds the summary scene: the scope that shows a finished run, one centred column of
+        /// summary lines, and the two ways out (Restart, back to the title).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Everything is created through the Editor API (AGENTS rule 11) — no hand-written
+        /// <c>.unity</c> YAML — and every string on the screen arrives at runtime over
+        /// <c>ResultUiState</c> from the localization table (AGENTS rule 5), so this method only
+        /// places nine empty widgets and wires the references the view needs.
+        /// </para>
+        /// <para>
+        /// <b>One centred column, measured rather than guessed.</b> The <c>Summary</c> rect is
+        /// centred on the canvas (anchor and pivot both 0.5) and 1200×1000 at the 1920×1080
+        /// reference, so nothing here is positioned in absolute screen pixels: at 1280×720 the
+        /// column keeps the same proportions and the same gaps between lines. The rows are 60 px
+        /// apart with 44 px line boxes and the headings are 96 px, all above the 22 px Thai floor
+        /// (Stage 09d) — a 32 px line box holds a Thai line with its upper and lower marks inside
+        /// the box instead of clipping them.
+        /// </para>
+        /// <para>
+        /// The two buttons are 400×76 and centred in the column: the same touch target the camp
+        /// author their panel controls at, so the summary screen cannot be the one screen whose
+        /// buttons are too small to press on a phone.
+        /// </para>
+        /// </remarks>
+        private static void CreateResultScene()
+        {
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            (TMP_FontAsset font, _) = EnsureFontAssets();
+
+            var scopeObject = new GameObject("Result");
+            ResultSceneScope scope = scopeObject.AddComponent<ResultSceneScope>();
+            ResultSceneDirector director = scopeObject.AddComponent<ResultSceneDirector>();
+
+            CreateCamera();
+            CreateEventSystem();
+
+            Canvas canvas = CreateCanvas(out GameObject canvasObject);
+            var canvasRect = (RectTransform)canvas.transform;
+
+            RectTransform column = CreateUiRect(
+                canvasRect, "Summary", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(1200f, 1000f));
+
+            TMP_Text headline = CreateUiText(
+                column, "Headline", new Vector2(0f, -40f), new Vector2(1200f, 140f), 96f, font,
+                TextAlignmentOptions.Center);
+
+            TMP_Text floor = CreateUiText(
+                column, "FloorLine", new Vector2(0f, -200f), new Vector2(1200f, 44f),
+                ResultLineFontSize, font, TextAlignmentOptions.Center);
+
+            TMP_Text kills = CreateUiText(
+                column, "KillsLine", new Vector2(0f, -260f), new Vector2(1200f, 44f),
+                ResultLineFontSize, font, TextAlignmentOptions.Center);
+
+            TMP_Text bia = CreateUiText(
+                column, "BiaLine", new Vector2(0f, -320f), new Vector2(1200f, 44f),
+                ResultLineFontSize, font, TextAlignmentOptions.Center);
+
+            TMP_Text hp = CreateUiText(
+                column, "HpLine", new Vector2(0f, -380f), new Vector2(1200f, 44f),
+                ResultLineFontSize, font, TextAlignmentOptions.Center);
+
+            Button restart = CreateUiButton(
+                column, "RestartButton", new Vector2(400f, -560f), new Vector2(400f, 76f), font,
+                out TMP_Text restartLabel);
+
+            Button title = CreateUiButton(
+                column, "TitleButton", new Vector2(400f, -660f), new Vector2(400f, 76f), font,
+                out TMP_Text titleLabel);
+
+            ResultView view = canvasObject.AddComponent<ResultView>();
+            SetObjectReference(view, "_scope", scope);
+            SetObjectReference(view, "_headlineLabel", headline);
+            SetObjectReference(view, "_floorLabel", floor);
+            SetObjectReference(view, "_killsLabel", kills);
+            SetObjectReference(view, "_biaLabel", bia);
+            SetObjectReference(view, "_hpLabel", hp);
+            SetObjectReference(view, "_restartButton", restart);
+            SetObjectReference(view, "_titleButton", title);
+            SetObjectReference(view, "_restartLabel", restartLabel);
+            SetObjectReference(view, "_titleLabel", titleLabel);
+
+            SetObjectReference(director, "_scope", scope);
+
+            EditorSceneManager.SaveScene(scene, ResultScenePath);
         }
 
         // ------------------------------------------------------------------

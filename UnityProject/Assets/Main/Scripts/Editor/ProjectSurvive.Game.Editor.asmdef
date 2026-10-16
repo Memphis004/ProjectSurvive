@@ -6,6 +6,7 @@
         "ProjectSurvive.Game.Presentation",
         "ProjectSurvive.Game.Battle",
         "ProjectSurvive.Game.Camp",
+        "ProjectSurvive.Game.ResultScene",
         "ProjectSurvive.Core.Shared",
         "ProjectSurvive.Core.Domain",
         "ProjectSurvive.Core.Application",

@@ -34,7 +34,10 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
         private const float OrbitAngularSpeed = 0.02f;
         private const float Tau = 6.2831855f;
 
-        /// <summary>The fake fights nothing, so it grants no wealth; Run owns the economy (GDD v0.3).</summary>
+        /// <summary>
+        /// The fake fights nothing, so it earns nothing on its own: this is what a floor's takings
+        /// are before any dev command, and Run owns the economy (GDD v0.3).
+        /// </summary>
         private const int FakeCurrencyEarned = 0;
 
         private readonly BattleSetup _setup;
@@ -65,6 +68,14 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
         private int _hp;
         private int _mp;
         private int _kills;
+
+        /// <summary>
+        /// Bia earned this floor. Only a dev command can raise it in the fake — the dummies drop
+        /// nothing — but it takes the same path as a real drop, so the HUD and the settlement see
+        /// one number either way.
+        /// </summary>
+        private int _currencyEarned = FakeCurrencyEarned;
+
         private int _waveIndex;
         private int _bossHp;
         private bool _godMode;
@@ -210,6 +221,20 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
 
                 case BattleCommandKind.DevLoseNow:
                     Finish(BattlePhase.Lost, BattleEndReason.PlayerDied);
+                    return CommandResult.Ok;
+
+                case BattleCommandKind.DevAddBia:
+                    if (command.Arg <= 0)
+                    {
+                        return CommandResult.RejectedInvalidArg;
+                    }
+
+                    _currencyEarned += command.Arg;
+                    BuildFrame();
+                    return CommandResult.Ok;
+
+                case BattleCommandKind.DevSpawnGhost:
+                    DevSpawnGhost();
                     return CommandResult.Ok;
 
                 default:
@@ -436,6 +461,52 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
             BuildFrame();
         }
 
+        /// <summary>
+        /// Re-enters one dummy, which is the fake's whole vocabulary for "a ghost arrives".
+        /// </summary>
+        /// <remarks>
+        /// The fake's field is a fixed orbit of dummies that recycle forever
+        /// (<see cref="AdvanceEntities"/> kills one and spawns its next version on the same tick), so
+        /// there is no free slot to fill and no ceiling to hit. A dev spawn therefore does what the
+        /// recycle does: the first non-boss dummy's version goes up, its phase is drawn from the
+        /// session's own random source, and an <c>EnemySpawned</c> event is written — so whatever
+        /// binds a real spawn binds this one, and the frame and the state hash move with it.
+        /// </remarks>
+        private void DevSpawnGhost()
+        {
+            if (_entityCount == 0)
+            {
+                return;
+            }
+
+            int index = 0;
+            while (index < _entityCount && _entityIsBoss[index])
+            {
+                index++;
+            }
+
+            if (index >= _entityCount)
+            {
+                // Only the boss is on the field; it is already the one ghost this floor has.
+                index = 0;
+            }
+
+            _entityVersion[index]++;
+            _entityLife[index] = _options.EntityLifetimeTicks;
+            _entityPhase[index] = _random.NextFloat() * Tau;
+
+            _events.Write(new BattleEvent(
+                _events.NextSeq,
+                BattleEventType.EnemySpawned,
+                new EntityRef(index + 1, _entityVersion[index]),
+                -1,
+                0,
+                _entityIsBoss[index] ? BattleEventFlags.Boss : BattleEventFlags.None));
+
+            EvaluatePositions();
+            BuildFrame();
+        }
+
         private void Finish(BattlePhase phase, BattleEndReason reason)
         {
             if (_phase != BattlePhase.Running)
@@ -458,7 +529,7 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
                 EndReason = reason,
                 SurvivedTicks = _tick,
                 FinalHp = Clamp(_hp, 0, _maxHp),
-                CurrencyEarned = FakeCurrencyEarned,
+                CurrencyEarned = _currencyEarned,
                 Kills = _kills,
                 RemainingConsumables = remaining,
             };
@@ -517,7 +588,7 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
                 MaxHp = _maxHp,
                 Mp = _mp,
                 MaxMp = _maxMp,
-                Currency = FakeCurrencyEarned,
+                Currency = _currencyEarned,
                 Kills = _kills,
                 ElapsedTicks = (int)_tick,
                 FloorDurationTicks = _floorDurationTicks,

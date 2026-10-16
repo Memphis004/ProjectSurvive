@@ -4,92 +4,87 @@ using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Domain.Shop;
-using ProjectSurvive.Core.Infrastructure.Save;
 using ProjectSurvive.Core.Shared;
 
 namespace ProjectSurvive.Game.Battle
 {
     /// <summary>
-    /// Produces the floor the Battle scene plays, from the real tables and the real bag.
+    /// Starts a floor from the real tables and the real bag, for a Battle scene that was opened
+    /// <b>without</b> a camp: <c>?scene=Battle</c> in a browser, the Editor's scene list, a
+    /// direct-load PlayMode test.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Stage 08's acceptance says the scene must use a <b>real</b>
-    /// <see cref="CombatLoadoutSnapshot"/> — the stage is about the presentation, so a
-    /// hand-built loadout would prove nothing about whether the screen reads the build. This
-    /// class therefore plays the actual flow: a <see cref="RunSession"/> is started on the
-    /// shipped tables, the camp's shop is rented from (when the scene asks for a second piece),
-    /// the bag is edited through the same Application commands the Stage 09 UI will call, and
-    /// <see cref="RunSession.StartFloor"/> hands back the setup — including the loadout the real
-    /// resolver produced, tier and synergy bonuses included.
+    /// Stage 08 used a class of this name to build a whole throwaway run per scene visit, because
+    /// nothing owned a run yet. Stage 10a does own one — the Run scope of the App scope — so the
+    /// normal path no longer comes through here at all: the camp performs the departure and the
+    /// Battle scene starts the floor the run already holds in
+    /// <see cref="RunSession.PendingSetup"/>. What is left is the path where there is no camp, and
+    /// it plays the actual flow on the run it is handed: start it, rent the cheapest piece that can
+    /// fight, place it through the same Application commands the จัดย่าม screen calls, and depart.
     /// </para>
     /// <para>
-    /// It is deliberately <i>not</i> the run scope of Stage 10: the run lives only long enough to
-    /// build one setup and is then dropped, which is why the HUD is handed the starting purse
-    /// instead of subscribing to a wallet. When Stage 10 lands the shared run scope, this class
-    /// is what collapses into it.
-    /// </para>
-    /// <para>
-    /// Placement uses a deterministic search over board cells rather than a hard-coded spot, so
-    /// it keeps working when the starting bag's footprint or the piece table changes, and every
-    /// attempt goes through <c>BackpackEditor.Move</c>'s validation — the scene never writes
-    /// board state itself.
+    /// The rental is what makes "เปลี่ยนของในย่ามแล้วพฤติกรรม Battle เปลี่ยนจริง" (Stage 08's
+    /// acceptance) visible in a scene that never saw a camp. It is best-effort: a shop that offers
+    /// nothing affordable, or a bag that cannot fit the piece, leaves the starting knife alone
+    /// rather than failing the floor.
     /// </para>
     /// </remarks>
-    public sealed class BattleRunSource
+    public static class BattleRunSource
     {
-        private readonly IGameConfig _config;
-        private readonly uint _seed;
-        private readonly bool _equipSecondWeapon;
-
-        /// <summary>Creates a source for one seed.</summary>
-        /// <param name="config">The loaded tables.</param>
-        /// <param name="seed">Run seed; also what the cosmetic stream is derived from.</param>
-        /// <param name="equipSecondWeapon">
-        /// Rent and place one extra piece at camp, so the floor runs on a build that is not just
-        /// the starting knife. This is what makes "เปลี่ยนของในย่ามแล้วพฤติกรรม Battle เปลี่ยนจริง"
-        /// visible in the scene rather than only in a test.
-        /// </param>
-        public BattleRunSource(IGameConfig config, uint seed, bool equipSecondWeapon)
-        {
-            _config = config;
-            _seed = seed;
-            _equipSecondWeapon = equipSecondWeapon;
-        }
-
-        /// <summary>The seed every stream of this battle is derived from.</summary>
-        public uint Seed => _seed;
-
         /// <summary>
-        /// Builds the floor's setup. Returns false with a reason when the run or the departure
-        /// refused, so the scene can report a data problem instead of showing an empty arena.
+        /// Starts <paramref name="run"/>'s next floor: starts the run when it is still at the
+        /// title, optionally equips one extra piece, and departs.
         /// </summary>
-        public bool TryBuild(out BattleSetup setup, out int startingBia, out string error)
+        /// <param name="run">The run to play. It is mutated exactly as the Application commands say.</param>
+        /// <param name="config">The loaded tables.</param>
+        /// <param name="equipSecondWeapon">
+        /// Rent and place one extra piece first, so a floor opened on its own is not just the
+        /// starting knife.
+        /// </param>
+        /// <param name="setup">The floor's setup, or null on failure.</param>
+        /// <param name="startingBia">The purse entering the floor.</param>
+        /// <param name="error">Why it refused, or an empty string.</param>
+        /// <returns>True when the run departed.</returns>
+        public static bool TryStartFrom(
+            RunSession run, IGameConfig config, bool equipSecondWeapon,
+            out BattleSetup setup, out int startingBia, out string error)
         {
             setup = null;
             startingBia = 0;
             error = string.Empty;
 
-            if (_config is null)
+            if (run is null)
+            {
+                error = "BattleRunSource has no run.";
+                return false;
+            }
+
+            if (config is null)
             {
                 error = "BattleRunSource has no IGameConfig.";
                 return false;
             }
 
-            var run = new RunSession(_config, new MessagePackBackpackSnapshotCodec(), _seed);
-            Result started = run.StartRun();
-            if (started.IsFailure)
+            if (run.FlowState == RunFlowState.Title)
             {
-                error = "the run could not start: " + started.Error;
+                Result started = run.StartRun();
+                if (started.IsFailure)
+                {
+                    error = "the run could not start: " + started.Error;
+                    return false;
+                }
+            }
+
+            if (run.FlowState != RunFlowState.Camp)
+            {
+                error = "the run is in " + run.FlowState + ", so no floor can depart.";
                 return false;
             }
 
-            if (_equipSecondWeapon)
+            if (equipSecondWeapon)
             {
-                // A best-effort edit: a shop that offers nothing affordable, or a bag that
-                // cannot fit the piece, leaves the starting knife alone rather than failing the
-                // floor. The build is what matters, not that this particular edit landed.
-                TryEquipAnExtraPiece(run, _config);
+                TryEquipAnExtraPiece(run, config);
             }
 
             Result<BattleSetup> departed = run.StartFloor();
@@ -148,12 +143,11 @@ namespace ProjectSurvive.Game.Battle
         /// affordable piece.
         /// </summary>
         /// <remarks>
-        /// Preferring a fighting piece is what makes this scene's reason for existing visible.
-        /// Stage 08's acceptance is "เปลี่ยนของในย่ามแล้วพฤติกรรม Battle เปลี่ยนจริง", and the
-        /// cheapest piece at a first-floor camp is routinely a bag: buying one would change the
-        /// floor by a percent of walking speed, which is a change the player cannot see. A weapon
-        /// changes what the floor does. The fallback keeps the scene honest when the camp offers
-        /// nothing else — it still plays the build the bag produced.
+        /// Preferring a fighting piece is what makes a standalone scene worth opening. The cheapest
+        /// piece at a first-floor camp is routinely a bag: buying one would change the floor by a
+        /// percent of walking speed, which is a change the player cannot see. A weapon changes what
+        /// the floor does. The fallback keeps the scene honest when the camp offers nothing else —
+        /// it still plays the build the bag produced.
         /// </remarks>
         private static int CheapestAvailableSlot(RunSession run, IGameConfig config)
         {

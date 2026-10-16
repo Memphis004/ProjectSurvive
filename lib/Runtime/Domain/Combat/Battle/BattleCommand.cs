@@ -42,5 +42,11 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
         /// <summary>A <see cref="BattleCommandKind.DevGodMode"/> command (arg 1 = on, 0 = off).</summary>
         public static BattleCommand DevGodMode(bool enabled) =>
             new BattleCommand(BattleCommandKind.DevGodMode, enabled ? 1 : 0);
+
+        /// <summary>A <see cref="BattleCommandKind.DevAddBia"/> command for a positive amount.</summary>
+        public static BattleCommand DevAddBia(int amount) => new BattleCommand(BattleCommandKind.DevAddBia, amount);
+
+        /// <summary>A <see cref="BattleCommandKind.DevSpawnGhost"/> command (no argument).</summary>
+        public static BattleCommand DevSpawnGhost() => new BattleCommand(BattleCommandKind.DevSpawnGhost);
     }
 }

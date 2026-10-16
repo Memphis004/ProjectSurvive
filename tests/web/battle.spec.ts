@@ -22,6 +22,7 @@ import { expect, test, type Page } from "@playwright/test";
  */
 
 const BATTLE = "__projectSurviveBattle";
+const CAMP = "__projectSurviveCamp";
 const SCENE = "__projectSurviveScene";
 
 /** Boot: download + compile the player. */
@@ -29,6 +30,19 @@ const PLAYER_BOOT_TIMEOUT_MS = 180_000;
 
 /** Floor 1 is 60 s at 1×, plus the poll interval and the tail of the build's boot. */
 const FLOOR_TIMEOUT_MS = 150_000;
+
+/** How long the arena may take to hand a won floor back to the camp (the fade is 0.2 s). */
+const HANDOVER_TIMEOUT_MS = 30_000;
+
+/** The camp's own report, the half of it Stage 10's handover is read from. */
+interface CampReport {
+  flow: string;
+  floor: number;
+  totalFloors: number;
+  hp: number;
+  bia: number;
+  canDepart: boolean;
+}
 
 interface BattleReport {
   scene: string;
@@ -130,6 +144,36 @@ test.describe("ProjectSurvive floor 1 in the browser", () => {
     expect(finished.viewsBound).toBeGreaterThan(0);
 
     await page.screenshot({ path: "test-results/web-battle-end.png", fullPage: false });
+
+    // Stage 10 acceptance in the built player: a floor that was **won** does not end the run, so
+    // the arena hands it back to the camp — and what the camp reports has to be the same run the
+    // arena played ("ไม่มีเงินหรือไอเทมหายตอนเปลี่ยน Scene"). The standing player wins floor 1
+    // with full HP, so the run goes on: the scene the bridge publishes changes to Camp, and the
+    // camp's own floor cursor is one past the floor just played, which is a thing a *new* run
+    // could never show (a new run starts on floor 1).
+    await expect
+      .poll(
+        () => page.evaluate((n) => (window as unknown as Record<string, unknown>)[n], SCENE),
+        { timeout: HANDOVER_TIMEOUT_MS, polling: 500 },
+      )
+      .toBe("Camp");
+
+    await waitForGlobal(page, CAMP);
+    const camp = await page.evaluate(
+      (globalName) => (window as unknown as Record<string, unknown>)[globalName] as CampReport,
+      CAMP,
+    );
+    console.log("camp report (after the won floor):", JSON.stringify(camp));
+
+    expect(["Won"], `floor 1 ended '${finished.outcome}', so the run did not carry on`).toContain(finished.outcome);
+    expect(camp.flow).toBe("Camp");
+    expect(camp.floor).toBe(2);
+    expect(camp.floor).toBeLessThanOrEqual(camp.totalFloors);
+    expect(camp.hp).toBe(finished.finalHp);
+    expect(camp.bia).toBeGreaterThan(0);
+    expect(camp.canDepart).toBe(true);
+
+    await page.screenshot({ path: "test-results/web-loop-camp.png", fullPage: false });
 
     expect(pageErrors, `the page reported errors:\n${pageErrors.join("\n")}`).toEqual([]);
   });

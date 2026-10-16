@@ -3,6 +3,7 @@ using ProjectSurvive.Core.Application.Run;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Shared;
 using ProjectSurvive.Game.Presentation.Camp;
+using ProjectSurvive.Game.Presentation.Flow;
 using ProjectSurvive.Game.Presentation.Web;
 using UnityEngine;
 using VContainer;
@@ -43,6 +44,9 @@ namespace ProjectSurvive.Game.Camp
 
         [Tooltip("Seconds between report checks. A check compares one hash and usually stops there.")]
         [SerializeField] private float _reportIntervalSeconds = 0.25f;
+
+        private SceneLoader _loader;
+        private bool _departed;
 
         private int _lastKey;
         private int _lastWidth = -1;
@@ -86,8 +90,28 @@ namespace ProjectSurvive.Game.Camp
                 return false;
             }
 
-            Run = _scope.Container.Resolve<RunSession>();
+            // The run comes from the App scope's run owner, not from this scene: walking back to
+            // the camp after a floor must edit the wallet and the bag the battle left behind
+            // (Stage 10a), and a scene-scoped run is exactly what used to make that impossible.
+            Run = _scope.Container.Resolve<RunScopeOwner>().RequireRun();
+            _loader = _scope.Container.Resolve<SceneLoader>();
             Presenter = _scope.Container.Resolve<CampPresenter>();
+
+            // A run that has already ended belongs on the summary screen, not in the camp. This is
+            // the guard for a handover that lands here after the last floor (a `?scene=Camp`
+            // handover, or the browser's back button) — on the normal path the battle leaves for the
+            // summary screen itself, and this is what makes the camp refuse to shop for a run that
+            // is over.
+            if (Run.IsRunOver)
+            {
+                if (!_loader.TryGo(SceneId.Result))
+                {
+                    StartError = "The finished run could not be summarised: " + _loader.LastError;
+                    Debug.LogError(StartError, this);
+                }
+
+                return false;
+            }
 
             if (Run.FlowState == RunFlowState.Title)
             {
@@ -154,7 +178,27 @@ namespace ProjectSurvive.Game.Camp
 
         private void Update()
         {
-            if (!_started || !_publishReport)
+            if (!_started)
+            {
+                return;
+            }
+
+            // The departure is the camp's one way out: the presenter has already performed the
+            // real RunSession.StartFloor (and the run holds the resulting setup), so all that is
+            // left is the scene change. It is asked once — the loader refuses a second transition
+            // anyway, but a director that retried every frame would make that refusal the normal
+            // path instead of an error.
+            if (!_departed && Presenter != null && Presenter.Departed)
+            {
+                _departed = true;
+                if (_loader != null && !_loader.TryGo(SceneId.Battle))
+                {
+                    StartError = "the battle scene could not be entered: " + _loader.LastError;
+                    Debug.LogError(StartError, this);
+                }
+            }
+
+            if (!_publishReport)
             {
                 return;
             }

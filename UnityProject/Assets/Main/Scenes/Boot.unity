@@ -156,6 +156,7 @@ MonoBehaviour:
   - ThaiTextSpike
   - Battle
   - Camp
+  - Result
 --- !u!114 &1934354347
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -172,6 +173,7 @@ MonoBehaviour:
     TypeName: 
   autoRun: 1
   autoInjectGameObjects: []
+  _runSeed: 20261015
 --- !u!4 &1934354348
 Transform:
   m_ObjectHideFlags: 0

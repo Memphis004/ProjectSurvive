@@ -178,3 +178,11 @@
 ,upgrade.stat.pickup_radius,รัศมีเก็บของ,Pickup radius
 ,upgrade.stat.focus_per_second,สมาธิต่อวินาที,Focus per second
 ,upgrade.stat.unknown,ค่าสถานะ,Stat
+,result.victory,ชัยชนะ,Victory
+,result.defeat,พ่ายแพ้,Defeat
+,result.floor.format,ไปถึงชั้น {0}/{1},Reached floor {0}/{1}
+,result.kills.format,ปราบผี {0} ตน,Ghosts defeated {0}
+,result.bia.format,เบี้ยคงเหลือ {0},Bia left {0}
+,result.hp.format,HP คงเหลือ {0}/{1},HP left {0}/{1}
+,result.restart,เริ่มรอบใหม่,Restart
+,result.title,กลับหน้าแรก,Back to title

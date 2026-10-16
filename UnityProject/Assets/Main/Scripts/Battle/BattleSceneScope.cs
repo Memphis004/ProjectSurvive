@@ -1,8 +1,6 @@
 using ProjectSurvive.Core.Application.Battle.Fake;
 using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Config;
-using ProjectSurvive.Core.Domain.Inventory;
-using ProjectSurvive.Core.Infrastructure.Save;
 using ProjectSurvive.Game.Presentation;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
@@ -39,9 +37,11 @@ namespace ProjectSurvive.Game.Battle
     /// enforced by the Stage 06 architecture test).
     /// </para>
     /// <para>
-    /// It inherits the shell's registrations (config, clock, localization, UI state) by
-    /// extending <see cref="RootLifetimeScope"/>, so the scene has one scope rather than a
-    /// parent/child pair to keep straight.
+    /// Since Stage 10a this is a <b>Scene</b> scope: in the normal flow it is a child of the App
+    /// scope and registers nothing but the factory, the camera-independent state and the HUD's
+    /// presenter. The run, the bag codec and every shell service come from the parent chain — the
+    /// scene no longer builds a run of its own, which is what makes the same scene serve floor 1
+    /// through floor 5 with the wallet the camp handed it.
     /// </para>
     /// </remarks>
     public sealed class BattleSceneScope : RootLifetimeScope
@@ -49,11 +49,14 @@ namespace ProjectSurvive.Game.Battle
         [Tooltip("Drive the presentation from the Stage 02b dev session instead of the EcsLite battle, to develop the screen without a live simulation.")]
         [SerializeField] private bool _useDevBattle;
 
-        [Tooltip("Run seed the floor and the cosmetic stream are derived from.")]
-        [SerializeField] private uint _runSeed = 20261015u;
-
-        [Tooltip("Rent and place one extra piece at camp, so the floor runs on a build that is not just the starting knife.")]
+        [Tooltip("When the scene is opened without a camp (?scene=Battle), rent and place one extra piece so the floor is not just the starting knife.")]
         [SerializeField] private bool _equipSecondWeapon = true;
+
+        /// <summary>
+        /// True when this scene should equip one extra piece before departing — see
+        /// <see cref="BattleRunSource"/>.
+        /// </summary>
+        public bool EquipSecondWeapon => _equipSecondWeapon;
 
         /// <inheritdoc />
         protected override void Configure(IContainerBuilder builder)
@@ -63,22 +66,21 @@ namespace ProjectSurvive.Game.Battle
             // Every registration is an explicit factory, never a reflected constructor: the
             // first Web build failed on a constructor only reflection could see
             // (llmwiki/gotchas/il2cpp-di-and-reflection.md).
-            builder.Register<IBackpackSnapshotCodec>(
-                _ => new MessagePackBackpackSnapshotCodec(), Lifetime.Singleton);
-
             builder.Register<IBattleSessionFactory>(
                 resolver => _useDevBattle
                     ? DevBattleSessionBinding.CreateFactory(resolver.Resolve<IGameConfig>())
                     : new EcsBattleSessionFactory(resolver.Resolve<IGameConfig>()),
                 Lifetime.Singleton);
 
-            builder.Register(
-                resolver => new BattleRunSource(
-                    resolver.Resolve<IGameConfig>(), _runSeed, _equipSecondWeapon),
-                Lifetime.Singleton);
-
             builder.Register(_ => new BattleSpeed(), Lifetime.Singleton);
             builder.Register(_ => new BattleHudState(), Lifetime.Singleton);
+
+            // The dev menu's logic (Stage 10c). Registered here rather than in the shell because it
+            // is a control of this screen; it is only ever *shown* where DevCheats.Allowed says so,
+            // and every command it sends is refused by the floor otherwise.
+            builder.Register(
+                resolver => new DevMenuPresenter(resolver.Resolve<IGameConfig>()),
+                Lifetime.Singleton);
             builder.Register(
                 resolver => new BattleHudPresenter(
                     resolver.Resolve<BattleHudState>(),

@@ -6,9 +6,11 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using NUnit.Framework;
+using ProjectSurvive.Core.Application.Run;
 using ProjectSurvive.Core.Application.Text;
 using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Config;
+using ProjectSurvive.Core.Infrastructure.Save;
 using ProjectSurvive.Core.Simulation.Battle;
 using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Infrastructure;
@@ -622,8 +624,11 @@ namespace ProjectSurvive.Game.Tests.EditMode
         private static bool BuildSetup(
             IGameConfig config, bool equipSecondWeapon, out BattleSetup setup, out string error)
         {
-            var source = new BattleRunSource(config, Seed, equipSecondWeapon);
-            return source.TryBuild(out setup, out _, out error);
+            // The scene's standalone bootstrap (Stage 10a): a run with this fixture's seed, played
+            // by the real Application commands. The point of the fixture is unchanged — the setup
+            // comes from the real tables and the real resolver, not from hand-written numbers.
+            var run = new RunSession(config, new MessagePackBackpackSnapshotCodec(), Seed);
+            return BattleRunSource.TryStartFrom(run, config, equipSecondWeapon, out setup, out _, out error);
         }
 
         /// <summary>Everything about a resolved build that decides how the floor plays.</summary>

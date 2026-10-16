@@ -26,10 +26,10 @@ need to run, and the Web build moved behind the Full suite.
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 20 broken data sets rejected for the right reason |
-| `unity: EditMode` | Fast | 94 tests in `ProjectSurvive.Game.Tests.EditMode` |
-| `unity: PlayMode` | **Full** | 33 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window) |
+| `unity: EditMode` | Fast | 115 tests in `ProjectSurvive.Game.Tests.EditMode` |
+| `unity: PlayMode` | **Full** | 40 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the three scopes and the 20-round-trip loop) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
-| `web: Playwright (smoke + battle + camp)` | **Full** | 8 browser tests against that build, in Chrome |
+| `web: Playwright (smoke + battle + camp)` | **Full** | 8 browser tests against that build, in Chrome (13 more are the opt-in screenshot generator, skipped unless `SCREENS=1`) |
 
 `-Release` moves the dotnet build and the WebGL build to Release. It is for a Stage gate or a
 measurement — a Development build's numbers may not be quoted ([ADR 0003](../adr/0003-performance-baseline-machine-and-browser.md)).
@@ -47,11 +47,18 @@ or committing one; a Stage's own gate (stages 10, 12, 14, 15) may name Full with
 change is not a reason to build Web — `ProjectSurvive/Tools/1. Capture UI` renders the scene in the
 Editor at both sizes instead (§6).
 
-Measured on 2026-10-16 for Stage 09g, both runs **PASS 10 | FAIL 0 | NOT RUN 3**: **127.3 s** while the
-stage was being built and **86.2 s** on the closing run (`artifacts/stage09g/fast-suite.log`) — the same
-WARN 0 result, the spread being the cold/warm behaviour §2 records. The three NOT RUN steps are
+Measured on 2026-10-16 for Stage 10, both runs **PASS 10 | FAIL 0 | NOT RUN 3**: **85.3 s** after the
+`SceneLoader` repair (`artifacts/stage10/fast-after-fix.log`) and **76.0 s** once the three Result-screen
+layout tests landed (`artifacts/stage10/fast-after-layout-tests.log`) — the same WARN 0 result, the
+spread being the cold/warm behaviour §2 records. The three NOT RUN steps are
 `unity: PlayMode`, `web: WebGL build` and `web: Playwright`, which Fast does not request; `dotnet test`
-466 passed and `unity: EditMode` 94/94 in both runs.
+466 passed and `unity: EditMode` 115/115 in both runs.
+
+Stage 10's own gate is Full, and it is **two runs**: Full with the Editor **open**
+(`artifacts/stage10/full-suite-editor-open.log`) reports EditMode and PlayMode and NOT RUNs both web
+steps, and Full with the Editor **closed** (`artifacts/stage10/full-suite-editor-closed.log`) reports
+the WebGL build and Playwright and NOT RUNs both Unity steps. Neither alone is the gate; together they
+are.
 
 ## 2. Measured timings
 
@@ -146,7 +153,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `Inventory/*.cs` | Board/Backpack/BackpackEditor/Merge/Recycle/Rotation/Synergy/Loadout + the randomized bag tests |
 | `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay |
 
-### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (94 tests) → **Fast**
+### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (115 tests) → **Fast**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
@@ -158,8 +165,12 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `WebSizeProfilesTests` | 8 | the size profiles and their recorded configuration |
 | `BackpackRulesTests` | 10 | the bag rules as the Editor sees them |
 | `UiLayoutCheckTests` | 19 | the overlap rule the UI capture command applies, the overlay exemption, the opacity floor and (Stage 09g) the modal rules: a window may cover the panel it is asking about, two cards sharing pixels are still reported, a card inside its window passes and one outside it does not; includes the deliberate-overlap case |
+| `DevCheatTests` | 8 | **Stage 10c** — `DevCheats.Allowed` is false until the root decides it and false in a release player, `Reset` puts it back; every dev command through the real ECS session: a floor with cheats off refuses each one with `RejectedNotAllowed` and changes nothing (HP, bia, entity count, phase), `DevGodMode` only takes 0/1, `DevAddBia` only takes a positive amount, and a refused command leaves the menu's own toggle telling the truth |
+| `ResultScreenTests` | 7 | **Stage 10b** — the summary a cleared run and a lost one produce (headline, floor reached, ghosts, bia, HP), a run that has not ended, the strings coming through the localization table, one way out at a time, `ReturnToTitle` being the run's own transition, and every `result.*` row existing in both languages |
+| `RunScopeLifetimeTests` | 3 | **Stage 10a** — the run is created once and replaced only by its owner's disposal, a run after a disposal is a new one and not the old object, and a scene scope inherits the App scope's run instead of building its own |
+| `ResultScreenLayoutTests` | 3 | **Stage 10b** — the Result scene read from disk and judged with `UiLayoutCheck`: the seven regions are pairwise disjoint and inside the summary column, every label is ≥ 22 px in a ≥ 32 px line box, and the reading order (headline → lines → restart → title) holds. Measured rectangles in [`artifacts/stage10/result-layout.md`](../../artifacts/stage10/result-layout.md) |
 
-### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (33 tests) → **Full**
+### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (40 tests) → **Full**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
@@ -167,15 +178,17 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `CampBagDragPlayModeTests` | 12 | the จัดย่าม screen driven by real pointer events, plus the tooltip's draw order, the two-name rule and the line/badge kinds |
 | `CampMergeChooserPlayModeTests` | 4 | **Stage 09g** — the upgrade-choice window through real pointer/keyboard events: drag onto the twin opens it (measured geometry: the dim covers the canvas, the cards do not overlap), a tap on the second card upgrades in the same cell with that card's variant id, `Escape` and the back control close it with the run's hash byte-identical and the same cards offered again, the board behind it stays locked and no tooltip is drawn, and `2` picks the second card |
 | `CampWorldPlayModeTests` | 8 | WASD walking, the walk clamp, `E` at a shelf, clicking without walking |
-| `ShellPlayModeTests` | 5 | scene loading, the title, the Thai spike's two stacks, UniTask cancellation in play mode |
+| `SceneFlowPlayModeTests` | 5 | **Stage 10a** — the whole loop through the real scenes: the purse, bag and HP that went into the arena come back out of it (same `RunSession` object, same seed), a settled floor writes `BattleResult.FinalHp` back into the run and heals only what the run's own settlement heals, leaving the arena disposes its `IBattleSession`, arriving at the title leaves no run scope and no scene scope behind, the loader refuses a second transition and a scene that is not built, and **20 camp/battle round trips** leave exactly one scene scope and one run scope each time and grow the managed heap by ≤ 3 MiB (measured: 0.70 MiB; [`artifacts/stage10/loop-memory.md`](../../artifacts/stage10/loop-memory.md)) |
+| `ResultScenePlayModeTests` | 3 | **Stage 10b** — a lost floor lands on the summary screen and **Restart** starts a new run at floor 1 with the starting purse and an empty bag, a run can be won floor by floor and ends on the victory summary, and leaving the summary for the title leaves no run behind |
+| `ShellPlayModeTests` | 5 | scene loading, the title, the Thai spike's two stacks, UniTask cancellation in play mode. **Note:** the assembly's bulk payload reports four of these five — `Thai_spike_scene_measures_both_stacks_without_missing_glyphs` was absent from the 40-result payload of every Stage 10 run while the file still declares it; run the class on its own to see it (see §7) |
 
 ### Playwright — `tests/web` (8 gate tests) → **Full**
 
 | Spec | Tests | What it covers |
 | --- | --- | --- |
 | `smoke.spec.ts` | 2 | the player boots, passes its own 7-probe self-check, hands over to Title; the Thai spike's glyph coverage |
-| `battle.spec.ts` | 2 | floor 1 played to a win or a loss in a real browser; a mid-floor report |
-| `camp.spec.ts` | 4 | the จัดย่าม flow end-to-end, the sala's controls, WASD + `E`, the layout at 1280×720 and 1920×1080. Its merge step presses `1` to pick the first card of the Stage 09g window after the drop (the camp report publishes no card rectangle, so the key path is the honest one) — **this edit is unverified**: the browser suite was not run for Stage 09g, and a future Full run must confirm it |
+| `battle.spec.ts` | 2 | floor 1 played to a win or a loss in a real browser; a mid-floor report. Since Stage 10 the first test also rides the handover that follows: a **won** floor does not end the run, so the arena carries it back to the camp and the camp's own report has to be the same run — `__projectSurviveScene` becomes `Camp`, `floor` is 2 (a new run would be 1), `hp` is the arena's `finalHp`, `bia` is the run's purse and `canDepart` is true |
+| `camp.spec.ts` | 4 | the จัดย่าม flow end-to-end, the sala's controls, WASD + `E`, the layout at 1280×720 and 1920×1080. Its merge step presses `1` to pick the first card of the Stage 09g window after the drop (the camp report publishes no card rectangle, so the key path is the honest one) — that edit was unverified when it landed in 09g and **is verified now**: the Stage 10 Full run with the Editor closed ran this spec **4/4** against the Development player (`artifacts/stage10/full-suite-editor-closed.log`) |
 | `screens.spec.ts` | 13 | **not a gate**: the screenshot generator, opt-in with `SCREENS=1` (`test.skip(process.env.SCREENS !== "1")`), skipped in a plain run |
 
 ### Process-level checks inside the harness → **Fast**
@@ -293,6 +306,18 @@ upgrade-choice window, which does not exist in the authored scene at all — see
   (`UiLayoutCheckTests`, in Fast).
 
 ## 7. Known flake: a bulk PlayMode run
+
+Twenty of the **40** PlayMode tests failed in the bulk run measured on 2026-10-16 for Stage 10
+(`artifacts/stage10/playmode-bulk-status-after-fix.json`): every failure is the same ambient log assert
+and **not one is an assertion of ours** — twelve `IndexOutOfRangeException` (Input System) plus eight
+`Cached unprocessed value` (R3). The classes Stage 10 added are green in that same bulk payload
+(`ResultScenePlayModeTests` 3/3, `SceneFlowPlayModeTests` 5/5 incl. the 20-loop), and the camp and
+flow classes are green when the filter is applied (`--filter Camp` → **25/25**, `--filter
+SceneFlowPlayModeTests` → **5/5**); see [`artifacts/stage10/playmode-after-fix.md`](../../artifacts/stage10/playmode-after-fix.md).
+One further oddity of the payload, recorded rather than explained away: it lists four of
+`ShellPlayModeTests`' five `[UnityTest]`s, and the one it drops
+(`Thai_spike_scene_measures_both_stacks_without_missing_glyphs`) is dropped from every Stage 10 payload
+without appearing as a failure, so a per-class run is the only thing that reports it.
 
 Sixteen of the 28 PlayMode tests failed in the bulk run measured on 2026-10-16 for Stage 09f
 (`unity: PlayMode 16/28`, 12 passed; 12 `IndexOutOfRangeException` + 4 `Cached unprocessed`),

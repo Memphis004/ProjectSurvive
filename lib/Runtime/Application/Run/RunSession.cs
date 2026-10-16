@@ -135,11 +135,62 @@ namespace ProjectSurvive.Core.Application.Run
         /// <summary>How many floors the run has (the floor table's row count).</summary>
         public int TotalFloors => _floors.Count;
 
+        /// <summary>
+        /// Ghosts the run has killed, summed over every floor it fought ("ผีที่ปราบ").
+        /// </summary>
+        /// <remarks>
+        /// Each settled floor contributes its own <see cref="BattleResult.Kills"/>. The sum lives on
+        /// the run because no floor's battle outlives the floor: the number the summary screen needs
+        /// exists only here.
+        /// </remarks>
+        public int GhostsDefeated { get; private set; }
+
         /// <summary>Id of the last settlement paid out; 0 before the first one.</summary>
         public int LastSettlementId { get; private set; }
 
         /// <summary>True once the run has ended (win or loss).</summary>
         public bool IsRunOver => FlowState == RunFlowState.Result;
+
+        /// <summary>
+        /// How the run stands: still in progress, won, or lost.
+        /// </summary>
+        /// <remarks>
+        /// Derived, not stored — the run is over in exactly two shapes (a floor it did not clear,
+        /// or its last floor cleared), and a second flag would be one more thing that could disagree
+        /// with <see cref="FlowState"/>.
+        /// </remarks>
+        public RunOutcome Outcome
+        {
+            get
+            {
+                if (FlowState != RunFlowState.Result)
+                {
+                    return RunOutcome.InProgress;
+                }
+
+                return FloorsCleared >= _floors.Count ? RunOutcome.Victory : RunOutcome.Defeat;
+            }
+        }
+
+        /// <summary>
+        /// The summary the Result screen shows: how the run ended, how far it got and what it killed.
+        /// </summary>
+        /// <remarks>
+        /// A read — nothing in the run changes because a screen asked. It is built even while the run
+        /// is in progress (the caller can check <see cref="RunSummary.IsFinished"/>), which keeps a
+        /// screen from having to ask two questions in the right order to get an answer.
+        /// </remarks>
+        public RunSummary Summary() => new RunSummary(
+            Seed,
+            Outcome,
+            FloorIndex,
+            TotalFloors,
+            FloorsCleared,
+            GhostsDefeated,
+            Wallet.Bia,
+            Hp,
+            MaxHp,
+            LastSettlementId);
 
         /// <summary>
         /// The events raised since the last <see cref="ClearEvents"/>. Presentation
@@ -150,6 +201,20 @@ namespace ProjectSurvive.Core.Application.Run
         /// <summary>The floor about to be attempted, or null when none is left.</summary>
         public FloorConfig? CurrentFloor =>
             FloorIndex >= 1 && FloorIndex <= _floors.Count ? _floors[FloorIndex - 1] : null;
+
+        /// <summary>
+        /// The setup of the floor this run has departed for, or null when no departure is
+        /// outstanding.
+        /// </summary>
+        /// <remarks>
+        /// The departure happens where the departure button is (the camp), and the floor it
+        /// validated is fought somewhere else (the Battle scene, across a scene load). Passing the
+        /// object through the run is what lets the arena scene start <b>the floor the camp already
+        /// validated</b> — HP, purse, bag and the resolved loadout — instead of asking the same
+        /// questions a second time and risking a different answer. It is cleared by
+        /// <see cref="ApplyBattleResult"/>, exactly like the private field it exposes.
+        /// </remarks>
+        public BattleSetup? PendingSetup => _pendingSetup;
 
         // -------------------------------------------------------------------
         // flow
@@ -212,6 +277,7 @@ namespace ProjectSurvive.Core.Application.Run
             Hp = MaxHp;
             FloorIndex = 1;
             FloorsCleared = 0;
+            GhostsDefeated = 0;
             LastSettlementId = 0;
 
             EnterCamp();
@@ -283,7 +349,11 @@ namespace ProjectSurvive.Core.Application.Run
                 IsBossFloor = floor.IsBoss,
                 CurrentHp = Hp,
                 Loadout = loadout,
-                DevCheatsAllowed = false,
+
+                // The floor copies whatever the shell decided about dev cheats
+                // (Stage 10): false in a release build, on in the Editor and in a Development
+                // build, and frozen for the floor's whole life either way.
+                DevCheatsAllowed = DevCheats.Allowed,
             };
 
             _pendingSetup = setup;
@@ -340,6 +410,13 @@ namespace ProjectSurvive.Core.Application.Run
 
             int reward = result.CurrencyEarned > 0 ? result.CurrencyEarned : 0;
             Wallet.Credit(reward);
+
+            // The run's own kill count, added before the flow moves: the floor it came from is
+            // gone by the time the summary screen reads it.
+            if (result.Kills > 0)
+            {
+                GhostsDefeated += result.Kills;
+            }
 
             Hp = Clamp(result.FinalHp, 0, MaxHp);
             ApplyConsumables(loadout, result);
@@ -801,6 +878,7 @@ namespace ProjectSurvive.Core.Application.Run
             MaxHp = MaxHp,
             Bia = Wallet.Bia,
             FloorsCleared = FloorsCleared,
+            GhostsDefeated = GhostsDefeated,
             LastSettlementId = LastSettlementId,
             RefreshCount = Stock.RefreshCount,
             BackpackRevision = Backpack.Revision,

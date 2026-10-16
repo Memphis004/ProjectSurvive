@@ -232,6 +232,19 @@ namespace ProjectSurvive.Core.Simulation.Battle
                     Finish(BattlePhase.Lost, BattleEndReason.PlayerDied);
                     return CommandResult.Ok;
 
+                case BattleCommandKind.DevAddBia:
+                    if (command.Arg <= 0)
+                    {
+                        return CommandResult.RejectedInvalidArg;
+                    }
+
+                    DevAddBia(command.Arg);
+                    return CommandResult.Ok;
+
+                case BattleCommandKind.DevSpawnGhost:
+                    DevSpawnGhost();
+                    return CommandResult.Ok;
+
                 default:
                     return CommandResult.RejectedInvalidArg;
             }
@@ -321,6 +334,82 @@ namespace ProjectSurvive.Core.Simulation.Battle
             {
                 Finish(_context.EndPhase, _context.EndReason);
             }
+        }
+
+        /// <summary>
+        /// Adds dev bia to the floor's takings.
+        /// </summary>
+        /// <remarks>
+        /// No event: bia has no <c>PickupCollected</c> to report because no drop was collected, and
+        /// the HUD reads <c>HudState.Currency</c> from the frame every tick, so the number on screen
+        /// moves without one. The amount lands in <c>CurrencyEarned</c>, which is what the settlement
+        /// credits into the run's purse.
+        /// </remarks>
+        private void DevAddBia(int amount)
+        {
+            _context.CurrencyEarned += amount;
+            _frameSystem.Run(_systems);
+        }
+
+        /// <summary>
+        /// Puts one more ghost on the field, through the same spawner a wave uses and with the
+        /// current wave's own template, so a dev ghost is an ordinary ghost of this floor.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Deliberately <b>not</b> counted against the wave's <c>Spawned</c> count: a dev spawn is an
+        /// extra ghost, not the wave's own ghost arriving early, and taking one out of the wave would
+        /// silently shorten the floor. A field already at the contract's enemy ceiling simply gets
+        /// nothing — the same ceiling a wave spawn hits — and the command still reports <c>Ok</c>.
+        /// </para>
+        /// <para>
+        /// The ghost arrives at the arena's edge, at an angle drawn from the session's own random
+        /// source, exactly as <c>WaveSpawnSystem</c> places one (AGENTS rule 6).
+        /// </para>
+        /// </remarks>
+        private void DevSpawnGhost()
+        {
+            if (_context.WaveCount == 0 || _context.EnemiesAlive >= BattleArena.MaxEnemies)
+            {
+                return;
+            }
+
+            int wave = _context.WaveIndex;
+            if (wave < 0 || wave >= _context.WaveCount)
+            {
+                wave = 0;
+            }
+
+            ref WaveSlot slot = ref _context.Waves[wave];
+
+            float angle = _context.Random.NextFloat() * BattleArena.Tau;
+            float radius = BattleArena.Radius * BattleArena.SpawnRadiusFactor;
+            float x = (float)System.Math.Cos(angle) * radius;
+            float y = (float)System.Math.Sin(angle) * radius;
+
+            int entity = _context.Spawner.SpawnEnemy(_context, slot, x, y);
+            _context.EnemiesAlive++;
+
+            if (slot.IsBoss)
+            {
+                // The same bookkeeping the wave system does for a boss, so the HUD's bar and the
+                // boss end condition see the ghost that was just put on the field.
+                _context.BossEntity = entity;
+                _context.BossMaxHp = slot.MaxHp;
+                _context.BossHp = slot.MaxHp;
+                _context.BossSpawned = true;
+            }
+
+            _context.Emit(
+                BattleEventType.EnemySpawned,
+                _context.Ref(entity),
+                slot.EnemyDefId,
+                0,
+                BattleEventFlags.None,
+                x,
+                y);
+
+            _frameSystem.Run(_systems);
         }
 
         private void Finish(BattlePhase phase, BattleEndReason reason)

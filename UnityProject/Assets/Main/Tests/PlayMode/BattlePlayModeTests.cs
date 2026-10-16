@@ -230,6 +230,11 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
         private static IEnumerator LoadScene(string sceneName)
         {
+            // A shell this fixture owns: see SceneFlowHarness. The App scope persists once a
+            // fixture loads Boot, so a test that did not reset would inherit a live run.
+            SceneFlowHarness.ResetShell();
+            yield return null;
+
             yield return SceneManager.LoadSceneAsync(SceneIndex(sceneName), LoadSceneMode.Single);
         }
 

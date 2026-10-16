@@ -6,6 +6,7 @@
         "ProjectSurvive.Game.Presentation",
         "ProjectSurvive.Game.Battle",
         "ProjectSurvive.Game.Camp",
+        "ProjectSurvive.Game.ResultScene",
         "Unity.InputSystem",
         "Unity.InputSystem.TestFramework",
         "ProjectSurvive.Core.Simulation",

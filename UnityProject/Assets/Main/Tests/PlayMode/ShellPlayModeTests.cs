@@ -47,6 +47,15 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             for (int index = 0; index < sceneCount; index++)
             {
+                // Each scene is loaded on a shell this fixture owns. Since Stage 10a the App scope
+                // persists across scene loads, so without the reset this loop would carry a run out
+                // of the scene that made it — the Camp scene loaded after the Battle scene would
+                // find a run in the Battle phase and (correctly) refuse to start, which is a
+                // statement about the loop, not about the scene. The question here is whether each
+                // scene loads on its own, so each scene gets its own shell.
+                SceneFlowHarness.ResetShell();
+                yield return null;
+
                 string path = SceneUtility.GetScenePathByBuildIndex(index);
                 yield return SceneManager.LoadSceneAsync(index, LoadSceneMode.Single);
                 yield return null;
@@ -68,12 +77,19 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
                 Assert.That(offenders, Is.Empty, path + " has missing scripts on: " + string.Join(", ", offenders));
             }
+
+            // Whatever the last scene left behind goes away with the fixture, not with the next one.
+            SceneFlowHarness.ResetShell();
+            yield return null;
         }
 
         [UnityTest]
         public IEnumerator Boot_runs_the_smoke_suite_and_hands_over_to_title()
         {
             int completedBefore = SceneBoot.CompletedBootCount;
+
+            SceneFlowHarness.ResetShell();
+            yield return null;
 
             yield return SceneManager.LoadSceneAsync(SceneIndex("Boot"), LoadSceneMode.Single);
             yield return null;
@@ -97,6 +113,9 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         [UnityTest]
         public IEnumerator Title_scene_shows_the_localized_title()
         {
+            SceneFlowHarness.ResetShell();
+            yield return null;
+
             yield return SceneManager.LoadSceneAsync(SceneIndex(TitleSceneName), LoadSceneMode.Single);
             yield return null;
             yield return null;
@@ -122,6 +141,9 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         [UnityTest]
         public IEnumerator Thai_spike_scene_measures_both_stacks_without_missing_glyphs()
         {
+            SceneFlowHarness.ResetShell();
+            yield return null;
+
             yield return SceneManager.LoadSceneAsync(SceneIndex("ThaiTextSpike"), LoadSceneMode.Single);
             yield return null;
             yield return null;

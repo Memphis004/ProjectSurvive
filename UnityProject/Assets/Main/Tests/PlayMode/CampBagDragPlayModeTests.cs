@@ -95,6 +95,12 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         /// </remarks>
         private IEnumerator LoadCamp()
         {
+            // A shell this fixture owns. Stage 10a made the App scope persist across scene loads,
+            // and a run that outlives a scene would otherwise carry another test's wallet, rented
+            // shelves and locked slots into this one.
+            SceneFlowHarness.ResetShell();
+            yield return null;
+
             SceneManager.LoadScene(CampSceneName, LoadSceneMode.Single);
             yield return null;
 
