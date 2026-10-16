@@ -26,8 +26,8 @@ need to run, and the Web build moved behind the Full suite.
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 20 broken data sets rejected for the right reason |
-| `unity: EditMode` | Fast | 130 tests in `ProjectSurvive.Game.Tests.EditMode` |
-| `unity: PlayMode` | **Full** | 45 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the three scopes and the 20-round-trip loop) |
+| `unity: EditMode` | Fast | 144 tests in `ProjectSurvive.Game.Tests.EditMode` |
+| `unity: PlayMode` | **Full** | 46 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the battle HUD's mini ย่าม and its cooldown plates, the three scopes and the 20-round-trip loop) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
 | `web: Playwright (smoke + title + battle + camp + result)` | **Full** | 10 browser tests against that build, in Chrome (13 more are the opt-in screenshot generator, skipped unless `SCREENS=1`) |
 
@@ -59,6 +59,16 @@ cooldown/frame cases, four of them run twice because the shared suite binds both
 **130/130** unchanged (the stage touched the contract and the simulation, not the shell) and its
 `-Suite Fast` run is `artifacts/stage08b/fast-suite.log` — **PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**,
 218.8 s.
+
+Stage 08c (2026-10-17) moved two counts and left the rest: EditMode **130 → 144** (`BattleMiniBagTests`
+14, and `BattlePresentationTests` 15) and PlayMode **45 → 46** (the battle class 4 → 5), while
+`dotnet test` stayed **481** (the four new `hud.*` localization rows moved the load test's pinned row
+count 188 → 192) and Playwright stayed **10**. Its `-Suite Fast` run is
+`artifacts/stage08c/fast-after-minibag-fix.log` — **PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**, 88.1 s.
+Its PlayMode evidence is **per class** like Stage 10's, because the bulk assembly run is the flake in §7:
+`BattlePlayModeTests` **5/5** in `artifacts/stage08c/playmode-battle-class.json`, and the bulk payload
+(`artifacts/stage08c/playmode-bulk-after-minibag-fix.json`) reports **20/46** with every failure an
+ambient log assert or its cascade.
 
 Stage 10d (2026-10-17) moved all four counts: `dotnet test` **468** (the localization row count the
 title's one new string moved), EditMode **130/130** (`TitleScreenTests` 5 + `TitleScreenLayoutTests` 4),
@@ -166,12 +176,13 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `Inventory/*.cs` | Board/Backpack/BackpackEditor/Merge/Recycle/Rotation/Synergy/Loadout + the randomized bag tests |
 | `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay |
 
-### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (130 tests) → **Fast**
+### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (144 tests) → **Fast**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
 | `ShellSmokeTests` | 12 | the 7-probe smoke suite, config hash, R3/UniTask/serialization in the Editor |
 | `BattlePresentationTests` | 15 | the battle HUD/state/presenter seam without a scene |
+| `BattleMiniBagTests` | 14 | **Stage 08c** — the mini ย่าม's arithmetic against hand-made frames: a plate is `RemainingTicks / PeriodTicks` (four cases over the period and the remaining ticks), the three tones (counting / ready-but-MP-short / ready), the bounding box the bag's cells actually cover and the cell size that fits it into the panel, the read-only rule (no piece is moved, no rule is recomputed), and the update-on-change rule (a frame identical to the last writes nothing) |
 | `CampPresenterTests` | 22 | every camp command through the presenter, the preview/command agreement, the 0-byte drag, the drawn-link kinds, and (Stage 09g) the upgrade-choice window: dropping a matching pair opens it with nothing changed, the cards are the offer's own rows in order with their data lines, the left panel is the tooltip's own five lines, confirming raises the tier in the same cell and reaches the loadout, cancelling changes nothing and reopening offers the same cards, a pair with no choices still folds on the drop, and the board is locked while the window is up |
 | `CampTooltipPlacementTests` | 4 | the tooltip stays on screen, flips at the edges and never covers the pointer |
 | `RunFlowEditModeTests` | 4 | the run flow against the shipped `Resources` tables |
@@ -185,11 +196,11 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `TitleScreenTests` | 5 | **Stage 10d** — the screen's one action through the presenter and the shipped tables: the start caption and the heading come from the localization table (and every key exists in both languages), the control starts the run **once** and refuses a second press while the first move is in flight, a run that is already live is taken to the camp rather than started again (`RunSession.StartRun` refuses `WrongState`), and after a disposal the same control builds a **new** run |
 | `TitleScreenLayoutTests` | 4 | **Stage 10d** — `Title.unity` read from disk and judged with `UiLayoutCheck`: the heading, the build line and the control are pairwise disjoint and inside the canvas, every label is ≥ 22 px in a ≥ 32 px line box, the control is ≥ 44 px tall with a raycastable target, and the reading order (heading → build line → control) holds |
 
-### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (45 tests) → **Full**
+### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (46 tests) → **Full**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
-| `BattlePlayModeTests` | 4 | the battle scene starts, ticks, re-enters and disposes |
+| `BattlePlayModeTests` | 5 | the battle scene starts, ticks, re-enters and disposes; **Stage 08c** added the scene's own wiring of the mini ย่าม (it is built, it matches the loadout's casters, and it creates nothing after its build) and the two claims a run can only make through the real scene — every plate equals the frame's own `RemainingTicks / PeriodTicks` with the tone its flags ask for, and those plates move as the floor runs |
 | `CampBagDragPlayModeTests` | 12 | the จัดย่าม screen driven by real pointer events, plus the tooltip's draw order, the two-name rule and the line/badge kinds |
 | `CampMergeChooserPlayModeTests` | 4 | **Stage 09g** — the upgrade-choice window through real pointer/keyboard events: drag onto the twin opens it (measured geometry: the dim covers the canvas, the cards do not overlap), a tap on the second card upgrades in the same cell with that card's variant id, `Escape` and the back control close it with the run's hash byte-identical and the same cards offered again, the board behind it stays locked and no tooltip is drawn, and `2` picks the second card |
 | `CampWorldPlayModeTests` | 8 | WASD walking, the walk clamp, `E` at a shelf, clicking without walking |

@@ -115,6 +115,26 @@ namespace ProjectSurvive.Game.Editor
         private const float UiFontSize = 22f;
 
         /// <summary>
+        /// Margin between a battle HUD panel and the canvas edge it is anchored to, in pixels at the
+        /// 1920×1080 reference (Stage 08c).
+        /// </summary>
+        /// <remarks>
+        /// A constant inset rather than a fraction of the canvas: a panel's <i>edge distance</i>
+        /// should not grow with the screen, and at 1280×720 the same 24 px is the same 24 px.
+        /// </remarks>
+        private const float UiMargin = 24f;
+
+        /// <summary>The panel background the battle HUD's four bordered panels share.</summary>
+        private static readonly Color PanelBackdrop = new Color(0.07f, 0.08f, 0.11f, 0.92f);
+
+        /// <summary>
+        /// Height of the dev menu's single column, in pixels: the heading (44), six 52 px rows (312)
+        /// and the 60 px status line, with the margins inside it. The panel is anchored to the bottom
+        /// edge, so this is the one dimension that is a number rather than a fraction.
+        /// </summary>
+        private const float DevMenuHeight = 440f;
+
+        /// <summary>
         /// The camp tooltip canvas' draw order. Above the camp screen's own canvas (0) and above
         /// everything it contains — the board, the chest, the incense pot and the bottom bar — because
         /// the engine sorts overlay canvases by <c>Canvas.sortingOrder</c> before anything else.
@@ -939,7 +959,7 @@ namespace ProjectSurvive.Game.Editor
             var viewRoot = new GameObject("ViewRoot");
 
             Canvas canvas = CreateCanvas(out GameObject canvasObject);
-            BattleHudView hud = BuildBattleHud(canvas, canvasObject, font, scope);
+            BattleHudView hud = BuildBattleHud(canvas, canvasObject, font, scope, out BattleMiniBagView miniBag);
 
             var runnerObject = new GameObject("BattleRunner");
             BattleSimulationRunner runner = runnerObject.AddComponent<BattleSimulationRunner>();
@@ -947,6 +967,7 @@ namespace ProjectSurvive.Game.Editor
             SetObjectReference(runner, "_viewSettings.ViewRoot", viewRoot.transform);
             SetObjectReference(runner, "_viewSettings.Camera", camera);
             SetObjectReference(runner, "_viewSettings.Hud", hud);
+            SetObjectReference(runner, "_viewSettings.MiniBag", miniBag);
             SetObjectReference(runner, "_viewSettings.Font", font);
             SetEnum(runner, "_viewSettings.Projection", (int)BattleProjection.Orthographic);
 
@@ -980,45 +1001,56 @@ namespace ProjectSurvive.Game.Editor
         /// loader's fade (3000), so a control is never drawn under the HUD and is never drawn over a
         /// transition.
         /// </para>
+        /// <para>
+        /// <b>One column at the bottom right (Stage 08c).</b> It used to be a two-column block in the
+        /// bottom-left corner, where the status panel now is and where the timeline is one row above
+        /// it; the column form is both the brief's own arrangement and the one that cannot reach
+        /// either. Every button stretches to the panel's width, so the column reads as a list at
+        /// 1280×720 as well as at 1920×1080.
+        /// </para>
         /// </remarks>
         private static void BuildDevMenu(TMP_FontAsset font, BattleSceneScope scope, BattleSimulationRunner runner)
         {
             Canvas canvas = CreateCanvas(out GameObject canvasObject, sortingOrder: 200, withRaycaster: true);
             var canvasRect = (RectTransform)canvas.transform;
 
-            RectTransform panel = CreateUiRect(
-                canvasRect, "DevPanel", new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(32f, 32f), new Vector2(460f, 320f));
+            // Bottom-right band: a quarter of the width at the canvas edge, tall enough for the
+            // heading, six 44 px rows and the status line (24 + 416 + 12 = 452 px at the reference).
+            RectTransform panel = StretchUiRect(
+                canvasRect, UiLayoutCheck.DevPanel, new Vector2(0.75f, 0f), new Vector2(1f, 0f),
+                new Vector2(16f, UiMargin), new Vector2(-UiMargin, UiMargin + DevMenuHeight));
 
             var background = panel.gameObject.AddComponent<Image>();
             background.color = new Color(0.08f, 0.10f, 0.13f, 0.88f);
             background.raycastTarget = true;
 
-            TMP_Text heading = CreateUiText(
-                panel, "DevHeading", new Vector2(12f, -8f), new Vector2(436f, 30f), UiFontSize, font);
+            TMP_Text heading = StretchUiText(
+                panel, "DevHeading", new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(12f, -38f), new Vector2(-12f, -8f), UiFontSize, font);
             heading.color = new Color(1f, 0.82f, 0.35f, 1f);
             heading.text = DevMenuText.Title;
 
-            Button godMode = CreateUiButton(panel, "DevGodMode", new Vector2(12f, -44f), new Vector2(210f, 44f), font, out TMP_Text godModeLabel);
+            Button godMode = CreateDevButton(panel, "DevGodMode", 0, font, out TMP_Text godModeLabel);
             godModeLabel.text = DevMenuText.GodModeOff;
 
-            Button addBia = CreateUiButton(panel, "DevAddBia", new Vector2(234f, -44f), new Vector2(214f, 44f), font, out TMP_Text addBiaLabel);
+            Button addBia = CreateDevButton(panel, "DevAddBia", 1, font, out TMP_Text addBiaLabel);
             addBiaLabel.text = DevMenuText.AddBia;
 
-            Button spawnGhost = CreateUiButton(panel, "DevSpawnGhost", new Vector2(12f, -96f), new Vector2(210f, 44f), font, out TMP_Text spawnGhostLabel);
+            Button spawnGhost = CreateDevButton(panel, "DevSpawnGhost", 2, font, out TMP_Text spawnGhostLabel);
             spawnGhostLabel.text = DevMenuText.SpawnGhost;
 
-            Button killAll = CreateUiButton(panel, "DevKillAll", new Vector2(234f, -96f), new Vector2(214f, 44f), font, out TMP_Text killAllLabel);
+            Button killAll = CreateDevButton(panel, "DevKillAll", 3, font, out TMP_Text killAllLabel);
             killAllLabel.text = DevMenuText.KillAll;
 
-            Button winNow = CreateUiButton(panel, "DevWinNow", new Vector2(12f, -148f), new Vector2(210f, 44f), font, out TMP_Text winNowLabel);
+            Button winNow = CreateDevButton(panel, "DevWinNow", 4, font, out TMP_Text winNowLabel);
             winNowLabel.text = DevMenuText.WinNow;
 
-            Button loseNow = CreateUiButton(panel, "DevLoseNow", new Vector2(234f, -148f), new Vector2(214f, 44f), font, out TMP_Text loseNowLabel);
+            Button loseNow = CreateDevButton(panel, "DevLoseNow", 5, font, out TMP_Text loseNowLabel);
             loseNowLabel.text = DevMenuText.LoseNow;
 
-            TMP_Text status = CreateUiText(
-                panel, "DevStatus", new Vector2(12f, -200f), new Vector2(436f, 60f), UiFontSize, font);
+            TMP_Text status = StretchUiText(
+                panel, "DevStatus", new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(12f, -416f), new Vector2(-12f, -356f), UiFontSize, font);
             status.text = DevMenuText.Disabled;
 
             DevMenuView view = canvasObject.AddComponent<DevMenuView>();
@@ -1040,6 +1072,36 @@ namespace ProjectSurvive.Game.Editor
         }
 
         /// <summary>
+        /// One row of the dev menu's single column: the <paramref name="row"/>-th 44 px control,
+        /// stretched to the panel's width between 12 px insets.
+        /// </summary>
+        /// <remarks>
+        /// Rows start under the heading and are 52 px apart (44 px of control and an 8 px gap), so the
+        /// panel's own height is the only number that has to be right — <see cref="DevMenuHeight"/>.
+        /// </remarks>
+        private static Button CreateDevButton(
+            RectTransform panel, string name, int row, TMP_FontAsset font, out TMP_Text label)
+        {
+            float top = 44f + (row * 52f);
+
+            RectTransform rect = StretchUiRect(
+                panel, name, new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(12f, -(top + 44f)), new Vector2(-12f, -top));
+
+            Image background = rect.gameObject.AddComponent<Image>();
+            background.color = new Color(0.16f, 0.17f, 0.22f, 0.95f);
+
+            Button button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = background;
+
+            label = StretchUiText(
+                rect, name + "Label", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero,
+                UiFontSize, font, TextAlignmentOptions.Center);
+
+            return button;
+        }
+
+        /// <summary>
         /// The battle camera: a 50° tilt that follows the player.
         /// </summary>
         /// <remarks>
@@ -1052,89 +1114,186 @@ namespace ProjectSurvive.Game.Editor
         private static Camera CreateBattleCamera() => BattleCameraProbe.CreateAuthoredCamera();
 
         /// <summary>
-        /// The battle HUD: health, focus, bia, the clock, the wave cursor, the spells the
-        /// loadout resolved to, the timeline bar with its elite and boss markers, and the
-        /// 1×/2× button.
+        /// The battle HUD as Stage 08c lays it out: the mini ย่าม at the top left, the floor's name
+        /// and number at the top centre, its stats and the speed control at the top right, the
+        /// status panel (figure, HP, MP) at the bottom left, the timeline along the bottom and the
+        /// dev menu in the bottom-right column.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Every panel is anchored to a canvas edge and stretched, not placed at a pixel.</b>
+        /// The layout is therefore one arrangement at 1920×1080 and 1280×720 rather than two: the
+        /// mini bag is a quarter of the canvas's width by construction (<c>anchorMax.x = 0.25</c>),
+        /// the two bottom panels stop at the same fraction of the height, and the timeline takes
+        /// the middle half of the width. The vertical split is what keeps the bottom-left status
+        /// panel and the top-left mini bag apart at both sizes — the mini bag starts at 45 % of the
+        /// height and the status panel ends at 30 %, so the band between them belongs to neither.
+        /// </para>
+        /// <para>
+        /// The mini ย่าม replaced the line of equipped spell names ("เอาข้อความรายการคาถาที่ติดตั้งออก"):
+        /// the bag itself now says which pieces are equipped, and the piece that can cast carries a
+        /// cooldown plate (Stage 08b's <c>IBattleFrame.Cooldowns</c>).
+        /// </para>
+        /// <para>
+        /// All text is at or above <see cref="UiFontSize"/> (22 px), which is the Thai floor the
+        /// project has held since Stage 09d; the mini bag's tier numbers are sized from its own cells
+        /// with the same floor (see <c>BattleMiniBagView</c>).
+        /// </para>
+        /// <para>
+        /// The mini bag is handed back through <paramref name="miniBag"/> because the HUD view does not
+        /// own it: it is wired straight into <c>BattleViewSettings.MiniBag</c>, which is the reference
+        /// <c>BattleViewScene</c> builds and plates the bag from. Without that one
+        /// <c>SetObjectReference</c> the panel draws its caption and nothing else — a defect the scene's
+        /// own PlayMode test caught ("the scene wired no mini bag").
+        /// </para>
+        /// </remarks>
         private static BattleHudView BuildBattleHud(
-            Canvas canvas, GameObject canvasObject, TMP_FontAsset font, BattleSceneScope scope)
+            Canvas canvas, GameObject canvasObject, TMP_FontAsset font, BattleSceneScope scope,
+            out BattleMiniBagView miniBag)
         {
             var canvasRect = (RectTransform)canvas.transform;
 
-            RectTransform topLeft = CreateUiRect(
-                canvasRect, "StatusPanel", new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(32f, -32f), new Vector2(440f, 260f));
+            // ---- top left: the mini ย่าม, at most a quarter of the canvas wide ----
+            RectTransform miniBagPanel = StretchUiRect(
+                canvasRect, UiLayoutCheck.MiniBag, new Vector2(0f, 0.45f), new Vector2(0.25f, 1f),
+                new Vector2(UiMargin, UiMargin), new Vector2(-UiMargin, -UiMargin));
+            AddPanelBackground(miniBagPanel, MiniBagPalette.Backdrop);
 
+            TMP_Text bagCaption = CreateUiText(
+                miniBagPanel, "BagCaption", new Vector2(10f, -6f), new Vector2(240f, 30f), UiFontSize, font);
 
-            TMP_Text floorLabel = CreateUiText(topLeft, "FloorLabel", new Vector2(0f, -8f), new Vector2(420f, 44f), 30f, font);
-            TMP_Text hpCaption = CreateUiText(topLeft, "HpCaption", new Vector2(0f, -60f), new Vector2(200f, 32f), 22f, font);
-            TMP_Text hpValue = CreateUiText(topLeft, "HpValue", new Vector2(210f, -60f), new Vector2(200f, 32f), 22f, font);
-            RectTransform hpBar = CreateUiBar(topLeft, "HpBar", new Vector2(0f, -96f), new Vector2(420f, 18f), new Color(0.85f, 0.28f, 0.30f, 1f));
-            TMP_Text manaCaption = CreateUiText(topLeft, "ManaCaption", new Vector2(0f, -124f), new Vector2(200f, 32f), 22f, font);
-            TMP_Text manaValue = CreateUiText(topLeft, "ManaValue", new Vector2(210f, -124f), new Vector2(200f, 32f), 22f, font);
-            RectTransform manaBar = CreateUiBar(topLeft, "ManaBar", new Vector2(0f, -160f), new Vector2(420f, 18f), new Color(0.42f, 0.72f, 0.95f, 1f));
-            TMP_Text killsValue = CreateUiText(topLeft, "KillsValue", new Vector2(0f, -196f), new Vector2(420f, 32f), 22f, font);
+            // The grid's own area: below the caption, inside the panel's edges. The view measures
+            // this rect and sizes its cells to it, so a canvas resize re-fits the bag rather than
+            // clipping it.
+            RectTransform miniBagContent = StretchUiRect(
+                miniBagPanel, "MiniBagContent", Vector2.zero, Vector2.one,
+                new Vector2(10f, 10f), new Vector2(-10f, -42f));
 
-            RectTransform topRight = CreateUiRect(
-                canvasRect, "ResourcePanel", new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-32f, -32f), new Vector2(420f, 260f));
+            miniBag = miniBagPanel.gameObject.AddComponent<BattleMiniBagView>();
+            SetObjectReference(miniBag, "_panel", miniBagPanel);
+            SetObjectReference(miniBag, "_content", miniBagContent);
+            SetObjectReference(miniBag, "_font", font);
 
-            TMP_Text biaCaption = CreateUiText(topRight, "BiaCaption", new Vector2(0f, -8f), new Vector2(200f, 32f), 22f, font);
-            TMP_Text biaValue = CreateUiText(topRight, "BiaValue", new Vector2(0f, -40f), new Vector2(200f, 40f), 30f, font);
-            TMP_Text timeCaption = CreateUiText(topRight, "TimeCaption", new Vector2(210f, -8f), new Vector2(200f, 32f), 22f, font);
-            TMP_Text timeValue = CreateUiText(topRight, "TimeValue", new Vector2(210f, -40f), new Vector2(200f, 40f), 30f, font);
-            TMP_Text waveCaption = CreateUiText(topRight, "WaveCaption", new Vector2(0f, -92f), new Vector2(200f, 32f), 22f, font);
-            TMP_Text waveValue = CreateUiText(topRight, "WaveValue", new Vector2(210f, -92f), new Vector2(200f, 32f), 22f, font);
+            // ---- top centre: the floor's name and its number in the run ----
+            RectTransform floorPanel = StretchUiRect(
+                canvasRect, UiLayoutCheck.FloorPanel, new Vector2(0.35f, 1f), new Vector2(0.65f, 1f),
+                new Vector2(0f, -140f), new Vector2(0f, -UiMargin));
+            AddPanelBackground(floorPanel, PanelBackdrop);
 
-            // The boss bar appears only on a boss floor; the presenter tells the view when.
-            RectTransform bossRoot = CreateUiRect(
-                topRight, "BossPanel", new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(0f, -140f), new Vector2(420f, 70f));
-            TMP_Text bossCaption = CreateUiText(bossRoot, "BossCaption", Vector2.zero, new Vector2(200f, 32f), 22f, font);
-            RectTransform bossBar = CreateUiBar(bossRoot, "BossBar", new Vector2(0f, -34f), new Vector2(420f, 16f), new Color(0.85f, 0.32f, 0.34f, 1f));
+            TMP_Text floorLabel = StretchUiText(
+                floorPanel, "FloorLabel", new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(12f, -54f), new Vector2(-12f, -10f), 30f, font, TextAlignmentOptions.Center);
 
-            RectTransform speedObject = CreateUiRect(
-                canvasRect, "SpeedButton", new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-32f, -300f), new Vector2(160f, 64f));
+            TMP_Text floorIndexLabel = StretchUiText(
+                floorPanel, "FloorIndexLabel", new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(12f, -96f), new Vector2(-12f, -58f), UiFontSize, font, TextAlignmentOptions.Center);
+
+            // ---- top right: time, bia, kills, wave, the boss bar and the speed control ----
+            //
+            // The panel is 276 reference pixels tall, and that number is measured rather than chosen:
+            // three stat rows (a caption over its value), the boss band and the speed control do not
+            // fit in the 220 the rows alone needed once the controls were moved in under them, and
+            // `ProjectSurvive/Tools/1. Capture UI` reports the collision ("SpeedButton overlaps
+            // KillsValue") rather than letting a player find it. Every band is separated by at least
+            // 2 reference pixels: two boxes that merely *touch* are not a collision, but at 1280×720
+            // the canvas scalar rounds a shared edge to different floats on each side and a tangent
+            // pair reads as an overlap.
+            RectTransform resourcePanel = StretchUiRect(
+                canvasRect, UiLayoutCheck.ResourcePanel, new Vector2(0.65f, 1f), new Vector2(1f, 1f),
+                new Vector2(0f, -300f), new Vector2(-UiMargin, -UiMargin));
+            AddPanelBackground(resourcePanel, PanelBackdrop);
+
+            TMP_Text biaCaption = CreateUiText(resourcePanel, "BiaCaption", new Vector2(0f, -8f), new Vector2(160f, 30f), UiFontSize, font);
+            TMP_Text biaValue = CreateUiText(resourcePanel, "BiaValue", new Vector2(0f, -40f), new Vector2(200f, 40f), 30f, font);
+            TMP_Text timeCaption = CreateUiText(resourcePanel, "TimeCaption", new Vector2(220f, -8f), new Vector2(160f, 30f), UiFontSize, font);
+            TMP_Text timeValue = CreateUiText(resourcePanel, "TimeValue", new Vector2(220f, -40f), new Vector2(200f, 40f), 30f, font);
+            TMP_Text waveCaption = CreateUiText(resourcePanel, "WaveCaption", new Vector2(0f, -86f), new Vector2(160f, 28f), UiFontSize, font);
+            TMP_Text waveValue = CreateUiText(resourcePanel, "WaveValue", new Vector2(220f, -86f), new Vector2(200f, 28f), UiFontSize, font);
+            TMP_Text killsCaption = CreateUiText(resourcePanel, "KillsCaption", new Vector2(0f, -120f), new Vector2(200f, 28f), UiFontSize, font);
+            TMP_Text killsValue = CreateUiText(resourcePanel, "KillsValue", new Vector2(220f, -120f), new Vector2(200f, 28f), UiFontSize, font);
+
+            // The boss bar appears only on a boss floor; the presenter tells the view when. It is a
+            // band inside the resource panel, never a panel of its own — the layout check holds a
+            // control to its surface.
+            RectTransform bossRoot = StretchUiRect(
+                resourcePanel, UiLayoutCheck.BossPanel, new Vector2(0f, 0f), new Vector2(1f, 0f),
+                new Vector2(0f, 70f), new Vector2(0f, 114f));
+            TMP_Text bossCaption = CreateUiText(bossRoot, "BossCaption", new Vector2(0f, -4f), new Vector2(200f, 22f), UiFontSize, font);
+            RectTransform bossBar = StretchUiBar(
+                bossRoot, "BossBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(0f, -42f), new Vector2(0f, -30f), new Color(0.85f, 0.32f, 0.34f, 1f));
+
+            RectTransform speedObject = StretchUiRect(
+                resourcePanel, UiLayoutCheck.SpeedButton, new Vector2(0f, 0f), new Vector2(1f, 0f),
+                new Vector2(0f, 8f), new Vector2(0f, 66f));
             Image speedBackground = speedObject.gameObject.AddComponent<Image>();
             speedBackground.color = new Color(0.16f, 0.17f, 0.22f, 0.9f);
             Button speedButton = speedObject.gameObject.AddComponent<Button>();
             speedButton.targetGraphic = speedBackground;
-            TMP_Text speedLabel = CreateUiText(
-                speedObject, "SpeedLabel", Vector2.zero, new Vector2(160f, 64f), 28f, font,
-                TextAlignmentOptions.Center);
+            TMP_Text speedLabel = StretchUiText(
+                speedObject, "SpeedLabel", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero,
+                28f, font, TextAlignmentOptions.Center);
 
-            RectTransform bottom = CreateUiRect(
-                canvasRect, "TimelinePanel", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 32f), new Vector2(1400f, 170f));
+            // ---- bottom left: the status panel (figure, HP, MP) ----
+            RectTransform statusPanel = StretchUiRect(
+                canvasRect, UiLayoutCheck.StatusPanel, Vector2.zero, new Vector2(0.25f, 0.30f),
+                new Vector2(UiMargin, UiMargin), new Vector2(-UiMargin, -UiMargin));
+            AddPanelBackground(statusPanel, PanelBackdrop);
 
-            TMP_Text timelineCaption = CreateUiText(bottom, "TimelineCaption", new Vector2(0f, -6f), new Vector2(700f, 30f), UiFontSize, font);
-            RectTransform track = CreateUiRect(
-                bottom, "TimelineTrack", new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(0f, -44f), new Vector2(1380f, 26f));
+            // The caption sits over the figure, not beside it: "สถานะ" is 200 px wide and the figure
+            // starts 46 px below the panel's top for exactly that reason — as first authored, the two
+            // shared their top-right corner and the capture command reported
+            // "Portrait overlaps StatusCaption".
+            TMP_Text statusCaption = CreateUiText(
+                statusPanel, "StatusCaption", new Vector2(10f, -8f), new Vector2(200f, 28f), UiFontSize, font);
+
+            RectTransform portraitObject = CreateUiRect(
+                statusPanel, "Portrait", new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(10f, -46f), new Vector2(72f, 72f));
+            Image portrait = portraitObject.gameObject.AddComponent<Image>();
+            portrait.raycastTarget = false;
+            portrait.preserveAspect = true;
+
+            // A caption and its value are two boxes with 2 px between them (116..174 and 176..284):
+            // sharing an edge exactly is what makes a tangent pair read as a collision once the canvas
+            // scalar has rounded both sides differently.
+            TMP_Text hpCaption = CreateUiText(statusPanel, "HpCaption", new Vector2(92f, -50f), new Vector2(58f, 26f), UiFontSize, font);
+            TMP_Text hpValue = CreateUiText(statusPanel, "HpValue", new Vector2(152f, -50f), new Vector2(108f, 26f), UiFontSize, font);
+            RectTransform hpBar = StretchUiBar(
+                statusPanel, "HpBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(92f, -92f), new Vector2(-10f, -78f), new Color(0.85f, 0.28f, 0.30f, 1f));
+            TMP_Text manaCaption = CreateUiText(statusPanel, "ManaCaption", new Vector2(92f, -100f), new Vector2(58f, 24f), UiFontSize, font);
+            TMP_Text manaValue = CreateUiText(statusPanel, "ManaValue", new Vector2(152f, -100f), new Vector2(108f, 24f), UiFontSize, font);
+            RectTransform manaBar = StretchUiBar(
+                statusPanel, "ManaBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(92f, -140f), new Vector2(-10f, -126f), new Color(0.42f, 0.72f, 0.95f, 1f));
+
+            // ---- bottom centre: the floor's timeline ----
+            RectTransform timelinePanel = StretchUiRect(
+                canvasRect, UiLayoutCheck.TimelinePanel, new Vector2(0.25f, 0f), new Vector2(0.75f, 0.20f),
+                new Vector2(16f, UiMargin), new Vector2(-16f, -16f));
+            AddPanelBackground(timelinePanel, PanelBackdrop);
+
+            TMP_Text timelineCaption = StretchUiText(
+                timelinePanel, "TimelineCaption", new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(12f, -36f), new Vector2(-12f, -6f), UiFontSize, font);
+
+            RectTransform track = StretchUiRect(
+                timelinePanel, "TimelineTrack", new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(12f, -70f), new Vector2(-12f, -44f));
             Image trackImage = track.gameObject.AddComponent<Image>();
             trackImage.color = new Color(0.12f, 0.13f, 0.17f, 0.85f);
 
             // Markers stretch across the track and are positioned by their anchors, so the bar
             // needs no per-frame layout maths: the view writes anchorMin/anchorMax and moves on.
-            RectTransform timelineMarkers = CreateUiRect(
-                track, "Markers", Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
-            timelineMarkers.anchorMin = Vector2.zero;
-            timelineMarkers.anchorMax = Vector2.one;
-            timelineMarkers.offsetMin = Vector2.zero;
-            timelineMarkers.offsetMax = Vector2.zero;
+            RectTransform timelineMarkers = StretchUiRect(
+                track, "Markers", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
 
-            RectTransform playhead = CreateUiRect(
-                track, "Playhead", Vector2.zero, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6f, 0f));
-            playhead.anchorMin = new Vector2(0f, 0f);
-            playhead.anchorMax = new Vector2(0f, 1f);
-            playhead.offsetMin = Vector2.zero;
-            playhead.offsetMax = Vector2.zero;
+            RectTransform playhead = StretchUiRect(
+                track, "Playhead", new Vector2(0f, 0f), new Vector2(0f, 1f),
+                new Vector2(0f, 0f), new Vector2(6f, 0f));
             Image playheadImage = playhead.gameObject.AddComponent<Image>();
             playheadImage.color = new Color(0.95f, 0.95f, 0.98f, 0.9f);
-
-            TMP_Text spellsCaption = CreateUiText(bottom, "SpellsCaption", new Vector2(0f, -74f), new Vector2(1380f, 30f), UiFontSize, font);
-            TMP_Text spellsValue = CreateUiText(bottom, "SpellsValue", new Vector2(0f, -106f), new Vector2(1380f, 30f), UiFontSize, font);
 
             TMP_Text statusLabel = CreateUiText(
                 canvasRect, "StatusLabel", new Vector2(-600f, 120f), new Vector2(1200f, 90f), 56f, font,
@@ -1148,6 +1307,7 @@ namespace ProjectSurvive.Game.Editor
             BattleHudView hud = canvasObject.AddComponent<BattleHudView>();
             SetObjectReference(hud, "_scope", scope);
             SetObjectReference(hud, "_floorLabel", floorLabel);
+            SetObjectReference(hud, "_floorIndexLabel", floorIndexLabel);
             SetObjectReference(hud, "_hpCaption", hpCaption);
             SetObjectReference(hud, "_hpValue", hpValue);
             SetObjectReference(hud, "_manaCaption", manaCaption);
@@ -1158,13 +1318,15 @@ namespace ProjectSurvive.Game.Editor
             SetObjectReference(hud, "_timeValue", timeValue);
             SetObjectReference(hud, "_waveCaption", waveCaption);
             SetObjectReference(hud, "_waveValue", waveValue);
+            SetObjectReference(hud, "_killsCaption", killsCaption);
             SetObjectReference(hud, "_killsValue", killsValue);
-            SetObjectReference(hud, "_spellsCaption", spellsCaption);
-            SetObjectReference(hud, "_spellsValue", spellsValue);
+            SetObjectReference(hud, "_bagCaption", bagCaption);
+            SetObjectReference(hud, "_statusCaption", statusCaption);
             SetObjectReference(hud, "_timelineCaption", timelineCaption);
             SetObjectReference(hud, "_bossCaption", bossCaption);
             SetObjectReference(hud, "_statusLabel", statusLabel);
             SetObjectReference(hud, "_speedLabel", speedLabel);
+            SetObjectReference(hud, "_portrait", portrait);
             SetObjectReference(hud, "_hpBar", hpBar);
             SetObjectReference(hud, "_manaBar", manaBar);
             SetObjectReference(hud, "_bossBar", bossBar);
@@ -1677,6 +1839,82 @@ namespace ProjectSurvive.Game.Editor
             label.alignment = alignment;
             label.text = string.Empty;
             return label;
+        }
+
+        /// <summary>
+        /// Creates a rectangle stretched between two anchors, with explicit insets from each side.
+        /// </summary>
+        /// <remarks>
+        /// The Stage 08c HUD is built out of these: a panel is authored as a <i>band</i> of the
+        /// canvas ("a quarter of the width, from 45 % of the height up") rather than as a pixel
+        /// rectangle, so the arrangement survives the two sizes the GDD names. The old
+        /// <see cref="CreateUiRect"/> is still what an absolutely-placed label inside a panel uses.
+        /// </remarks>
+        private static RectTransform StretchUiRect(
+            RectTransform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
+            Vector2 offsetMin, Vector2 offsetMax)
+        {
+            var gameObject = new GameObject(name, typeof(RectTransform));
+            var rect = (RectTransform)gameObject.transform;
+            rect.SetParent(parent, worldPositionStays: false);
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.offsetMin = offsetMin;
+            rect.offsetMax = offsetMax;
+            return rect;
+        }
+
+        /// <summary>A label stretched between two anchors, with the same 22 px floor as the rest of the HUD.</summary>
+        private static TMP_Text StretchUiText(
+            RectTransform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
+            Vector2 offsetMin, Vector2 offsetMax, float fontSize, TMP_FontAsset font,
+            TextAlignmentOptions alignment = TextAlignmentOptions.TopLeft)
+        {
+            RectTransform rect = StretchUiRect(parent, name, anchorMin, anchorMax, offsetMin, offsetMax);
+
+            TextMeshProUGUI label = rect.gameObject.AddComponent<TextMeshProUGUI>();
+            label.font = font;
+            label.fontSize = fontSize;
+            label.color = Color.white;
+            label.alignment = alignment;
+            label.text = string.Empty;
+            return label;
+        }
+
+        /// <summary>Gives a panel the battle HUD's own background; it never swallows a click.</summary>
+        private static void AddPanelBackground(RectTransform panel, Color colour)
+        {
+            var background = panel.gameObject.AddComponent<Image>();
+            background.color = colour;
+            background.raycastTarget = false;
+        }
+
+        /// <summary>
+        /// A track stretched between two anchors and its fill, returning the fill.
+        /// </summary>
+        /// <remarks>
+        /// The stretched form of <see cref="CreateUiBar"/>: the fill is anchored to the track's left
+        /// edge, so the HUD sets a bar by writing <c>anchorMax.x</c> and no sprite asset is needed
+        /// anywhere in the UI — and the bar is as wide as the panel it lives in, at both sizes.
+        /// </remarks>
+        private static RectTransform StretchUiBar(
+            RectTransform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
+            Vector2 offsetMin, Vector2 offsetMax, Color fillColour)
+        {
+            RectTransform track = StretchUiRect(parent, name, anchorMin, anchorMax, offsetMin, offsetMax);
+            Image trackImage = track.gameObject.AddComponent<Image>();
+            trackImage.color = new Color(0f, 0f, 0f, 0.5f);
+            trackImage.raycastTarget = false;
+
+            RectTransform fill = StretchUiRect(
+                track, "Fill", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            fill.pivot = new Vector2(0f, 0.5f);
+
+            Image fillImage = fill.gameObject.AddComponent<Image>();
+            fillImage.color = fillColour;
+            fillImage.raycastTarget = false;
+            return fill;
         }
 
         /// <summary>

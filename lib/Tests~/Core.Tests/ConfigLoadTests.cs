@@ -45,18 +45,19 @@ namespace ProjectSurvive.Core.Tests
 
             Assert.Equal(12, modifiers);
 
-            // 188 rows: the Stage 04 content, the Stage 08 HUD labels, the Stage 09 camp screen
+            // 192 rows: the Stage 04 content, the Stage 08 HUD labels, the Stage 09 camp screen
             // with its failure codes (camp.* 53, error.* 28, hud.* 13, item.* 22, bag.* 6 and the
             // rest), the Stage 09f row error.inventory.item_spans_bags, the Stage 09f upgrade block
             // (10 `upgrade.*` names + the 3 new error.inventory.merge_* codes), the Stage 09g
             // chooser block (7 `camp.merge.*` labels + the 12 `upgrade.stat.*` names + the unknown
             // stat fallback), the Stage 10b summary block (8 `result.*` labels and formats, all
             // of them read by the Result screen — `ResultKeys.All`), and the Stage 10 title row
-            // `title.start` (the one string the title control draws). The count is pinned so a table
-            // that silently loses rows fails here - which is how this pin was corrected once before:
-            // it said 144 while data/ held 145, because the 81 rows Stage 09 added to
-            // data/localization/localization.csv had not been regenerated yet.
-            Assert.Equal(188, config.Localization.Count);
+            // `title.start` (the one string the title control draws), and the Stage 08c mini-bag block
+            // (4 `hud.*` rows: hud.kills, hud.bag, hud.status and the hud.floor.format floor label).
+            // The count is pinned so a table that silently loses rows fails here - which is how this pin
+            // was corrected once before: it said 144 while data/ held 145, because the 81 rows Stage 09
+            // added to data/localization/localization.csv had not been regenerated yet.
+            Assert.Equal(192, config.Localization.Count);
         }
 
         [Fact]

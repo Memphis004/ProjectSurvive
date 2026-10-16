@@ -21,7 +21,9 @@ namespace ProjectSurvive.Game.Presentation.Battle
     /// (<see cref="BattleConstants.MaxRenderEntities"/>), so a copy costs a bounded
     /// <c>memcpy</c>-shaped loop and no allocation, and a frame that somehow exceeded the
     /// cap is truncated rather than grown: the frame is a view and never the source of
-    /// truth.
+    /// truth. <see cref="Cooldowns"/> is copied the same way, at
+    /// <see cref="BattleConstants.MaxLoadoutEntries"/> (Stage 08c), because the mini bag reads a
+    /// cooldown on the frame the tick belongs to — never a clock of its own.
     /// </para>
     /// <para>
     /// The previous tick is indexed by entity slot (<see cref="TryGetPrevious"/>) rather
@@ -34,6 +36,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
     {
         private readonly RenderEntity[] _current = new RenderEntity[BattleConstants.MaxRenderEntities];
         private readonly RenderEntity[] _previous = new RenderEntity[BattleConstants.MaxRenderEntities];
+        private readonly LoadoutCooldown[] _cooldowns = new LoadoutCooldown[BattleConstants.MaxLoadoutEntries];
 
         /// <summary>Slot index → position in <see cref="_previous"/>, plus one; 0 = absent.</summary>
         private readonly int[] _previousSlot = new int[BattleConstants.MaxRenderEntities + 1];
@@ -52,6 +55,23 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
         /// <summary>True once a frame has been copied (false before the first tick).</summary>
         public bool HasFrame { get; private set; }
+
+        /// <summary>How many loadout entries the current tick's cooldown list holds.</summary>
+        public int CooldownCount { get; private set; }
+
+        /// <summary>
+        /// The loadout's casting state at this tick (Stage 08b's <see cref="IBattleFrame.Cooldowns"/>),
+        /// copied the same way the entities are: it is a view over the frame's own memory and dies on
+        /// the next <c>Step</c>.
+        /// </summary>
+        /// <remarks>
+        /// Copied rather than kept as a span for the reason the entities are (ADR 0012): the mini bag
+        /// reads it on the render frame the tick belongs to, and the next tick reuses the slot. It is a
+        /// different list from <see cref="Current"/>: a loadout entry is not an entity, and a cooldown is
+        /// a count rather than a position, so it is never interpolated.
+        /// </remarks>
+        public ReadOnlySpan<LoadoutCooldown> Cooldowns =>
+            new ReadOnlySpan<LoadoutCooldown>(_cooldowns, 0, CooldownCount);
 
         /// <summary>The current tick's entities.</summary>
         public ReadOnlySpan<RenderEntity> Current =>
@@ -102,6 +122,15 @@ namespace ProjectSurvive.Game.Presentation.Battle
             }
 
             PreviousCount = previousCount;
+
+            ReadOnlySpan<LoadoutCooldown> cooldowns = frame.Cooldowns;
+            int cooldownCount = ClampCooldowns(cooldowns.Length);
+            for (int i = 0; i < cooldownCount; i++)
+            {
+                _cooldowns[i] = cooldowns[i];
+            }
+
+            CooldownCount = cooldownCount;
             HasFrame = true;
         }
 
@@ -133,5 +162,8 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
         private static int Clamp(int count) =>
             count > BattleConstants.MaxRenderEntities ? BattleConstants.MaxRenderEntities : count;
+
+        private static int ClampCooldowns(int count) =>
+            count > BattleConstants.MaxLoadoutEntries ? BattleConstants.MaxLoadoutEntries : count;
     }
 }

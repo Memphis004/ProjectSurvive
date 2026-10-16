@@ -48,7 +48,11 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
 
         public ReactiveProperty<string> EliteCaption { get; } = new ReactiveProperty<string>(string.Empty);
 
-        public ReactiveProperty<string> SpellsCaption { get; } = new ReactiveProperty<string>(string.Empty);
+        public ReactiveProperty<string> KillsCaption { get; } = new ReactiveProperty<string>(string.Empty);
+
+        public ReactiveProperty<string> BagCaption { get; } = new ReactiveProperty<string>(string.Empty);
+
+        public ReactiveProperty<string> StatusCaption { get; } = new ReactiveProperty<string>(string.Empty);
 
         public ReactiveProperty<string> TimelineCaption { get; } = new ReactiveProperty<string>(string.Empty);
 
@@ -65,7 +69,8 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
 
         public ReactiveProperty<string> KillsValue { get; } = new ReactiveProperty<string>(string.Empty);
 
-        public ReactiveProperty<string> SpellSummary { get; } = new ReactiveProperty<string>(string.Empty);
+        /// <summary>Which floor of the run this is, localized ("ชั้น 2"), written once per floor.</summary>
+        public ReactiveProperty<string> FloorIndex { get; } = new ReactiveProperty<string>(string.Empty);
 
         public ReactiveProperty<string> StatusLine { get; } = new ReactiveProperty<string>(string.Empty);
 
@@ -160,7 +165,9 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             WaveCaption.Dispose();
             BossCaption.Dispose();
             EliteCaption.Dispose();
-            SpellsCaption.Dispose();
+            KillsCaption.Dispose();
+            BagCaption.Dispose();
+            StatusCaption.Dispose();
             TimelineCaption.Dispose();
             HpValue.Dispose();
             ManaValue.Dispose();
@@ -168,7 +175,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             TimeValue.Dispose();
             WaveValue.Dispose();
             KillsValue.Dispose();
-            SpellSummary.Dispose();
+            FloorIndex.Dispose();
             StatusLine.Dispose();
             SpeedLabel.Dispose();
             HealthPercent.Dispose();

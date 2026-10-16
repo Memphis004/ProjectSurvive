@@ -70,7 +70,23 @@ existed (plus "ready but the pool is short", compared against `HudState.Mp`), wi
 `WeaponLoadout`/`SummonLoadout` gaining the board `InstanceId` they were resolved from
 so a HUD can draw a cooldown on the piece the player placed. No rule and no combat
 outcome changed — `Caster.InstanceId` is not hashed, and the seeded state hash is
-pinned to a value recorded on the pre-change build.
+pinned to a value recorded on the pre-change build. **Stage 08c** then spent that list on the screen,
+Presentation only: the Battle HUD is six anchored panels around a **mini ย่าม** top left — read-only,
+drawing the **bounding box of the cells the bag covers** and never the 9 × 7 board, at most a quarter
+of the canvas wide (432 × 546 px at 1920 × 1080) — with the floor's name and number top centre, the
+run's numbers (time, bia, kills, wave, speed, boss band) top right, a status panel bottom left (figure,
+red HP bar, blue MP bar, current/max) and the dev menu as one column bottom right; the equipped-spell
+list is gone and synergy link lines are deliberately not drawn yet. Each caster wears a plate read from
+the frame snapshot copied in the **same frame** — `RemainingTicks / PeriodTicks` dark, a faint blue tone
+for ready-but-MP-short, and **nothing** when ready — and the cells, boxes, plates and labels are built
+once at floor start with only changed values written, the view counting its own builds and writes. Two
+things there are worth remembering: the stage's own new PlayMode assertions found a **real defect** that
+nothing else could see (`BuildBattleHud` created the mini bag view but never assigned it to
+`BattleViewSettings.MiniBag`, so the scene drew an empty panel — a clean compile, a green EditMode suite
+and correct-looking capture shots all missed it, because the capture tool finds the component by type and
+builds it itself), and the layout work is judged by the existing overlap rule rather than by an eye:
+`UiLayoutCheck` gained the battle HUD's six surfaces and the controls inside them, and the capture
+command reports **0 overlaps over 36 battle regions per state per size** at 1920 × 1080 and 1280 × 720.
 **481 xUnit tests pass** (57 Stage 01, 73
 Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05,
 44 Stage 06, 28 Stage 07, 11 Stage 09, the 8 the carried-item rule added in Stage 09f, the 33

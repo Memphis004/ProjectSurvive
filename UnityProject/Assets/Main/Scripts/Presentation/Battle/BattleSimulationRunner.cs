@@ -133,7 +133,8 @@ namespace ProjectSurvive.Game.Presentation.Battle
                 context.Speed,
                 context.VisualSeed);
 
-            _session = _view.Begin(context.Factory, context.Setup, context.StartingBia);
+            _session = _view.Begin(
+                context.Factory, context.Setup, context.StartingBia, context.Backpack, context.Config);
 
             StepsRun = 0;
             LastSteps = 0;

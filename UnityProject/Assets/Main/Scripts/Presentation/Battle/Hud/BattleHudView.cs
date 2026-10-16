@@ -37,6 +37,10 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
 
         [Header("Labels")]
         [SerializeField] private TMP_Text _floorLabel;
+
+        [Tooltip("Which floor of the run this is, under the floor's name (Stage 08c).")]
+        [SerializeField] private TMP_Text _floorIndexLabel;
+
         [SerializeField] private TMP_Text _hpCaption;
         [SerializeField] private TMP_Text _hpValue;
         [SerializeField] private TMP_Text _manaCaption;
@@ -47,13 +51,23 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         [SerializeField] private TMP_Text _timeValue;
         [SerializeField] private TMP_Text _waveCaption;
         [SerializeField] private TMP_Text _waveValue;
+        [SerializeField] private TMP_Text _killsCaption;
         [SerializeField] private TMP_Text _killsValue;
-        [SerializeField] private TMP_Text _spellsCaption;
-        [SerializeField] private TMP_Text _spellsValue;
+
+        [Tooltip("The mini ย่าม's caption, above the bag (Stage 08c).")]
+        [SerializeField] private TMP_Text _bagCaption;
+
+        [Tooltip("The status panel's caption, over the figure and the two bars.")]
+        [SerializeField] private TMP_Text _statusCaption;
+
         [SerializeField] private TMP_Text _timelineCaption;
         [SerializeField] private TMP_Text _bossCaption;
         [SerializeField] private TMP_Text _statusLabel;
         [SerializeField] private TMP_Text _speedLabel;
+
+        [Header("Status panel")]
+        [Tooltip("The figure at the bottom left: placeholder art, generated in code (Stage 08c).")]
+        [SerializeField] private Image _portrait;
 
         [Header("Bars")]
         [Tooltip("The filled rectangle inside the HP track; its width is the health fraction.")]
@@ -77,6 +91,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         private BattleHudState _state;
         private BattleSpeed _speed;
         private BattleHudPresenter _presenter;
+        private BattleHudArt _art;
         private bool _bound;
 
         /// <summary>The HUD state this view mirrors (null until <see cref="Bind"/>).</summary>
@@ -113,6 +128,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             _presenter = _scope.Container.Resolve<BattleHudPresenter>();
 
             Subscribe(_state.FloorName, _floorLabel);
+            Subscribe(_state.FloorIndex, _floorIndexLabel);
             Subscribe(_state.HpCaption, _hpCaption);
             Subscribe(_state.HpValue, _hpValue);
             Subscribe(_state.ManaCaption, _manaCaption);
@@ -123,9 +139,10 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             Subscribe(_state.TimeValue, _timeValue);
             Subscribe(_state.WaveCaption, _waveCaption);
             Subscribe(_state.WaveValue, _waveValue);
+            Subscribe(_state.KillsCaption, _killsCaption);
             Subscribe(_state.KillsValue, _killsValue);
-            Subscribe(_state.SpellsCaption, _spellsCaption);
-            Subscribe(_state.SpellSummary, _spellsValue);
+            Subscribe(_state.BagCaption, _bagCaption);
+            Subscribe(_state.StatusCaption, _statusCaption);
             Subscribe(_state.TimelineCaption, _timelineCaption);
             Subscribe(_state.BossCaption, _bossCaption);
             Subscribe(_state.StatusLine, _statusLabel);
@@ -138,6 +155,8 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             _subscriptions.Add(_state.FloorProgress.Subscribe(SetProgress));
             _subscriptions.Add(_state.TimeWarning.Subscribe(SetTimeWarning));
             _subscriptions.Add(_state.Ended.Subscribe(SetEnded));
+
+            ApplyPortrait();
 
             if (_speedButton is not null)
             {
@@ -171,6 +190,30 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             _speed = null;
             _presenter = null;
             _bound = false;
+
+            _art?.Dispose();
+            _art = null;
+        }
+
+        /// <summary>
+        /// Puts the generated placeholder figure in the status panel.
+        /// </summary>
+        /// <remarks>
+        /// The HUD's own art rather than the battle's: <c>BattlePlaceholderArt</c> belongs to the
+        /// world (it is built and disposed by the view scene), and the HUD outlives neither more nor
+        /// less. It is drawn from the same cloth-and-shawl language as the world's figures (AGENTS
+        /// rule 13: generated, never copied), so the panel reads as this game's own placeholder.
+        /// </remarks>
+        private void ApplyPortrait()
+        {
+            if (_portrait is null)
+            {
+                return;
+            }
+
+            _art = new BattleHudArt();
+            _portrait.sprite = _art.Bust;
+            _portrait.color = Color.white;
         }
 
         private void OnSpeedClicked()

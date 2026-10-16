@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Text;
 using ProjectSurvive.Core.Application.Text;
 using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Config;
@@ -22,11 +21,17 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
     /// entity — a frame is a by-value snapshot, not a stream.
     /// </para>
     /// <para>
-    /// Text comes from localization only (AGENTS rule 5): captions, the floor name, the
-    /// equipped spells and the end banner are looked up by key. The numeric values are
-    /// formatted here, and each one is guarded on its <i>inputs</i> rather than on the
-    /// string, so a HUD sitting at a constant HP builds no string at all — R3 would
-    /// otherwise publish, and TMP re-layout, 60 times a second for nothing.
+    /// Text comes from localization only (AGENTS rule 5): captions, the floor's name and its
+    /// number, and the end banner are looked up by key. The numeric values are formatted here, and
+    /// each one is guarded on its <i>inputs</i> rather than on the string, so a HUD sitting at a
+    /// constant HP builds no string at all — R3 would otherwise publish, and TMP re-layout, 60
+    /// times a second for nothing.
+    /// </para>
+    /// <para>
+    /// Stage 08c removed the equipped-spell line: the mini ย่าม draws the bag itself, piece by
+    /// piece, so a comma-separated list of skill names was both a second source of truth and a
+    /// string rebuilt whenever the loadout changed. What the HUD still formats is what a
+    /// <i>frame</i> can say.
     /// </para>
     /// <para>
     /// The HUD is a listener on <see cref="BattleEventChannel.Hud"/>, so it owns its own
@@ -42,7 +47,6 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         private readonly IGameConfig _config;
         private readonly BattleSpeed _speed;
         private readonly List<IDisposable> _subscriptions = new List<IDisposable>(4);
-        private readonly StringBuilder _spells = new StringBuilder(96);
 
         private int _startingBia;
         private int _lastHp = int.MinValue;
@@ -95,6 +99,13 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             FloorConfig floor = FindFloor(setup.StageId);
             BattleHudState.Set(_state.FloorName, floor is null ? string.Empty : Lookup(floor.NameKey));
 
+            // The floor's number, from the setup the run handed the battle — never counted here.
+            BattleHudState.Set(
+                _state.FloorIndex,
+                setup.FloorIndex <= 0
+                    ? string.Empty
+                    : Format("hud.floor.format", setup.FloorIndex));
+
             IReadOnlyList<BattleTimelineMarker> markers = floor is null
                 ? Array.Empty<BattleTimelineMarker>()
                 : BattleTimelineModel.Build(_config, floor);
@@ -109,9 +120,10 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             BattleHudState.Set(_state.WaveCaption, Lookup("hud.wave"));
             BattleHudState.Set(_state.BossCaption, Lookup("hud.boss"));
             BattleHudState.Set(_state.EliteCaption, Lookup("hud.elite"));
-            BattleHudState.Set(_state.SpellsCaption, Lookup("hud.spells"));
+            BattleHudState.Set(_state.KillsCaption, Lookup("hud.kills"));
+            BattleHudState.Set(_state.BagCaption, Lookup("hud.bag"));
+            BattleHudState.Set(_state.StatusCaption, Lookup("hud.status"));
             BattleHudState.Set(_state.TimelineCaption, Lookup("hud.timeline"));
-            BattleHudState.Set(_state.SpellSummary, ComposeSpells(setup.Loadout));
             BattleHudState.Set(_state.BiaValue, startingBia.ToString(CultureInfo.InvariantCulture));
         }
 
@@ -238,43 +250,6 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             BattleHudState.Set(_state.SpeedLabel, BattleSpeed.Label(multiplier));
         }
 
-        private string ComposeSpells(CombatLoadoutSnapshot loadout)
-        {
-            if (loadout is null)
-            {
-                return string.Empty;
-            }
-
-            _spells.Clear();
-
-            for (int i = 0; i < loadout.Weapons.Count; i++)
-            {
-                AppendSpell(_spells, loadout.Weapons[i].SkillId);
-            }
-
-            for (int i = 0; i < loadout.Summons.Count; i++)
-            {
-                AppendSpell(_spells, loadout.Summons[i].SkillId);
-            }
-
-            return _spells.ToString();
-        }
-
-        private void AppendSpell(StringBuilder builder, string skillId)
-        {
-            if (string.IsNullOrEmpty(skillId) || !_config.TryGetSkill(skillId, out SkillConfig skill))
-            {
-                return;
-            }
-
-            if (builder.Length > 0)
-            {
-                builder.Append(", ");
-            }
-
-            builder.Append(Lookup(skill.NameKey));
-        }
-
         private FloorConfig FindFloor(string stageId)
         {
             if (string.IsNullOrEmpty(stageId))
@@ -294,6 +269,10 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         {
             return _text.TryGet(key, out string value) ? value : key;
         }
+
+        /// <summary>A localized format string with one integer in it (AGENTS rule 5: strings live in the tables).</summary>
+        private string Format(string key, int value) =>
+            string.Format(CultureInfo.InvariantCulture, Lookup(key), value);
 
         private static string Pair(int value, int max) =>
             value.ToString(CultureInfo.InvariantCulture) + "/" + max.ToString(CultureInfo.InvariantCulture);

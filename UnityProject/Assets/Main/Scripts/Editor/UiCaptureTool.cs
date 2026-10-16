@@ -8,6 +8,8 @@ using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Game.Camp;
 using ProjectSurvive.Game.Presentation;
+using ProjectSurvive.Game.Presentation.Battle;
+using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.Camp;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -157,6 +159,68 @@ namespace ProjectSurvive.Game.Editor
             ("Lock", "_lockButton"),
             ("LockRestore", "_lockRestoreToggle"),
             ("NextFloor", "_nextFloorButton"),
+        };
+
+        /// <summary>
+        /// The battle HUD's controls, as the view serializes them: the two bars, the timeline's track,
+        /// the speed control and the six dev rows. Every one of them has to be drawn inside the panel it
+        /// belongs to — the half of the rule a screenshot cannot check.
+        /// </summary>
+        private static readonly (string Name, string Field)[] BattleControls =
+        {
+            (UiLayoutCheck.HpBar, "_hpBar"),
+            (UiLayoutCheck.ManaBar, "_manaBar"),
+            (UiLayoutCheck.SpeedButton, "_speedButton"),
+            ("Portrait", "_portrait"),
+        };
+
+        /// <summary>
+        /// The battle HUD's labels, as the view serializes them. They are measured so that a caption
+        /// outside its panel or two labels on one another is a failure rather than something a reviewer
+        /// has to spot in a picture.
+        /// </summary>
+        private static readonly (string Name, string Field)[] BattleLabels =
+        {
+            ("FloorLabel", "_floorLabel"),
+            ("FloorIndexLabel", "_floorIndexLabel"),
+            ("BagCaption", "_bagCaption"),
+            ("StatusCaption", "_statusCaption"),
+            ("HpCaption", "_hpCaption"),
+            ("HpValue", "_hpValue"),
+            ("ManaCaption", "_manaCaption"),
+            ("ManaValue", "_manaValue"),
+            ("BiaCaption", "_biaCaption"),
+            ("BiaValue", "_biaValue"),
+            ("TimeCaption", "_timeCaption"),
+            ("TimeValue", "_timeValue"),
+            ("WaveCaption", "_waveCaption"),
+            ("WaveValue", "_waveValue"),
+            ("KillsCaption", "_killsCaption"),
+            ("KillsValue", "_killsValue"),
+            ("TimelineCaption", "_timelineCaption"),
+        };
+
+        /// <summary>
+        /// The labels only a boss floor shows, measured when the band they sit in is on the screen. The
+        /// speed button's own label is deliberately not here: it is drawn <i>inside</i> the button, and a
+        /// control inside another control is the one nested pair the rule does not allow — the button's own
+        /// rectangle is what is measured.
+        /// </summary>
+        private static readonly (string Name, string Field)[] BossFloorLabels =
+        {
+            ("BossCaption", "_bossCaption"),
+        };
+
+        /// <summary>The dev menu's own controls, as its view serializes them.</summary>
+        private static readonly (string Name, string Field)[] DevRows =
+        {
+            ("DevStatus", "_statusLabel"),
+            ("DevGodMode", "_godModeButton"),
+            ("DevAddBia", "_addBiaButton"),
+            ("DevSpawnGhost", "_spawnGhostButton"),
+            ("DevKillAll", "_killAllButton"),
+            ("DevWinNow", "_winNowButton"),
+            ("DevLoseNow", "_loseNowButton"),
         };
 
         /// <summary>
@@ -552,9 +616,40 @@ namespace ProjectSurvive.Game.Editor
         // the Battle scene: shots only, its HUD is not part of the region check
         // ------------------------------------------------------------------
 
+        /// <summary>
+        /// The Battle HUD at each of the three moments the stage asks for, at both sizes.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Three states, not one, because the screen is nearly all runtime state.</b> A shot of the
+        /// authored scene would show empty labels, an empty mini ย่าม and no cooldown plates at all —
+        /// which is exactly the state the screen is in before the floor starts, not the state Stage 08c
+        /// has to be judged on. So the floor is played for real by <see cref="BattleCaptureState"/>:
+        /// the run departs on the shipped tables, the dev battle is stepped, and the frame it publishes
+        /// is handed to the same objects the runner hands it to. <c>begin</c> is tick 0 (the first frame
+        /// the runner renders), <c>midfight</c> is the first frame whose casters sit at several
+        /// different cooldowns, and <c>manashort</c> is that same frame with one entry carrying the
+        /// flag — the one state floor 1's data cannot reach; the report says so and so does the helper's
+        /// own remarks.
+        /// </para>
+        /// <para>
+        /// <b>Everything on this screen is measured, the labels included.</b> The six panels are
+        /// surfaces and each label, bar, control and the mini bag's grid area is a control inside one of
+        /// them, so a caption that escaped its panel, a control drawn on another control or a panel
+        /// overlapping a panel is reported rather than photographed and left for a human to notice. Two
+        /// regions only <i>touching</i> is not a collision, so the adjacencies the HUD is built from (a
+        /// caption above its value, a bar under its caption) stay silent.
+        /// </para>
+        /// <para>
+        /// The dev column is authored <b>inactive</b> — a release build must never show it — so this run
+        /// turns it on for the shots and turns it off again, which is also what makes it measurable:
+        /// <c>ScreenRectOf</c> answers nothing for an inactive object. The boss band is the opposite case:
+        /// the presenter hides it on a floor without a boss, so floor 1 does not measure it, and the
+        /// report notes it instead of reporting a missing rectangle as a layout failure.
+        /// </para>
+        /// </remarks>
         private static void CaptureBattle(CaptureReport report)
         {
-            report.Notes.Add("the Battle HUD is shot but not measured: the region check is the camp's");
             if (!EnsureOpen(BattleScenePath, report))
             {
                 return;
@@ -567,11 +662,195 @@ namespace ProjectSurvive.Game.Editor
                 return;
             }
 
-            for (int i = 0; i < CapturedSizes.Length; i++)
+            var hud = Object.FindFirstObjectByType<BattleHudView>(FindObjectsInactive.Include);
+            var miniBag = Object.FindFirstObjectByType<BattleMiniBagView>(FindObjectsInactive.Include);
+            var devMenu = Object.FindFirstObjectByType<DevMenuView>(FindObjectsInactive.Include);
+
+            if (hud == null || miniBag == null)
             {
-                Vector2Int size = CapturedSizes[i];
-                Capture(SceneKind.Battle, "hud", "battle", camera, size, null, report);
+                report.Failures.Add(
+                    "the Battle scene is missing " + (hud == null ? "BattleHudView" : "BattleMiniBagView"));
+                return;
             }
+
+            var devFields = devMenu == null ? null : new SerializedObject(devMenu);
+            var devPanel = devFields?.FindProperty("_panel")?.objectReferenceValue as GameObject;
+            bool devWasActive = devPanel != null && devPanel.activeSelf;
+
+            if (devPanel != null)
+            {
+                devPanel.SetActive(true);
+                Canvas.ForceUpdateCanvases();
+            }
+            else
+            {
+                report.Notes.Add("the Battle scene has no dev menu, so its column is not measured");
+            }
+
+            BattleCaptureState state = null;
+
+            try
+            {
+                if (!BattleCaptureState.TryBuild(hud, miniBag, out state, out string error))
+                {
+                    report.Failures.Add("the Battle floor could not be started for the shots: " + error);
+                    return;
+                }
+
+                // The mid-fight frame is found once and both later shots are taken from it, so the two
+                // pictures differ only by the flag the MP-short one adds.
+                state.StepToMidFight();
+
+                var regions = BattleRegionsOf(hud, miniBag, devMenu, devFields, state.HasVisibleBoss, report);
+
+                report.Notes.Add(
+                    "the Battle HUD is measured from a <b>running</b> floor: the run departs on the shipped "
+                    + "tables and the dev battle's own frames are handed to the scene's HUD, so the mini "
+                    + "ย่าม is the run's bag and every plate is the frame's number; the mid-fight shot is "
+                    + "tick " + state.MidFightTick + " with " + state.CasterCount + " caster(s) at "
+                    + state.DistinctLevels + " distinct cooldown level(s)");
+
+                report.Notes.Add(
+                    "the MP-short shot is the <b>only</b> authored state: neither session reaches "
+                    + "`LoadoutCooldownFlags.ManaShort` on floor 1 (the dev session's MP pool never falls "
+                    + "below a single cast's cost, and the Editor assembly may not name the EcsLite session "
+                    + "to reach the one that spends MP), so that shot hands the mini ย่าม a real "
+                    + "`LoadoutCooldown` carrying the flag `FramePublishSystem` sets when a ready cast cannot "
+                    + "be paid for. The picture proves the tone is visible at both sizes; that the flag "
+                    + "reaches the plate is proved by `BattleMiniBagTests` and the PlayMode suite");
+
+                var shots = new[]
+                {
+                    (BattleShot.FloorStart, "begin"),
+                    (BattleShot.MidFight, "midfight"),
+                    (BattleShot.ManaShort, "manashort"),
+                };
+
+                for (int s = 0; s < shots.Length; s++)
+                {
+                    BattleShot shot = shots[s].Item1;
+                    string slug = "battle-" + shots[s].Item2;
+
+                    report.Notes.Add("`" + slug + "` is the floor's " + shots[s].Item2 + " state: " + state.Describe(shot));
+
+                    for (int i = 0; i < CapturedSizes.Length; i++)
+                    {
+                        Vector2Int size = CapturedSizes[i];
+
+                        // Applied again after the canvas has been laid out at this size, and after the
+                        // mini bag has re-fitted its cells to it: the picture is of the size it claims.
+                        Capture(
+                            SceneKind.Battle, "hud-" + shots[s].Item2, slug, camera, size, regions, report,
+                            afterLayout: () =>
+                            {
+                                miniBag.RefreshIfResized();
+                                state.Apply(shot);
+                            });
+                    }
+                }
+            }
+            catch (Exception error)
+            {
+                report.Failures.Add("the Battle HUD could not be photographed: " + error.Message);
+            }
+            finally
+            {
+                state?.ClearBagObjects();
+                state?.Dispose();
+
+                if (devPanel != null)
+                {
+                    devPanel.SetActive(devWasActive);
+                }
+            }
+        }
+
+        /// <summary>
+        /// The Battle screen's regions: its six panels, everything they hold, and the mini ย่าม's own
+        /// grid area.
+        /// </summary>
+        /// <remarks>
+        /// The panels are named from <see cref="UiLayoutCheck"/>, so the report, the rule and the scene
+        /// read the same words. The labels are named after the field they are serialized in, the way the
+        /// จัดย่าม screen's controls are, because a label is only interesting here as "the box this string
+        /// occupies" — its name is what tells a reader <i>which</i> string escaped its panel.
+        /// </remarks>
+        private static List<(string Name, UiRegionKind Kind, RectTransform Rect)> BattleRegionsOf(
+            BattleHudView hud,
+            BattleMiniBagView miniBag,
+            DevMenuView devMenu,
+            SerializedObject devFields,
+            bool bossVisible,
+            CaptureReport report)
+        {
+            var fields = new SerializedObject(hud);
+            var regions = new List<(string Name, UiRegionKind Kind, RectTransform Rect)>(40);
+
+            AddSurface(regions, UiLayoutCheck.MiniBag, miniBag.Panel);
+            AddSurface(regions, UiLayoutCheck.FloorPanel, ParentOf(fields, "_floorLabel"));
+            AddSurface(regions, UiLayoutCheck.ResourcePanel, ParentOf(fields, "_timeCaption"));
+            AddSurface(regions, UiLayoutCheck.StatusPanel, ParentOf(fields, "_hpCaption"));
+            AddSurface(regions, UiLayoutCheck.TimelinePanel, ParentOf(fields, "_timelineCaption"));
+
+            if (devFields != null)
+            {
+                AddSurface(regions, UiLayoutCheck.DevPanel, ParentOf(devFields, "_statusLabel"));
+                AddSerializedComponents(devFields, DevRows, UiRegionKind.Control, regions);
+            }
+
+            AddSerializedComponents(fields, BattleControls, UiRegionKind.Control, regions);
+            AddSerializedComponents(fields, BattleLabels, UiRegionKind.Control, regions);
+
+            if (miniBag.Content != null)
+            {
+                regions.Add((UiLayoutCheck.MiniBagContent, UiRegionKind.Control, miniBag.Content));
+            }
+
+            // The timeline's track lives on the timeline view rather than on the HUD, so it is reached
+            // through the reference the HUD serializes.
+            var timeline = fields.FindProperty("_timeline")?.objectReferenceValue as BattleTimelineView;
+            if (timeline != null)
+            {
+                AddSerializedComponents(
+                    new SerializedObject(timeline),
+                    new[] { (UiLayoutCheck.TimelineTrack, "_track") }, UiRegionKind.Control, regions);
+            }
+
+            // The boss band is a control inside the resource panel on a floor that has a boss. Floor 1
+            // does not, and a region that is not on the screen is not a region.
+            if (bossVisible)
+            {
+                var boss = fields.FindProperty("_bossRoot")?.objectReferenceValue as GameObject;
+                if (boss != null)
+                {
+                    regions.Add((UiLayoutCheck.BossPanel, UiRegionKind.Control, boss.transform as RectTransform));
+                }
+
+                AddSerializedComponents(fields, BossFloorLabels, UiRegionKind.Control, regions);
+            }
+            else
+            {
+                report.Notes.Add(
+                    "the boss band is not measured: floor 1 has no boss, so the presenter hides it "
+                    + "(the band's own rectangle is checked on a boss floor)");
+            }
+
+            return regions;
+        }
+
+        private static void AddSurface(
+            List<(string Name, UiRegionKind Kind, RectTransform Rect)> into, string name, RectTransform rect)
+        {
+            if (rect != null)
+            {
+                into.Add((name, UiRegionKind.Surface, rect));
+            }
+        }
+
+        private static RectTransform ParentOf(SerializedObject source, string field)
+        {
+            var component = source.FindProperty(field)?.objectReferenceValue as Component;
+            return component != null ? component.transform.parent as RectTransform : null;
         }
 
         // ------------------------------------------------------------------
@@ -655,6 +934,12 @@ namespace ProjectSurvive.Game.Editor
         // one shot
         // ------------------------------------------------------------------
 
+        /// <param name="afterLayout">
+        /// Run after the canvases have been laid out at this size and before anything is measured or
+        /// rendered: the hook a state that changed with the size (the mini bag's cells are fitted to the
+        /// area they are drawn in) puts itself back through. Null for a screen whose layout is entirely
+        /// authored.
+        /// </param>
         private static void Capture(
             SceneKind scene,
             string state,
@@ -663,7 +948,8 @@ namespace ProjectSurvive.Game.Editor
             Vector2Int size,
             List<(string Name, UiRegionKind Kind, RectTransform Rect)> regions,
             CaptureReport report,
-            GameObject overlay = null)
+            GameObject overlay = null,
+            Action afterLayout = null)
         {
             var borrowed = new List<(Canvas Canvas, RenderMode Mode, Camera Camera, float Plane)>();
             RenderTexture target = null;
@@ -699,6 +985,12 @@ namespace ProjectSurvive.Game.Editor
                 camera.targetTexture = target;
 
                 Canvas.ForceUpdateCanvases();
+
+                if (afterLayout != null)
+                {
+                    afterLayout();
+                    Canvas.ForceUpdateCanvases();
+                }
 
                 var measured = new List<UiRegion>();
                 if (sDeliberateOverlap && regions != null && regions.Count > 0)

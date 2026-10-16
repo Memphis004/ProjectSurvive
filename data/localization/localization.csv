@@ -75,6 +75,10 @@
 ,hud.end.win,ชนะชั้นนี้,Floor cleared
 ,hud.end.lose,แพ้แล้ว,Defeated
 ,hud.end.aborted,ออกจากชั้น,Left the floor
+,hud.kills,ศัตรูที่กำจัด,Enemies slain
+,hud.bag,ย่าม,Bag
+,hud.status,สถานะ,Status
+,hud.floor.format,ชั้น {0},Floor {0}
 ,camp.title,ศาลาพัก,The Rest Pavilion
 ,camp.npc.name,ยายจันทร์,Grandmother Chan
 ,camp.shop.caption,แผงวัตถุมงคลยายจันทร์,Grandmother Chan's stall

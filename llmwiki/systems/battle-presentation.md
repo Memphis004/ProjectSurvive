@@ -153,6 +153,33 @@ frame, so fast-forward on a slow machine degrades to dropped ticks rather than t
 the boss) and hands the view normalized spans — the marker colours are the view's, the *meaning*
 is the model's.
 
+### 7b. The mini ย่าม (Stage 08c)
+
+The battle screen is six anchored panels: the **mini ย่าม** top left (≤ 25 % of the canvas width by
+`anchorMax.x`: 432 × 546 px at 1920 × 1080), the **floor** top centre, the run's numbers top right,
+the **status panel** bottom left (figure, red HP bar, blue MP bar, current/max), the **timeline**
+along the bottom middle, and the **dev column** bottom right on its own canvas (sorting order 200).
+The equipped-spell list is gone; the bag says what is equipped.
+
+`BattleMiniBagView` draws the bag **read-only**, and only the bounding box of the cells the bag
+covers — never the whole 9 × 7 board. Geometry comes from the `BagSnapshot` and the
+`CombatLoadoutSnapshot` the run already handed the battle (`BattleViewScene.Build`);
+`BattleMiniBagLayout` fits the cell size to the panel and decides nothing a rule owns.
+
+A piece that can cast wears a plate from `IBattleFrame.Cooldowns` (08b), read out of the snapshot
+the runner copied **in the same frame** — never from a clock of the view's own:
+
+| The frame says | The plate shows |
+| --- | --- |
+| `IsReady` | nothing — a ready entry has no plate |
+| `ReadyButManaShort` | the faint blue tone |
+| still counting down | dark, `RemainingTicks / PeriodTicks` of the box |
+
+"No plate" and "a plate at 0 %" are the same picture, which is why the tone is what separates them.
+Elements are built once at floor start and only values that changed are written; the view counts its
+own builds (`CreatedAfterBuild`) and writes (`PlateUpdates`), so a test can tell "the floor moved the
+plate" from "the view redrew everything". Synergy link lines are deliberately not drawn yet.
+
 ## 8. The camera, and the one experiment the stage had to run
 
 Both projections ship (`BattleProjection` + `BattleCameraRig`); the scene authors
@@ -184,8 +211,8 @@ player sees is the hitbox the simulation uses.
 ProjectSurvive/Stage 08/4. Measure camera projection (ADR 0018)
 
 # Unity tests (Editor must be open; MCP or Test Runner)
-Editor:  ProjectSurvive.Game.Tests.EditMode    # 15 presentation tests
-PlayMode: ProjectSurvive.Game.Tests.PlayMode   # 4 battle scene tests
+Editor:  ProjectSurvive.Game.Tests.EditMode    # BattlePresentationTests 15, BattleMiniBagTests 14
+PlayMode: ProjectSurvive.Game.Tests.PlayMode   # 5 battle scene tests
 
 # The real player, in a real browser
 pwsh -NoProfile -File tools/build-web.ps1 -Configuration Release
@@ -201,6 +228,12 @@ Stage 03 smoke suite uses — and on a screenshot, rather than on how the page l
 
 ## 11. Facts that cost time to learn
 
+- **A scene reference is not compiled, so nothing but a PlayMode test can see it.** Stage 08c's
+  `BuildBattleHud` created the `BattleMiniBagView` and set its serialized fields, but no
+  `SetObjectReference(runner, "_viewSettings.MiniBag", …)` ever followed, so the real scene had a
+  null `BattleViewSettings.MiniBag` and drew an empty panel — with a clean compile, a green EditMode
+  suite and capture shots that looked correct (that tool finds the component by type and builds it
+  itself). The assertion that caught it reads the **scene's** wiring before it reads any value.
 - **A destroyed Unity object is not a null reference.** During PlayMode teardown a scene unload
   destroys the pooled renderers before `OnDestroy` releases them, so `if (view != null)` passes
   and the next line throws. Comparisons in `EntityView`, `EntityViewPool` and

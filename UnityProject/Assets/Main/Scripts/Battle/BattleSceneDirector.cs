@@ -172,6 +172,10 @@ namespace ProjectSurvive.Game.Battle
                 HudState = _scope.Container.Resolve<BattleHudState>(),
                 Hud = _scope.Container.Resolve<BattleHudPresenter>(),
                 Speed = _scope.Container.Resolve<BattleSpeed>(),
+
+                // The bag the floor departed with: the mini bag draws this board, and the loadout
+                // inside `setup` was resolved from it (Stage 08c).
+                Backpack = _run.Backpack,
             };
 
             _runner.Begin(context);

@@ -310,7 +310,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         [Test]
-        public void Hud_captions_are_localized_and_the_spells_are_the_equipped_ones()
+        public void Hud_captions_are_localized_and_the_floor_number_comes_from_the_setup()
         {
             IGameConfig config = ResourcesGameConfigLoader.Load();
             var text = new LocalizationService(config);
@@ -332,7 +332,9 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 ("hud.wave", state.WaveCaption.Value),
                 ("hud.boss", state.BossCaption.Value),
                 ("hud.elite", state.EliteCaption.Value),
-                ("hud.spells", state.SpellsCaption.Value),
+                ("hud.kills", state.KillsCaption.Value),
+                ("hud.bag", state.BagCaption.Value),
+                ("hud.status", state.StatusCaption.Value),
                 ("hud.timeline", state.TimelineCaption.Value),
             };
 
@@ -346,19 +348,19 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(state.FloorName.Value, Is.EqualTo(text.Get("floor.forest_1.name")));
             Assert.That(state.BiaValue.Value, Is.EqualTo("15"), "the HUD shows the purse the player walked in with");
 
-            // Requirement 5: the HUD shows the spells the installed items resolved to.
-            Assert.That(state.SpellSummary.Value, Is.Not.Empty, "the equipped spells were not shown");
-            for (int i = 0; i < setup.Loadout.Weapons.Count; i++)
-            {
-                Assert.That(
-                    config.TryGetSkill(setup.Loadout.Weapons[i].SkillId, out SkillConfig skill),
-                    Is.True,
-                    "unknown skill " + setup.Loadout.Weapons[i].SkillId);
-                Assert.That(
-                    state.SpellSummary.Value,
-                    Does.Contain(text.Get(skill.NameKey)),
-                    "weapon " + setup.Loadout.Weapons[i].SkillId + " is missing from the HUD");
-            }
+            // The floor's number is the setup's own, formatted with the table's format row — the HUD
+            // never counts floors of its own (Stage 08c moved it under the floor's name at the top).
+            Assert.That(setup.FloorIndex, Is.GreaterThan(0));
+            Assert.That(
+                state.FloorIndex.Value,
+                Is.EqualTo(string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    text.Get("hud.floor.format"), setup.FloorIndex)),
+                "the floor's number was not formatted from the tables");
+
+            // Stage 08c removed the equipped-spell line: the bag itself is on screen as the mini ย่าม,
+            // and what it draws — the pieces, their tiers and their cooldown plates — is asserted by
+            // BattleMiniBagTests against the same bag this setup was resolved from.
 
             Assert.That(state.Timeline.Count, Is.EqualTo(1), "floor 1 has one spawn window");
 

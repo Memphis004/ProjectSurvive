@@ -1,6 +1,7 @@
 using ProjectSurvive.Core.Application.Text;
 using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Config;
+using ProjectSurvive.Core.Domain.Inventory;
 
 namespace ProjectSurvive.Game.Presentation.Battle
 {
@@ -43,5 +44,11 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
         /// <summary>The 1×/2× control.</summary>
         public BattleSpeed Speed { get; set; }
+
+        /// <summary>
+        /// The run's bag, as the floor was departed from: the mini bag draws this board (Stage 08c).
+        /// The same object the loadout was resolved from, so the HUD cannot show a build the battle
+        /// is not running (ADR 0024).</summary>
+        public Backpack Backpack { get; set; }
     }
 }

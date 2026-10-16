@@ -62,7 +62,7 @@ ways out.
 
 * The numbers come from `RunSession.Summary()` — a plain read over run state, with `GhostsDefeated`
   summed per settled floor because no floor outlives its battle.
-* Every string is a `result.*` row in `data/localization/localization.csv` (188 rows now) resolved by
+* Every string is a `result.*` row in  `data/localization/localization.csv` (192 rows now) resolved by
   `ResultPresenter`; the view mirrors and forwards, and computes nothing.
 * **Restart is not a command on the run.** It records the intent, is committed by the loader, and
   `RunScopeOwner.DisposeRun()` is what makes the camp start a brand-new run (floor 1, starting purse,

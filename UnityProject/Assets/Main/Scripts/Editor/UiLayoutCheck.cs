@@ -73,6 +73,15 @@ namespace ProjectSurvive.Game.Editor
     /// </summary>
     /// <remarks>
     /// <para>
+    /// The Battle screen is judged by the same predicate (Stage 08c). Its six panels are the surfaces
+    /// and everything they hold — two bars, the timeline's track, the speed control, the mini ย่าม's
+    /// grid, the dev menu's rows and the labels' own line boxes — is a control inside one of them, so
+    /// the rule that answers "may these two share pixels" is asked of them exactly as it is asked of
+    /// the จัดย่าม panel.
+    /// </para>
+    /// </remarks>
+    /// <remarks>
+    /// <para>
     /// This mirrors <c>CampBagDragPlayModeTests.IsAllowed</c> and its <c>NestedByDesign</c> pair, on
     /// purpose: the PlayMode test owns the rule for the panel the player sees, and the Editor capture
     /// command (<see cref="UiCaptureTool"/>) needs the same verdict without play mode, so that a
@@ -113,6 +122,53 @@ namespace ProjectSurvive.Game.Editor
 
         /// <summary>The piece tooltip, on its own canvas above the screen.</summary>
         public const string Tooltip = "Tooltip";
+
+        // ------------------------------------------------------------------
+        // the battle HUD (Stage 08c)
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// The Battle screen's mini ย่าม: the run's bag drawn at the top left, at most a quarter of
+        /// the canvas wide.
+        /// </summary>
+        public const string MiniBag = "MiniBagPanel";
+
+        /// <summary>The floor's name and number, centred at the top.</summary>
+        public const string FloorPanel = "FloorPanel";
+
+        /// <summary>Time, bia, kills, the wave cursor and the speed control, at the top right.</summary>
+        public const string ResourcePanel = "ResourcePanel";
+
+        /// <summary>The figure and the two bars, at the bottom left.</summary>
+        public const string StatusPanel = "StatusPanel";
+
+        /// <summary>The floor's timeline, along the bottom between the status panel and the dev column.</summary>
+        public const string TimelinePanel = "TimelinePanel";
+
+        /// <summary>
+        /// The boss bar. A band <b>inside</b> <see cref="ResourcePanel"/> rather than a panel of its
+        /// own, which is why it is measured as a control: a second surface nested in a surface other
+        /// than the chest's grid is the pair the rule rejects.
+        /// </summary>
+        public const string BossPanel = "BossPanel";
+
+        /// <summary>The dev menu's column, bottom right, on its own canvas (a dev build only).</summary>
+        public const string DevPanel = "DevPanel";
+
+        /// <summary>The 1×/2× control, inside <see cref="ResourcePanel"/>.</summary>
+        public const string SpeedButton = "SpeedButton";
+
+        /// <summary>The HP fill, inside <see cref="StatusPanel"/>.</summary>
+        public const string HpBar = "HpBar";
+
+        /// <summary>The MP fill, inside <see cref="StatusPanel"/>.</summary>
+        public const string ManaBar = "ManaBar";
+
+        /// <summary>The spawn-window track, inside <see cref="TimelinePanel"/>.</summary>
+        public const string TimelineTrack = "TimelineTrack";
+
+        /// <summary>The mini ย่าม's own grid area, inside <see cref="MiniBag"/>.</summary>
+        public const string MiniBagContent = "MiniBagContent";
 
         /// <summary>
         /// The merge chooser's own frame — the modal panel the cards are drawn in (Stage 09g).

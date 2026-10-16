@@ -28,7 +28,7 @@ architecture docs.
 | Shop / economy (wallet, `shop_pool`, stock per camp, re-roll ladder) | [`systems/run-shop.md`](systems/run-shop.md) | 06 | done |
 | Run & scene flow (phase machine, commands, settlement, `ReplayLog`) | [`systems/run-shop.md`](systems/run-shop.md) | 06 | done |
 | Battle simulation (EcsLite) | [`systems/battle-simulation.md`](systems/battle-simulation.md) | 07 | done |
-| 2.5D battle presentation (scene, clocks, pools, HUD, camera) | [`systems/battle-presentation.md`](systems/battle-presentation.md) | 08 | done |
+| 2.5D battle presentation (scene, clocks, pools, HUD, camera, the mini ย่าม and its cooldown plates) | [`systems/battle-presentation.md`](systems/battle-presentation.md) | 08, 08c | done |
 | Camp screen (ศาลาพัก: the sala, walkable, shelves as the shop, the จัดย่าม drag, the two published reports) | [`systems/camp.md`](systems/camp.md) | 09 | done |
 | The full loop: three scopes (App / Run / Scene), `SceneLoader`, the floor loop, the title's start control, the summary screen, dev cheats | [`systems/loop-and-scopes.md`](systems/loop-and-scopes.md) | 10, 10d | done |
 | Core foundation (RNG / clock / ticker / Result) | [ADR 0004](../docs/adr/0004-dotnet-layer-enforcement.md) + [`../docs/architecture/overview.md`](../docs/architecture/overview.md) | 01 | done |
@@ -51,6 +51,7 @@ lands.
 | `TryAddCharacters`' return value is not coverage | [`gotchas/tmp-tryaddcharacters-lies.md`](gotchas/tmp-tryaddcharacters-lies.md) | A false return with the whole set "missing" usually means the face failed to load |
 | Luban 5.1 CLI: `--strict`, `__tables__.csv`, loader keys | [`gotchas/luban-5-strict-and-tables.md`](gotchas/luban-5-strict-and-tables.md) | Without `--strict` a broken `#ref` only warns and still exits 0; `#ref` cannot mean "optional" |
 | Thai text with TMP | [ADR 0008](../docs/adr/0008-thai-text-ui-stack.md) | Both stacks render Thai with 0 missing glyphs at 182-char coverage; the traps are in the asset and build pipeline, not the shaping |
+| A scene reference is not compiled | [`systems/battle-presentation.md`](systems/battle-presentation.md#11-facts-that-cost-time-to-learn) | Stage 08c's mini bag was built by `ProjectSetup` but never assigned to `BattleViewSettings.MiniBag`: a clean compile, a green EditMode suite and correct-looking capture shots (that tool finds the component by type) all missed it. Only a PlayMode test that reads the **scene's** wiring sees this class of defect |
 | A live gesture is invisible in the camp's published report | [`systems/camp.md`](systems/camp.md#2-three-rules-that-bite) | `CampSceneDirector` freezes the state document while a drag is active, so `dragging: true` can never be read from the page - assert the release counters instead |
 | Unity's default desktop WebGL template pins the canvas at 960×600 | [`systems/camp.md`](systems/camp.md), [09-report §5](../docs/stages/09-report.md) | A browser *window* resize never reaches the player; styling the canvas element (what the template's fullscreen button does) does |
 | A `data/` edit is not in the build until `gen.ps1` runs | [09-report §6](../docs/stages/09-report.md) | Stage 09 added 81 localization rows the generated tables never received, so a browser run described a player with the old tables; `verify-generated` is the gate |
