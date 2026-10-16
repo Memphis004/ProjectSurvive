@@ -485,6 +485,11 @@ namespace ProjectSurvive.Core.Simulation.Battle
         /// behaviour, element and reach come from its skill row, because the summon part of
         /// the loadout carries only what differs.
         /// </summary>
+        /// <remarks>
+        /// Weapons come first and familiars second, in the order the loadout lists them, and each
+        /// caster keeps the board instance id of the piece it came from — that pair is what the
+        /// frame's cooldown list is ordered by and keyed with (Stage 08b).
+        /// </remarks>
         private void BuildCasters(BattleContext context)
         {
             IReadOnlyList<WeaponLoadout> weapons = context.Setup.Loadout.Weapons;
@@ -498,6 +503,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
                 context.Spawner.SpawnCaster(
                     context,
                     index++,
+                    weapon.InstanceId,
                     context.DefIds.Skill(weapon.SkillId),
                     periodTicks,
                     weapon.MpCost,
@@ -523,6 +529,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
                 context.Spawner.SpawnCaster(
                     context,
                     index++,
+                    summon.InstanceId,
                     context.DefIds.Skill(summon.SkillId),
                     Ticks(summon.CooldownSeconds),
                     summon.MpCost,

@@ -27,6 +27,33 @@ namespace ProjectSurvive.Core.Tests
             bool devCheatsAllowed = true) =>
             BattleTestFixtures.Setup(bossFloor, currentHp, devCheatsAllowed: devCheatsAllowed);
 
+        /// <summary>
+        /// A setup whose loadout carries casters, for the cooldown-frame cases (Stage 08b).
+        /// </summary>
+        /// <remarks>
+        /// Two entries — a weapon and a familiar — built from the real rows in
+        /// <c>data/tables/skill.csv</c>, so a published period tracks the table instead of a
+        /// duplicated number. <paramref name="maxMp"/> is the lever for the MP case: the standard
+        /// setup's 50 pays for both casts, and a pool below the cheapest cost in the table (3) makes
+        /// every entry "ready but blocked", which is a premise of the test rather than a balance
+        /// claim.
+        /// </remarks>
+        protected virtual BattleSetup CreateCasterSetup(int maxMp = BattleTestFixtures.DefaultMaxMp)
+        {
+            BattleSetup setup = CreateSetup(false);
+            setup.Loadout.Stats.MaxMp = maxMp < 0 ? 0 : maxMp;
+            setup.Loadout.Weapons = new[]
+            {
+                BattleTestFixtures.Weapon(BattleTestFixtures.WeaponSkillId, BattleTestFixtures.WeaponInstanceId),
+            };
+            setup.Loadout.Summons = new[]
+            {
+                BattleTestFixtures.Summon(BattleTestFixtures.SummonSkillId, BattleTestFixtures.SummonInstanceId),
+            };
+
+            return setup;
+        }
+
         /// <summary>Steps until the session ends (or the guard trips), returning how many steps were run.</summary>
         private static int RunToEnd(IBattleSession session, int maxSteps = 6000)
         {
@@ -309,6 +336,233 @@ namespace ProjectSurvive.Core.Tests
             long after = GC.GetAllocatedBytesForCurrentThread();
 
             Assert.Equal(0L, after - before);
+        }
+
+        // -------------------------------------------------------------------
+        // The cooldown frame (Stage 08b)
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// The frame's cooldown list is the loadout, entry for entry and in the same order, each entry
+        /// carrying the board piece it came from.
+        /// </summary>
+        /// <remarks>
+        /// The HUD draws a cooldown on a <i>piece on the board</i>, so "which piece" has to survive the
+        /// trip through the loadout: this asserts the order (weapons, then familiars) and the instance id
+        /// of each entry against the loadout it was built from.
+        /// </remarks>
+        [Fact]
+        public void The_frames_cooldowns_are_the_loadout_entries_with_the_board_pieces_they_came_from()
+        {
+            BattleSetup setup = CreateCasterSetup();
+            IBattleSession session = CreateFactory().Create(setup);
+
+            session.Step(PlayerInputFrame.Idle);
+            ReadOnlySpan<LoadoutCooldown> cooldowns = session.Frame.Cooldowns;
+
+            int weapons = setup.Loadout.Weapons.Count;
+            int summons = setup.Loadout.Summons.Count;
+            Assert.Equal(weapons + summons, cooldowns.Length);
+
+            for (int i = 0; i < weapons; i++)
+            {
+                Assert.Equal(setup.Loadout.Weapons[i].InstanceId, cooldowns[i].InstanceId);
+            }
+
+            for (int i = 0; i < summons; i++)
+            {
+                Assert.Equal(setup.Loadout.Summons[i].InstanceId, cooldowns[weapons + i].InstanceId);
+            }
+        }
+
+        /// <summary>
+        /// A cooldown runs down one tick per tick, never below zero, and only ever goes back up by
+        /// resetting to the entry's full period — which is what a cast does.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This is the sentence the HUD is written against ("ติดคูลดาวน์เท่าไหร่"), and it is the shape
+        /// both ends of the battle must produce: the EcsLite session from its casters' own clocks, the
+        /// fake from its predictable cycle. The check is a walk over consecutive frames, so a cooldown
+        /// that jumped, went negative, or reset to something other than the full period fails whether the
+        /// step was one tick or twenty.
+        /// </para>
+        /// <para>
+        /// Both a blocked and a casting entry are covered: an entry waiting for a target or for MP sits at
+        /// <c>0</c> until it can cast, and then resets, which is exactly the 0 → period step. The last tick
+        /// before a reset is 1 → full period rather than 1 → 0 → full period, because a tick is atomic:
+        /// the clock reaches zero and the cast that resets it happen in the same tick, so the frame that
+        /// ends it shows the reset.
+        /// </para>
+        /// </remarks>
+        [Fact]
+        public void A_cooldown_runs_down_one_tick_at_a_time_and_resets_to_its_full_period()
+        {
+            const int ticks = 90;
+
+            BattleSetup setup = CreateCasterSetup();
+            IBattleSession session = CreateFactory().Create(setup);
+
+            var expectedPeriods = new int[setup.Loadout.Weapons.Count + setup.Loadout.Summons.Count];
+            for (int i = 0; i < setup.Loadout.Weapons.Count; i++)
+            {
+                expectedPeriods[i] = Ticks(setup.Loadout.Weapons[i].CooldownSeconds);
+            }
+
+            for (int i = 0; i < setup.Loadout.Summons.Count; i++)
+            {
+                expectedPeriods[setup.Loadout.Weapons.Count + i] =
+                    Ticks(setup.Loadout.Summons[i].CooldownSeconds);
+            }
+
+            var resets = new int[expectedPeriods.Length];
+            LoadoutCooldown[] previous = Array.Empty<LoadoutCooldown>();
+
+            for (int tick = 0; tick < ticks; tick++)
+            {
+                session.Step(PlayerInputFrame.Idle);
+
+                LoadoutCooldown[] current = session.Frame.Cooldowns.ToArray();
+                Assert.Equal(expectedPeriods.Length, current.Length);
+
+                for (int i = 0; i < current.Length; i++)
+                {
+                    LoadoutCooldown entry = current[i];
+
+                    Assert.Equal(expectedPeriods[i], entry.PeriodTicks);
+                    Assert.InRange(entry.RemainingTicks, 0, entry.PeriodTicks);
+
+                    if (previous.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    int before = previous[i].RemainingTicks;
+                    if (before > 1)
+                    {
+                        Assert.Equal(before - 1, entry.RemainingTicks);
+                    }
+                    else if (entry.RemainingTicks > before)
+                    {
+                        // The only way up is a cast, and a cast resets to the full period. It is
+                        // observed from 1 (the tick in which the clock reached zero went on to cast)
+                        // or from 0 (an entry that could not cast sits there until it can).
+                        Assert.Equal(expectedPeriods[i], entry.RemainingTicks);
+                        resets[i]++;
+                    }
+                }
+
+                previous = current;
+            }
+
+            for (int i = 0; i < resets.Length; i++)
+            {
+                Assert.True(
+                    resets[i] > 0,
+                    "entry " + i + " never cast in " + ticks + " ticks of a " + expectedPeriods[i]
+                    + "-tick cooldown, so the reset this case is about was never observed");
+            }
+        }
+
+        /// <summary>
+        /// A caster whose pool cannot pay for its cast sits at ready with the MP flag raised; with a pool
+        /// that can, the flag is never raised.
+        /// </summary>
+        /// <remarks>
+        /// "พร้อมร่ายแต่ติด MP" is state the HUD has to show and the view cannot compute (it would need the
+        /// entry's MP cost). Both halves are asserted, and the exact reading is checked too: the flag is set
+        /// if and only if the cooldown has elapsed and MP is below the cast's cost, compared against
+        /// <c>HudState.Mp</c> — the same number the MP bar shows.
+        /// </remarks>
+        [Fact]
+        public void A_ready_caster_the_player_cannot_afford_is_flagged_mana_short()
+        {
+            const int ticks = 30;
+
+            // Below the cheapest cost in the table (3), so no entry can ever cast.
+            BattleSetup poor = CreateCasterSetup(maxMp: 1);
+            IBattleSession blocked = CreateFactory().Create(poor);
+
+            for (int tick = 0; tick < ticks; tick++)
+            {
+                blocked.Step(PlayerInputFrame.Idle);
+
+                IBattleFrame frame = blocked.Frame;
+                ReadOnlySpan<LoadoutCooldown> cooldowns = frame.Cooldowns;
+                Assert.True(cooldowns.Length > 0, "the case needs at least one caster");
+
+                for (int i = 0; i < cooldowns.Length; i++)
+                {
+                    LoadoutCooldown entry = cooldowns[i];
+                    int mpCost = i < poor.Loadout.Weapons.Count
+                        ? poor.Loadout.Weapons[i].MpCost
+                        : poor.Loadout.Summons[i - poor.Loadout.Weapons.Count].MpCost;
+
+                    Assert.Equal(0, entry.RemainingTicks);
+                    Assert.True(entry.ReadyButManaShort, "entry " + i + " should be waiting on MP");
+                    Assert.Equal(entry.IsReady && mpCost > frame.Hud.Mp, entry.ReadyButManaShort);
+                }
+            }
+
+            // The other half: with a pool that pays for every cast, the same entries are never flagged,
+            // even on the frames where a cooldown has elapsed and a cast is being chosen instead.
+            BattleSetup rich = CreateCasterSetup();
+            IBattleSession paid = CreateFactory().Create(rich);
+
+            for (int tick = 0; tick < ticks; tick++)
+            {
+                paid.Step(PlayerInputFrame.Idle);
+
+                IBattleFrame frame = paid.Frame;
+                ReadOnlySpan<LoadoutCooldown> cooldowns = frame.Cooldowns;
+                for (int i = 0; i < cooldowns.Length; i++)
+                {
+                    Assert.False(
+                        cooldowns[i].ReadyButManaShort,
+                        "entry " + i + " was flagged short of MP while the pool paid for every cast");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Publishing the cooldown list is part of the tick, so it must not allocate either.
+        /// </summary>
+        /// <remarks>
+        /// The loadout here is not empty on purpose: the other allocation case runs the standard setup, whose
+        /// loadout has no casters at all, so this is the one that covers the cooldown publish path itself.
+        /// </remarks>
+        [Fact]
+        public void Step_with_a_caster_loadout_does_not_allocate_after_warm_up()
+        {
+            IBattleSession session = CreateFactory().Create(CreateCasterSetup());
+
+            for (int i = 0; i < 200; i++)
+            {
+                session.Step(PlayerInputFrame.Idle);
+            }
+
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 200; i++)
+            {
+                session.Step(PlayerInputFrame.Idle);
+            }
+
+            long after = GC.GetAllocatedBytesForCurrentThread();
+
+            Assert.Equal(0L, after - before);
+        }
+
+        /// <summary>A resolved cooldown in seconds as ticks — the period the frame must report.</summary>
+        private static int Ticks(float seconds)
+        {
+            if (!(seconds > 0f))
+            {
+                return 1;
+            }
+
+            int ticks = (int)Math.Round(seconds * BattleConstants.TickRate);
+            return ticks < 1 ? 1 : ticks;
         }
     }
 }

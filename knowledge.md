@@ -61,12 +61,22 @@ build metadata. Stage 02b added the **battle contract v1**
 `BattleFrameBuffer` into a **Prev/Cur double buffer** — `IBattleFrame` carries
 `Entities` and `PreviousEntities` so Stage 08 interpolates between two ticks through
 the one port it is allowed to read, and exactly one `IBattleFrame` implementation is
-allowed (the fake and Stage 07 share it, enforced by a reflection test).
-**466 xUnit tests pass** (57 Stage 01, 73
+allowed (the fake and Stage 07 share it, enforced by a reflection test). A second
+amendment (**Stage 08b**, [ADR 0023](docs/adr/0023-cooldown-state-on-the-battle-frame.md),
+landed after 10d) gave the same frame a **cooldown list**: `IBattleFrame.Cooldowns`
+carries `{ InstanceId, RemainingTicks, PeriodTicks, Flags }` per loadout entry in
+loadout order, built in `FramePublishSystem` from the `Caster` components that already
+existed (plus "ready but the pool is short", compared against `HudState.Mp`), with
+`WeaponLoadout`/`SummonLoadout` gaining the board `InstanceId` they were resolved from
+so a HUD can draw a cooldown on the piece the player placed. No rule and no combat
+outcome changed — `Caster.InstanceId` is not hashed, and the seeded state hash is
+pinned to a value recorded on the pre-change build.
+**478 xUnit tests pass** (57 Stage 01, 73
 Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05,
-44 Stage 06, 28 Stage 07, 11 Stage 09, the 8 the carried-item rule added in Stage 09f, and the 33
+44 Stage 06, 28 Stage 07, 11 Stage 09, the 8 the carried-item rule added in Stage 09f, the 33
 the upgrade choice added — 31 for the engine and the chooser's own rules, 2 for the stat-direction
-rule the window colours a card line from). The bag rules, the combo rules, the economy, the run/scene flow
+rule the window colours a card line from — and the 8 the cooldown frame added in Stage 08b, plus
+the 2 seeded-hash pins). The bag rules, the combo rules, the economy, the run/scene flow
 and the **battle simulation** are real code now: `Domain/Combat/Battle` and `Application`
 hold the battle **contract** (v1) — which the fake implements as a contract exercise — and
 `lib/Runtime/Simulation` holds the real EcsLite battle that implements it, reached only

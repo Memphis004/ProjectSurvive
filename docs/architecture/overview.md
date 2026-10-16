@@ -217,6 +217,11 @@ implementation exists (Stage 07):
   implementation — the fake and the Stage 07 simulation publish through the same
   class, and a reflection test fails if a second one appears
   ([ADR 0012](../adr/0012-prev-cur-frame-double-buffer.md)).
+- The frame also carries `Cooldowns` — one entry per loadout entry, keyed by the
+  **board instance id** it was resolved from, reporting remaining/period ticks and
+  whether MP is what is holding a ready cast back. A View cannot know any of that
+  (the resolved cooldown, a paused floor, a refused cast), so it is on the port
+  ([ADR 0023](../adr/0023-cooldown-state-on-the-battle-frame.md)).
 
 Details: [`llmwiki/systems/battle-contract.md`](../../llmwiki/systems/battle-contract.md),
 [ADR 0007](../adr/0007-battle-contract-and-asmdef-placement.md).

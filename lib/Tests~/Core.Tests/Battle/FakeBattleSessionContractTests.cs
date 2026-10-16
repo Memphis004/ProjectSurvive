@@ -34,6 +34,23 @@ namespace ProjectSurvive.Core.Tests
             Assert.Equal(BattleConstants.MaxRenderEntities, session.Frame.Entities.Length);
         }
 
+        /// <summary>
+        /// The fake's state for a seed did not move when Stage 08b added cooldowns to the frame:
+        /// the cycle is presentation state the fake manufactures, not gameplay, so it is
+        /// deliberately not mixed into the hash (the fake has nothing to fight with).
+        /// </summary>
+        [Fact]
+        public void The_state_hash_of_a_seeded_floor_with_casters_is_unchanged()
+        {
+            IBattleSession session = CreateFactory().Create(CreateCasterSetup());
+            for (int i = 0; i < 300; i++)
+            {
+                session.Step(PlayerInputFrame.Idle);
+            }
+
+            Assert.Equal(2633275827u, session.ComputeStateHash());
+        }
+
         [Fact]
         public void Dev_kill_all_defeats_the_boss()
         {

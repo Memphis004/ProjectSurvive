@@ -24,7 +24,10 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
     /// The geometric constants below are fake presentation values, not balance
     /// numbers: the player is at the origin and the dummies orbit it. No gameplay
     /// value is invented here — HP, MP, duration and boss presence all come from
-    /// config.
+    /// config. The cooldown frame (Stage 08b) follows the same rule: the periods come
+    /// from the loadout's resolved cooldowns and only the <i>progress</i> through them
+    /// is the fake's own predictable cycle, because a fake that had to fight to show a
+    /// cooldown would be a second battle instead of a stand-in.
     /// </para>
     /// </remarks>
     public sealed class FakeBattleSession : IBattleSession
@@ -50,6 +53,10 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
         private readonly int _floorDurationTicks;
         private readonly int _maxHp;
         private readonly int _maxMp;
+
+        // One slot per loadout entry, in loadout order (weapons, then familiars).
+        private readonly CastSlot[] _casters;
+        private readonly int _casterCount;
 
         // Dummy entity state, in fixed arrays so nothing is allocated per tick.
         private readonly int _entityCount;
@@ -117,6 +124,8 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
             _hp = Clamp(setup.CurrentHp, 0, _maxHp);
             _mp = _maxMp;
 
+            _casters = BuildCasters(setup.Loadout, out _casterCount);
+
             // One slot is reserved for the player render entity, so the frame can
             // never exceed the contract's MaxRenderEntities.
             int requested = options.DummyEntityCount;
@@ -180,6 +189,7 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
             ApplyDamage();
             EmitTimeWarnings();
             EvaluateEnd();
+            AdvanceCooldowns();
             BuildFrame();
         }
 
@@ -557,6 +567,75 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
             }
         }
 
+        /// <summary>
+        /// Builds one casting slot per loadout entry, in loadout order, capped at the contract's
+        /// maximum (<see cref="BattleConstants.MaxLoadoutEntries"/>).
+        /// </summary>
+        /// <remarks>
+        /// The fake does not fight, so these are <b>manufactured</b> clocks rather than a second
+        /// implementation of auto-cast: every entry starts ready, runs down one tick per tick, and
+        /// resets when it could cast. The numbers are entirely predictable — period straight from the
+        /// loadout's resolved cooldown in seconds — which is what makes the fake usable to develop a
+        /// HUD against (a cooldown indicator on a board item) before the real floor is tuned.
+        /// </remarks>
+        private static CastSlot[] BuildCasters(CombatLoadoutSnapshot loadout, out int count)
+        {
+            int total = loadout.Weapons.Count + loadout.Summons.Count;
+            count = total > BattleConstants.MaxLoadoutEntries ? BattleConstants.MaxLoadoutEntries : total;
+
+            var slots = new CastSlot[count];
+            int index = 0;
+
+            for (int i = 0; i < loadout.Weapons.Count && index < count; i++, index++)
+            {
+                WeaponLoadout weapon = loadout.Weapons[i];
+                slots[index] = new CastSlot
+                {
+                    InstanceId = weapon.InstanceId,
+                    PeriodTicks = Ticks(weapon.CooldownSeconds),
+                    MpCost = weapon.MpCost < 0 ? 0 : weapon.MpCost,
+                    RemainingTicks = 0,
+                };
+            }
+
+            for (int i = 0; i < loadout.Summons.Count && index < count; i++, index++)
+            {
+                SummonLoadout summon = loadout.Summons[i];
+                slots[index] = new CastSlot
+                {
+                    InstanceId = summon.InstanceId,
+                    PeriodTicks = Ticks(summon.CooldownSeconds),
+                    MpCost = summon.MpCost < 0 ? 0 : summon.MpCost,
+                    RemainingTicks = 0,
+                };
+            }
+
+            return slots;
+        }
+
+        /// <summary>
+        /// Runs every manufactured clock down one tick, and resets the ones that could cast — the same
+        /// shape the real auto-cast produces (ready, then a reset), gated by MP the same way, so a HUD
+        /// developed against the fake sees a state the real session also reaches.
+        /// </summary>
+        private void AdvanceCooldowns()
+        {
+            for (int i = 0; i < _casterCount; i++)
+            {
+                ref CastSlot slot = ref _casters[i];
+
+                if (slot.RemainingTicks > 0)
+                {
+                    slot.RemainingTicks--;
+                }
+
+                if (slot.RemainingTicks <= 0 && slot.MpCost <= _mp)
+                {
+                    slot.RemainingTicks = slot.PeriodTicks;
+                }
+            }
+        }
+
         private void BuildFrame()
         {
             _frame.BeginFrame(_tick);
@@ -578,6 +657,20 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
                     1f,
                     health,
                     flags));
+            }
+
+            for (int i = 0; i < _casterCount; i++)
+            {
+                ref CastSlot slot = ref _casters[i];
+
+                LoadoutCooldownFlags coolFlags = LoadoutCooldownFlags.None;
+                if (slot.RemainingTicks <= 0 && slot.MpCost > _mp)
+                {
+                    coolFlags = LoadoutCooldownFlags.ManaShort;
+                }
+
+                _frame.AddCooldown(new LoadoutCooldown(
+                    slot.InstanceId, slot.RemainingTicks, slot.PeriodTicks, coolFlags));
             }
 
             // Swap Prev/Cur: this tick becomes the current frame and the previous
@@ -613,6 +706,38 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
             }
 
             return value > max ? max : value;
+        }
+
+        /// <summary>
+        /// A resolved cooldown in seconds as ticks, rounded the way the real session rounds it
+        /// (<see cref="BattleConstants.TickRate"/>), never below one tick. The fake mirrors the
+        /// simulation's arithmetic the same way it mirrors the floor duration.
+        /// </summary>
+        private static int Ticks(float seconds)
+        {
+            if (!(seconds > 0f))
+            {
+                return 1;
+            }
+
+            int ticks = (int)Math.Round(seconds * BattleConstants.TickRate);
+            return ticks < 1 ? 1 : ticks;
+        }
+
+        /// <summary>One loadout entry's manufactured casting clock (see <see cref="BuildCasters"/>).</summary>
+        private struct CastSlot
+        {
+            /// <summary>Board instance id of the piece the entry came from, or 0.</summary>
+            public int InstanceId;
+
+            /// <summary>Cooldown length in ticks.</summary>
+            public int PeriodTicks;
+
+            /// <summary>MP one cast costs, from the loadout.</summary>
+            public int MpCost;
+
+            /// <summary>Ticks left before it may cast again; 0 means ready.</summary>
+            public int RemainingTicks;
         }
 
         private static uint Mix(uint hash, uint value)

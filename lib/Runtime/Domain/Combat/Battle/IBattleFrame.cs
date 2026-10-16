@@ -43,5 +43,28 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
         /// being written.
         /// </summary>
         ReadOnlySpan<RenderEntity> PreviousEntities { get; }
+
+        /// <summary>
+        /// The casting state of the loadout, in loadout order: weapons first (as
+        /// <c>CombatLoadoutSnapshot.Weapons</c> lists them), then familiars (as
+        /// <c>Summons</c> lists them). Valid until the next Step/Submit, like
+        /// <see cref="Entities"/>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Stage 08b. A HUD has to show, on each piece laying on the board, how far its cooldown has
+        /// run down; <see cref="LoadoutCooldown.InstanceId"/> is the key back to that piece. Both
+        /// ends of the battle publish this the same way — the fake manufactures a predictable cycle
+        /// for UI work, the EcsLite simulation reports its casters — because the HUD is written once,
+        /// against the sentence "the frame says how far each weapon's cooldown has run".
+        /// </para>
+        /// <para>
+        /// Never interpolated (a cooldown is a count, not a position), and bounded by
+        /// <see cref="BattleConstants.MaxLoadoutEntries"/>. Counts nothing about what the battle did
+        /// with the entry: whether a target was in reach, and which weapon in fact fired, stay
+        /// inside the simulation.
+        /// </para>
+        /// </remarks>
+        ReadOnlySpan<LoadoutCooldown> Cooldowns { get; }
     }
 }

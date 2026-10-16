@@ -23,7 +23,8 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
     /// <para>
     /// Entity order is fixed — player, ghosts, projectiles, drops — so two runs of one seed
     /// publish byte-identical frames, which is what the contract suite's Prev/Cur case
-    /// compares.
+    /// compares. The cooldown list follows the same rule: casters are created once, in loadout
+    /// order, so entry <c>i</c> is the <c>i</c>-th weapon or familiar.
     /// </para>
     /// </remarks>
     public sealed class FramePublishSystem : IEcsInitSystem, IEcsRunSystem
@@ -34,7 +35,9 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
         private EcsPool<Health> _healths = null!;
         private EcsPool<EnemyTag> _enemies = null!;
         private EcsPool<Mana> _manas = null!;
+        private EcsPool<Caster> _casters = null!;
         private EcsFilter _enemyFilter = null!;
+        private EcsFilter _casterFilter = null!;
         private EcsFilter _projectileFilter = null!;
         private EcsFilter _pickupFilter = null!;
 
@@ -48,7 +51,9 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
             _healths = world.GetPool<Health>();
             _enemies = world.GetPool<EnemyTag>();
             _manas = world.GetPool<Mana>();
+            _casters = world.GetPool<Caster>();
             _enemyFilter = world.Filter<EnemyTag>().Inc<Position>().End(BattleArena.FilterDenseCapacity);
+            _casterFilter = world.Filter<Caster>().End(BattleArena.FilterDenseCapacity);
             _projectileFilter = world.Filter<Projectile>().Inc<Position>().End(BattleArena.FilterDenseCapacity);
             _pickupFilter = world.Filter<Pickup>().Inc<Position>().End(BattleArena.FilterDenseCapacity);
         }
@@ -73,8 +78,46 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
             PublishEnemies(context, frame);
             PublishProjectiles(context, frame);
             PublishPickups(context, frame);
+            PublishCooldowns(context, frame);
 
             frame.Publish();
+        }
+
+        /// <summary>
+        /// Publishes each caster's own casting clock, read straight off the component the auto-cast rule
+        /// already advances (Stage 08b).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// No rule lives here: <see cref="Caster.CooldownTicks"/> is what <see cref="AutoCastSystem"/> runs
+        /// down and resets, <see cref="Caster.PeriodTicks"/> is the resolved cooldown, and the only thing
+        /// this adds is the one reading of "ready but the pool is short" that a HUD cannot make for itself
+        /// (it would have to know the entry's MP cost and compare it against <c>HudState.Mp</c>).
+        /// </para>
+        /// <para>
+        /// Casters are created once, in loadout order, and never recycled, so the filter's order is the
+        /// loadout's order — which is what makes entry <c>i</c> of <see cref="BattleFrameBuffer.Cooldowns"/>
+        /// the <c>i</c>-th weapon or familiar the loadout lists.
+        /// </para>
+        /// </remarks>
+        private void PublishCooldowns(BattleContext context, BattleFrameBuffer frame)
+        {
+            int player = context.PlayerEntity;
+            int availableMp = context.IsAlive(player) && _manas.Has(player) ? _manas.Get(player).Mp : 0;
+
+            foreach (int entity in _casterFilter)
+            {
+                ref Caster caster = ref _casters.Get(entity);
+
+                LoadoutCooldownFlags flags = LoadoutCooldownFlags.None;
+                if (caster.CooldownTicks <= 0 && caster.MpCost > availableMp)
+                {
+                    flags = LoadoutCooldownFlags.ManaShort;
+                }
+
+                frame.AddCooldown(new LoadoutCooldown(
+                    caster.InstanceId, caster.CooldownTicks, caster.PeriodTicks, flags));
+            }
         }
 
         private HudState BuildHud(BattleContext context)

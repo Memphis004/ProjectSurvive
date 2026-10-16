@@ -45,11 +45,15 @@ about a battle it learned from that page; this page is the *inside*.
 | 11 | `Drop` | spawns the queued pickups (capped) |
 | 12 | `Pickup` | collects drops inside the pickup radius |
 | 13 | `FloorEnd` | the only place a win or a loss is chosen (plus the two timer warnings) |
-| 14 | `FramePublish` | writes the HUD and the render entities into `BattleFrameBuffer` |
+| 14 | `FramePublish` | writes the HUD, the render entities and the per-caster cooldown list into `BattleFrameBuffer` |
 
 The order is load-bearing and commented as such: steering before the grid, the grid
 before collision, collision before the damage that can kill, and the frame last so it
-describes the finished tick.
+describes the finished tick. `FramePublish` adds nothing to the simulation: since Stage 08b it
+reports each caster's own clock (`Caster.CooldownTicks` / `PeriodTicks`) and the one reading a view
+cannot make — "ready and only the pool is short" — as `IBattleFrame.Cooldowns`
+(see [`battle-contract.md`](battle-contract.md#the-cooldown-list-stage-08b) and
+[ADR 0023](../../docs/adr/0023-cooldown-state-on-the-battle-frame.md)).
 
 ## 3. Components
 

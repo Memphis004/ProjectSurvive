@@ -44,6 +44,19 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
     /// <summary>One arcane weapon, resolved for combat.</summary>
     public sealed class WeaponLoadout
     {
+        /// <summary>
+        /// Board instance id of the piece this entry was resolved from
+        /// (<c>ItemInstance.InstanceId</c>), or <see cref="LoadoutCooldown.NoInstance"/> when the
+        /// entry came from no piece.
+        /// </summary>
+        /// <remarks>
+        /// The key a HUD binds a board cell to, and the only handle the battle has on "which piece
+        /// is this": the loadout is a projection of the bag, so without it a frame's cooldown list
+        /// could say "the second weapon is as good as ready" but not which piece to draw it on.
+        /// Instance ids start at 1 and are never reused (Stage 09), so <c>0</c> is unambiguous.
+        /// </remarks>
+        public int InstanceId { get; set; } = LoadoutCooldown.NoInstance;
+
         /// <summary>Stable skill id, e.g. <c>skill.knife_thrust</c>.</summary>
         public string SkillId { get; set; } = string.Empty;
 
@@ -71,6 +84,9 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
     /// <summary>One summoned familiar, resolved for combat.</summary>
     public sealed class SummonLoadout
     {
+        /// <summary>Board instance id of the piece this entry was resolved from, or <see cref="LoadoutCooldown.NoInstance"/>.</summary>
+        public int InstanceId { get; set; } = LoadoutCooldown.NoInstance;
+
         public string SkillId { get; set; } = string.Empty;
 
         public int Tier { get; set; }

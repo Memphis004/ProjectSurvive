@@ -108,6 +108,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
         /// </summary>
         /// <param name="context">The session's shared state.</param>
         /// <param name="index">The loadout entry it drives.</param>
+        /// <param name="instanceId">Board instance id of the piece the entry came from, for the frame's cooldown list.</param>
         /// <param name="skillDefId">Skill def id, for events.</param>
         /// <param name="periodTicks">Cooldown length in ticks.</param>
         /// <param name="mpCost">MP one cast costs.</param>
@@ -123,6 +124,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
         public int SpawnCaster(
             BattleContext context,
             int index,
+            int instanceId,
             int skillDefId,
             int periodTicks,
             int mpCost,
@@ -143,6 +145,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
             ref Caster caster = ref _world.GetPool<Caster>().Add(entity);
             caster.Index = index;
+            caster.InstanceId = instanceId;
             caster.CooldownTicks = 0;
             caster.PeriodTicks = periodTicks < 1 ? 1 : periodTicks;
             caster.MpCost = mpCost < 0 ? 0 : mpCost;

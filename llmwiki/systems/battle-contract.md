@@ -105,11 +105,42 @@ through `Read(..., out int dropped)` — the loss is reported, never hidden.
 
 ## 6. Frames
 
-`IBattleFrame` exposes `Tick`, `Hud`, `Entities` (Cur) and `PreviousEntities`
-(Prev). Both spans are `ReadOnlySpan<RenderEntity>` and are **valid only until the
-next `Step` or `Submit`** — copy anything you need to keep. `HudState` names its
-fields after the Luban columns (`hp`, `mp`, `currency`) and has no
-Level/XP/input-inversion field.
+`IBattleFrame` exposes `Tick`, `Hud`, `Entities` (Cur), `PreviousEntities` (Prev)
+and `Cooldowns` (Stage 08b). Both entity spans are `ReadOnlySpan<RenderEntity>` and
+are **valid only until the next `Step` or `Submit`** — copy anything you need to keep.
+`HudState` names its fields after the Luban columns (`hp`, `mp`, `currency`) and has
+no Level/XP/input-inversion field.
+
+### The cooldown list (Stage 08b)
+
+`Cooldowns` is a `ReadOnlySpan<LoadoutCooldown>` in **loadout order**: weapons as
+`CombatLoadoutSnapshot.Weapons` lists them, then familiars as `Summons` lists them.
+Same lifetime as the entity spans. Each entry is
+`{ InstanceId, RemainingTicks, PeriodTicks, Flags }`:
+
+- `InstanceId` is the **board piece** the entry was resolved from
+  (`WeaponLoadout.InstanceId` / `SummonLoadout.InstanceId`, set by `LoadoutResolver`
+  from `ItemInstance.InstanceId`), or `LoadoutCooldown.NoInstance` (`0`) for a
+  hand-built loadout. It is the key a HUD matches to the piece it drew.
+- `RemainingTicks` is that caster's own clock (`Caster.CooldownTicks`), `PeriodTicks`
+  its resolved cooldown (`Caster.PeriodTicks`, at least 1). **Ticks, not seconds** —
+  the simulation's clock is `BattleConstants.TickRate`; a view divides for seconds or
+  for a progress bar.
+- `Flags` carries `ManaShort`: the cooldown has elapsed and the pool cannot pay the
+  cast's cost (compared against `HudState.Mp`). It says nothing about whether a
+  target is in reach or which weapon auto-cast would choose — those stay inside the
+  simulation.
+- A tick is atomic, so an entry that casts shows `1 → PeriodTicks` (the clock reached
+  zero and the cast reset it in the same tick). `0` is what a **blocked** entry shows.
+- Bounded by `BattleConstants.MaxLoadoutEntries = 64` (above the 9 × 7 board's cell
+  count) and written into the unpublished slot, so a reader never sees half a list.
+
+Why it is here and not in the View: a View has no resolved cooldown (tier and combo
+modifiers are applied in `LoadoutResolver`), cannot know a floor is paused, and cannot
+tell a refused cast from a cast that has not happened — see
+[ADR 0023](../../docs/adr/0023-cooldown-state-on-the-battle-frame.md). The two
+implementations publish it identically in shape: the EcsLite session reports its
+casters' own components, the fake manufactures a predictable cycle for UI work.
 
 Why a pair: the battle ticks at 30 Hz while rendering runs faster, so Stage 08's
 `BattleSimulationRunner` interpolates `Prev` → `Cur` with its own alpha
@@ -119,10 +150,11 @@ pair have to be on it.
 `BattleFrameBuffer` is **the** implementation (ADR 0012) and provides both slots:
 
 ```
-   BeginFrame(tick) -> SetHud(hud) -> Add(entity)… -> Publish()
-                                                        │
+   BeginFrame(tick) -> SetHud(hud) -> Add(entity)… -> AddCooldown(entry)… -> Publish()
+                                                                              │
                           swaps the two slots: written becomes Cur,
-                          the old Cur becomes Prev with its count intact
+                          the old Cur becomes Prev with its count intact,
+                          and the cooldown list swaps with them
 ```
 
 - Two fixed slots of at most `BattleConstants.MaxRenderEntities` (1024); a frame
@@ -133,7 +165,9 @@ pair have to be on it.
   writes over that slot in place.
 - `HudState` is deliberately **not** double-buffered: a HUD is a single by-value
   snapshot overwritten each tick, so between `BeginFrame` and `Publish` it can run a
-  tick ahead of `Tick` / `Entities`.
+  tick ahead of `Tick` / `Entities`. The **cooldown list is** (Stage 08b) — it is
+  filled entry by entry rather than copied over, so it is written into the
+  unpublished slot.
 - One writer (the session's tick), any number of readers, one thread, no
   synchronization — the Web target is single-threaded.
 - Publishing and reading allocate nothing once the buffer is constructed, and the

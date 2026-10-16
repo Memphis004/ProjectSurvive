@@ -220,6 +220,9 @@ namespace ProjectSurvive.Core.Domain.Inventory
 
             weapon = new WeaponLoadout
             {
+                // The board piece this entry stands for, so a frame's cooldown list can be drawn
+                // on the item the player placed (Stage 08b) rather than on "the second weapon".
+                InstanceId = item.InstanceId,
                 SkillId = skill.Id,
                 Tier = item.Tier,
                 Behavior = skill.Behavior,
@@ -259,6 +262,7 @@ namespace ProjectSurvive.Core.Domain.Inventory
 
             summon = new SummonLoadout
             {
+                InstanceId = item.InstanceId,
                 SkillId = skill.Id,
                 Tier = item.Tier,
                 CooldownSeconds = ResolveCooldown(

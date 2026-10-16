@@ -38,5 +38,18 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
 
         /// <summary>Upper bound on the entities a frame may expose to Presentation.</summary>
         public const int MaxRenderEntities = 1024;
+
+        /// <summary>
+        /// Upper bound on the loadout entries a frame may expose cooldowns for
+        /// (<see cref="LoadoutCooldown"/>).
+        /// </summary>
+        /// <remarks>
+        /// A casting entry is a weapon or a familiar that occupies at least one board cell, and the
+        /// board is <c>constant.board_width</c> x <c>constant.board_height</c> = 9 x 7 = 63 cells, so
+        /// a loadout a player can actually build never reaches this. The bound exists for the same
+        /// reason <see cref="MaxRenderEntities"/> does: the frame's cooldown list is a fixed
+        /// allocation written in place, never a list that grows with the bag.
+        /// </remarks>
+        public const int MaxLoadoutEntries = 64;
     }
 }

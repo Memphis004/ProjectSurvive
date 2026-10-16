@@ -119,5 +119,30 @@ namespace ProjectSurvive.Core.Tests
 
             return session.ComputeStateHash();
         }
+
+        /// <summary>
+        /// The state a seed produces did not move when Stage 08b added cooldowns to the frame.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The cooldown frame is presentation state built from components that already existed, so
+        /// it must not be able to change a fight. The pin is a literal recorded before the change
+        /// and asserted after it: a recording of the same seed and the same 300 inputs, with a real
+        /// weapon and familiar casting (kills, drops and all), so the hash covers the code the
+        /// change touched. Bumping a cooldown here while editing the publish path is exactly the
+        /// failure this catches.
+        /// </para>
+        /// <para>
+        /// The number is a fingerprint of one runtime build, not a save format and not a claim that
+        /// two machines agree (AGENTS rule 6): it is only ever compared against itself.
+        /// </para>
+        /// </remarks>
+        [Fact]
+        public void The_state_hash_of_a_seeded_floor_with_casters_is_unchanged()
+        {
+            uint hash = HashAfter300Ticks(CreateFactory(), CreateCasterSetup());
+
+            Assert.Equal(3218847520u, hash);
+        }
     }
 }

@@ -108,6 +108,16 @@ namespace ProjectSurvive.Core.Simulation.Battle
         /// <summary>Index of the loadout entry this caster drives, for the hash and for debugging.</summary>
         public int Index;
 
+        /// <summary>
+        /// Board instance id of the piece this caster's loadout entry came from, or
+        /// <see cref="ProjectSurvive.Core.Domain.Combat.Battle.LoadoutCooldown.NoInstance"/>. Published
+        /// with the cooldown so a HUD can draw it on the item the player placed (Stage 08b). It is
+        /// <b>not</b> part of <c>ComputeStateHash</c>: it is which piece the entry came from, not what
+        /// the cast did, and a field that only ever answers a question about the bag must not be able
+        /// to move a deterministic fingerprint.
+        /// </summary>
+        public int InstanceId;
+
         /// <summary>Ticks until this weapon may cast again; 0 means ready.</summary>
         public int CooldownTicks;
 
