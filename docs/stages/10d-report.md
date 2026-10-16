@@ -130,6 +130,13 @@ its own; the suite, run as a suite, still does not pass.
   `Thai_spike_scene_measures_both_stacks_without_missing_glyphs`, not marked `[Explicit]`), not this
   stage's, and the Thai coverage it would assert is measured instead by
   `artifacts/thai-font-bake.json` (`missingCount 0`, `coversRequiredSet true`).
+- **The screen's *look* is the user's to accept, not a test's.** The capture and the pixel check say the
+  three regions do not overlap, sit at or above the 22 px Thai floor, and the player's own shot has ink
+  inside the measured rectangles — none of that judges whether the screen reads well. The shot is
+  [`artifacts/stage10d/web-title-player.png`](../../artifacts/stage10d/web-title-player.png) (the
+  browser suite's own `tests/web/test-results/web-title.png`, taken at 1280×720, copied because the spec
+  overwrites it on every run); reading a passing assertion as approval of the look is exactly what the
+  Definition of Done forbids.
 - **`data: broken fixtures rejected` is still the slowest Fast step** (~57 s of the 82 s), unchanged from
   Stage 10's note.
 - Unrelated working-tree file left untouched and **not** part of this stage's commit:
