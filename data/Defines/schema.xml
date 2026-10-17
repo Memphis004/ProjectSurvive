@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ProjectSurvive static data schema (Stage 02).
+  Template static data schema.
 
   Verified against the INSTALLED Luban 5.1.0 CLI, not guessed:
     * `<module name="">` holds enums + beans; the table registry lives in
@@ -14,61 +14,17 @@
               int#(range=[a,b])    (Luban value validator)
     * The generated namespace comes from target.topModule ("ProjectSurvive.Config").
 
+  The template keeps exactly two tables: `tbconstant` (tuned numbers) and
+  `tblocalization` (the only source of player-facing text, AGENTS rule 5).
+  A game adds its own beans here and its own CSV under data/tables/.
+
   Balance NUMBERS live in the CSV tables under data/tables/, never here.
 -->
 <module name="">
 
   <!-- ===================================================================== -->
-  <!-- Enums (stable identifiers; string ids in the tables, ints on the wire) -->
+  <!-- Enums (stable identifiers; ints on the wire)                          -->
   <!-- ===================================================================== -->
-  <enum name="Element">
-    <var name="None" value="0"/>
-    <var name="Fire" value="1"/>
-    <var name="Curse" value="2"/>
-  </enum>
-
-  <enum name="ItemCategory">
-    <var name="Bag" value="1"/>
-    <var name="ArcaneWeapon" value="2"/>
-    <var name="Charm" value="3"/>
-    <var name="SpellTome" value="4"/>
-    <var name="Offering" value="5"/>
-    <var name="Familiar" value="6"/>
-  </enum>
-
-  <enum name="SkillBehavior">
-    <var name="Projectile" value="1"/>
-    <var name="Pierce" value="2"/>
-    <var name="Aura" value="3"/>
-    <var name="Melee" value="4"/>
-  </enum>
-
-  <enum name="EnemyRole">
-    <var name="Filler" value="1"/>
-    <var name="Fast" value="2"/>
-    <var name="Elite" value="3"/>
-    <var name="Boss" value="4"/>
-  </enum>
-
-  <enum name="MovePattern">
-    <var name="Chase" value="1"/>
-    <var name="Charge" value="2"/>
-    <var name="Stationary" value="3"/>
-  </enum>
-
-  <enum name="SynergyKind">
-    <var name="AdjacentPair" value="1"/>
-    <var name="SameRow" value="2"/>
-    <var name="BagArea" value="3"/>
-    <var name="SameColumn" value="4"/>
-  </enum>
-
-  <enum name="SynergyStat">
-    <var name="Cooldown" value="1"/>
-    <var name="Damage" value="2"/>
-    <var name="AttackSpeed" value="3"/>
-    <var name="Debuff" value="4"/>
-  </enum>
 
   <enum name="Language">
     <var name="Th" value="1"/>
@@ -76,7 +32,7 @@
   </enum>
 
   <!-- ===================================================================== -->
-  <!-- Beans                                                                -->
+  <!-- Beans                                                                 -->
   <!-- ===================================================================== -->
 
   <!-- Localization: the ONLY source of player-facing text (AGENTS rule 5). -->
@@ -86,197 +42,13 @@
     <var name="en" type="string"/>
   </bean>
 
-  <!-- Bag piece: opens ActiveSlots on the Board. `footprint` is a PICTURE of the
-       shape, one "row" element per line of the picture:
-
-           "XXX|XXX|XXX"  a 3x3 bag      "XXX"      a 1x3 pouch
-           "XX.|.XX"      the L-tromino  "XX|XX"    a 2x2 tome
-
-       'X' = the cell is part of the piece, '.' = empty. Parsed in Domain by
-       Footprint.TryParse, which normalises the shape to the origin.
-       See llmwiki/systems/data-schema.md and docs/adr/0009-footprint-picture-format.md. -->
-  <bean name="Bag">
-    <var name="id" type="string"/>
-    <var name="name_key" type="string#ref=TbLocalization"/>
-    <var name="tier" type="int#(range=[1,3])"/>
-    <var name="price" type="int"/>
-    <var name="weight" type="float"/>
-    <var name="footprint" type="list#sep=|,string"/>
-  </bean>
-
-  <!-- Cast behaviour of an arcane weapon / familiar. -->
-  <bean name="Skill">
-    <var name="id" type="string"/>
-    <var name="name_key" type="string#ref=TbLocalization"/>
-    <var name="behavior" type="SkillBehavior"/>
-    <var name="element" type="Element"/>
-    <var name="cooldown_seconds" type="float"/>
-    <var name="mp_cost" type="int"/>
-    <var name="damage" type="int"/>
-    <var name="projectile_speed" type="float"/>
-    <var name="range" type="float"/>
-    <var name="pierce_count" type="int"/>
-    <var name="projectile_count" type="int"/>
-  </bean>
-
-  <!-- Every non-bag item. `skill_id` is empty for passive pieces, so it is a
-       plain string: Luban's ref validator rejects an EMPTY cell, and "no skill"
-       is a legitimate value. tools/validate-data.ps1 checks every non-empty
-       skill_id / description_key against the target table instead. -->
-  <bean name="Item">
-    <var name="id" type="string"/>
-    <var name="category" type="ItemCategory"/>
-    <var name="name_key" type="string#ref=TbLocalization"/>
-    <var name="description_key" type="string"/>
-    <var name="tier" type="int#(range=[1,3])"/>
-    <var name="element" type="Element"/>
-    <var name="price" type="int"/>
-    <var name="weight" type="float"/>
-    <var name="skill_id" type="string"/>
-    <var name="tags" type="list#sep=|,string"/>
-    <!-- Which board cells the item occupies - the same picture syntax as Bag.
-         An item is placeable only where a bag covers every one of its cells, so
-         a 2x2 tome and a 2x1 familiar need this to be representable. -->
-    <var name="footprint" type="list#sep=|,string"/>
-  </bean>
-
-  <!-- Combo rule. Matching is by item TAG, so a rule covers a whole family. -->
-  <bean name="Synergy">
-    <var name="id" type="string"/>
-    <var name="name_key" type="string#ref=TbLocalization"/>
-    <var name="kind" type="SynergyKind"/>
-    <var name="tag_a" type="string"/>
-    <var name="tag_b" type="string"/>
-    <var name="stat" type="SynergyStat"/>
-    <var name="value_percent" type="float"/>
-    <var name="max_stacks" type="int#(range=[1,5])"/>
-  </bean>
-
-  <!-- Merge is same-id + tier+1, max tier from `constant`. A recipe targets an
-       item OR a bag; exactly one of the two ids is set and both are validated by
-       tools/validate-data.ps1 (a `#ref` cannot express "one of two, the other
-       empty" because an empty ref cell is an error). -->
-  <bean name="MergeRecipe">
-    <var name="id" type="string"/>
-    <var name="item_id" type="string"/>
-    <var name="bag_id" type="string"/>
-    <var name="from_tier" type="int#(range=[1,3])"/>
-    <var name="to_tier" type="int#(range=[1,3])"/>
-  </bean>
-
-  <!-- One upgrade choice offered when two equal pieces fold (Stage 09f).
-
-       The condition is a category OR a tag, and exactly one of the two is set -
-       the same "one of two, the other empty" shape `merge_recipe` uses, because a
-       `#ref` cannot express an optional reference. `category` holds an
-       ItemCategory NAME ("ArcaneWeapon"); `tag` holds an item tag. The whole
-       selection rule lives in Domain (UpgradePool): every variant whose
-       (category, from_tier) or (tag, from_tier) matches the piece is a candidate,
-       and the pool is either empty - the pair folds immediately, as before - or
-       big enough for `constant.upgrade_choice_count` choices. -->
-  <bean name="UpgradeVariant">
-    <var name="id" type="string"/>
-    <var name="category" type="string"/>
-    <var name="tag" type="string"/>
-    <var name="from_tier" type="int#(range=[1,3])"/>
-    <var name="to_tier" type="int#(range=[1,3])"/>
-    <var name="name_key" type="string#ref=TbLocalization"/>
-    <var name="weight" type="int"/>
-  </bean>
-
-  <!-- One stat change of a variant. `stat` and `method` are NAMES, not enums, so
-       that a typo is a validator finding with a row to point at instead of a Luban
-       parse error: the vocabulary is the one the battle loadout actually carries
-       (UpgradeStat / UpgradeMethod in Domain/Config/UpgradeStats.cs) and
-       tools/validate-data.ps1 rejects a name outside it. A variant with no
-       modifier row changes nothing, which is also a finding. -->
-  <bean name="UpgradeVariantModifier">
-    <var name="id" type="string"/>
-    <var name="variant_id" type="string#ref=TbUpgradeVariant"/>
-    <var name="stat" type="string"/>
-    <var name="method" type="string"/>
-    <var name="magnitude" type="float"/>
-  </bean>
-
-  <bean name="Enemy">
-    <var name="id" type="string"/>
-    <var name="name_key" type="string#ref=TbLocalization"/>
-    <var name="role" type="EnemyRole"/>
-    <var name="max_hp" type="int"/>
-    <var name="move_speed" type="float"/>
-    <var name="contact_damage" type="int"/>
-    <var name="attack_cooldown_seconds" type="float"/>
-    <var name="move_pattern" type="MovePattern"/>
-    <var name="is_elite" type="bool"/>
-    <var name="is_boss" type="bool"/>
-    <var name="boss_phase2_hp_percent" type="float"/>
-  </bean>
-
-  <!-- `index` is the 1-based run order of the floor. The shop pool bands and the
-       "every floor has a wave" rule are checked against it, so it must be
-       explicit rather than inferred from the id string. -->
-  <bean name="Floor">
-    <var name="id" type="string"/>
-    <var name="index" type="int#(range=[1,20])"/>
-    <var name="name_key" type="string#ref=TbLocalization"/>
-    <var name="duration_seconds" type="float"/>
-    <var name="is_boss" type="bool"/>
-    <!-- Empty for a normal floor; checked by tools/validate-data.ps1 when set. -->
-    <var name="boss_enemy_id" type="string"/>
-  </bean>
-
-  <bean name="Wave">
-    <var name="id" type="string"/>
-    <var name="floor_id" type="string#ref=TbFloor"/>
-    <var name="enemy_id" type="string#ref=TbEnemy"/>
-    <var name="start_time_seconds" type="float"/>
-    <var name="end_time_seconds" type="float"/>
-    <var name="spawn_count" type="int"/>
-    <var name="spawn_interval_seconds" type="float"/>
-    <var name="is_elite" type="bool"/>
-  </bean>
-
-  <!-- A shop pool row offers ONE item or ONE bag, weighted, over a floor range.
-       Exactly one of item_id / bag_id is set (checked by validate-data.ps1). -->
-  <bean name="ShopPool">
-    <var name="id" type="string"/>
-    <var name="floor_min" type="int"/>
-    <var name="floor_max" type="int"/>
-    <var name="item_id" type="string"/>
-    <var name="bag_id" type="string"/>
-    <var name="weight" type="int"/>
-  </bean>
-
-  <!-- Singleton rows (mode=one). -->
-  <bean name="Economy">
-    <var name="start_bia" type="int"/>
-    <var name="shop_slot_count" type="int"/>
-    <var name="refresh_base_cost" type="int"/>
-    <var name="refresh_cost_increment" type="int"/>
-    <var name="sell_back_percent" type="int"/>
-    <var name="heal_percent_on_clear" type="int"/>
-    <var name="chest_slots" type="int"/>
-  </bean>
-
+  <!-- The singleton row (`mode: one`) of tuned numbers every build needs.
+       Add your game's own fields here and in data/tables/constant.csv. -->
   <bean name="Constant">
-    <var name="board_width" type="int"/>
-    <var name="board_height" type="int"/>
-    <var name="min_cooldown_seconds" type="float"/>
-    <var name="max_speed_penalty_percent" type="int"/>
-    <!-- Percent of move speed lost per unit of bag weight. Stage 04 authored only
-         the cap (max_speed_penalty_percent); the slope its consumer needs landed
-         here with Stage 05 (AGENTS rule 5 - no balance number in code). -->
-    <var name="weight_speed_percent_per_unit" type="int"/>
-    <var name="pickup_radius" type="float"/>
-    <var name="max_hp" type="int"/>
-    <var name="max_mp" type="int"/>
-    <var name="focus_per_second" type="float"/>
+    <var name="max_hp" type="int#(range=[1,1000000])"/>
+    <var name="max_mp" type="int#(range=[0,1000000])"/>
     <var name="move_speed" type="float"/>
-    <var name="max_tier" type="int#(range=[1,3])"/>
-    <!-- How many upgrade choices a merge offers (Stage 09f). A pool that exists
-         but is smaller than this cannot fill the chooser, so the data validator
-         requires every (piece, tier step) pool to be empty or at least this big. -->
-    <var name="upgrade_choice_count" type="int"/>
+    <var name="pickup_radius" type="float"/>
   </bean>
 
 </module>

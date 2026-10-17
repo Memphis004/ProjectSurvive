@@ -16,12 +16,12 @@ namespace ProjectSurvive.Core.Tests
         [Fact]
         public void Streams_are_derived_deterministically_from_the_master_seed()
         {
-            Assert.Equal(0xDA9719AEu, RandomStreams.DeriveStreamSeed(12345u, RandomStreamKind.Shop));
-            Assert.Equal(0x714AD7DDu, RandomStreams.DeriveStreamSeed(12345u, RandomStreamKind.Battle));
+            Assert.Equal(0xDA9719AEu, RandomStreams.DeriveStreamSeed(12345u, RandomStreamKind.Run));
+            Assert.Equal(0x714AD7DDu, RandomStreams.DeriveStreamSeed(12345u, RandomStreamKind.Encounter));
             Assert.Equal(0x80BB645Eu, RandomStreams.DeriveStreamSeed(12345u, RandomStreamKind.Visual));
 
-            Assert.Equal(0xBEA5D8CEu, RandomStreams.DeriveStreamSeed(0u, RandomStreamKind.Shop));
-            Assert.Equal(0x8C3893C6u, RandomStreams.DeriveStreamSeed(0u, RandomStreamKind.Battle));
+            Assert.Equal(0xBEA5D8CEu, RandomStreams.DeriveStreamSeed(0u, RandomStreamKind.Run));
+            Assert.Equal(0x8C3893C6u, RandomStreams.DeriveStreamSeed(0u, RandomStreamKind.Encounter));
             Assert.Equal(0xE6D55011u, RandomStreams.DeriveStreamSeed(0u, RandomStreamKind.Visual));
         }
 
@@ -33,8 +33,8 @@ namespace ProjectSurvive.Core.Tests
 
             for (int i = 0; i < 512; i++)
             {
-                Assert.Equal(first.Shop.NextUInt(), second.Shop.NextUInt());
-                Assert.Equal(first.Battle.NextUInt(), second.Battle.NextUInt());
+                Assert.Equal(first.Run.NextUInt(), second.Run.NextUInt());
+                Assert.Equal(first.Encounter.NextUInt(), second.Encounter.NextUInt());
                 Assert.Equal(first.Visual.NextUInt(), second.Visual.NextUInt());
             }
         }
@@ -48,13 +48,13 @@ namespace ProjectSurvive.Core.Tests
             // A long shop session, on one instance only.
             for (int i = 0; i < 10_000; i++)
             {
-                drained.Shop.NextUInt();
+                drained.Run.NextUInt();
             }
 
-            // Battle and visual must be exactly where they would have been.
+            // Encounter and visual must be exactly where they would have been.
             for (int i = 0; i < 256; i++)
             {
-                Assert.Equal(reference.Battle.NextUInt(), drained.Battle.NextUInt());
+                Assert.Equal(reference.Encounter.NextUInt(), drained.Encounter.NextUInt());
                 Assert.Equal(reference.Visual.NextUInt(), drained.Visual.NextUInt());
             }
 
@@ -62,12 +62,12 @@ namespace ProjectSurvive.Core.Tests
             // further along - draining it changed nothing about its own values.
             for (int i = 0; i < 10_000; i++)
             {
-                reference.Shop.NextUInt();
+                reference.Run.NextUInt();
             }
 
             for (int i = 0; i < 64; i++)
             {
-                Assert.Equal(reference.Shop.NextUInt(), drained.Shop.NextUInt());
+                Assert.Equal(reference.Run.NextUInt(), drained.Run.NextUInt());
             }
         }
 
@@ -78,8 +78,8 @@ namespace ProjectSurvive.Core.Tests
 
             for (int i = 0; i < 32; i++)
             {
-                uint shop = streams.Shop.NextUInt();
-                uint battle = streams.Battle.NextUInt();
+                uint shop = streams.Run.NextUInt();
+                uint battle = streams.Encounter.NextUInt();
                 uint visual = streams.Visual.NextUInt();
 
                 Assert.NotEqual(shop, battle);
@@ -97,7 +97,7 @@ namespace ProjectSurvive.Core.Tests
             int differences = 0;
             for (int i = 0; i < 64; i++)
             {
-                if (a.Battle.NextUInt() != b.Battle.NextUInt())
+                if (a.Encounter.NextUInt() != b.Encounter.NextUInt())
                 {
                     differences++;
                 }
@@ -111,8 +111,8 @@ namespace ProjectSurvive.Core.Tests
         {
             var seeds = new[]
             {
-                RandomStreams.DeriveStreamSeed(7u, RandomStreamKind.Shop),
-                RandomStreams.DeriveStreamSeed(7u, RandomStreamKind.Battle),
+                RandomStreams.DeriveStreamSeed(7u, RandomStreamKind.Run),
+                RandomStreams.DeriveStreamSeed(7u, RandomStreamKind.Encounter),
                 RandomStreams.DeriveStreamSeed(7u, RandomStreamKind.Visual),
             };
 

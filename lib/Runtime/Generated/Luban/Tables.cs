@@ -14,35 +14,11 @@ namespace ProjectSurvive.Config
 public partial class Tables
 {
     public TbLocalization TbLocalization {get; }
-    public TbBag TbBag {get; }
-    public TbSkill TbSkill {get; }
-    public TbItem TbItem {get; }
-    public TbSynergy TbSynergy {get; }
-    public TbMergeRecipe TbMergeRecipe {get; }
-    public TbUpgradeVariant TbUpgradeVariant {get; }
-    public TbUpgradeVariantModifier TbUpgradeVariantModifier {get; }
-    public TbEnemy TbEnemy {get; }
-    public TbFloor TbFloor {get; }
-    public TbWave TbWave {get; }
-    public TbShopPool TbShopPool {get; }
-    public TbEconomy TbEconomy {get; }
     public TbConstant TbConstant {get; }
 
     public Tables(System.Func<string, ByteBuf> loader)
     {
         TbLocalization = new TbLocalization(loader("tblocalization"));
-        TbBag = new TbBag(loader("tbbag"));
-        TbSkill = new TbSkill(loader("tbskill"));
-        TbItem = new TbItem(loader("tbitem"));
-        TbSynergy = new TbSynergy(loader("tbsynergy"));
-        TbMergeRecipe = new TbMergeRecipe(loader("tbmergerecipe"));
-        TbUpgradeVariant = new TbUpgradeVariant(loader("tbupgradevariant"));
-        TbUpgradeVariantModifier = new TbUpgradeVariantModifier(loader("tbupgradevariantmodifier"));
-        TbEnemy = new TbEnemy(loader("tbenemy"));
-        TbFloor = new TbFloor(loader("tbfloor"));
-        TbWave = new TbWave(loader("tbwave"));
-        TbShopPool = new TbShopPool(loader("tbshoppool"));
-        TbEconomy = new TbEconomy(loader("tbeconomy"));
         TbConstant = new TbConstant(loader("tbconstant"));
         ResolveRef();
     }
@@ -50,18 +26,6 @@ public partial class Tables
     private void ResolveRef()
     {
         TbLocalization.ResolveRef(this);
-        TbBag.ResolveRef(this);
-        TbSkill.ResolveRef(this);
-        TbItem.ResolveRef(this);
-        TbSynergy.ResolveRef(this);
-        TbMergeRecipe.ResolveRef(this);
-        TbUpgradeVariant.ResolveRef(this);
-        TbUpgradeVariantModifier.ResolveRef(this);
-        TbEnemy.ResolveRef(this);
-        TbFloor.ResolveRef(this);
-        TbWave.ResolveRef(this);
-        TbShopPool.ResolveRef(this);
-        TbEconomy.ResolveRef(this);
         TbConstant.ResolveRef(this);
     }
 }

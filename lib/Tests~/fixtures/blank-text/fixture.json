@@ -1,0 +1,6 @@
+{
+  "name": "blank-text",
+  "stage": "semantic",
+  "why": "a localization row has no Thai and a whitespace-only English cell",
+  "expectedCodes": ["localization.blank_text"]
+}

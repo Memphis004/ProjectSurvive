@@ -15,7 +15,7 @@ namespace ProjectSurvive.Core.Tests
     /// <remarks>
     /// A cast is only correct while the names AND the numeric values agree. If
     /// someone renumbers a value in the schema and regenerates, this test fails
-    /// instead of the game silently reading Fire as Curse. Only the test assembly
+    /// instead of the game silently reading one language as another. Only the test assembly
     /// may reference both sides - Domain keeps its own copy precisely so it never
     /// references generated code (ADR 0006).
     /// </remarks>
@@ -24,13 +24,6 @@ namespace ProjectSurvive.Core.Tests
         /// <summary>Every domain enum and its generated counterpart.</summary>
         private static readonly (Type Domain, Type Generated)[] Pairs =
         {
-            (typeof(Element), typeof(ProjectSurvive.Config.Element)),
-            (typeof(ItemCategory), typeof(ProjectSurvive.Config.ItemCategory)),
-            (typeof(SkillBehavior), typeof(ProjectSurvive.Config.SkillBehavior)),
-            (typeof(EnemyRole), typeof(ProjectSurvive.Config.EnemyRole)),
-            (typeof(MovePattern), typeof(ProjectSurvive.Config.MovePattern)),
-            (typeof(SynergyKind), typeof(ProjectSurvive.Config.SynergyKind)),
-            (typeof(SynergyStat), typeof(ProjectSurvive.Config.SynergyStat)),
             (typeof(Language), typeof(ProjectSurvive.Config.Language)),
         };
 
@@ -71,7 +64,7 @@ namespace ProjectSurvive.Core.Tests
         {
             // Guards the table above: a renamed enum must be updated here rather
             // than silently dropped from the parity check.
-            Assert.Equal(8, Pairs.Length);
+            Assert.Single(Pairs);
             Assert.All(Pairs, pair =>
             {
                 Assert.True(pair.Domain.IsEnum, pair.Domain.FullName);

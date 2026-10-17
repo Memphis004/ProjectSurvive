@@ -1,6 +1,0 @@
-{
-  "name": "duplicate-item-id",
-  "stage": "luban",
-  "why": "two item rows share the primary key item.mor_knife",
-  "expectedCodes": []
-}

@@ -30,20 +30,19 @@ namespace ProjectSurvive.Core.Generated.Proto {
             "b3JtEg4KBmxvY2FsZRgEIAEoCSI6CgtDbGllbnRIZWxsbxIrCgNhcHAYASAB",
             "KAsyHi5wcm9qZWN0c3Vydml2ZS5hcGkudjEuQXBwSW5mbyJNCgtTZXJ2ZXJI",
             "ZWxsbxIQCghhY2NlcHRlZBgBIAEoCBIXCg9taW5fYXBwX3ZlcnNpb24YAiAB",
-            "KAkSEwoLbWVzc2FnZV9rZXkYAyABKAkifQoJUnVuUmVwb3J0Eg4KBnJ1bl9p",
-            "ZBgBIAEoCRITCgtjb25maWdfaGFzaBgCIAEoCRIMCgRzZWVkGAMgASgNEhUK",
-            "DWhpZ2hlc3RfZmxvb3IYBCABKAUSEQoJY29tcGxldGVkGAUgASgIEhMKC2R1",
-            "cmF0aW9uX21zGAYgASgDKksKCFBsYXRmb3JtEhgKFFBMQVRGT1JNX1VOU1BF",
-            "Q0lGSUVEEAASEAoMUExBVEZPUk1fV0VCEAESEwoPUExBVEZPUk1fRURJVE9S",
-            "EAJCJqoCI1Byb2plY3RTdXJ2aXZlLkNvcmUuR2VuZXJhdGVkLlByb3RvYgZw",
-            "cm90bzM="));
+            "KAkSEwoLbWVzc2FnZV9rZXkYAyABKAkidQoJUnVuUmVwb3J0Eg4KBnJ1bl9p",
+            "ZBgBIAEoCRITCgtjb25maWdfaGFzaBgCIAEoCRIMCgRzZWVkGAMgASgNEg0K",
+            "BXNjb3JlGAQgASgFEhEKCWNvbXBsZXRlZBgFIAEoCBITCgtkdXJhdGlvbl9t",
+            "cxgGIAEoAypLCghQbGF0Zm9ybRIYChRQTEFURk9STV9VTlNQRUNJRklFRBAA",
+            "EhAKDFBMQVRGT1JNX1dFQhABEhMKD1BMQVRGT1JNX0VESVRPUhACQiaqAiNQ",
+            "cm9qZWN0U3Vydml2ZS5Db3JlLkdlbmVyYXRlZC5Qcm90b2IGcHJvdG8z"));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
           new pbr::GeneratedClrTypeInfo(new[] {typeof(global::ProjectSurvive.Core.Generated.Proto.Platform), }, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::ProjectSurvive.Core.Generated.Proto.AppInfo), global::ProjectSurvive.Core.Generated.Proto.AppInfo.Parser, new[]{ "AppVersion", "ConfigHash", "Platform", "Locale" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::ProjectSurvive.Core.Generated.Proto.ClientHello), global::ProjectSurvive.Core.Generated.Proto.ClientHello.Parser, new[]{ "App" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::ProjectSurvive.Core.Generated.Proto.ServerHello), global::ProjectSurvive.Core.Generated.Proto.ServerHello.Parser, new[]{ "Accepted", "MinAppVersion", "MessageKey" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::ProjectSurvive.Core.Generated.Proto.RunReport), global::ProjectSurvive.Core.Generated.Proto.RunReport.Parser, new[]{ "RunId", "ConfigHash", "Seed", "HighestFloor", "Completed", "DurationMs" }, null, null, null, null)
+            new pbr::GeneratedClrTypeInfo(typeof(global::ProjectSurvive.Core.Generated.Proto.RunReport), global::ProjectSurvive.Core.Generated.Proto.RunReport.Parser, new[]{ "RunId", "ConfigHash", "Seed", "Score", "Completed", "DurationMs" }, null, null, null, null)
           }));
     }
     #endregion
@@ -866,7 +865,8 @@ namespace ProjectSurvive.Core.Generated.Proto {
   }
 
   /// <summary>
-  /// Outcome of one run, reported after RunCompleted.
+  /// Outcome of one run, reported after the run ends. The score is a single number
+  /// so the template stays neutral; a game may add its own breakdown fields.
   /// </summary>
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
   public sealed partial class RunReport : pb::IMessage<RunReport>
@@ -906,7 +906,7 @@ namespace ProjectSurvive.Core.Generated.Proto {
       runId_ = other.runId_;
       configHash_ = other.configHash_;
       seed_ = other.seed_;
-      highestFloor_ = other.highestFloor_;
+      score_ = other.score_;
       completed_ = other.completed_;
       durationMs_ = other.durationMs_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
@@ -954,15 +954,15 @@ namespace ProjectSurvive.Core.Generated.Proto {
       }
     }
 
-    /// <summary>Field number for the "highest_floor" field.</summary>
-    public const int HighestFloorFieldNumber = 4;
-    private int highestFloor_;
+    /// <summary>Field number for the "score" field.</summary>
+    public const int ScoreFieldNumber = 4;
+    private int score_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public int HighestFloor {
-      get { return highestFloor_; }
+    public int Score {
+      get { return score_; }
       set {
-        highestFloor_ = value;
+        score_ = value;
       }
     }
 
@@ -1008,7 +1008,7 @@ namespace ProjectSurvive.Core.Generated.Proto {
       if (RunId != other.RunId) return false;
       if (ConfigHash != other.ConfigHash) return false;
       if (Seed != other.Seed) return false;
-      if (HighestFloor != other.HighestFloor) return false;
+      if (Score != other.Score) return false;
       if (Completed != other.Completed) return false;
       if (DurationMs != other.DurationMs) return false;
       return Equals(_unknownFields, other._unknownFields);
@@ -1021,7 +1021,7 @@ namespace ProjectSurvive.Core.Generated.Proto {
       if (RunId.Length != 0) hash ^= RunId.GetHashCode();
       if (ConfigHash.Length != 0) hash ^= ConfigHash.GetHashCode();
       if (Seed != 0) hash ^= Seed.GetHashCode();
-      if (HighestFloor != 0) hash ^= HighestFloor.GetHashCode();
+      if (Score != 0) hash ^= Score.GetHashCode();
       if (Completed != false) hash ^= Completed.GetHashCode();
       if (DurationMs != 0L) hash ^= DurationMs.GetHashCode();
       if (_unknownFields != null) {
@@ -1054,9 +1054,9 @@ namespace ProjectSurvive.Core.Generated.Proto {
         output.WriteRawTag(24);
         output.WriteUInt32(Seed);
       }
-      if (HighestFloor != 0) {
+      if (Score != 0) {
         output.WriteRawTag(32);
-        output.WriteInt32(HighestFloor);
+        output.WriteInt32(Score);
       }
       if (Completed != false) {
         output.WriteRawTag(40);
@@ -1088,9 +1088,9 @@ namespace ProjectSurvive.Core.Generated.Proto {
         output.WriteRawTag(24);
         output.WriteUInt32(Seed);
       }
-      if (HighestFloor != 0) {
+      if (Score != 0) {
         output.WriteRawTag(32);
-        output.WriteInt32(HighestFloor);
+        output.WriteInt32(Score);
       }
       if (Completed != false) {
         output.WriteRawTag(40);
@@ -1119,8 +1119,8 @@ namespace ProjectSurvive.Core.Generated.Proto {
       if (Seed != 0) {
         size += 1 + pb::CodedOutputStream.ComputeUInt32Size(Seed);
       }
-      if (HighestFloor != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeInt32Size(HighestFloor);
+      if (Score != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeInt32Size(Score);
       }
       if (Completed != false) {
         size += 1 + 1;
@@ -1149,8 +1149,8 @@ namespace ProjectSurvive.Core.Generated.Proto {
       if (other.Seed != 0) {
         Seed = other.Seed;
       }
-      if (other.HighestFloor != 0) {
-        HighestFloor = other.HighestFloor;
+      if (other.Score != 0) {
+        Score = other.Score;
       }
       if (other.Completed != false) {
         Completed = other.Completed;
@@ -1190,7 +1190,7 @@ namespace ProjectSurvive.Core.Generated.Proto {
             break;
           }
           case 32: {
-            HighestFloor = input.ReadInt32();
+            Score = input.ReadInt32();
             break;
           }
           case 40: {
@@ -1233,7 +1233,7 @@ namespace ProjectSurvive.Core.Generated.Proto {
             break;
           }
           case 32: {
-            HighestFloor = input.ReadInt32();
+            Score = input.ReadInt32();
             break;
           }
           case 40: {

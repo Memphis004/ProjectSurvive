@@ -1,8 +1,0 @@
-{
-  "name": "price-zero",
-  "stage": "semantic",
-  "why": "an item costs 0 bia, so the shop can hand it out for free",
-  "expectedCodes": [
-    "price.not_positive"
-  ]
-}

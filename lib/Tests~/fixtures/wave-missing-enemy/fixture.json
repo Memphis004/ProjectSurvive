@@ -1,6 +1,0 @@
-{
-  "name": "wave-missing-enemy",
-  "stage": "luban",
-  "why": "a wave spawns an enemy that is not in the enemy table (Luban #ref)",
-  "expectedCodes": []
-}

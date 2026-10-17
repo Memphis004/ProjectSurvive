@@ -33,7 +33,6 @@
     <ProjectReference Include="..\Layers\ProjectSurvive.Core.Simulation.csproj" />
     <ProjectReference Include="..\Layers\ProjectSurvive.Core.Infrastructure.csproj" />
     <ProjectReference Include="..\Layers\ProjectSurvive.Core.Contracts.csproj" />
-    <ProjectReference Include="..\Layers\Leopotam.EcsLite.csproj" />
 
     <!-- Generated code + its runtime, so the guard tests can load the built
          assemblies and prove Domain/Application/Simulation never reference them. -->

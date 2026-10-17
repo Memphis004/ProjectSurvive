@@ -1,8 +1,0 @@
-{
-  "name": "merge-ladder-incomplete",
-  "stage": "semantic",
-  "why": "item.mor_knife has no 2 -> 3 recipe, so two tier-2 copies can never merge again",
-  "expectedCodes": [
-    "merge_recipe.ladder_incomplete"
-  ]
-}

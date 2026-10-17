@@ -1,8 +1,0 @@
-{
-  "name": "synergy-unknown-tag",
-  "stage": "semantic",
-  "why": "a synergy matches on a tag no item carries, so the combo can never be assembled",
-  "expectedCodes": [
-    "synergy.tag_unknown"
-  ]
-}

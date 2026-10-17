@@ -1,193 +1,24 @@
 ##,key,th,en
-,ui.title,พ่อหมอปราบผี,The Ghost-Doctor
+,ui.title,เกมของฉัน,My Game
 ,ui.generic.ok,ตกลง,OK
 ,ui.generic.close,ปิด,Close
+,ui.generic.continue,ไปต่อ,Continue
 ,ui.spike.thai,พ่อหมอปราบผีกระสือ ฤๅษี ปั้นน้ำตาล ญี่ปุ่น,Ghost-Doctor vs Krasue Ruesi sugar-moulding Japan
 ,ui.spike.thai.marks,ปื๊ด ตู้ เบ๊ ญี่ปุ่น น้ำตาล ฤๅษี ฎ ฏ ฐ ฅ ฃ,Thai tone-mark and rare-glyph stress sample
 ,title.start,เริ่มเล่น,Start
-,bag.raw_cotton_bag.name,ย่ามผ้าดิบ,Raw Cotton Bag
-,bag.raw_cotton_bag.desc,ย่ามผ้าดิบขนาด 3x3 เปิดช่องใช้งานเก้าช่อง หนักที่สุดในสามแบบ,"The 3x3 cotton bag: nine usable slots, but the heaviest."
-,bag.yant_cloth_pouch.name,ถุงผ้ายันต์,Yant Cloth Pouch
-,bag.yant_cloth_pouch.desc,ถุงผ้ายันต์ทรงแคบ 1x3 เบาที่สุดในสามแบบ,A narrow 1x3 pouch - the lightest way to carry three items.
-,bag.wicker_basket_l.name,ตะกร้าหวายรูปตัว L,Wicker Basket L
-,bag.wicker_basket_l.desc,ตะกร้าหวายรูปตัว L ต้องหมุนให้เข้าท่าก่อนใช้,An L-shaped wicker basket - awkward until you rotate it.
-,item.kali_flame_yant.name,ยันต์เพลิงกาลี,Kali Flame Yant
-,item.kali_flame_yant.desc,ยันต์ที่ยิงกระสุนเพลิงใส่ผีที่ใกล้ที่สุด,A yant that spits bolts of fire at the nearest ghost.
-,item.takrut_tone.name,ตะกรุดโทน,Takrut Tone
-,item.takrut_tone.desc,ตะกรุดศักดิ์สิทธิ์ที่ปล่อยวงกันรอบตัวพ่อหมอ,A takrut that holds a short warding circle around you.
-,item.mor_knife.name,มีดหมอ,Mor Knife
-,item.mor_knife.desc,มีดหมอสำหรับฟันผีระยะประชิด หนักแต่แรง,"The ghost-doctor's knife: heavy, short, and hard-hitting."
-,item.sai_sin_thread.name,สายสิญจน์,Sai Sin Thread
-,item.sai_sin_thread.desc,สายสิญจน์ที่ทะลุผีได้หลายตัวในครั้งเดียว,Sacred thread that pierces through several ghosts in one cast.
-,item.phra_amulet.name,พระเครื่อง,Phra Amulet
-,item.phra_amulet.desc,ของศักดิ์สิทธิ์ วางติดคุณไสยแล้วทั้งคู่เสื่อมพลัง,"A holy amulet. Set next to black magic, and both lose power."
-,item.waist_yant.name,ผ้ายันต์คาดเอว,Waist Yant
-,item.waist_yant.desc,ผ้ายันต์เส้นเล็ก วางติดตะกรุดแล้วคาถายันต์ร่ายไวขึ้น,A slim yant cloth that speeds up your yant spells when set beside a takrut.
-,item.tiger_fang.name,เขี้ยวเสือ,Tiger Fang
-,item.tiger_fang.desc,เขี้ยวเสือของศักดิ์สิทธิ์ที่พกไว้กันผี,A protective tiger fang worn as a charm.
-,item.spell_tome.name,ตำราพระเวท,Spell Tome
-,item.spell_tome.desc,ตำราที่ขยายพลังอาคมในแถวเดียวกัน,A tome that empowers the arcane weapons sharing its row.
-,item.red_soda.name,น้ำแดง,Red Soda
-,item.red_soda.desc,ของเซ่นรสหวานที่เป็นของโปรดของภูติรับใช้,A sweet offering - and a familiar's favourite.
-,item.boiled_egg.name,ไข่ต้ม,Boiled Egg
-,item.boiled_egg.desc,ของเซ่นง่าย ๆ ที่ผีพอใจ,A simple offering the spirits accept.
-,item.kuman_thong.name,กุมารทอง,Kuman Thong
-,item.kuman_thong.desc,ภูติรับใช้สายคุณไสย คอยตามพ่อหมอและปล่อยคลื่นคุณไสย,A black-magic familiar that follows you and casts a curse wave.
-,skill.fire_bolt.name,คาถาเพลิงกาลี,Kali Flame Bolt
-,skill.thread_pierce.name,สายสิญจน์ทะลุ,Sai Sin Pierce
-,skill.knife_thrust.name,ฟันมีดหมอ,Mor Knife Thrust
-,skill.takrut_ward.name,วงตะกรุดกัน,Takrut Ward
-,skill.curse_wave.name,คลื่นคุณไสย,Curse Wave
-,synergy.takrut_yant_cooldown.name,ตะกรุดหนุนผ้ายันต์,Takrut Yant Bond
-,synergy.tome_row_damage.name,ตำราหนุนอาคม,Tome Row Surge
-,synergy.curse_holy_debuff.name,คุณไสยปะทะของศักดิ์สิทธิ์,Curse Meets the Sacred
-,synergy.offering_familiar_speed.name,ของเซ่นเลี้ยงภูติ,Offering Feeds the Familiar
-,synergy.bag_area_bonus.name,อานุภาพย่ามพิเศษ,Special Bag Aura
-,enemy.wandering_spirit.name,วิญญาณเร่ร่อน,Wandering Spirit
-,enemy.krasue.name,กระสือ,Krasue
-,enemy.nang_tani.name,นางตานี,Nang Tani
-,enemy.pob.name,ปอบ,Pob
-,floor.forest_1.name,ป่าช้าวัดร้าง ชั้น 1,Graveyard Forest F1
-,floor.forest_2.name,ป่าช้าวัดร้าง ชั้น 2,Graveyard Forest F2
-,floor.forest_3.name,ป่าช้าวัดร้าง ชั้น 3,Graveyard Forest F3
-,floor.forest_4.name,ป่าช้าวัดร้าง ชั้น 4,Graveyard Forest F4
-,floor.forest_5.name,ป่าช้าวัดร้าง ชั้น 5,Pob's Hollow
-,upgrade.arcane.keen_edge.name,คมอาคม,Keen Edge
-,upgrade.arcane.swift_chant.name,คาถาไว,Swift Chant
-,upgrade.arcane.frugal_mantra.name,มนต์ประหยัด,Frugal Mantra
-,upgrade.arcane.far_sight.name,ญาณไกล,Far Sight
-,upgrade.arcane.great_keen_edge.name,คมอาคมชั้นสูง,Greater Keen Edge
-,upgrade.arcane.great_swift_chant.name,คาถาไวชั้นสูง,Greater Swift Chant
-,upgrade.arcane.twin_bolt.name,คาถาคู่,Twin Bolt
-,upgrade.arcane.deep_pierce.name,ทะลุทะลวง,Deep Pierce
-,upgrade.fire.blazing_seal.name,ผนึกเพลิง,Blazing Seal
-,upgrade.fire.inferno_seal.name,ผนึกไฟนรก,Inferno Seal
-,hud.hp,ชีวิต,HP
-,hud.mp,พลังอาคม,MP
-,hud.bia,เบี้ย,Bia
-,hud.time,เวลา,Time
-,hud.wave,ระลอก,Wave
-,hud.boss,บอส,Boss
-,hud.elite,ตัวพิเศษ,Elite
-,hud.speed,ความเร็ว,Speed
-,hud.spells,คาถาที่ติดตั้ง,Equipped spells
-,hud.timeline,ไทม์ไลน์ชั้น,Floor timeline
-,hud.end.win,ชนะชั้นนี้,Floor cleared
-,hud.end.lose,แพ้แล้ว,Defeated
-,hud.end.aborted,ออกจากชั้น,Left the floor
-,hud.kills,ศัตรูที่กำจัด,Enemies slain
-,hud.bag,ย่าม,Bag
-,hud.status,สถานะ,Status
-,hud.floor.format,ชั้น {0},Floor {0}
-,camp.title,ศาลาพัก,The Rest Pavilion
-,camp.npc.name,ยายจันทร์,Grandmother Chan
-,camp.shop.caption,แผงวัตถุมงคลยายจันทร์,Grandmother Chan's stall
-,camp.shop.rent,เช่า,Rent
-,camp.shop.rented,เช่าแล้ว,Rented
-,camp.shop.lock,ล็อกไว้,Pin
-,camp.shop.unlock,ปลดล็อก,Unpin
-,camp.shop.empty,ว่าง,Empty
-,camp.refresh,เสี่ยงเซียมซี,Cast the divination sticks
-,camp.refresh.format,เสี่ยงเซียมซี ({0} เบี้ย),Cast the sticks ({0} bia)
-,camp.bag.caption,จัดย่าม,Pack the bag
-,camp.bag.hint,ลากไอเทมวางบนย่าม กด R หรือคลิกขวาเพื่อหมุน ลากลงกระถางเพื่อถวายคืน,Drag an item onto the bag. Press R or right-click to rotate. Drop it in the pot to give it back.
-,camp.world.hint,เดินด้วย WASD กด E เพื่อเช่า/เสี่ยงเซียมซี คลิกที่ชั้นหรือไถ่เซียมซีก็ได้,WASD to walk. E rents, locks or casts the sticks. Clicking a shelf or the drum works too.
-,camp.bag.lock,ล็อกย่าม,Lock the bag
-,camp.bag.unlock,ปลดล็อกย่าม,Unlock the bag
-,camp.bag.rotate,หมุน,Rotate
-,camp.bag.undo,ย้อนกลับ,Undo
-,camp.bag.reset,คืนสภาพ,Restore
-,camp.chest.caption,หีบ,Chest
-,camp.altar.caption,กระถางธูป,The incense pot
-,camp.altar.format,ถวายคืนได้ {0} เบี้ย,The altar offers {0} bia
-,camp.depart,ออกเดินทาง,Set out
-,camp.departed,ออกเดินทางแล้ว,Already departed
-,camp.stat.weight,น้ำหนัก,Weight
-,camp.stat.focus,สมาธิ,Focus
-,camp.stat.chest,หีบ,Chest
-,camp.stat.bia,เบี้ย,Bia
-,camp.stat.refresh,ราคาเสี่ยงเซียมซี,Re-roll price
-,camp.floor.format,ชั้น {0},Floor {0}
-,camp.weight.format,{0:0.#} ({1}% ช้าลง),{0:0.#} ({1}% slower)
-,camp.focus.format,{0:0.#} ต่อวินาที,{0:0.#} per second
-,camp.chest.format,{0}/{1},{0}/{1}
-,camp.piece.label,{0} ระดับ {1},{0} T{1}
-,camp.category.arcane_weapon,อาวุธอาคม,Arcane weapon
-,camp.category.charm,เครื่องราง,Charm
-,camp.category.tome,ตำรา,Tome
-,camp.category.offering,ของเซ่น,Offering
-,camp.category.familiar,ภูติรับใช้,Familiar
-,camp.category.unknown,ไม่ทราบชนิด,Unknown
-,camp.tooltip.slots.format,ช่องใช้งาน {0} ช่อง,{0} usable slots
-,camp.tooltip.tier.format,ระดับ {0}/{1},Tier {0}/{1}
-,camp.tooltip.stat.format,ดาเมจ {0} · คูลดาวน์ {1:0.#} วิ · ใช้สมาธิ {2},Damage {0} · cooldown {1:0.#}s · focus {2}
-,camp.tooltip.combo.format,คอมโบทำงาน {0} · ดาเมจ x{1:0.##} · คูลดาวน์ x{2:0.##},{0} active combos · damage x{1:0.##} · cooldown x{2:0.##}
-,camp.tooltip.combo.none,ยังไม่มีคอมโบที่ทำงาน,No combo is active yet
-,camp.tooltip.rules.format,คอมโบ: {0},Combos: {0}
-,error.inventory.bag_overlap,ย่ามซ้อนกัน,The bags overlap
-,error.inventory.chest_full,หีบเต็ม,The chest is full
-,error.inventory.item_not_covered,ไอเทมไม่ได้อยู่บนช่องย่าม,That item is not on a bag slot
-,error.inventory.item_overlap,ไอเทมซ้อนกัน,The items overlap
-,error.inventory.item_spans_bags,ไอเทมนี้พาดอยู่บนย่ามสองใบ ย้ายไอเทมไปหีบหรือจัดใหม่ก่อน,That item lies across two bags — move it to the chest or rearrange it first
-,error.inventory.item_stranded,วางแล้วไอเทมจะลอยนอกย่าม,That would leave an item off the bag
-,error.inventory.locked,ย่ามถูกล็อกอยู่,The bag is locked
-,error.inventory.merge_max_tier,รวมต่อไม่ได้แล้ว,That piece is already at the highest tier
-,error.inventory.merge_mismatch,รวมได้เฉพาะของชนิดเดียวกันระดับเดียวกัน,Merge needs the same piece at the same tier
-,error.inventory.merge_needs_variant,ต้องเลือกของอัปเกรดก่อนรวม,Choose an upgrade before merging
-,error.inventory.merge_not_item,รวมได้เฉพาะไอเทม,Only items can be merged
-,error.inventory.merge_variant_not_offered,ของอัปเกรดนี้ไม่ได้อยู่ในตัวเลือกที่เสนอ,That upgrade is not one of the offers
-,error.inventory.merge_variant_required,ต้องระบุของอัปเกรดที่เลือก,An upgrade choice is required
-,error.inventory.not_enough_pieces,ของไม่พอ,There are not enough pieces
-,error.inventory.not_on_board,ของชิ้นนี้ไม่ได้อยู่บนย่าม,That piece is not on the bag
-,error.inventory.nothing_to_undo,ไม่มีอะไรให้ย้อนกลับ,There is nothing to undo
-,error.inventory.out_of_board,วางตรงนั้นไม่ได้,It does not fit there
-,error.inventory.unknown_piece,ไม่พบของชิ้นนี้,No such piece
-,error.inventory.wrong_zone,ของชิ้นนี้อยู่ผิดที่,That piece is in the wrong place
-,error.run.battle_running,กำลังต่อสู้อยู่,A floor is already running
-,error.run.no_arcane_weapon,ต้องมีอาวุธอาคมจึงออกเดินทางได้,You need an arcane weapon to set out
-,error.run.no_floor_left,ไม่มีชั้นเหลือแล้ว,No floor is left
-,error.run.not_in_battle,ยังไม่ได้ต่อสู้,No floor is running
-,error.run.unknown_floor,ไม่พบชั้นนี้,No such floor
-,error.run.unknown_piece,ไม่พบของชิ้นนี้,No such piece
-,error.run.wrong_state,ตอนนี้ทำสิ่งนี้ไม่ได้,That is not possible right now
-,error.shop.slot_empty,ช่องนี้ว่างอยู่,That slot is empty
-,error.shop.slot_purchased,ช่องนี้เช่าไปแล้ว,That slot is already rented
-,error.shop.unknown_piece,ไม่พบสินค้านี้,No such offer
-,error.shop.unknown_slot,ไม่พบช่องนี้,No such slot
-,error.wallet.insufficient_bia,เบี้ยไม่พอ,Not enough bia
-,camp.instructions.title,คำแนะนำการจัดย่าม,Backpack Instructions
-,camp.instructions.1,1. ลากย่ามลง Board,1. Drag bag onto Board
-,camp.instructions.2,2. ลากไอเทมวางบนย่าม,2. Drag items onto bag
-,camp.instructions.3,3. คลิกขวาหรือกด R ระหว่างลากเพื่อหมุน,3. Right-click or press R to rotate
-,camp.instructions.4,4. ไอเทมเหมือนกัน 2 ชิ้นวางซ้อนกันเพื่ออัปเกรด,4. Stack 2 identical items to upgrade
-,camp.bag.lock_restore,ล็อกย่ามตอนคืนสภาพ,Lock bag on restore
-,camp.depart.next,ไปชั้นถัดไป,Next Floor
-,camp.back,กลับ,Back
-,camp.merge.title,เลือกของอัปเกรด,Choose an upgrade
-,camp.merge.hint,เลือก 1 ข้อ แล้วไอเทมจะเปลี่ยนขั้นทันที · กด 1 2 3 หรือคลิกการ์ด · ปิดได้โดยไม่เปลี่ยนอะไร,Pick 1 option and the item upgrades at once · press 1 2 3 or click a card · closing changes nothing
-,camp.merge.back,ย้อนกลับ,Back
-,camp.merge.source.title,ค่าปัจจุบันของไอเทม,Current values
-,camp.merge.level.format,ระดับ {0} → {1},Level {0} → {1}
-,camp.merge.card.title.format,{0} {1},{0} {1}
-,camp.merge.change.format,{0} {1},{0} {1}
-,upgrade.stat.damage,ดาเมจ,Damage
-,upgrade.stat.cooldown,คูลดาวน์,Cooldown
-,upgrade.stat.mp_cost,ใช้สมาธิ,Focus cost
-,upgrade.stat.projectile_speed,ความเร็วการยิง,Projectile speed
-,upgrade.stat.range,ระยะร่าย,Cast range
-,upgrade.stat.pierce_count,ทะลุ,Pierce
-,upgrade.stat.projectile_count,จำนวนลูก,Projectiles
-,upgrade.stat.max_hp,HP สูงสุด,Max HP
-,upgrade.stat.max_mp,MP สูงสุด,Max MP
-,upgrade.stat.move_speed,ความเร็วเดิน,Move speed
-,upgrade.stat.pickup_radius,รัศมีเก็บของ,Pickup radius
-,upgrade.stat.focus_per_second,สมาธิต่อวินาที,Focus per second
-,upgrade.stat.unknown,ค่าสถานะ,Stat
-,result.victory,ชัยชนะ,Victory
-,result.defeat,พ่ายแพ้,Defeat
-,result.floor.format,ไปถึงชั้น {0}/{1},Reached floor {0}/{1}
-,result.kills.format,ปราบผี {0} ตน,Ghosts defeated {0}
-,result.bia.format,เบี้ยคงเหลือ {0},Bia left {0}
-,result.hp.format,HP คงเหลือ {0}/{1},HP left {0}/{1}
-,result.restart,เริ่มรอบใหม่,Restart
+,title.quit,ออก,Quit
+,hub.title,ที่พัก,Hub
+,hub.instructions,เตรียมตัวแล้วออกเดินทาง,"Prepare, then set out."
+,hub.encounters.format,ผ่านมาแล้ว {0} รอบ,Cleared {0} encounters
+,hub.depart,ออกเดินทาง,Depart
+,hub.finish,จบการเดินทาง,End the run
+,encounter.title,การเผชิญหน้า,Encounter
+,encounter.progress.format,รอบที่ {0} จาก {1},Round {0} of {1}
+,encounter.win,ชนะ,Win
+,encounter.lose,แพ้,Lose
+,result.victory,สำเร็จ,Run complete
+,result.defeat,จบแล้ว,Run over
+,result.summary.format,ผ่าน {0} รอบ,Cleared {0} encounters
+,result.seed.format,seed {0},seed {0}
+,result.restart,เริ่มใหม่,New run
 ,result.title,กลับหน้าแรก,Back to title

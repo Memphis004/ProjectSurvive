@@ -1,7 +1,7 @@
 {
   "lockVersion": 1,
   "updatedAt": "2026-10-14",
-  "updatedBy": "stage-00 discovery; stage-01 core library (EcsLite pin, dotnet harness); stage-02 static data pipeline (Luban + protoc pins, Luban CLI verified, Google.Protobuf compiling); stage-03 Unity shell + first Web build (Unity packages resolved by 6000.3.9f1; VContainer/R3/UniTask/MessagePack/Protobuf proven in a WebGL2 player by tests/web; Playwright pinned)",
+  "updatedBy": "stage-00 discovery; stage-01 core library (dotnet harness); stage-02 static data pipeline (Luban + protoc pins); stage-03 Unity shell + first Web build; template extraction (vendor trim: the ECS engine left with the game rules)",
   "platform": "windows",
   "_comment": "Authoritative version lock. 'status' is one of verified | proposed | blocked | unverified. Only 'verified' entries were confirmed by running a command or reading an authoritative registry during Stage 00. See docs/architecture/dependencies.md.",
   "_vendoredToolsNote": "Offline toolchain for the data pipeline (tools/gen.ps1). The archives are NOT committed; tools/setup-tools.ps1 downloads each one, verifies 'sha256', and extracts it to 'installDir'. Both entries were confirmed by running the installed binary (see 'verifiedBy').",
@@ -38,7 +38,6 @@
       "verifiedBy": "`protoc.exe --version` -> 'libprotoc 33.6' on 2026-10-13"
     }
   ],
-
   "engine": {
     "unity": {
       "product": "Unity 6.3 LTS",
@@ -49,14 +48,20 @@
       "license": "Unity Personal",
       "status": "verified",
       "verifiedBy": "Editor/Unity.exe VersionInfo + batchmode -quit exit code 0",
-      "requiredModules": ["WebGL"],
-      "otherEditorsPresent": ["2022.3.62f2"]
+      "requiredModules": [
+        "WebGL"
+      ],
+      "otherEditorsPresent": [
+        "2022.3.62f2"
+      ]
     }
   },
-
   "toolchain": {
     "dotnetSdk": {
-      "versions": ["6.0.428", "9.0.311"],
+      "versions": [
+        "6.0.428",
+        "9.0.311"
+      ],
       "targetForTests": "net9.0",
       "targetForLibraries": "netstandard2.1",
       "languageVersion": "9.0",
@@ -67,19 +72,35 @@
       "latest": "Microsoft.NETCore.App 9.0.13",
       "status": "verified"
     },
-    "node": { "version": "v25.6.1", "status": "verified" },
-    "npm": { "version": "11.9.0", "status": "verified" },
-    "git": { "version": "2.55.0.windows.3", "status": "verified" },
-    "gitLfs": { "version": "3.7.1", "status": "verified", "note": "required for png/psd/fbx/wav/ogg; run `git lfs install` after cloning" },
+    "node": {
+      "version": "v25.6.1",
+      "status": "verified"
+    },
+    "npm": {
+      "version": "11.9.0",
+      "status": "verified"
+    },
+    "git": {
+      "version": "2.55.0.windows.3",
+      "status": "verified"
+    },
+    "gitLfs": {
+      "version": "3.7.1",
+      "status": "verified",
+      "note": "required for png/psd/fbx/wav/ogg; run `git lfs install` after cloning"
+    },
     "powershell": {
       "windowsPowerShell": "5.1.26100.9444",
       "pwsh": "7 (preview)",
       "scriptTarget": "5.1+",
       "status": "verified"
     },
-    "python": { "version": null, "status": "unverified", "note": "not required yet; Luban CLI may want it" }
+    "python": {
+      "version": null,
+      "status": "unverified",
+      "note": "not required yet; Luban CLI may want it"
+    }
   },
-
   "hostMachine": {
     "cpu": "Intel(R) Core(TM) i5-14400F",
     "cores": 10,
@@ -91,7 +112,6 @@
     "referenceViewport": "1920x1080",
     "status": "verified"
   },
-
   "browsers": [
     {
       "name": "Google Chrome",
@@ -119,23 +139,7 @@
       "note": "not installed on the reference machine; cross-browser runs are NOT RUN until installed"
     }
   ],
-
   "packages": [
-    {
-      "name": "EcsLite",
-      "id": "Leopotam.EcsLite",
-      "role": "battle/ECS simulation",
-      "source": "https://github.com/Leopotam/ecslite",
-      "distribution": "vendored-source",
-      "vendoredPath": "lib/third_party/ecslite",
-      "version": "2026.4.25",
-      "revision": "d46f3b209ea163810823aeea7d2610d38ad6cdf8",
-      "license": "MIT (MIT-Red variant: extra restrictions beyond MIT)",
-      "status": "verified",
-      "verifiedBy": "vendored verbatim at the pinned commit; compiled by the dotnet harness on 2026-10-13 (tools/test.ps1)",
-      "il2cppWebRisk": "low",
-      "note": "asmdef keeps upstream noEngineReferences:false - IL2CPP attribute blocks only; see lib/third_party/ecslite/VENDOR.md"
-    },
     {
       "name": "VContainer",
       "id": "jp.hadashikick.vcontainer",
@@ -342,7 +346,6 @@
       "note": "no repository supplied; project-owned thin MVP per ADR 0002 until provided"
     }
   ],
-
   "policy": {
     "engineUpgrade": "not allowed without explicit approval",
     "dependencyUpgrade": "not allowed without explicit approval; record new revision here",

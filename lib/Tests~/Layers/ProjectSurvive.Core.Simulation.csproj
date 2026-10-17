@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Compiles exactly lib/Runtime/Simulation/**; may reference Shared, Domain
-       and the vendored EcsLite - never UnityEngine, R3 or VContainer. -->
+  <!-- Compiles exactly lib/Runtime/Simulation/**; may reference Shared and Domain
+       - never UnityEngine, R3 or VContainer. -->
 
   <PropertyGroup>
     <AssemblyName>ProjectSurvive.Core.Simulation</AssemblyName>
     <RootNamespace>ProjectSurvive.Core.Simulation</RootNamespace>
-    <!-- Empty by design until Stage 07 (battle ECS world). -->
+    <!-- Empty by design in the template: a game adds its simulation here. -->
     <AllowEmptyLayer>true</AllowEmptyLayer>
   </PropertyGroup>
 
@@ -17,7 +17,6 @@
   <ItemGroup>
     <ProjectReference Include="ProjectSurvive.Core.Shared.csproj" />
     <ProjectReference Include="ProjectSurvive.Core.Domain.csproj" />
-    <ProjectReference Include="Leopotam.EcsLite.csproj" />
   </ItemGroup>
 
 </Project>

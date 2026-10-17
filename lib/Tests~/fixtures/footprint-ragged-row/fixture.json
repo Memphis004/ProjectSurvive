@@ -1,8 +1,0 @@
-{
-  "name": "footprint-ragged-row",
-  "stage": "semantic",
-  "why": "the rows of one footprint picture are different lengths, so the shape is not a rectangle",
-  "expectedCodes": [
-    "footprint.ragged_row"
-  ]
-}

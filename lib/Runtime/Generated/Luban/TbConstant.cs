@@ -27,18 +27,10 @@ public partial class TbConstant
     }
 
 
-     public int BoardWidth => _data.BoardWidth;
-     public int BoardHeight => _data.BoardHeight;
-     public float MinCooldownSeconds => _data.MinCooldownSeconds;
-     public int MaxSpeedPenaltyPercent => _data.MaxSpeedPenaltyPercent;
-     public int WeightSpeedPercentPerUnit => _data.WeightSpeedPercentPerUnit;
-     public float PickupRadius => _data.PickupRadius;
      public int MaxHp => _data.MaxHp;
      public int MaxMp => _data.MaxMp;
-     public float FocusPerSecond => _data.FocusPerSecond;
      public float MoveSpeed => _data.MoveSpeed;
-     public int MaxTier => _data.MaxTier;
-     public int UpgradeChoiceCount => _data.UpgradeChoiceCount;
+     public float PickupRadius => _data.PickupRadius;
     
     public void ResolveRef(Tables tables)
     {

@@ -1,8 +1,0 @@
-{
-  "name": "footprint-empty",
-  "stage": "semantic",
-  "why": "a bag whose footprint names no cell at all opens no ActiveSlot",
-  "expectedCodes": [
-    "footprint.empty"
-  ]
-}

@@ -1,8 +1,0 @@
-{
-  "name": "upgrade-pool-too-small",
-  "stage": "semantic",
-  "why": "ArcaneWeapon 1 -> 2 has a single variant, so the chooser could not fill constant.upgrade_choice_count choices and the step does not declare the immediate-merge fallback (an empty pool)",
-  "expectedCodes": [
-    "upgrade_variant.too_few_choices"
-  ]
-}

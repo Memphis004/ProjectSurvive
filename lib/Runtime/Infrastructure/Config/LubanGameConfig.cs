@@ -14,13 +14,13 @@ namespace ProjectSurvive.Core.Infrastructure.Config
     /// <remarks>
     /// <para>
     /// The adapter never invents a value. A table that cannot be read, a missing
-    /// singleton row, or a malformed footprint all raise
+    /// singleton row, or a duplicate localization key raises
     /// <see cref="ConfigLoadException"/> - there is no "return a constant instead"
-    /// path, which is what the Stage 02 acceptance criterion forbids.
+    /// path, which is what the data gate forbids.
     /// </para>
     /// <para>
     /// It is engine-free on purpose: the caller supplies
-    /// <paramref name="readTable"/>, which maps a Luban table name ("tbitem") to
+    /// <paramref name="readTable"/>, which maps a Luban table name ("tblocalization") to
     /// its raw bytes. In Unity that comes from <c>Resources/Config/*.bytes</c>; in
     /// the dotnet harness and the data validator it comes from
     /// <c>lib/Tests~/data/</c> on disk. Nothing here touches
@@ -33,40 +33,12 @@ namespace ProjectSurvive.Core.Infrastructure.Config
         public static readonly string[] TableNames =
         {
             "tblocalization",
-            "tbbag",
-            "tbskill",
-            "tbitem",
-            "tbsynergy",
-            "tbmergerecipe",
-            "tbupgradevariant",
-            "tbupgradevariantmodifier",
-            "tbenemy",
-            "tbfloor",
-            "tbwave",
-            "tbshoppool",
-            "tbeconomy",
             "tbconstant",
         };
 
-        private readonly Dictionary<string, BagConfig> _bags = new Dictionary<string, BagConfig>(StringComparer.Ordinal);
-        private readonly Dictionary<string, ItemConfig> _items = new Dictionary<string, ItemConfig>(StringComparer.Ordinal);
-        private readonly Dictionary<string, SkillConfig> _skills = new Dictionary<string, SkillConfig>(StringComparer.Ordinal);
-        private readonly Dictionary<string, UpgradeVariantConfig> _upgradeVariants =
-            new Dictionary<string, UpgradeVariantConfig>(StringComparer.Ordinal);
-        private readonly Dictionary<string, EnemyConfig> _enemies = new Dictionary<string, EnemyConfig>(StringComparer.Ordinal);
-        private readonly Dictionary<string, FloorConfig> _floors = new Dictionary<string, FloorConfig>(StringComparer.Ordinal);
-        private readonly Dictionary<string, LocalizationEntry> _localization = new Dictionary<string, LocalizationEntry>(StringComparer.Ordinal);
+        private readonly Dictionary<string, LocalizationEntry> _localization =
+            new Dictionary<string, LocalizationEntry>(StringComparer.Ordinal);
 
-        private readonly List<BagConfig> _bagList = new List<BagConfig>();
-        private readonly List<ItemConfig> _itemList = new List<ItemConfig>();
-        private readonly List<SkillConfig> _skillList = new List<SkillConfig>();
-        private readonly List<SynergyConfig> _synergyList = new List<SynergyConfig>();
-        private readonly List<MergeRecipeConfig> _mergeRecipeList = new List<MergeRecipeConfig>();
-        private readonly List<UpgradeVariantConfig> _upgradeVariantList = new List<UpgradeVariantConfig>();
-        private readonly List<EnemyConfig> _enemyList = new List<EnemyConfig>();
-        private readonly List<FloorConfig> _floorList = new List<FloorConfig>();
-        private readonly List<WaveConfig> _waveList = new List<WaveConfig>();
-        private readonly List<ShopPoolEntryConfig> _shopPoolList = new List<ShopPoolEntryConfig>();
         private readonly List<LocalizationEntry> _localizationList = new List<LocalizationEntry>();
 
         private LubanGameConfig(string configHash, GeneratedTables tables)
@@ -90,293 +62,50 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                 _localizationList.Add(entry);
             }
 
-            foreach (ProjectSurvive.Config.Bag row in tables.TbBag.DataList)
-            {
-                var bag = new BagConfig
-                {
-                    Id = row.Id,
-                    NameKey = row.NameKey,
-                    Tier = row.Tier,
-                    Price = row.Price,
-                    Weight = row.Weight,
-                    Footprint = ParseFootprint("tbbag", row.Id, row.Footprint),
-                };
-                _bags.Add(bag.Id, bag);
-                _bagList.Add(bag);
-            }
-
-            foreach (ProjectSurvive.Config.Skill row in tables.TbSkill.DataList)
-            {
-                var skill = new SkillConfig
-                {
-                    Id = row.Id,
-                    NameKey = row.NameKey,
-                    Behavior = (SkillBehavior)row.Behavior,
-                    Element = (Element)row.Element,
-                    CooldownSeconds = row.CooldownSeconds,
-                    MpCost = row.MpCost,
-                    Damage = row.Damage,
-                    ProjectileSpeed = row.ProjectileSpeed,
-                    Range = row.Range,
-                    PierceCount = row.PierceCount,
-                    ProjectileCount = row.ProjectileCount,
-                };
-                _skills.Add(skill.Id, skill);
-                _skillList.Add(skill);
-            }
-
-            foreach (ProjectSurvive.Config.Item row in tables.TbItem.DataList)
-            {
-                var item = new ItemConfig
-                {
-                    Id = row.Id,
-                    Category = (ItemCategory)row.Category,
-                    NameKey = row.NameKey,
-                    DescriptionKey = row.DescriptionKey,
-                    Tier = row.Tier,
-                    Element = (Element)row.Element,
-                    Price = row.Price,
-                    Weight = row.Weight,
-                    SkillId = row.SkillId,
-                    Tags = row.Tags.ToArray(),
-                    Footprint = ParseFootprint("tbitem", row.Id, row.Footprint),
-                };
-                _items.Add(item.Id, item);
-                _itemList.Add(item);
-            }
-
-            foreach (ProjectSurvive.Config.Synergy row in tables.TbSynergy.DataList)
-            {
-                _synergyList.Add(new SynergyConfig
-                {
-                    Id = row.Id,
-                    NameKey = row.NameKey,
-                    Kind = (SynergyKind)row.Kind,
-                    TagA = row.TagA,
-                    TagB = row.TagB,
-                    Stat = (SynergyStat)row.Stat,
-                    ValuePercent = row.ValuePercent,
-                    MaxStacks = row.MaxStacks,
-                });
-            }
-
-            foreach (ProjectSurvive.Config.MergeRecipe row in tables.TbMergeRecipe.DataList)
-            {
-                _mergeRecipeList.Add(new MergeRecipeConfig
-                {
-                    Id = row.Id,
-                    ItemId = row.ItemId,
-                    BagId = row.BagId,
-                    FromTier = row.FromTier,
-                    ToTier = row.ToTier,
-                });
-            }
-
-            // The variants first, so the modifier rows below have somewhere to attach. The
-            // lists are held here while they fill: a variant's modifiers are one list, and
-            // reading the DTO back is what a second copy of the same lookup would cost.
-            var modifierLists = new Dictionary<string, List<UpgradeModifierConfig>>(StringComparer.Ordinal);
-
-            foreach (ProjectSurvive.Config.UpgradeVariant row in tables.TbUpgradeVariant.DataList)
-            {
-                var modifiers = new List<UpgradeModifierConfig>();
-                var variant = new UpgradeVariantConfig
-                {
-                    Id = row.Id,
-                    Category = row.Category,
-                    Tag = row.Tag,
-                    FromTier = row.FromTier,
-                    ToTier = row.ToTier,
-                    NameKey = row.NameKey,
-                    Weight = row.Weight,
-                    Modifiers = modifiers,
-                };
-                _upgradeVariants.Add(variant.Id, variant);
-                _upgradeVariantList.Add(variant);
-                modifierLists.Add(variant.Id, modifiers);
-            }
-
-            foreach (ProjectSurvive.Config.UpgradeVariantModifier row in tables.TbUpgradeVariantModifier.DataList)
-            {
-                if (!modifierLists.TryGetValue(row.VariantId, out List<UpgradeModifierConfig>? modifiers))
-                {
-                    // Luban's `#ref` already rejects the dangling id under `--strict`;
-                    // this guard exists so the adapter can never drop a modifier row if
-                    // that ever stops being true (the same shape the localization guard has).
-                    throw new ConfigLoadException(ConfigError.UpgradeModifierOrphan, "tbupgradevariantmodifier['" + row.Id + "']",
-                        "variant '" + row.VariantId + "' does not exist");
-                }
-
-                if (!UpgradeVocabulary.TryParseStat(row.Stat, out UpgradeStat stat))
-                {
-                    throw new ConfigLoadException(ConfigError.UpgradeStatUnknown,
-                        "tbupgradevariantmodifier['" + row.Id + "'].stat",
-                        "stat '" + row.Stat + "' is not one the battle loadout carries ("
-                        + string.Join(", ", UpgradeVocabulary.StatNames) + ")");
-                }
-
-                if (!UpgradeVocabulary.TryParseMethod(row.Method, out UpgradeMethod method))
-                {
-                    throw new ConfigLoadException(ConfigError.UpgradeMethodUnknown,
-                        "tbupgradevariantmodifier['" + row.Id + "'].method",
-                        "method '" + row.Method + "' is not known ("
-                        + string.Join(", ", UpgradeVocabulary.MethodNames) + ")");
-                }
-
-                modifiers.Add(new UpgradeModifierConfig
-                {
-                    Id = row.Id,
-                    Stat = stat,
-                    Method = method,
-                    Magnitude = row.Magnitude,
-                });
-            }
-
-            foreach (ProjectSurvive.Config.Enemy row in tables.TbEnemy.DataList)
-            {
-                var enemy = new EnemyConfig
-                {
-                    Id = row.Id,
-                    NameKey = row.NameKey,
-                    Role = (EnemyRole)row.Role,
-                    MaxHp = row.MaxHp,
-                    MoveSpeed = row.MoveSpeed,
-                    ContactDamage = row.ContactDamage,
-                    AttackCooldownSeconds = row.AttackCooldownSeconds,
-                    MovePattern = (MovePattern)row.MovePattern,
-                    IsElite = row.IsElite,
-                    IsBoss = row.IsBoss,
-                    BossPhase2HpPercent = row.BossPhase2HpPercent,
-                };
-                _enemies.Add(enemy.Id, enemy);
-                _enemyList.Add(enemy);
-            }
-
-            foreach (ProjectSurvive.Config.Floor row in tables.TbFloor.DataList)
-            {
-                var floor = new FloorConfig
-                {
-                    Id = row.Id,
-                    Index = row.Index,
-                    NameKey = row.NameKey,
-                    DurationSeconds = row.DurationSeconds,
-                    IsBoss = row.IsBoss,
-                    BossEnemyId = row.BossEnemyId,
-                };
-                _floors.Add(floor.Id, floor);
-                _floorList.Add(floor);
-            }
-
-            foreach (ProjectSurvive.Config.Wave row in tables.TbWave.DataList)
-            {
-                _waveList.Add(new WaveConfig
-                {
-                    Id = row.Id,
-                    FloorId = row.FloorId,
-                    EnemyId = row.EnemyId,
-                    StartTimeSeconds = row.StartTimeSeconds,
-                    EndTimeSeconds = row.EndTimeSeconds,
-                    SpawnCount = row.SpawnCount,
-                    SpawnIntervalSeconds = row.SpawnIntervalSeconds,
-                    IsElite = row.IsElite,
-                });
-            }
-
-            foreach (ProjectSurvive.Config.ShopPool row in tables.TbShopPool.DataList)
-            {
-                _shopPoolList.Add(new ShopPoolEntryConfig
-                {
-                    Id = row.Id,
-                    FloorMin = row.FloorMin,
-                    FloorMax = row.FloorMax,
-                    ItemId = row.ItemId,
-                    BagId = row.BagId,
-                    Weight = row.Weight,
-                });
-            }
-
             ProjectSurvive.Config.TbConstant constant = tables.TbConstant;
             Constant = new ConstantConfig
             {
-                BoardWidth = constant.BoardWidth,
-                BoardHeight = constant.BoardHeight,
-                MinCooldownSeconds = constant.MinCooldownSeconds,
-                MaxSpeedPenaltyPercent = constant.MaxSpeedPenaltyPercent,
-                WeightSpeedPercentPerUnit = constant.WeightSpeedPercentPerUnit,
-                PickupRadius = constant.PickupRadius,
                 MaxHp = constant.MaxHp,
                 MaxMp = constant.MaxMp,
-                FocusPerSecond = constant.FocusPerSecond,
                 MoveSpeed = constant.MoveSpeed,
-                MaxTier = constant.MaxTier,
-                UpgradeChoiceCount = constant.UpgradeChoiceCount,
-            };
-
-            ProjectSurvive.Config.TbEconomy economy = tables.TbEconomy;
-            Economy = new EconomyConfig
-            {
-                StartBia = economy.StartBia,
-                ShopSlotCount = economy.ShopSlotCount,
-                RefreshBaseCost = economy.RefreshBaseCost,
-                RefreshCostIncrement = economy.RefreshCostIncrement,
-                SellBackPercent = economy.SellBackPercent,
-                HealPercentOnClear = economy.HealPercentOnClear,
-                ChestSlots = economy.ChestSlots,
+                PickupRadius = constant.PickupRadius,
             };
         }
 
+        /// <inheritdoc />
         public string ConfigHash { get; }
 
+        /// <inheritdoc />
         public ConstantConfig Constant { get; }
 
-        public EconomyConfig Economy { get; }
-
-        public IReadOnlyList<BagConfig> Bags => _bagList;
-
-        public IReadOnlyList<ItemConfig> Items => _itemList;
-
-        public IReadOnlyList<SkillConfig> Skills => _skillList;
-
-        public IReadOnlyList<SynergyConfig> Synergies => _synergyList;
-
-        public IReadOnlyList<MergeRecipeConfig> MergeRecipes => _mergeRecipeList;
-
-        public IReadOnlyList<UpgradeVariantConfig> UpgradeVariants => _upgradeVariantList;
-
-        public IReadOnlyList<EnemyConfig> Enemies => _enemyList;
-
-        public IReadOnlyList<FloorConfig> Floors => _floorList;
-
-        public IReadOnlyList<WaveConfig> Waves => _waveList;
-
-        public IReadOnlyList<ShopPoolEntryConfig> ShopPool => _shopPoolList;
-
+        /// <inheritdoc />
         public IReadOnlyList<LocalizationEntry> Localization => _localizationList;
 
-        public bool TryGetBag(string id, out BagConfig value) => TryGet(_bags, id, out value);
+        /// <inheritdoc />
+        public bool TryGetLocalization(string key, out LocalizationEntry value)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                value = null!;
+                return false;
+            }
 
-        public bool TryGetItem(string id, out ItemConfig value) => TryGet(_items, id, out value);
+            return _localization.TryGetValue(key, out value!);
+        }
 
-        public bool TryGetSkill(string id, out SkillConfig value) => TryGet(_skills, id, out value);
-
-        public bool TryGetUpgradeVariant(string id, out UpgradeVariantConfig value) =>
-            TryGet(_upgradeVariants, id, out value);
-
-        public bool TryGetEnemy(string id, out EnemyConfig value) => TryGet(_enemies, id, out value);
-
-        public bool TryGetFloor(string id, out FloorConfig value) => TryGet(_floors, id, out value);
-
-        public bool TryGetLocalization(string key, out LocalizationEntry value) =>
-            TryGet(_localization, key, out value);
-
+        /// <inheritdoc />
+        /// <exception cref="KeyNotFoundException">The key is not in the table.</exception>
         public string GetText(string key, Language language)
         {
-            if (!_localization.TryGetValue(key, out LocalizationEntry entry))
+            if (!_localization.TryGetValue(key, out LocalizationEntry? entry))
             {
-                throw new KeyNotFoundException("localization key '" + key + "' does not exist");
+                throw new KeyNotFoundException("no localization row for key '" + key + "'");
             }
 
             string text = entry.For(language);
+
+            // An empty cell falls back to the other language rather than to the key: a build
+            // missing one translation is still readable, while a build printing "ui.title" is not.
             return string.IsNullOrEmpty(text) ? entry.For(language == Language.En ? Language.Th : Language.En) : text;
         }
 
@@ -430,39 +159,19 @@ namespace ProjectSurvive.Core.Infrastructure.Config
 
             return new LubanGameConfig(configHash, tables);
         }
-
-        private static Footprint ParseFootprint(string table, string rowId, IReadOnlyList<string> rows)
-        {
-            if (Footprint.TryParse(rows, out Footprint footprint, out string? error))
-            {
-                return footprint;
-            }
-
-            throw new ConfigLoadException(error!, table + "['" + rowId + "'].footprint",
-                "footprint is invalid (" + error + "): '" + string.Join("|", rows) + "'");
-        }
-
-        private static bool TryGet<T>(Dictionary<string, T> source, string id, out T value)
-        {
-            if (string.IsNullOrEmpty(id))
-            {
-                value = default!;
-                return false;
-            }
-
-            return source.TryGetValue(id, out value!);
-        }
     }
 
     /// <summary>Machine-readable config failure codes.</summary>
     public static class ConfigError
     {
+        /// <summary>A table the adapter asked for was not supplied.</summary>
         public const string TableMissing = "config.table_missing";
+
+        /// <summary>A table was supplied but could not be parsed.</summary>
         public const string TableUnreadable = "config.table_unreadable";
+
+        /// <summary>Two localization rows share a key.</summary>
         public const string DuplicateLocalizationKey = "localization.duplicate_key";
-        public const string UpgradeStatUnknown = "upgrade_variant.unknown_stat";
-        public const string UpgradeMethodUnknown = "upgrade_variant.unknown_method";
-        public const string UpgradeModifierOrphan = "upgrade_variant.orphan_modifier";
     }
 
     /// <summary>
@@ -472,6 +181,7 @@ namespace ProjectSurvive.Core.Infrastructure.Config
     /// </summary>
     public sealed class ConfigLoadException : Exception
     {
+        /// <summary>Creates a failure without an inner exception.</summary>
         public ConfigLoadException(string code, string target, string message)
             : base(message)
         {
@@ -479,6 +189,7 @@ namespace ProjectSurvive.Core.Infrastructure.Config
             Target = target;
         }
 
+        /// <summary>Creates a failure that wraps the loader's own exception.</summary>
         public ConfigLoadException(string code, string target, string message, Exception innerException)
             : base(message, innerException)
         {
@@ -486,10 +197,10 @@ namespace ProjectSurvive.Core.Infrastructure.Config
             Target = target;
         }
 
-        /// <summary>Stable failure identifier, e.g. <c>footprint.duplicate_cell</c>.</summary>
+        /// <summary>Stable failure identifier, e.g. <c>config.table_missing</c>.</summary>
         public string Code { get; }
 
-        /// <summary>Where the failure is, e.g. <c>tbbag['bag.x'].footprint</c>.</summary>
+        /// <summary>Where the failure is, e.g. <c>tblocalization</c>.</summary>
         public string Target { get; }
     }
 }

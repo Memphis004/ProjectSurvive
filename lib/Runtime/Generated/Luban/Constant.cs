@@ -16,18 +16,10 @@ public sealed partial class Constant : Luban.BeanBase
 {
     public Constant(ByteBuf _buf) 
     {
-        BoardWidth = _buf.ReadInt();
-        BoardHeight = _buf.ReadInt();
-        MinCooldownSeconds = _buf.ReadFloat();
-        MaxSpeedPenaltyPercent = _buf.ReadInt();
-        WeightSpeedPercentPerUnit = _buf.ReadInt();
-        PickupRadius = _buf.ReadFloat();
         MaxHp = _buf.ReadInt();
         MaxMp = _buf.ReadInt();
-        FocusPerSecond = _buf.ReadFloat();
         MoveSpeed = _buf.ReadFloat();
-        MaxTier = _buf.ReadInt();
-        UpgradeChoiceCount = _buf.ReadInt();
+        PickupRadius = _buf.ReadFloat();
     }
 
     public static Constant DeserializeConstant(ByteBuf _buf)
@@ -35,18 +27,10 @@ public sealed partial class Constant : Luban.BeanBase
         return new Constant(_buf);
     }
 
-    public readonly int BoardWidth;
-    public readonly int BoardHeight;
-    public readonly float MinCooldownSeconds;
-    public readonly int MaxSpeedPenaltyPercent;
-    public readonly int WeightSpeedPercentPerUnit;
-    public readonly float PickupRadius;
     public readonly int MaxHp;
     public readonly int MaxMp;
-    public readonly float FocusPerSecond;
     public readonly float MoveSpeed;
-    public readonly int MaxTier;
-    public readonly int UpgradeChoiceCount;
+    public readonly float PickupRadius;
    
     public const int __ID__ = -503167036;
     public override int GetTypeId() => __ID__;
@@ -58,18 +42,10 @@ public sealed partial class Constant : Luban.BeanBase
     public override string ToString()
     {
         return "{ "
-        + "boardWidth:" + BoardWidth + ","
-        + "boardHeight:" + BoardHeight + ","
-        + "minCooldownSeconds:" + MinCooldownSeconds + ","
-        + "maxSpeedPenaltyPercent:" + MaxSpeedPenaltyPercent + ","
-        + "weightSpeedPercentPerUnit:" + WeightSpeedPercentPerUnit + ","
-        + "pickupRadius:" + PickupRadius + ","
         + "maxHp:" + MaxHp + ","
         + "maxMp:" + MaxMp + ","
-        + "focusPerSecond:" + FocusPerSecond + ","
         + "moveSpeed:" + MoveSpeed + ","
-        + "maxTier:" + MaxTier + ","
-        + "upgradeChoiceCount:" + UpgradeChoiceCount + ","
+        + "pickupRadius:" + PickupRadius + ","
         + "}";
     }
 }

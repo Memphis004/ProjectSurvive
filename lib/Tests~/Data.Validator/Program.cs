@@ -156,17 +156,9 @@ namespace ProjectSurvive.Data.Validator
             if (config is not null)
             {
                 Console.WriteLine("  configHash: " + config.ConfigHash);
-                Console.WriteLine("  rows      : items " + config.Items.Count
-                    + ", bags " + config.Bags.Count
-                    + ", skills " + config.Skills.Count
-                    + ", synergies " + config.Synergies.Count
-                    + ", mergeRecipes " + config.MergeRecipes.Count
-                    + ", upgradeVariants " + config.UpgradeVariants.Count
-                    + ", enemies " + config.Enemies.Count
-                    + ", floors " + config.Floors.Count
-                    + ", waves " + config.Waves.Count
-                    + ", shopPool " + config.ShopPool.Count
-                    + ", localization " + config.Localization.Count);
+                Console.WriteLine("  rows      : localization " + config.Localization.Count
+                    + ", maxHp " + config.Constant.MaxHp
+                    + ", moveSpeed " + config.Constant.MoveSpeed);
             }
 
             Console.WriteLine(new string('=', 72));

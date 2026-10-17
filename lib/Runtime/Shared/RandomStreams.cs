@@ -11,36 +11,36 @@ namespace ProjectSurvive.Core.Shared
     /// stream cannot shift the others, and no stream shares state with another.
     /// Rebuilding <see cref="RandomStreams"/> with the same master seed always
     /// reproduces the same sequences — that is the determinism guarantee the
-    /// battle simulation relies on.
+    /// simulation relies on.
     /// </remarks>
     public sealed class RandomStreams
     {
-        /// <summary>Creates the shop / battle / visual streams for a run seed.</summary>
+        /// <summary>Creates the run / encounter / visual streams for a run seed.</summary>
         public RandomStreams(uint masterSeed)
         {
             MasterSeed = masterSeed;
-            Shop = new Xoshiro128(DeriveStreamSeed(masterSeed, RandomStreamKind.Shop));
-            Battle = new Xoshiro128(DeriveStreamSeed(masterSeed, RandomStreamKind.Battle));
+            Run = new Xoshiro128(DeriveStreamSeed(masterSeed, RandomStreamKind.Run));
+            Encounter = new Xoshiro128(DeriveStreamSeed(masterSeed, RandomStreamKind.Encounter));
             Visual = new Xoshiro128(DeriveStreamSeed(masterSeed, RandomStreamKind.Visual));
         }
 
         /// <summary>The run seed every stream was derived from.</summary>
         public uint MasterSeed { get; }
 
-        /// <summary>Camp-side stream.</summary>
-        public IRandomSource Shop { get; }
+        /// <summary>Run-level stream (loot, prices, anything outside play).</summary>
+        public IRandomSource Run { get; }
 
-        /// <summary>Combat stream.</summary>
-        public IRandomSource Battle { get; }
+        /// <summary>Play-outcome stream.</summary>
+        public IRandomSource Encounter { get; }
 
         /// <summary>Cosmetic stream.</summary>
         public IRandomSource Visual { get; }
 
         /// <remarks>
-        /// There is deliberately <b>no</b> <c>Upgrade</c> stream property: the upgrade
-        /// draw is <see cref="DeriveStreamSeed"/> with <see cref="RandomStreamKind.Upgrade"/>,
-        /// never a stateful stream, so an offer cannot depend on how many offers came
-        /// before it (ADR 0021).
+        /// There is deliberately <b>no</b> <c>Reward</c> stream property: a reward draw is
+        /// <see cref="DeriveStreamSeed"/> with <see cref="RandomStreamKind.Reward"/>, never a
+        /// stateful stream, so an offer cannot depend on how many offers came before it
+        /// (ADR 0021).
         /// </remarks>
 
         /// <summary>
@@ -61,10 +61,10 @@ namespace ProjectSurvive.Core.Shared
         {
             switch (kind)
             {
-                case RandomStreamKind.Shop: return 0x5348_4F50u;
-                case RandomStreamKind.Battle: return 0x4241_5454u;
+                case RandomStreamKind.Run: return 0x5348_4F50u;
+                case RandomStreamKind.Encounter: return 0x4241_5454u;
                 case RandomStreamKind.Visual: return 0x5649_5355u;
-                case RandomStreamKind.Upgrade: return 0x5550_4752u;
+                case RandomStreamKind.Reward: return 0x5550_4752u;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown random stream.");
             }

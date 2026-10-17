@@ -14,10 +14,15 @@ namespace ProjectSurvive.Core.Domain.Config
     /// leak into the rule engine (AGENTS rule 3, ADR 0006).
     /// </para>
     /// <para>
+    /// The template keeps the two tables every project needs: a singleton of
+    /// constants and the localization table. A game adds its own tables and its
+    /// own <c>TryGet*</c> lookups here, next to these.
+    /// </para>
+    /// <para>
     /// Every list is exposed in data-file order and every lookup is by the
     /// stable string id authored in <c>data/</c>. There is deliberately no
     /// "default" fallback that invents values: a successful load came from real
-    /// `.bytes` tables, and a failed load throws instead of returning a stub.
+    /// <c>.bytes</c> tables, and a failed load throws instead of returning a stub.
     /// </para>
     /// </remarks>
     public interface IGameConfig
@@ -28,49 +33,13 @@ namespace ProjectSurvive.Core.Domain.Config
         /// </summary>
         string ConfigHash { get; }
 
+        /// <summary>The singleton row of tuned numbers.</summary>
         ConstantConfig Constant { get; }
 
-        EconomyConfig Economy { get; }
-
-        IReadOnlyList<BagConfig> Bags { get; }
-
-        IReadOnlyList<ItemConfig> Items { get; }
-
-        IReadOnlyList<SkillConfig> Skills { get; }
-
-        IReadOnlyList<SynergyConfig> Synergies { get; }
-
-        IReadOnlyList<MergeRecipeConfig> MergeRecipes { get; }
-
-        /// <summary>
-        /// Every upgrade choice, in data-file order (Stage 09f). The pool for one merge is
-        /// selected from this list by the piece's category and tags; a piece no variant
-        /// matches folds immediately, exactly as before the stage.
-        /// </summary>
-        IReadOnlyList<UpgradeVariantConfig> UpgradeVariants { get; }
-
-        IReadOnlyList<EnemyConfig> Enemies { get; }
-
-        IReadOnlyList<FloorConfig> Floors { get; }
-
-        IReadOnlyList<WaveConfig> Waves { get; }
-
-        IReadOnlyList<ShopPoolEntryConfig> ShopPool { get; }
-
+        /// <summary>Every localization row, in data-file order.</summary>
         IReadOnlyList<LocalizationEntry> Localization { get; }
 
-        bool TryGetBag(string id, out BagConfig value);
-
-        bool TryGetItem(string id, out ItemConfig value);
-
-        bool TryGetSkill(string id, out SkillConfig value);
-
-        bool TryGetUpgradeVariant(string id, out UpgradeVariantConfig value);
-
-        bool TryGetEnemy(string id, out EnemyConfig value);
-
-        bool TryGetFloor(string id, out FloorConfig value);
-
+        /// <summary>Looks one localization row up by key.</summary>
         bool TryGetLocalization(string key, out LocalizationEntry value);
 
         /// <summary>

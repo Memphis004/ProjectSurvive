@@ -1,6 +1,0 @@
-{
-  "name": "missing-ref",
-  "stage": "luban",
-  "why": "bag.name_key points at a localization key that does not exist (Luban #ref)",
-  "expectedCodes": []
-}

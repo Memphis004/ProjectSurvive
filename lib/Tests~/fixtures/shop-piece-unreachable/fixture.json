@@ -1,8 +1,0 @@
-{
-  "name": "shop-piece-unreachable",
-  "stage": "semantic",
-  "why": "no shop_pool band offers item.boiled_egg, so the piece can never enter a run",
-  "expectedCodes": [
-    "shop_pool.piece_unreachable"
-  ]
-}

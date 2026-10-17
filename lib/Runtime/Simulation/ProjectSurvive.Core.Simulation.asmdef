@@ -3,8 +3,7 @@
   "rootNamespace": "ProjectSurvive.Core.Simulation",
   "references": [
     "ProjectSurvive.Core.Shared",
-    "ProjectSurvive.Core.Domain",
-    "Leopotam.EcsLite"
+    "ProjectSurvive.Core.Domain"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

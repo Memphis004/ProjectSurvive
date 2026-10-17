@@ -6,15 +6,20 @@ using ProjectSurvive.Core.Shared;
 namespace ProjectSurvive.Sim
 {
     /// <summary>
-    /// The Stage 01 headless determinism harness: the fixed 30 Hz ticker over a synthetic
-    /// frame source, drawing from the shop / battle / visual streams and printing a
-    /// fingerprint of the sequence.
+    /// The headless determinism harness: the fixed ticker over a synthetic frame source, drawing
+    /// from the run / encounter / visual streams and printing a fingerprint of each sequence.
     /// </summary>
     /// <remarks>
-    /// Output is byte-for-byte what it was before the bot mode existed, because
-    /// tools/test.ps1 compares two processes' <c>--quiet</c> output and greps
-    /// <c>ticksProduced=</c> from the full one. The Stage 07 bot grew <i>next to</i> this,
-    /// not on top of it.
+    /// <para>
+    /// Output is what tools/test.ps1 compares at process level: two runs of one seed must print
+    /// the same <c>determinismDigest</c>, a different seed must print a different one, and the
+    /// three per-stream digests must differ from each other — otherwise they are one stream
+    /// wearing three names (AGENTS rule 6).
+    /// </para>
+    /// <para>
+    /// This mode allocates nothing per tick beyond the strings it prints at the end; it exists to
+    /// be a small, readable reference for what a fixed tick looks like, not a benchmark.
+    /// </para>
     /// </remarks>
     internal static class StreamsMode
     {
@@ -27,12 +32,12 @@ namespace ProjectSurvive.Sim
             var ticker = new FixedTicker(options.TickHz);
             var clock = new SystemClock();
 
-            uint battleDigest = FnvOffsetBasis;
+            uint encounterDigest = FnvOffsetBasis;
             uint visualDigest = FnvOffsetBasis;
-            uint shopDigest = FnvOffsetBasis;
+            uint runDigest = FnvOffsetBasis;
             uint sequenceDigest = FnvOffsetBasis;
-            long shopDraws = 0;
-            long battleDraws = 0;
+            long runDraws = 0;
+            long encounterDraws = 0;
             long visualDraws = 0;
             long frames = 0;
 
@@ -47,33 +52,33 @@ namespace ProjectSurvive.Sim
                 int due = ticker.Advance(frameSeconds);
                 for (int i = 0; i < due && producedTicks < targetTicks; i++)
                 {
-                    // Battle stream: drawn every tick, drives combat outcomes.
-                    uint battleValue = streams.Battle.NextUInt();
-                    battleDigest = Fnv1a(battleDigest, battleValue);
-                    battleDraws++;
+                    // Encounter stream: drawn every tick, drives play outcomes.
+                    uint encounterValue = streams.Encounter.NextUInt();
+                    encounterDigest = Fnv1a(encounterDigest, encounterValue);
+                    encounterDraws++;
 
                     // Visual stream: drawn every tick, must never be read back by rules.
                     uint visualValue = streams.Visual.NextUInt();
                     visualDigest = Fnv1a(visualDigest, visualValue);
                     visualDraws++;
 
-                    // Shop stream: drawn on its own schedule, independent of the two above.
-                    if (producedTicks % options.ShopIntervalTicks == 0)
+                    // Run stream: drawn on its own schedule, independent of the two above.
+                    if (producedTicks % options.RunIntervalTicks == 0)
                     {
-                        uint shopValue = streams.Shop.NextUInt();
-                        shopDigest = Fnv1a(shopDigest, shopValue);
-                        shopDraws++;
+                        uint runValue = streams.Run.NextUInt();
+                        runDigest = Fnv1a(runDigest, runValue);
+                        runDraws++;
                     }
 
-                    sequenceDigest = Fnv1a(sequenceDigest, battleValue);
+                    sequenceDigest = Fnv1a(sequenceDigest, encounterValue);
                     sequenceDigest = Fnv1a(sequenceDigest, visualValue);
 
                     if (options.Trace > 0 && producedTicks < options.Trace)
                     {
                         Console.WriteLine(string.Format(
                             CultureInfo.InvariantCulture,
-                            "trace tick={0} battle={1} visual={2}",
-                            producedTicks, battleValue, visualValue));
+                            "trace tick={0} encounter={1} visual={2}",
+                            producedTicks, encounterValue, visualValue));
                     }
 
                     producedTicks++;
@@ -88,7 +93,7 @@ namespace ProjectSurvive.Sim
                 return 0;
             }
 
-            Console.WriteLine("ProjectSurvive.Sim (stage 01)");
+            Console.WriteLine("ProjectSurvive.Sim (template)");
             Console.WriteLine("seed=" + options.Seed.ToString(CultureInfo.InvariantCulture));
             Console.WriteLine("tickHz=" + Format(options.TickHz));
             Console.WriteLine("frameHz=" + Format(options.FrameHz));
@@ -96,12 +101,12 @@ namespace ProjectSurvive.Sim
             Console.WriteLine("ticksProduced=" + producedTicks.ToString(CultureInfo.InvariantCulture));
             Console.WriteLine("frames=" + frames.ToString(CultureInfo.InvariantCulture));
             Console.WriteLine("droppedTicks=" + ticker.DroppedTicks.ToString(CultureInfo.InvariantCulture));
-            Console.WriteLine("battleDraws=" + battleDraws.ToString(CultureInfo.InvariantCulture));
+            Console.WriteLine("encounterDraws=" + encounterDraws.ToString(CultureInfo.InvariantCulture));
             Console.WriteLine("visualDraws=" + visualDraws.ToString(CultureInfo.InvariantCulture));
-            Console.WriteLine("shopDraws=" + shopDraws.ToString(CultureInfo.InvariantCulture));
-            Console.WriteLine("battleDigest=" + Hex(battleDigest));
+            Console.WriteLine("runDraws=" + runDraws.ToString(CultureInfo.InvariantCulture));
+            Console.WriteLine("encounterDigest=" + Hex(encounterDigest));
             Console.WriteLine("visualDigest=" + Hex(visualDigest));
-            Console.WriteLine("shopDigest=" + Hex(shopDigest));
+            Console.WriteLine("runDigest=" + Hex(runDigest));
             Console.WriteLine("determinismDigest=" + Hex(sequenceDigest));
             Console.WriteLine("elapsedMs=" + Format(elapsedMilliseconds) + " (not part of determinism)");
 
