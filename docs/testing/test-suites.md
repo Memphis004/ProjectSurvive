@@ -77,6 +77,18 @@ PlayMode **45** (`TitleScenePlayModeTests` 5) and Playwright **10**. Its `-Suite
 closed-Editor Full run is `artifacts/stage10d/full-editor-closed-web.log` — **PASS 11 | FAIL 0 |
 NOT RUN 2**, 268.4 s, WebGL **PASS** 70.2 s + Playwright **10 passed in Chrome** 130.7 s.
 
+Stage 10t (2026-10-18) moved two counts and left the other two: `dotnet test` **481 → 497**
+(`EventRingTests` 9 + `PrevCurBufferTests` 7) and EditMode **144 → 147** (`WebGlBridgeTests` 3), while
+PlayMode stayed **46** and Playwright stayed **10**. It ran the Full suite **before** its first edit
+(Editor open: `artifacts/stage10t/full-before-editor-open.log`, Editor closed:
+`artifacts/stage10t/full-before-editor-closed.log`) and again after
+(`artifacts/stage10t/full-after-editor-open.log`, `artifacts/stage10t/full-after-editor-closed.log`), so
+the four counts above are a delta between two measurements of the same machine, not a claim from memory.
+Its PlayMode evidence is per class again, for the reason in §7: the bulk payload is **21/46** with 25
+ambient-log failures both before and after the change, and the eight classes are **46/46** on their own
+(`artifacts/stage10t/playmode-<Class>.json`). The pre-change bulk run matters here: a refactor that
+claims "no behaviour change" is only as good as the failure set it inherited.
+
 Stage 10's own gate is Full, and it is **two runs**: Full with the Editor **open**
 (`artifacts/stage10/full-suite-editor-open.log`) reports EditMode and PlayMode and NOT RUNs both web
 steps, and Full with the Editor **closed** (`artifacts/stage10/full-suite-editor-closed.log`) reports

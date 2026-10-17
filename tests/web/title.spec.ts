@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { SCENE, SMOKE } from "./globals.mjs";
+
 /**
  * Stage 10d's first leg, in a built player: **the title screen and its start control**.
  *
@@ -21,8 +23,6 @@ import { expect, test, type Page } from "@playwright/test";
  * is minutes. Everything after it is quick — a click, a fade and a scene load.
  */
 
-const SMOKE = "__projectSurviveSmoke";
-const SCENE = "__projectSurviveScene";
 const TITLE = "__projectSurviveTitle";
 const CAMP = "__projectSurviveCamp";
 

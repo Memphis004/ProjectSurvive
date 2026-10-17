@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { SCENE } from "./globals.mjs";
+
 /**
  * Stage 10's last leg, in a built player: **the summary screen**.
  *
@@ -27,7 +29,6 @@ const BATTLE = "__projectSurviveBattle";
 const DEV_MENU = "__projectSurviveDevMenu";
 const RESULT = "__projectSurviveResult";
 const CAMP = "__projectSurviveCamp";
-const SCENE = "__projectSurviveScene";
 
 /** Boot: download + compile the player. */
 const PLAYER_BOOT_TIMEOUT_MS = 180_000;

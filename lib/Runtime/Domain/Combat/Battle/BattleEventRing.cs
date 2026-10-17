@@ -1,4 +1,5 @@
 using System;
+using ProjectSurvive.Core.Shared;
 
 namespace ProjectSurvive.Core.Domain.Combat.Battle
 {
@@ -18,13 +19,18 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
     /// tell "nothing new" from "I missed some" by comparing its cursor with
     /// <see cref="OldestSeq"/>.
     /// </para>
+    /// <para>
+    /// The ring mechanics live once, in <see cref="EventRing{T}"/> (Stage 10t, ADR
+    /// 0024); this type is the battle's payload on top of them. It stamps
+    /// <see cref="BattleEvent.Seq"/> itself before writing, from the ring's own
+    /// <see cref="NextSeq"/> — writes are single-threaded (AGENTS rule 6), so the
+    /// number read is the number the ring assigns — which keeps
+    /// <c>buffer[i].Seq == i</c> true for every reader.
+    /// </para>
     /// </remarks>
     public sealed class BattleEventRing : IBattleEventSource
     {
-        private readonly BattleEvent[] _events;
-
-        /// <summary>The sequence number the next written event will carry.</summary>
-        private long _nextSeq;
+        private readonly EventRing<BattleEvent> _ring;
 
         /// <summary>Creates a ring with the contract capacity.</summary>
         public BattleEventRing()
@@ -36,94 +42,44 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="capacity"/> is below 1.</exception>
         public BattleEventRing(int capacity)
         {
-            if (capacity < 1)
-            {
-                throw new ArgumentOutOfRangeException(nameof(capacity), capacity, "capacity must be at least 1.");
-            }
-
-            _events = new BattleEvent[capacity];
+            _ring = new EventRing<BattleEvent>(capacity);
         }
 
         /// <summary>Capacity of the ring; a reader further behind than this loses events.</summary>
-        public int Capacity => _events.Length;
+        public int Capacity => _ring.Capacity;
 
         /// <inheritdoc />
-        public long OldestSeq => _nextSeq > _events.Length ? _nextSeq - _events.Length : 0L;
+        public long OldestSeq => _ring.OldestSeq;
 
         /// <inheritdoc />
-        public long NextSeq => _nextSeq;
+        public long NextSeq => _ring.NextSeq;
 
         /// <summary>How many events are readable right now (<c>OldestSeq..NextSeq</c>).</summary>
-        public int ReadableCount
-        {
-            get
-            {
-                long readable = _nextSeq - OldestSeq;
-                return readable > int.MaxValue ? int.MaxValue : (int)readable;
-            }
-        }
+        public int ReadableCount => _ring.ReadableCount;
 
         /// <summary>
-        /// Appends one event. Overwrites the oldest event when the ring is full.
-        /// Called by the owning session; nothing else writes here.
+        /// Appends one event, stamped with the sequence number the ring assigns it.
+        /// Overwrites the oldest event when the ring is full. Called by the owning
+        /// session; nothing else writes here.
         /// </summary>
         /// <returns>The sequence number assigned to the event.</returns>
         public long Write(in BattleEvent template)
         {
-            long seq = _nextSeq;
+            long seq = _ring.NextSeq;
             var stored = new BattleEvent(
                 seq, template.Type, template.Entity, template.DefId, template.Value, template.Flags, template.X, template.Y);
-            _events[(int)(seq % _events.Length)] = stored;
-            _nextSeq = seq + 1;
+            _ring.Write(stored);
             return seq;
         }
 
         /// <summary>Clears the ring (all cursors become invalid; start new ones at 0).</summary>
         public void Clear()
         {
-            Array.Clear(_events, 0, _events.Length);
-            _nextSeq = 0L;
+            _ring.Clear();
         }
 
         /// <inheritdoc />
-        public int Read(ref long cursor, Span<BattleEvent> destination, out int dropped)
-        {
-            long oldest = OldestSeq;
-
-            // A reader behind the oldest surviving event has lost the difference.
-            if (cursor < oldest)
-            {
-                long missed = oldest - cursor;
-                dropped = missed > int.MaxValue ? int.MaxValue : (int)missed;
-                cursor = oldest;
-            }
-            else
-            {
-                dropped = 0;
-            }
-
-            if (cursor < 0)
-            {
-                // Never written, or a caller passing a default cursor: start at the oldest surviving event.
-                cursor = oldest;
-                dropped = 0;
-            }
-
-            long available = _nextSeq - cursor;
-            if (available <= 0 || destination.Length == 0)
-            {
-                return 0;
-            }
-
-            int count = available > destination.Length ? destination.Length : (int)available;
-            int capacity = _events.Length;
-            for (int i = 0; i < count; i++)
-            {
-                destination[i] = _events[(int)((cursor + i) % capacity)];
-            }
-
-            cursor += count;
-            return count;
-        }
+        public int Read(ref long cursor, Span<BattleEvent> destination, out int dropped) =>
+            _ring.Read(ref cursor, destination, out dropped);
     }
 }

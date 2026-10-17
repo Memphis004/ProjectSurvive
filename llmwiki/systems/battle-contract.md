@@ -99,7 +99,9 @@ simulation state. A reader owns its own `cursor`; an event type's payload is
 
 `BattleEventRing` is the shared implementation: fixed capacity
 (`BattleConstants.EventRingCapacity = 4096`), strictly increasing `Seq`, multiple
-independent readers, **zero allocation** on write and read. A reader that falls
+independent readers, **zero allocation** on write and read. It is a thin adapter over
+`ProjectSurvive.Core.Shared.EventRing<T>` (ADR 0024): the ring mechanics are generic,
+the contract's `Seq`/`dropped` semantics are this class's. A reader that falls
 behind by more than the capacity loses the oldest events and is told how many
 through `Read(..., out int dropped)` — the loss is reported, never hidden.
 
@@ -147,7 +149,9 @@ Why a pair: the battle ticks at 30 Hz while rendering runs faster, so Stage 08's
 (`accumulator / TickDelta`). Presentation reads only this port, so both ends of the
 pair have to be on it.
 
-`BattleFrameBuffer` is **the** implementation (ADR 0012) and provides both slots:
+`BattleFrameBuffer` is **the** implementation (ADR 0012) and provides both slots. It
+writes through `ProjectSurvive.Core.Shared.PrevCurBuffer<T>` (ADR 0024), which owns the
+two slots and the swap; the cap, the HUD and the cooldown list stay here.
 
 ```
    BeginFrame(tick) -> SetHud(hud) -> Add(entity)… -> AddCooldown(entry)… -> Publish()

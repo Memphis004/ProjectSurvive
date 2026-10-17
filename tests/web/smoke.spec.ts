@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { SCENE, SMOKE, THAI_SPIKE } from "./globals.mjs";
+
 /**
  * Smoke test for the real WebGL build.
  *
@@ -15,10 +17,6 @@ import { expect, test, type Page } from "@playwright/test";
  * WASM, which is why the timeouts here are minutes rather than seconds; a shorter
  * timeout would report a slow machine as a broken build.
  */
-
-const SMOKE = "__projectSurviveSmoke";
-const SCENE = "__projectSurviveScene";
-const THAI_SPIKE = "__projectSurviveThaiSpike";
 
 /** How long to wait for the player to boot and run its self-check. */
 const PLAYER_BOOT_TIMEOUT_MS = 150_000;

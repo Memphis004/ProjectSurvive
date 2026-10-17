@@ -1,15 +1,7 @@
 using System;
 using System.Globalization;
 using System.IO;
-using ProjectSurvive.Game.Battle;
-using ProjectSurvive.Game.Camp;
 using ProjectSurvive.Game.Presentation;
-using ProjectSurvive.Game.Presentation.Battle;
-using ProjectSurvive.Game.Presentation.Battle.Hud;
-using ProjectSurvive.Game.Presentation.Camp;
-using ProjectSurvive.Game.Presentation.Flow;
-using ProjectSurvive.Game.Presentation.Thai;
-using ProjectSurvive.Game.ResultScene;
 using TMPro;
 using UnityEditor;
 using UnityEditor.Build;
@@ -31,14 +23,13 @@ using Object = UnityEngine.Object;
 // runtime UI is uGUI, so those names mean the uGUI types everywhere in this file.
 using Image = UnityEngine.UI.Image;
 using Button = UnityEngine.UI.Button;
-using Toggle = UnityEngine.UI.Toggle;
 
 namespace ProjectSurvive.Game.Editor
 {
     /// <summary>
     /// Creates everything the shell needs that only the Editor can create: the URP
-    /// assets, the WebGL player settings, the runtime UI theme and font assets, and
-    /// the three scenes.
+    /// assets, the WebGL player settings, the runtime UI theme and font assets, the
+    /// build list — and the building blocks every scene is assembled from.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -49,7 +40,18 @@ namespace ProjectSurvive.Game.Editor
     /// one-off click nobody can repeat.
     /// </para>
     /// <para>
-    /// Both entry points are idempotent: they reuse whatever already exists and
+    /// <b>One builder file per scene (Stage 10t).</b> Each scene's construction lives
+    /// in its own <c>*SceneBuilder</c> next to this file — <c>BootSceneBuilder</c>,
+    /// <c>TitleSceneBuilder</c>, <c>ThaiTextSpikeSceneBuilder</c>,
+    /// <c>BattleSceneBuilder</c>, <c>CampSceneBuilder</c>, <c>ResultSceneBuilder</c> —
+    /// together with the menu items that build it. A scene can therefore be removed
+    /// (or left out of a template branch) by deleting one file, and the helpers here
+    /// are the vocabulary those builders share: a scope object, a camera, an event
+    /// system, a canvas, a label, a button, a stretched panel. Nothing in this file
+    /// names a concrete scene's content.
+    /// </para>
+    /// <para>
+    /// The setup entry points are idempotent: they reuse whatever already exists and
     /// only create what is missing, so running them again after a partial failure
     /// repairs the project instead of duplicating assets.
     /// </para>
@@ -86,19 +88,9 @@ namespace ProjectSurvive.Game.Editor
         /// the Boot scene is created and when a scene that should be reachable is added, so the two
         /// cannot drift.
         /// </summary>
-        private static readonly string[] UrlSceneAllowList = { "ThaiTextSpike", "Battle", "Camp", "Result" };
-
-        /// <summary>The summary screen's own line size: comfortably above the 22 px Thai floor.</summary>
-        private const float ResultLineFontSize = 32f;
+        public static readonly string[] UrlSceneAllowList = { "ThaiTextSpike", "Battle", "Camp", "Result" };
 
         private const string SourceFontFile = FontsFolder + "/Sarabun-Regular.ttf";
-
-        /// <summary>
-        /// Nominal size the Thai spike measures both stacks at. The two engines count
-        /// size differently at the margins, so the comparison in
-        /// <c>ThaiSpikeReport.StacksMeasureEqually</c> is relative (1 %), not exact.
-        /// </summary>
-        private const int SpikeTmpFontSize = 48;
 
         /// <summary>
         /// The smallest a Thai label may be authored at, in canvas pixels at the 1920×1080 reference
@@ -112,34 +104,7 @@ namespace ProjectSurvive.Game.Editor
         /// grew with the type). Display text (the 96 px title, the 56 px battle status) is authored
         /// above the floor and left alone.
         /// </remarks>
-        private const float UiFontSize = 22f;
-
-        /// <summary>
-        /// Margin between a battle HUD panel and the canvas edge it is anchored to, in pixels at the
-        /// 1920×1080 reference (Stage 08c).
-        /// </summary>
-        /// <remarks>
-        /// A constant inset rather than a fraction of the canvas: a panel's <i>edge distance</i>
-        /// should not grow with the screen, and at 1280×720 the same 24 px is the same 24 px.
-        /// </remarks>
-        private const float UiMargin = 24f;
-
-        /// <summary>The panel background the battle HUD's four bordered panels share.</summary>
-        private static readonly Color PanelBackdrop = new Color(0.07f, 0.08f, 0.11f, 0.92f);
-
-        /// <summary>
-        /// Height of the dev menu's single column, in pixels: the heading (44), six 52 px rows (312)
-        /// and the 60 px status line, with the margins inside it. The panel is anchored to the bottom
-        /// edge, so this is the one dimension that is a number rather than a fraction.
-        /// </summary>
-        private const float DevMenuHeight = 440f;
-
-        /// <summary>
-        /// The camp tooltip canvas' draw order. Above the camp screen's own canvas (0) and above
-        /// everything it contains — the board, the chest, the incense pot and the bottom bar — because
-        /// the engine sorts overlay canvases by <c>Canvas.sortingOrder</c> before anything else.
-        /// </summary>
-        private const int TooltipSortingOrder = 100;
+        public const float UiFontSize = 22f;
 
         // ------------------------------------------------------------------
         // Menu entry points
@@ -163,111 +128,12 @@ namespace ProjectSurvive.Game.Editor
             Debug.Log("ProjectSurvive: project configured (URP asset assigned, WebGL player settings, fonts, runtime theme).");
         }
 
-        [MenuItem("ProjectSurvive/Stage 03/2. Create scenes (Boot, Title, ThaiTextSpike)", priority = 101)]
-        public static void CreateScenes()
+        /// <summary>Saves the assets, refreshes the database and logs one line. Called by every scene menu item.</summary>
+        public static void SaveAndRefresh(string message)
         {
-            EnsureFolder(ScenesFolder);
-
-            CreateBootScene();
-            CreateTitleScene();
-            CreateSpikeScene();
-            ConfigureBuildSettings();
-
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("ProjectSurvive: Boot, Title and ThaiTextSpike scenes created and added to build settings.");
-        }
-
-        /// <summary>
-        /// Creates the Stage 08 battle scene and refreshes the build list.
-        /// </summary>
-        /// <remarks>
-        /// Its own menu item rather than a fourth call inside Stage 03's, so re-running the
-        /// Stage 03 setup on an older checkout cannot silently rewrite the battle scene, and
-        /// so the scene that a stage owns is the scene that stage's menu item builds. Run the
-        /// Stage 03 items first on a fresh clone: this one reuses the URP assets, the runtime
-        /// theme and the baked font they create.
-        /// </remarks>
-        [MenuItem("ProjectSurvive/Stage 08/3. Create Battle scene", priority = 102)]
-        public static void CreateBattleSceneAndConfigure()
-        {
-            EnsureFolder(ScenesFolder);
-
-            CreateBattleScene();
-            ConfigureBuildSettings();
-
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-            Debug.Log("ProjectSurvive: Battle scene created and added to build settings.");
-        }
-
-        /// <summary>
-        /// Creates the Stage 09 camp scene and refreshes the build list.
-        /// </summary>
-        /// <remarks>
-        /// Its own menu item for the same reason Stage 08 has one: re-running the Stage 03 setup on
-        /// an older checkout must not silently rewrite the camp scene, and the scene a stage owns is
-        /// the scene that stage's menu item builds. Run the Stage 03 items first on a fresh clone:
-        /// this one reuses the URP assets, the runtime theme and the baked font they create.
-        /// </remarks>
-        [MenuItem("ProjectSurvive/Stage 09/5. Create Camp scene", priority = 104)]
-        public static void CreateCampSceneAndConfigure()
-        {
-            EnsureFolder(ScenesFolder);
-
-            CreateCampScene();
-            ConfigureBuildSettings();
-            RefreshUrlSceneAllowList();
-
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-            Debug.Log("ProjectSurvive: Camp scene created and added to build settings.");
-        }
-
-        /// <summary>
-        /// Creates the Stage 10 summary scene and refreshes the build list.
-        /// </summary>
-        /// <remarks>
-        /// Its own menu item for the same reason Stage 08 and Stage 09 have one: the scene a stage
-        /// owns is the scene that stage's item builds, so re-running an older stage's item on an
-        /// existing checkout cannot silently rewrite it. Run the Stage 03 items first on a fresh
-        /// clone — this one reuses the URP assets, the runtime theme and the baked font they create.
-        /// </remarks>
-        [MenuItem("ProjectSurvive/Stage 10/6. Create Result scene", priority = 105)]
-        public static void CreateResultSceneAndConfigure()
-        {
-            EnsureFolder(ScenesFolder);
-
-            CreateResultScene();
-            ConfigureBuildSettings();
-            RefreshUrlSceneAllowList();
-
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-            Debug.Log("ProjectSurvive: Result scene created and added to build settings.");
-        }
-
-        /// <summary>
-        /// Rebuilds the title scene with its start control, and refreshes the build list.
-        /// </summary>
-        /// <remarks>
-        /// Its own menu item even though <see cref="CreateTitleScene"/> is also what Stage 03's scene
-        /// item calls: a checkout that predates Stage 10d needs the title screen
-        /// <i>rebuilt</i> to gain the control, and running this cannot touch Boot, the spike scene or the
-        /// build list of the other stages. The two items produce byte-identical scenes — this one
-        /// simply says which change made you run it.
-        /// </remarks>
-        [MenuItem("ProjectSurvive/Stage 10d/7. Create Title scene (start control)", priority = 106)]
-        public static void CreateTitleSceneAndConfigure()
-        {
-            EnsureFolder(ScenesFolder);
-
-            CreateTitleScene();
-            ConfigureBuildSettings();
-
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-            Debug.Log("ProjectSurvive: Title scene created with its start control.");
+            Debug.Log(message);
         }
 
         // ------------------------------------------------------------------
@@ -398,7 +264,10 @@ namespace ProjectSurvive.Game.Editor
         // Font assets
         // ------------------------------------------------------------------
 
-        private static (TMP_FontAsset tmp, FontAsset textCore) EnsureFontAssets()
+        /// <summary>
+        /// Returns both baked font assets, creating and baking them when they are missing.
+        /// </summary>
+        public static (TMP_FontAsset tmp, FontAsset textCore) EnsureFontAssets()
         {
             Font source = AssetDatabase.LoadAssetAtPath<Font>(SourceFontFile);
             if (source is null)
@@ -720,145 +589,18 @@ namespace ProjectSurvive.Game.Editor
         }
 
         // ------------------------------------------------------------------
-        // Scenes
+        // The build list
         // ------------------------------------------------------------------
 
-        private static void CreateBootScene()
-        {
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-
-            var root = new GameObject("Boot");
-            RootLifetimeScope scope = root.AddComponent<RootLifetimeScope>();
-            SceneBoot boot = root.AddComponent<SceneBoot>();
-
-            SetObjectReference(boot, "_scope", scope);
-            SetBool(boot, "_continueToTitleScene", true);
-            SetString(boot, "_titleSceneName", "Title");
-
-            // `?scene=Battle` is how a browser test reaches the battle without playing through
-            // the camp, and `?scene=Camp` is how it reaches the camp. It is an allow-list, not a
-            // router: only the scenes named here can be requested from a URL.
-            SetStringArray(boot, "_urlSceneOverrides", UrlSceneAllowList);
-
-            EditorSceneManager.SaveScene(scene, BootScenePath);
-        }
-
         /// <summary>
-        /// Builds the title screen: the game's name, the build line under it, and the control that
-        /// starts a run (Stage 10d).
+        /// Rewrites the build list from the scenes that exist on disk.
         /// </summary>
         /// <remarks>
-        /// <para>
-        /// The screen is three centred regions with nothing in common: the heading (96 px) at the
-        /// canvas' centre +120, the build/config line (28 px) at −40, and a 400×76 control at −160.
-        /// Every one of them is authored above the 22 px Thai floor (Stage 09d) and each box is the
-        /// line box it holds rather than a 200 px placeholder, so that the layout the capture tool
-        /// <b>measures</b> is the layout on screen: the heading's box is 140 px, the build line's 60 px
-        /// and the button's 76 px, and the three are disjoint with ≥ 50 px between them.
-        /// </para>
-        /// <para>
-        /// <b>All three are anchored to the canvas' centre</b>, which is what makes the screen centred
-        /// at any canvas rather than only at the 1920×1080 reference: the two labels were already
-        /// (<see cref="CreateTmpLabel"/>), and the control is given the same anchor here. A corner
-        /// anchor would put it ~26 px right of the centre on the template's own 960×600 canvas — measured
-        /// in the browser before this was fixed. The control is the same size as the summary screen's two
-        /// (400×76), which are laid out from their columns' corners. Its caption comes from the
-        /// localization table at runtime (AGENTS rule 5): the scene authors an empty label, like every
-        /// other label here.
-        /// </para>
-        /// <para>
-        /// เริ่มเล่น is what leaves the screen. The button records the press, the
-        /// <see cref="TitlePresenter"/> starts the run through the Application layer, and
-        /// <c>TitleSceneDirector</c> — added here, on the scope object — performs the move through the
-        /// <c>SceneLoader</c>. Boot still stops at this screen on purpose.
-        /// </para>
+        /// Boot, Title and ThaiTextSpike are always listed; the later scenes join only once their
+        /// file exists, so an older checkout keeps a build list of scenes that are really there and
+        /// a departure to a missing scene is refused with a typed error instead of attempted.
         /// </remarks>
-        private static void CreateTitleScene()
-        {
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-
-            RootLifetimeScope scope = CreateScopeObject();
-            TitleSceneDirector director = scope.gameObject.AddComponent<TitleSceneDirector>();
-
-            CreateCamera();
-            CreateEventSystem();
-            Canvas canvas = CreateCanvas(out GameObject canvasObject);
-            var canvasRect = (RectTransform)canvas.transform;
-
-            (TMP_FontAsset tmpFont, _) = EnsureFontAssets();
-
-            TMP_Text titleLabel = CreateTmpLabel(
-                canvas, "TitleLabel", new Vector2(0f, 120f), 96f, tmpFont, new Vector2(1800f, 140f));
-
-            TMP_Text diagnosticsLabel = CreateTmpLabel(
-                canvas, "DiagnosticsLabel", new Vector2(0f, -40f), 28f, tmpFont, new Vector2(1800f, 60f));
-
-            // Anchored to the canvas' centre rather than laid out from its top-left corner, because the
-            // control belongs to content that is centred: the heading and the build line above it are
-            // centre-anchored (CreateTmpLabel), and a CanvasScaler's virtual width follows the screen's
-            // aspect, so 1920 px of corner arithmetic would put this control ~26 px right of the centre
-            // on the template's own 960×600 canvas while the two labels stayed centred. 160 px below the
-            // centre is where 760/-662 put it at the 1920×1080 reference: the same place on screen, now
-            // the same place on any canvas (measured in the browser: 480 of 960 and 640 of 1280).
-            Button startButton = CreateUiButton(
-                canvasRect, "StartButton", new Vector2(0f, -160f), new Vector2(400f, 76f), tmpFont,
-                out TMP_Text startLabel, anchor: new Vector2(0.5f, 0.5f));
-
-            TitleView view = canvasObject.AddComponent<TitleView>();
-            SetObjectReference(view, "_scope", scope);
-            SetObjectReference(view, "_titleLabel", titleLabel);
-            SetObjectReference(view, "_diagnosticsLabel", diagnosticsLabel);
-            SetObjectReference(view, "_startButton", startButton);
-            SetObjectReference(view, "_startLabel", startLabel);
-
-            SetObjectReference(director, "_scope", scope);
-
-            EditorSceneManager.SaveScene(scene, TitleScenePath);
-        }
-
-        private static void CreateSpikeScene()
-        {
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-
-            RootLifetimeScope scope = CreateScopeObject();
-            CreateCamera();
-            CreateEventSystem();
-
-            (TMP_FontAsset tmpFont, FontAsset textCoreFont) = EnsureFontAssets();
-            PanelSettings panelSettings = AssetDatabase.LoadAssetAtPath<PanelSettings>(PanelSettingsPath);
-
-            Canvas canvas = CreateCanvas(out GameObject canvasObject);
-            TMP_Text tmpLabel = CreateTmpLabel(canvas, "TmpSpikeLabel", new Vector2(0f, 200f), SpikeTmpFontSize, tmpFont);
-
-            var tmpViewObject = new GameObject("TmpSpike");
-            tmpViewObject.transform.SetParent(canvasObject.transform, false);
-            ThaiSpikeTmpView tmpView = tmpViewObject.AddComponent<ThaiSpikeTmpView>();
-            SetObjectReference(tmpView, "_label", tmpLabel);
-            SetObjectReference(tmpView, "_font", tmpFont);
-
-            var toolkitObject = new GameObject("ToolkitSpike");
-            UIDocument document = toolkitObject.AddComponent<UIDocument>();
-            document.panelSettings = panelSettings;
-            ThaiSpikeToolkitView toolkitView = toolkitObject.AddComponent<ThaiSpikeToolkitView>();
-            SetObjectReference(toolkitView, "_document", document);
-            SetObjectReference(toolkitView, "_fontAsset", textCoreFont);
-
-            // Both stacks are given the same nominal size, because they are being
-            // compared: measured Stage 03 at unequal sizes (48 vs 32) the two stacks
-            // disagreed on every string, and the disagreement was the configuration,
-            // not the text engine.
-            SetInt(toolkitView, "_fontSize", SpikeTmpFontSize);
-
-            ThaiSpikeReporter reporter = canvasObject.AddComponent<ThaiSpikeReporter>();
-            SetObjectReference(reporter, "_scope", scope);
-            SetObjectReference(reporter, "_tmpView", tmpView);
-            SetObjectReference(reporter, "_toolkitView", toolkitView);
-            SetString(reporter, "_fontName", "Sarabun-Regular.ttf");
-
-            EditorSceneManager.SaveScene(scene, SpikeScenePath);
-        }
-
-        private static void ConfigureBuildSettings()
+        public static void ConfigureBuildSettings()
         {
             var scenes = new System.Collections.Generic.List<EditorBuildSettingsScene>
             {
@@ -867,8 +609,6 @@ namespace ProjectSurvive.Game.Editor
                 new EditorBuildSettingsScene(SpikeScenePath, true),
             };
 
-            // The battle and camp scenes join the list only once they exist, so a Stage 03-only
-            // checkout keeps a build list of scenes that are really there.
             if (File.Exists(BattleScenePath))
             {
                 scenes.Add(new EditorBuildSettingsScene(BattleScenePath, true));
@@ -879,9 +619,6 @@ namespace ProjectSurvive.Game.Editor
                 scenes.Add(new EditorBuildSettingsScene(CampScenePath, true));
             }
 
-            // The summary scene likewise joins only once it exists: a Stage 09-only checkout keeps
-            // a build list of scenes that are really there, and the battle's departure to it is
-            // refused (with a typed error) rather than attempted against a missing scene.
             if (File.Exists(ResultScenePath))
             {
                 scenes.Add(new EditorBuildSettingsScene(ResultScenePath, true));
@@ -900,7 +637,7 @@ namespace ProjectSurvive.Game.Editor
         /// publishes its own name, and an allow-list that permits it) stay in step without a second
         /// manual step nobody remembers.
         /// </remarks>
-        private static void RefreshUrlSceneAllowList()
+        public static void RefreshUrlSceneAllowList()
         {
             if (!File.Exists(BootScenePath))
             {
@@ -921,1150 +658,18 @@ namespace ProjectSurvive.Game.Editor
         }
 
         // ------------------------------------------------------------------
-        // Stage 08: the Battle scene
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// Builds the 2.5D battle scene: the scope that picks the battle, the tilted camera,
-        /// the pooled view root, the runner, and the HUD.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// Everything here is created through the Editor API (AGENTS rule 11) — no
-        /// hand-written <c>.unity</c> YAML — so the scene is reproducible from the menu item and
-        /// reviewable as code. The serialized references the runtime needs (the view root, the
-        /// camera, the HUD and the font) are wired through <c>SerializedProperty</c> rather than
-        /// by guessing at file ids.
-        /// </para>
-        /// <para>
-        /// The camera is authored at the Stage 08 decision: see
-        /// <c>docs/adr/0018-battle-camera-projection.md</c>. The projection is stored on the
-        /// runner's settings as well, so a scene can flip it without editing this file, and the
-        /// rig re-applies it at runtime either way.
-        /// </para>
-        /// </remarks>
-        private static void CreateBattleScene()
-        {
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-
-            (TMP_FontAsset font, _) = EnsureFontAssets();
-
-            var scopeObject = new GameObject("Battle");
-            BattleSceneScope scope = scopeObject.AddComponent<BattleSceneScope>();
-            BattleSceneDirector director = scopeObject.AddComponent<BattleSceneDirector>();
-
-            Camera camera = CreateBattleCamera();
-            CreateEventSystem();
-
-            var viewRoot = new GameObject("ViewRoot");
-
-            Canvas canvas = CreateCanvas(out GameObject canvasObject);
-            BattleHudView hud = BuildBattleHud(canvas, canvasObject, font, scope, out BattleMiniBagView miniBag);
-
-            var runnerObject = new GameObject("BattleRunner");
-            BattleSimulationRunner runner = runnerObject.AddComponent<BattleSimulationRunner>();
-
-            SetObjectReference(runner, "_viewSettings.ViewRoot", viewRoot.transform);
-            SetObjectReference(runner, "_viewSettings.Camera", camera);
-            SetObjectReference(runner, "_viewSettings.Hud", hud);
-            SetObjectReference(runner, "_viewSettings.MiniBag", miniBag);
-            SetObjectReference(runner, "_viewSettings.Font", font);
-            SetEnum(runner, "_viewSettings.Projection", (int)BattleProjection.Orthographic);
-
-            SetObjectReference(director, "_scope", scope);
-            SetObjectReference(director, "_runner", runner);
-
-            BuildDevMenu(font, scope, runner);
-
-            EditorSceneManager.SaveScene(scene, BattleScenePath);
-        }
-
-        /// <summary>
-        /// The dev menu (Stage 10c): a panel of six test controls and a status line, authored on its
-        /// own canvas above the HUD and <b>inactive</b>.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// "ตั้งชื่อ test-only ให้ชัดเจน" is why the heading says <c>DEV MENU (test only)</c> in
-        /// capitals and why the panel sits in a corner rather than among the run's own controls: it
-        /// is not part of the game, and nothing about it should be mistaken for one.
-        /// </para>
-        /// <para>
-        /// The panel starts inactive because that is the honest authored state — a release build
-        /// must never show it, and the view is what turns it on, from
-        /// <c>DevCheats.Allowed</c> (a development build or the Editor). The captions are written
-        /// from <see cref="DevMenuText"/> rather than typed here, so the words exist in one place and
-        /// a test can compare what it reads on screen with what the presenter sends.
-        /// </para>
-        /// <para>
-        /// It is on its own canvas with <c>sortingOrder</c> 200: above the HUD (0), below the scene
-        /// loader's fade (3000), so a control is never drawn under the HUD and is never drawn over a
-        /// transition.
-        /// </para>
-        /// <para>
-        /// <b>One column at the bottom right (Stage 08c).</b> It used to be a two-column block in the
-        /// bottom-left corner, where the status panel now is and where the timeline is one row above
-        /// it; the column form is both the brief's own arrangement and the one that cannot reach
-        /// either. Every button stretches to the panel's width, so the column reads as a list at
-        /// 1280×720 as well as at 1920×1080.
-        /// </para>
-        /// </remarks>
-        private static void BuildDevMenu(TMP_FontAsset font, BattleSceneScope scope, BattleSimulationRunner runner)
-        {
-            Canvas canvas = CreateCanvas(out GameObject canvasObject, sortingOrder: 200, withRaycaster: true);
-            var canvasRect = (RectTransform)canvas.transform;
-
-            // Bottom-right band: a quarter of the width at the canvas edge, tall enough for the
-            // heading, six 44 px rows and the status line (24 + 416 + 12 = 452 px at the reference).
-            RectTransform panel = StretchUiRect(
-                canvasRect, UiLayoutCheck.DevPanel, new Vector2(0.75f, 0f), new Vector2(1f, 0f),
-                new Vector2(16f, UiMargin), new Vector2(-UiMargin, UiMargin + DevMenuHeight));
-
-            var background = panel.gameObject.AddComponent<Image>();
-            background.color = new Color(0.08f, 0.10f, 0.13f, 0.88f);
-            background.raycastTarget = true;
-
-            TMP_Text heading = StretchUiText(
-                panel, "DevHeading", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(12f, -38f), new Vector2(-12f, -8f), UiFontSize, font);
-            heading.color = new Color(1f, 0.82f, 0.35f, 1f);
-            heading.text = DevMenuText.Title;
-
-            Button godMode = CreateDevButton(panel, "DevGodMode", 0, font, out TMP_Text godModeLabel);
-            godModeLabel.text = DevMenuText.GodModeOff;
-
-            Button addBia = CreateDevButton(panel, "DevAddBia", 1, font, out TMP_Text addBiaLabel);
-            addBiaLabel.text = DevMenuText.AddBia;
-
-            Button spawnGhost = CreateDevButton(panel, "DevSpawnGhost", 2, font, out TMP_Text spawnGhostLabel);
-            spawnGhostLabel.text = DevMenuText.SpawnGhost;
-
-            Button killAll = CreateDevButton(panel, "DevKillAll", 3, font, out TMP_Text killAllLabel);
-            killAllLabel.text = DevMenuText.KillAll;
-
-            Button winNow = CreateDevButton(panel, "DevWinNow", 4, font, out TMP_Text winNowLabel);
-            winNowLabel.text = DevMenuText.WinNow;
-
-            Button loseNow = CreateDevButton(panel, "DevLoseNow", 5, font, out TMP_Text loseNowLabel);
-            loseNowLabel.text = DevMenuText.LoseNow;
-
-            TMP_Text status = StretchUiText(
-                panel, "DevStatus", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(12f, -416f), new Vector2(-12f, -356f), UiFontSize, font);
-            status.text = DevMenuText.Disabled;
-
-            DevMenuView view = canvasObject.AddComponent<DevMenuView>();
-            SetObjectReference(view, "_scope", scope);
-            SetObjectReference(view, "_runner", runner);
-            SetObjectReference(view, "_panel", panel.gameObject);
-            SetObjectReference(view, "_statusLabel", status);
-            SetObjectReference(view, "_godModeLabel", godModeLabel);
-            SetObjectReference(view, "_godModeButton", godMode);
-            SetObjectReference(view, "_addBiaButton", addBia);
-            SetObjectReference(view, "_spawnGhostButton", spawnGhost);
-            SetObjectReference(view, "_killAllButton", killAll);
-            SetObjectReference(view, "_winNowButton", winNow);
-            SetObjectReference(view, "_loseNowButton", loseNow);
-
-            // Authored hidden: the one build that must never show it is the one that cannot turn it
-            // on, and a scene saved with the panel off says so in the scene itself.
-            panel.gameObject.SetActive(false);
-        }
-
-        /// <summary>
-        /// One row of the dev menu's single column: the <paramref name="row"/>-th 44 px control,
-        /// stretched to the panel's width between 12 px insets.
-        /// </summary>
-        /// <remarks>
-        /// Rows start under the heading and are 52 px apart (44 px of control and an 8 px gap), so the
-        /// panel's own height is the only number that has to be right — <see cref="DevMenuHeight"/>.
-        /// </remarks>
-        private static Button CreateDevButton(
-            RectTransform panel, string name, int row, TMP_FontAsset font, out TMP_Text label)
-        {
-            float top = 44f + (row * 52f);
-
-            RectTransform rect = StretchUiRect(
-                panel, name, new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(12f, -(top + 44f)), new Vector2(-12f, -top));
-
-            Image background = rect.gameObject.AddComponent<Image>();
-            background.color = new Color(0.16f, 0.17f, 0.22f, 0.95f);
-
-            Button button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = background;
-
-            label = StretchUiText(
-                rect, name + "Label", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero,
-                UiFontSize, font, TextAlignmentOptions.Center);
-
-            return button;
-        }
-
-        /// <summary>
-        /// The battle camera: a 50° tilt that follows the player.
-        /// </summary>
-        /// <remarks>
-        /// The camera itself is built by <see cref="BattleCameraProbe.CreateAuthoredCamera"/>, which
-        /// poses it with <c>BattleCameraRig</c> — the same rig that re-poses it on the first frame
-        /// of a battle. One factory rather than two copies of the arithmetic means the scene an
-        /// artist opens is the scene the game runs, and the camera the ADR's experiment measured is
-        /// the camera the scene ships.
-        /// </remarks>
-        private static Camera CreateBattleCamera() => BattleCameraProbe.CreateAuthoredCamera();
-
-        /// <summary>
-        /// The battle HUD as Stage 08c lays it out: the mini ย่าม at the top left, the floor's name
-        /// and number at the top centre, its stats and the speed control at the top right, the
-        /// status panel (figure, HP, MP) at the bottom left, the timeline along the bottom and the
-        /// dev menu in the bottom-right column.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// <b>Every panel is anchored to a canvas edge and stretched, not placed at a pixel.</b>
-        /// The layout is therefore one arrangement at 1920×1080 and 1280×720 rather than two: the
-        /// mini bag is a quarter of the canvas's width by construction (<c>anchorMax.x = 0.25</c>),
-        /// the two bottom panels stop at the same fraction of the height, and the timeline takes
-        /// the middle half of the width. The vertical split is what keeps the bottom-left status
-        /// panel and the top-left mini bag apart at both sizes — the mini bag starts at 45 % of the
-        /// height and the status panel ends at 30 %, so the band between them belongs to neither.
-        /// </para>
-        /// <para>
-        /// The mini ย่าม replaced the line of equipped spell names ("เอาข้อความรายการคาถาที่ติดตั้งออก"):
-        /// the bag itself now says which pieces are equipped, and the piece that can cast carries a
-        /// cooldown plate (Stage 08b's <c>IBattleFrame.Cooldowns</c>).
-        /// </para>
-        /// <para>
-        /// All text is at or above <see cref="UiFontSize"/> (22 px), which is the Thai floor the
-        /// project has held since Stage 09d; the mini bag's tier numbers are sized from its own cells
-        /// with the same floor (see <c>BattleMiniBagView</c>).
-        /// </para>
-        /// <para>
-        /// The mini bag is handed back through <paramref name="miniBag"/> because the HUD view does not
-        /// own it: it is wired straight into <c>BattleViewSettings.MiniBag</c>, which is the reference
-        /// <c>BattleViewScene</c> builds and plates the bag from. Without that one
-        /// <c>SetObjectReference</c> the panel draws its caption and nothing else — a defect the scene's
-        /// own PlayMode test caught ("the scene wired no mini bag").
-        /// </para>
-        /// </remarks>
-        private static BattleHudView BuildBattleHud(
-            Canvas canvas, GameObject canvasObject, TMP_FontAsset font, BattleSceneScope scope,
-            out BattleMiniBagView miniBag)
-        {
-            var canvasRect = (RectTransform)canvas.transform;
-
-            // ---- top left: the mini ย่าม, at most a quarter of the canvas wide ----
-            RectTransform miniBagPanel = StretchUiRect(
-                canvasRect, UiLayoutCheck.MiniBag, new Vector2(0f, 0.45f), new Vector2(0.25f, 1f),
-                new Vector2(UiMargin, UiMargin), new Vector2(-UiMargin, -UiMargin));
-            AddPanelBackground(miniBagPanel, MiniBagPalette.Backdrop);
-
-            TMP_Text bagCaption = CreateUiText(
-                miniBagPanel, "BagCaption", new Vector2(10f, -6f), new Vector2(240f, 30f), UiFontSize, font);
-
-            // The grid's own area: below the caption, inside the panel's edges. The view measures
-            // this rect and sizes its cells to it, so a canvas resize re-fits the bag rather than
-            // clipping it.
-            RectTransform miniBagContent = StretchUiRect(
-                miniBagPanel, "MiniBagContent", Vector2.zero, Vector2.one,
-                new Vector2(10f, 10f), new Vector2(-10f, -42f));
-
-            miniBag = miniBagPanel.gameObject.AddComponent<BattleMiniBagView>();
-            SetObjectReference(miniBag, "_panel", miniBagPanel);
-            SetObjectReference(miniBag, "_content", miniBagContent);
-            SetObjectReference(miniBag, "_font", font);
-
-            // ---- top centre: the floor's name and its number in the run ----
-            RectTransform floorPanel = StretchUiRect(
-                canvasRect, UiLayoutCheck.FloorPanel, new Vector2(0.35f, 1f), new Vector2(0.65f, 1f),
-                new Vector2(0f, -140f), new Vector2(0f, -UiMargin));
-            AddPanelBackground(floorPanel, PanelBackdrop);
-
-            TMP_Text floorLabel = StretchUiText(
-                floorPanel, "FloorLabel", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(12f, -54f), new Vector2(-12f, -10f), 30f, font, TextAlignmentOptions.Center);
-
-            TMP_Text floorIndexLabel = StretchUiText(
-                floorPanel, "FloorIndexLabel", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(12f, -96f), new Vector2(-12f, -58f), UiFontSize, font, TextAlignmentOptions.Center);
-
-            // ---- top right: time, bia, kills, wave, the boss bar and the speed control ----
-            //
-            // The panel is 276 reference pixels tall, and that number is measured rather than chosen:
-            // three stat rows (a caption over its value), the boss band and the speed control do not
-            // fit in the 220 the rows alone needed once the controls were moved in under them, and
-            // `ProjectSurvive/Tools/1. Capture UI` reports the collision ("SpeedButton overlaps
-            // KillsValue") rather than letting a player find it. Every band is separated by at least
-            // 2 reference pixels: two boxes that merely *touch* are not a collision, but at 1280×720
-            // the canvas scalar rounds a shared edge to different floats on each side and a tangent
-            // pair reads as an overlap.
-            RectTransform resourcePanel = StretchUiRect(
-                canvasRect, UiLayoutCheck.ResourcePanel, new Vector2(0.65f, 1f), new Vector2(1f, 1f),
-                new Vector2(0f, -300f), new Vector2(-UiMargin, -UiMargin));
-            AddPanelBackground(resourcePanel, PanelBackdrop);
-
-            TMP_Text biaCaption = CreateUiText(resourcePanel, "BiaCaption", new Vector2(0f, -8f), new Vector2(160f, 30f), UiFontSize, font);
-            TMP_Text biaValue = CreateUiText(resourcePanel, "BiaValue", new Vector2(0f, -40f), new Vector2(200f, 40f), 30f, font);
-            TMP_Text timeCaption = CreateUiText(resourcePanel, "TimeCaption", new Vector2(220f, -8f), new Vector2(160f, 30f), UiFontSize, font);
-            TMP_Text timeValue = CreateUiText(resourcePanel, "TimeValue", new Vector2(220f, -40f), new Vector2(200f, 40f), 30f, font);
-            TMP_Text waveCaption = CreateUiText(resourcePanel, "WaveCaption", new Vector2(0f, -86f), new Vector2(160f, 28f), UiFontSize, font);
-            TMP_Text waveValue = CreateUiText(resourcePanel, "WaveValue", new Vector2(220f, -86f), new Vector2(200f, 28f), UiFontSize, font);
-            TMP_Text killsCaption = CreateUiText(resourcePanel, "KillsCaption", new Vector2(0f, -120f), new Vector2(200f, 28f), UiFontSize, font);
-            TMP_Text killsValue = CreateUiText(resourcePanel, "KillsValue", new Vector2(220f, -120f), new Vector2(200f, 28f), UiFontSize, font);
-
-            // The boss bar appears only on a boss floor; the presenter tells the view when. It is a
-            // band inside the resource panel, never a panel of its own — the layout check holds a
-            // control to its surface.
-            RectTransform bossRoot = StretchUiRect(
-                resourcePanel, UiLayoutCheck.BossPanel, new Vector2(0f, 0f), new Vector2(1f, 0f),
-                new Vector2(0f, 70f), new Vector2(0f, 114f));
-            TMP_Text bossCaption = CreateUiText(bossRoot, "BossCaption", new Vector2(0f, -4f), new Vector2(200f, 22f), UiFontSize, font);
-            RectTransform bossBar = StretchUiBar(
-                bossRoot, "BossBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(0f, -42f), new Vector2(0f, -30f), new Color(0.85f, 0.32f, 0.34f, 1f));
-
-            RectTransform speedObject = StretchUiRect(
-                resourcePanel, UiLayoutCheck.SpeedButton, new Vector2(0f, 0f), new Vector2(1f, 0f),
-                new Vector2(0f, 8f), new Vector2(0f, 66f));
-            Image speedBackground = speedObject.gameObject.AddComponent<Image>();
-            speedBackground.color = new Color(0.16f, 0.17f, 0.22f, 0.9f);
-            Button speedButton = speedObject.gameObject.AddComponent<Button>();
-            speedButton.targetGraphic = speedBackground;
-            TMP_Text speedLabel = StretchUiText(
-                speedObject, "SpeedLabel", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero,
-                28f, font, TextAlignmentOptions.Center);
-
-            // ---- bottom left: the status panel (figure, HP, MP) ----
-            RectTransform statusPanel = StretchUiRect(
-                canvasRect, UiLayoutCheck.StatusPanel, Vector2.zero, new Vector2(0.25f, 0.30f),
-                new Vector2(UiMargin, UiMargin), new Vector2(-UiMargin, -UiMargin));
-            AddPanelBackground(statusPanel, PanelBackdrop);
-
-            // The caption sits over the figure, not beside it: "สถานะ" is 200 px wide and the figure
-            // starts 46 px below the panel's top for exactly that reason — as first authored, the two
-            // shared their top-right corner and the capture command reported
-            // "Portrait overlaps StatusCaption".
-            TMP_Text statusCaption = CreateUiText(
-                statusPanel, "StatusCaption", new Vector2(10f, -8f), new Vector2(200f, 28f), UiFontSize, font);
-
-            RectTransform portraitObject = CreateUiRect(
-                statusPanel, "Portrait", new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(10f, -46f), new Vector2(72f, 72f));
-            Image portrait = portraitObject.gameObject.AddComponent<Image>();
-            portrait.raycastTarget = false;
-            portrait.preserveAspect = true;
-
-            // A caption and its value are two boxes with 2 px between them (116..174 and 176..284):
-            // sharing an edge exactly is what makes a tangent pair read as a collision once the canvas
-            // scalar has rounded both sides differently.
-            TMP_Text hpCaption = CreateUiText(statusPanel, "HpCaption", new Vector2(92f, -50f), new Vector2(58f, 26f), UiFontSize, font);
-            TMP_Text hpValue = CreateUiText(statusPanel, "HpValue", new Vector2(152f, -50f), new Vector2(108f, 26f), UiFontSize, font);
-            RectTransform hpBar = StretchUiBar(
-                statusPanel, "HpBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(92f, -92f), new Vector2(-10f, -78f), new Color(0.85f, 0.28f, 0.30f, 1f));
-            TMP_Text manaCaption = CreateUiText(statusPanel, "ManaCaption", new Vector2(92f, -100f), new Vector2(58f, 24f), UiFontSize, font);
-            TMP_Text manaValue = CreateUiText(statusPanel, "ManaValue", new Vector2(152f, -100f), new Vector2(108f, 24f), UiFontSize, font);
-            RectTransform manaBar = StretchUiBar(
-                statusPanel, "ManaBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(92f, -140f), new Vector2(-10f, -126f), new Color(0.42f, 0.72f, 0.95f, 1f));
-
-            // ---- bottom centre: the floor's timeline ----
-            RectTransform timelinePanel = StretchUiRect(
-                canvasRect, UiLayoutCheck.TimelinePanel, new Vector2(0.25f, 0f), new Vector2(0.75f, 0.20f),
-                new Vector2(16f, UiMargin), new Vector2(-16f, -16f));
-            AddPanelBackground(timelinePanel, PanelBackdrop);
-
-            TMP_Text timelineCaption = StretchUiText(
-                timelinePanel, "TimelineCaption", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(12f, -36f), new Vector2(-12f, -6f), UiFontSize, font);
-
-            RectTransform track = StretchUiRect(
-                timelinePanel, "TimelineTrack", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(12f, -70f), new Vector2(-12f, -44f));
-            Image trackImage = track.gameObject.AddComponent<Image>();
-            trackImage.color = new Color(0.12f, 0.13f, 0.17f, 0.85f);
-
-            // Markers stretch across the track and are positioned by their anchors, so the bar
-            // needs no per-frame layout maths: the view writes anchorMin/anchorMax and moves on.
-            RectTransform timelineMarkers = StretchUiRect(
-                track, "Markers", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-
-            RectTransform playhead = StretchUiRect(
-                track, "Playhead", new Vector2(0f, 0f), new Vector2(0f, 1f),
-                new Vector2(0f, 0f), new Vector2(6f, 0f));
-            Image playheadImage = playhead.gameObject.AddComponent<Image>();
-            playheadImage.color = new Color(0.95f, 0.95f, 0.98f, 0.9f);
-
-            TMP_Text statusLabel = CreateUiText(
-                canvasRect, "StatusLabel", new Vector2(-600f, 120f), new Vector2(1200f, 90f), 56f, font,
-                TextAlignmentOptions.Center);
-            statusLabel.gameObject.SetActive(false);
-
-            BattleTimelineView timeline = track.gameObject.AddComponent<BattleTimelineView>();
-            SetObjectReference(timeline, "_track", timelineMarkers);
-            SetObjectReference(timeline, "_playhead", playhead);
-
-            BattleHudView hud = canvasObject.AddComponent<BattleHudView>();
-            SetObjectReference(hud, "_scope", scope);
-            SetObjectReference(hud, "_floorLabel", floorLabel);
-            SetObjectReference(hud, "_floorIndexLabel", floorIndexLabel);
-            SetObjectReference(hud, "_hpCaption", hpCaption);
-            SetObjectReference(hud, "_hpValue", hpValue);
-            SetObjectReference(hud, "_manaCaption", manaCaption);
-            SetObjectReference(hud, "_manaValue", manaValue);
-            SetObjectReference(hud, "_biaCaption", biaCaption);
-            SetObjectReference(hud, "_biaValue", biaValue);
-            SetObjectReference(hud, "_timeCaption", timeCaption);
-            SetObjectReference(hud, "_timeValue", timeValue);
-            SetObjectReference(hud, "_waveCaption", waveCaption);
-            SetObjectReference(hud, "_waveValue", waveValue);
-            SetObjectReference(hud, "_killsCaption", killsCaption);
-            SetObjectReference(hud, "_killsValue", killsValue);
-            SetObjectReference(hud, "_bagCaption", bagCaption);
-            SetObjectReference(hud, "_statusCaption", statusCaption);
-            SetObjectReference(hud, "_timelineCaption", timelineCaption);
-            SetObjectReference(hud, "_bossCaption", bossCaption);
-            SetObjectReference(hud, "_statusLabel", statusLabel);
-            SetObjectReference(hud, "_speedLabel", speedLabel);
-            SetObjectReference(hud, "_portrait", portrait);
-            SetObjectReference(hud, "_hpBar", hpBar);
-            SetObjectReference(hud, "_manaBar", manaBar);
-            SetObjectReference(hud, "_bossBar", bossBar);
-            SetObjectReference(hud, "_bossRoot", bossRoot.gameObject);
-            SetObjectReference(hud, "_speedButton", speedButton);
-            SetObjectReference(hud, "_timeline", timeline);
-
-            return hud;
-        }
-
-        // ------------------------------------------------------------------
-        // Stage 09: the Camp scene
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// Builds ศาลาพัก: the sala the player walks (ground, ยายจันทร์'s stall, the four shelf
-        /// stations and the เซียมซี cylinder), the figure, the จัดย่าม bag screen, the bottom bar and
-        /// the depart button.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// Everything here is created through the Editor API (AGENTS rule 11) — no hand-written
-        /// <c>.unity</c> YAML — so the scene is reproducible from the menu item and reviewable as
-        /// code. Serialized references are wired through <c>SerializedProperty</c> rather than by
-        /// guessing at file ids.
-        /// </para>
-        /// <para>
-        /// <b>The shop is in the world, not in a panel.</b> Stage 09c moved the stall out of the UI:
-        /// each shop slot is a shelf standing in the sala with its own price board and lock control,
-        /// so there is no second list of offers in the report or on the screen. Everything the
-        /// player needs without walking is still reachable without walking — a shelf can be rented
-        /// by clicking it (what a phone and a browser test use) and the จัดย่าม button is on the
-        /// canvas, not in the sala. The bag screen itself is the one thing that opens and closes,
-        /// and it starts closed.
-        /// </para>
-        /// </remarks>
-        private static void CreateCampScene()
-        {
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-
-            (TMP_FontAsset font, _) = EnsureFontAssets();
-
-            var scopeObject = new GameObject("Camp");
-            CampSceneScope scope = scopeObject.AddComponent<CampSceneScope>();
-            CampSceneDirector director = scopeObject.AddComponent<CampSceneDirector>();
-
-            Camera camera = CreateCamera();
-            camera.transform.position = new Vector3(0f, 7.2f, -12.7f);
-            camera.transform.rotation = Quaternion.Euler(32f, 0f, 0f);
-            camera.orthographic = true;
-            camera.orthographicSize = 6.6f;
-
-            CreateEventSystem();
-
-            // The sala is a view, not editor-authored sprites: it generates its own art at runtime
-            // (AGENTS rule 13), so the scene carries no placeholder binaries. It is built once in
-            // Awake and the camera follows the player underneath it.
-            var worldObject = new GameObject("CampWorld");
-            CampWorldView world = worldObject.AddComponent<CampWorldView>();
-            SetObjectReference(world, "_scope", scope);
-            SetObjectReference(world, "_camera", camera);
-            SetObjectReference(world, "_font", font);
-
-            // The walker: a figure the player drives with WASD, standing in the sala. It owns the
-            // walking speed and the reach (both from data/tables/constant.csv, AGENTS rule 5).
-            var playerObject = new GameObject("CampPlayer");
-            CampPlayerView walker = playerObject.AddComponent<CampPlayerView>();
-            SetObjectReference(walker, "_scope", scope);
-            SetObjectReference(walker, "_world", world);
-
-            Canvas canvas = CreateCanvas(out GameObject canvasObject);
-            var canvasRect = (RectTransform)canvas.transform;
-
-            CampStatusBarView status = BuildCampStatusBar(canvasRect, font, scope);
-            CampTooltipView tooltip = BuildCampTooltip(font, scope);
-            CampBagScreenView bag = BuildCampBagScreen(canvasRect, canvasObject, font, scope);
-
-            SetObjectReference(walker, "_bag", bag);
-            SetObjectReference(director, "_scope", scope);
-            SetObjectReference(director, "_world", world);
-            SetObjectReference(director, "_player", walker);
-            SetObjectReference(director, "_bag", bag);
-            SetObjectReference(director, "_status", status);
-            SetObjectReference(director, "_tooltip", tooltip);
-
-            EditorSceneManager.SaveScene(scene, CampScenePath);
-        }
-
-        /// <summary>
-        /// The จัดย่าม screen overlay: the board (left), the chest (right), the altar pot
-        /// (bottom-centre), instructions (top-right), restore/lock with its checkbox (top-left),
-        /// and navigation/stats (bottom-left).
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// Every region is anchored to a <b>corner or edge of the canvas</b> — top-left, top-right,
-        /// bottom-left, bottom-centre — and the canvas scaler (1920×1080, match 0.5) turns that into
-        /// the same proportions at any window size, so no element is placed by an absolute screen
-        /// pixel. The numbers below are in reference units and are measured rather than guessed: at
-        /// 1920×1080 the rows are 20..106 from the top (the top-left controls), 140..720 from the top
-        /// (the board) and 232..340, 214..320, 16..206 from the bottom (the panel's own foot, the
-        /// pot and the status bar), the columns are 40..780, 822..1032 and 1104..1880, and no two of
-        /// the regions the capture command measures intersect — at either size, which
-        /// <c>artifacts/ui/ui-report.md</c> records.
-        /// </para>
-        /// <para>
-        /// <b>Nothing here repeats the bottom bar.</b> Stage 09's panel carried its own เบี้ย/น้ำหนัก/HP
-        /// readouts while the bar under it carried the same numbers, and the two disagreed the moment
-        /// one of them was stale; the panel now has the controls the bar does not (กลับ, ไปชั้นถัดไป
-        /// and the reason it is disabled) and the bar stays the only place a run stat is shown.
-        /// </para>
-        /// <para>
-        /// <b>The blocks stand clear of each other and of the bar.</b> The panel's foot sits above the
-        /// status bar rather than on it (Stage 09e work item 1: the buttons and the run's own numbers
-        /// must not share pixels), and the incense pot sits in the column the bar does not reach —
-        /// between the panel's foot (ends at x 780) and the bar's ออกเดินทาง button (starts at 1074) —
-        /// so the pot cannot cover the one control that leaves the camp.
-        /// </para>
-        /// <para>
-        /// Every label is ≥ 22 px at the 1080p base (Stage 09d item 2). Nothing here writes player
-        /// text: the strings arrive over <c>CampUiState</c> from the localization table
-        /// (AGENTS rule 5), and this method only places the widgets that will receive them.
-        /// </para>
-        /// </remarks>
-        private static CampBagScreenView BuildCampBagScreen(
-            RectTransform canvasRect, GameObject canvasObject, TMP_FontAsset font, CampSceneScope scope)
-        {
-            // Fullscreen overlay panel. Translucent rather than opaque: the layout is an overlay on
-            // ศาลาพัก, so the camp has to stay visible behind it ("เห็นฉากอยู่ด้านหลัง").
-            RectTransform panel = CreateUiRect(
-                canvasRect, "BagPanel", Vector2.zero, Vector2.one,
-                Vector2.zero, Vector2.zero);
-            panel.anchorMin = Vector2.zero;
-            panel.anchorMax = Vector2.one;
-            panel.offsetMin = Vector2.zero;
-            panel.offsetMax = Vector2.zero;
-            panel.pivot = new Vector2(0.5f, 0.5f);
-
-            var panelImage = panel.gameObject.AddComponent<Image>();
-            panelImage.color = new Color(0.06f, 0.08f, 0.10f, 0.62f);
-            panelImage.raycastTarget = true;
-
-            // View is attached directly to the panel so it receives all graphic raycasts.
-            CampBagScreenView view = panel.gameObject.AddComponent<CampBagScreenView>();
-
-            // --- Top-left row (y 20..160): title, restore + its checkbox, lock, rotate, undo ------
-            TMP_Text title = CreateUiText(panel, "BagTitle", new Vector2(40f, -20f), new Vector2(200f, 44f), 26f, font);
-            Button reset = CreateUiButton(panel, "ResetButton", new Vector2(250f, -20f), new Vector2(150f, 44f), font, out TMP_Text resetLabel);
-            Button lockButton = CreateUiButton(panel, "LockButton", new Vector2(415f, -20f), new Vector2(240f, 44f), font, out TMP_Text lockLabel);
-            Button rotate = CreateUiButton(panel, "RotateButton", new Vector2(670f, -20f), new Vector2(90f, 44f), font, out TMP_Text rotateLabel);
-            Button undo = CreateUiButton(panel, "UndoButton", new Vector2(775f, -20f), new Vector2(100f, 44f), font, out TMP_Text undoLabel);
-
-            // ล็อกย่ามตอนคืนสภาพ sits directly under the restore button it modifies. A real Toggle,
-            // not a caption that looks like a checkbox: the restore button reads this control's
-            // value, so an unchecked box and a checked box are two different commands.
-            Toggle lockRestore = CreateUiToggle(
-                panel, "LockRestoreToggle", new Vector2(250f, -72f), new Vector2(30f, 30f), font,
-                new Vector2(292f, -72f), new Vector2(400f, 34f), out TMP_Text lockRestoreLabel);
-
-            // --- Top-right (y 20..180): the instruction scroll, four numbered steps --------------
-            RectTransform instr = CreateUiRect(
-                panel, "Instructions", new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-40f, -20f), new Vector2(776f, 176f));
-            var instrImage = instr.gameObject.AddComponent<Image>();
-            instrImage.color = new Color(0.12f, 0.14f, 0.18f, 0.85f);
-            instrImage.raycastTarget = false;
-
-            TMP_Text instrTitle = CreateUiText(instr, "InstrTitle", new Vector2(12f, -8f), new Vector2(752f, 28f), UiFontSize, font);
-            instrTitle.color = new Color(1f, 0.82f, 0.35f, 1f);
-
-            TMP_Text step1 = CreateUiText(instr, "Step1", new Vector2(12f, -40f), new Vector2(752f, 28f), UiFontSize, font);
-            TMP_Text step2 = CreateUiText(instr, "Step2", new Vector2(12f, -72f), new Vector2(752f, 28f), UiFontSize, font);
-            TMP_Text step3 = CreateUiText(instr, "Step3", new Vector2(12f, -104f), new Vector2(752f, 28f), UiFontSize, font);
-            TMP_Text step4 = CreateUiText(instr, "Step4", new Vector2(12f, -136f), new Vector2(752f, 28f), UiFontSize, font);
-
-            // --- Left column (y 140..720 from the top): the board. Nine columns of 78 + a 4 gap =
-            //     734 wide, seven rows = 574 tall -----------------------------------------------
-            RectTransform board = CreateUiRect(
-                panel, "Board", new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(40f, -140f), new Vector2(740f, 580f));
-
-            // The board's own background. Opaque enough that the sala behind the overlay cannot be
-            // read through the grid ("พาเนล Board และหีบทึบพอ (alpha ≥ 0.9) ไม่ให้ฉากด้านหลังโผล่ผ่าน"):
-            // the cells are drawn on top of this and leave a 4 px gap, and the gaps used to show the
-            // 2.5D sala straight through the placement area.
-            var boardImage = board.gameObject.AddComponent<Image>();
-            boardImage.color = new Color(0.07f, 0.09f, 0.12f, 0.92f);
-            boardImage.raycastTarget = false;
-
-            // --- Right column (y 200..600 from the top): the chest panel and its ten slots -------
-            RectTransform chestPanel = CreateUiRect(
-                panel, "ChestPanel", new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-40f, -200f), new Vector2(776f, 400f));
-            var chestPanelImage = chestPanel.gameObject.AddComponent<Image>();
-            chestPanelImage.color = new Color(0.10f, 0.12f, 0.15f, 0.92f);
-            chestPanelImage.raycastTarget = false;
-
-            TMP_Text chestTitle = CreateUiText(chestPanel, "ChestTitle", new Vector2(16f, -10f), new Vector2(744f, 34f), UiFontSize, font);
-
-            // 5 columns of 136 + a 16 gap = 744 wide, two rows = 288 tall.
-            RectTransform chest = CreateUiRect(
-                chestPanel, "Chest", new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(16f, -52f), new Vector2(744f, 300f));
-
-            // --- The free column above the bar (y 214..320, x 822..1032): the incense pot. It has
-            //     to be above the status bar (which is 190 tall) and clear of both the panel's foot
-            //     (ends at x 780) and the bar's ออกเดินทาง button (starts at x 1074), because a pot
-            //     drawn over the depart button is a pot a player clicks instead of leaving camp -----
-            RectTransform altar = CreateUiRect(
-                panel, "Altar", new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(822f, 214f), new Vector2(210f, 106f));
-            var altarImage = altar.gameObject.AddComponent<Image>();
-            altarImage.color = new Color(0.38f, 0.28f, 0.16f, 0.92f);
-            altarImage.raycastTarget = false;
-
-            TMP_Text altarCaption = CreateUiText(
-                altar, "AltarCaption", new Vector2(6f, -4f), new Vector2(198f, 26f), UiFontSize, font, TextAlignmentOptions.Center);
-            TMP_Text altarOffer = CreateUiText(
-                altar, "AltarOffer", new Vector2(6f, -34f), new Vector2(198f, 66f), UiFontSize, font, TextAlignmentOptions.Center);
-
-            // --- Bottom-left, above the bar (y 232..340): กลับ, ไปชั้นถัดไป and the reason the
-            //     second one is disabled. The panel's foot used to be drawn straight over the status
-            //     bar (y 24..214 against the bar's 16..206) with its own copy of the run's numbers ----
-            RectTransform statsNav = CreateUiRect(
-                panel, "StatsNav", new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(40f, 232f), new Vector2(740f, 108f));
-
-            Button closeButton = CreateUiButton(statsNav, "CloseButton", new Vector2(0f, 0f), new Vector2(130f, 50f), font, out TMP_Text closeLabel);
-            Button nextFloorButton = CreateUiButton(statsNav, "NextFloorButton", new Vector2(142f, 0f), new Vector2(220f, 50f), font, out TMP_Text nextFloorLabel);
-
-            // The reason the ไปชั้นถัดไป button is disabled ("ปิดพร้อมเหตุผลถ้าไม่มีอาวุธอาคม").
-            TMP_Text departReason = CreateUiText(statsNav, "DepartReason", new Vector2(0f, -58f), new Vector2(740f, 28f), UiFontSize, font);
-            departReason.color = new Color(0.95f, 0.45f, 0.45f, 1f);
-
-            // The จัดย่าม button lives on the canvas, not in the panel, and is hidden while the
-            // panel is open (the panel carries its own กลับ). Bottom-centre per the GDD, clear of
-            // the bottom bar underneath it (x 24..984).
-            Button open = CreateUiButton(
-                canvasRect, "OpenBagButton", new Vector2(0f, 0f), new Vector2(220f, 64f), font, out TMP_Text openLabel);
-            RectTransform openRect = open.GetComponent<RectTransform>();
-            openRect.anchorMin = new Vector2(0.5f, 0f);
-            openRect.anchorMax = new Vector2(0.5f, 0f);
-            openRect.pivot = new Vector2(0.5f, 0f);
-            openRect.anchoredPosition = new Vector2(0f, 222f);
-
-            SetObjectReference(view, "_scope", scope);
-            SetObjectReference(view, "_panelRoot", panel.gameObject);
-            SetObjectReference(view, "_boardRect", board);
-            SetObjectReference(view, "_chestRect", chest);
-            SetObjectReference(view, "_chestPanelRect", chestPanel);
-            SetObjectReference(view, "_chestTitleLabel", chestTitle);
-            SetObjectReference(view, "_altarRect", altar);
-            SetObjectReference(view, "_altarCaptionLabel", altarCaption);
-            SetObjectReference(view, "_altarOfferLabel", altarOffer);
-            SetObjectReference(view, "_statsRect", statsNav);
-            SetObjectReference(view, "_font", font);
-            SetObjectReference(view, "_openButton", open);
-            SetObjectReference(view, "_openButtonLabel", openLabel);
-            SetObjectReference(view, "_closeButton", closeButton);
-            SetObjectReference(view, "_closeLabel", closeLabel);
-            SetObjectReference(view, "_titleLabel", title);
-            SetObjectReference(view, "_rotateButton", rotate);
-            SetObjectReference(view, "_rotateLabel", rotateLabel);
-            SetObjectReference(view, "_undoButton", undo);
-            SetObjectReference(view, "_undoLabel", undoLabel);
-            SetObjectReference(view, "_resetButton", reset);
-            SetObjectReference(view, "_resetLabel", resetLabel);
-            SetObjectReference(view, "_lockButton", lockButton);
-            SetObjectReference(view, "_lockLabel", lockLabel);
-            SetObjectReference(view, "_lockRestoreToggle", lockRestore);
-            SetObjectReference(view, "_lockRestoreLabel", lockRestoreLabel);
-            SetObjectReference(view, "_nextFloorButton", nextFloorButton);
-            SetObjectReference(view, "_nextFloorLabel", nextFloorLabel);
-            SetObjectReference(view, "_departReasonLabel", departReason);
-            SetObjectReference(view, "_instructionsRect", instr);
-            SetObjectReference(view, "_instructionsTitleLabel", instrTitle);
-            SetObjectReference(view, "_instructionStep1Label", step1);
-            SetObjectReference(view, "_instructionStep2Label", step2);
-            SetObjectReference(view, "_instructionStep3Label", step3);
-            SetObjectReference(view, "_instructionStep4Label", step4);
-            return view;
-        }
-
-        /// <summary>
-        /// A checkbox and its caption: a box, a check mark that fades in when it is on, and a label
-        /// to the right of it.
-        /// </summary>
-        /// <remarks>
-        /// A real <see cref="Toggle"/> rather than a label that reads like one, because the control it
-        /// belongs to (คืนสภาพ) reads its value. The mark is authored at zero alpha so the saved scene
-        /// shows the unchecked state the player starts in; <see cref="Toggle"/> drives it from then on.
-        /// </remarks>
-        private static Toggle CreateUiToggle(
-            RectTransform parent, string name, Vector2 boxPosition, Vector2 boxSize, TMP_FontAsset font,
-            Vector2 labelPosition, Vector2 labelSize, out TMP_Text label)
-        {
-            RectTransform box = CreateUiRect(
-                parent, name, new Vector2(0f, 1f), new Vector2(0f, 1f), boxPosition, boxSize);
-
-            var background = box.gameObject.AddComponent<Image>();
-            background.color = new Color(0.18f, 0.20f, 0.24f, 1f);
-
-            RectTransform mark = CreateUiRect(
-                box, "Checkmark", new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(5f, -5f), new Vector2(boxSize.x - 10f, boxSize.y - 10f));
-
-            var markImage = mark.gameObject.AddComponent<Image>();
-            markImage.color = new Color(0.95f, 0.82f, 0.35f, 1f);
-            markImage.raycastTarget = false;
-            markImage.canvasRenderer.SetAlpha(0f);
-
-            var toggle = box.gameObject.AddComponent<Toggle>();
-            toggle.targetGraphic = background;
-            toggle.graphic = markImage;
-            toggle.isOn = false;
-
-            label = CreateUiText(parent, name + "Label", labelPosition, labelSize, UiFontSize, font);
-            label.text = string.Empty;
-            return toggle;
-        }
-
-        /// <summary>
-        /// The bottom bar: น้ำหนัก, สมาธิ, หีบ x/10, เบี้ย, ราคา refresh, the hint, the status line and
-        /// the depart button with its reason.
-        /// </summary>
-        private static CampStatusBarView BuildCampStatusBar(RectTransform canvasRect, TMP_FontAsset font, CampSceneScope scope)
-        {
-            // Left-anchored and no wider than the gap the bag screen leaves: a bar that ran under
-            // the bag panel would hide the depart button it is supposed to justify. It grew from 960
-            // to 1400 in Stage 09d because the control hint has to read at 22 px, and Thai does not
-            // break inside a run of syllables: the string is one unbreakable word as far as TMP is
-            // concerned, so a box narrower than the text does not wrap it — it spills it.
-            RectTransform panel = CreateUiRect(
-                canvasRect, "StatusPanel", new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(24f, 16f), new Vector2(1400f, 190f));
-
-            var background = panel.gameObject.AddComponent<Image>();
-            background.color = new Color(0.06f, 0.06f, 0.08f, 0.88f);
-
-            // Row one: the run at a glance.
-            TMP_Text floor = CreateUiText(panel, "FloorValue", new Vector2(10f, -6f), new Vector2(140f, 30f), UiFontSize, font);
-            TMP_Text chestCaption = CreateUiText(panel, "ChestCaption", new Vector2(160f, -6f), new Vector2(90f, 30f), UiFontSize, font);
-            TMP_Text chestValue = CreateUiText(panel, "ChestValue", new Vector2(252f, -6f), new Vector2(110f, 30f), UiFontSize, font);
-            TMP_Text biaCaption = CreateUiText(panel, "BiaCaption", new Vector2(370f, -6f), new Vector2(80f, 30f), UiFontSize, font);
-            TMP_Text biaValue = CreateUiText(panel, "BiaValue", new Vector2(452f, -6f), new Vector2(70f, 30f), UiFontSize, font);
-            TMP_Text refreshCostCaption = CreateUiText(panel, "RefreshCostCaption", new Vector2(600f, -6f), new Vector2(190f, 30f), UiFontSize, font);
-            TMP_Text refreshCostValue = CreateUiText(panel, "RefreshCostValue", new Vector2(794f, -6f), new Vector2(110f, 30f), UiFontSize, font);
-
-            // Row two: the weight penalty and the focus rate, with the depart button on the right.
-            TMP_Text weightCaption = CreateUiText(panel, "WeightCaption", new Vector2(10f, -40f), new Vector2(120f, 30f), UiFontSize, font);
-            TMP_Text weightValue = CreateUiText(panel, "WeightValue", new Vector2(134f, -40f), new Vector2(260f, 30f), UiFontSize, font);
-            TMP_Text focusCaption = CreateUiText(panel, "FocusCaption", new Vector2(404f, -40f), new Vector2(120f, 30f), UiFontSize, font);
-            TMP_Text focusValue = CreateUiText(panel, "FocusValue", new Vector2(528f, -40f), new Vector2(160f, 30f), UiFontSize, font);
-            TMP_Text departReason = CreateUiText(panel, "DepartReason", new Vector2(920f, -6f), new Vector2(460f, 64f), UiFontSize, font);
-
-            // Row three: the penalty bar, the status line, the run's own HP/MP, and the depart button
-            // itself. HP/MP used to be a second readout inside the จัดย่าม panel, which meant the camp
-            // showed a stat twice and the panel's copy went stale as soon as a battle changed it; the
-            // bar is now the only place a run stat appears (Stage 09e work item 1).
-            RectTransform weightBar = CreateUiBar(panel, "WeightBar", new Vector2(10f, -76f), new Vector2(370f, 16f), new Color(0.72f, 0.58f, 0.30f, 1f));
-            TMP_Text status = CreateUiText(panel, "StatusLabel", new Vector2(392f, -72f), new Vector2(300f, 40f), UiFontSize, font);
-            TMP_Text hpMp = CreateUiText(panel, "HpMpLabel", new Vector2(700f, -72f), new Vector2(330f, 40f), UiFontSize, font);
-            Button depart = CreateUiButton(panel, "DepartButton", new Vector2(1050f, -76f), new Vector2(320f, 64f), font, out TMP_Text departLabel);
-
-            // Row four: the controls hint, across the bar — and *below* the depart button rather
-            // than beside it, because at 22 px the hint is wider than the strip the button leaves.
-            TMP_Text hint = CreateUiText(panel, "HintLabel", new Vector2(10f, -146f), new Vector2(1370f, 34f), UiFontSize, font);
-
-            CampStatusBarView view = panel.gameObject.AddComponent<CampStatusBarView>();
-            SetObjectReference(view, "_scope", scope);
-            SetObjectReference(view, "_panelRect", panel);
-            SetObjectReference(view, "_floorLabel", floor);
-            SetObjectReference(view, "_weightCaptionLabel", weightCaption);
-            SetObjectReference(view, "_weightValueLabel", weightValue);
-            SetObjectReference(view, "_weightBar", weightBar);
-            SetObjectReference(view, "_focusCaptionLabel", focusCaption);
-            SetObjectReference(view, "_focusValueLabel", focusValue);
-            SetObjectReference(view, "_chestCaptionLabel", chestCaption);
-            SetObjectReference(view, "_chestValueLabel", chestValue);
-            SetObjectReference(view, "_biaCaptionLabel", biaCaption);
-            SetObjectReference(view, "_biaValueLabel", biaValue);
-            SetObjectReference(view, "_refreshCostCaptionLabel", refreshCostCaption);
-            SetObjectReference(view, "_refreshCostValueLabel", refreshCostValue);
-            SetObjectReference(view, "_hintLabel", hint);
-            SetObjectReference(view, "_statusLabel", status);
-            SetObjectReference(view, "_hpMpLabel", hpMp);
-            SetObjectReference(view, "_departReasonLabel", departReason);
-            SetObjectReference(view, "_departButton", depart);
-            SetObjectReference(view, "_departButtonLabel", departLabel);
-            return view;
-        }
-
-        /// <summary>
-        /// The piece tooltip: ชื่อ, ระดับ, สถานะ, คำอธิบาย, คอมโบที่ทำงานอยู่ — five lines on a canvas of
-        /// its own that draws above the whole camp screen.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// Its own <b>canvas</b>, not a panel of the camp's, for one measured reason: the camp screen
-        /// is a single canvas, so "on top" there means "added last", and the board's cells, the piece
-        /// rectangles and the combo lines are all created at runtime and appended after everything
-        /// authored. A second root canvas with a higher <c>Canvas.sortingOrder</c> is the documented
-        /// way to draw over another canvas rather than a race with creation order.
-        /// </para>
-        /// <para>
-        /// The canvas carries <b>no</b> <c>GraphicRaycaster</c> and every graphic on it has
-        /// <c>raycastTarget</c> off, so a tooltip that follows the pointer cannot swallow the pointer
-        /// events that move it. The panel's background is 0.95 alpha, above the 0.92 the stage asks
-        /// for, so the board is not readable through it.
-        /// </para>
-        /// </remarks>
-        private static CampTooltipView BuildCampTooltip(TMP_FontAsset font, CampSceneScope scope)
-        {
-            Canvas canvas = CreateCanvas(out GameObject canvasObject, TooltipSortingOrder, withRaycaster: false);
-            var canvasRect = (RectTransform)canvas.transform;
-
-            // Anchored to the canvas' bottom-left corner: the placement rule (CampTooltipPlacement)
-            // writes this rect's anchoredPosition in the same units, so what a test measures is what
-            // the view set. The initial position is the margin, which is where an unhovered tooltip
-            // would sit if anything showed it.
-            RectTransform panel = CreateUiRect(
-                canvasRect, "TooltipPanel", Vector2.zero, Vector2.zero,
-                new Vector2(CampTooltipPlacement.Margin, CampTooltipPlacement.Margin),
-                new Vector2(440f, 330f));
-
-            var background = panel.gameObject.AddComponent<Image>();
-            background.color = new Color(0.04f, 0.05f, 0.07f, 0.95f);
-            background.raycastTarget = false;
-
-            TMP_Text title = CreateUiText(panel, "TooltipTitle", new Vector2(14f, -10f), new Vector2(412f, 34f), UiFontSize + 4f, font);
-            title.color = new Color(1f, 0.85f, 0.45f, 1f);
-            TMP_Text tier = CreateUiText(panel, "TooltipTier", new Vector2(14f, -46f), new Vector2(412f, 28f), UiFontSize, font);
-            TMP_Text status = CreateUiText(panel, "TooltipStatus", new Vector2(14f, -78f), new Vector2(412f, 30f), UiFontSize, font);
-            TMP_Text description = CreateUiText(panel, "TooltipDescription", new Vector2(14f, -114f), new Vector2(412f, 96f), UiFontSize, font);
-            description.color = new Color(0.85f, 0.88f, 0.92f, 1f);
-            TMP_Text combos = CreateUiText(panel, "TooltipCombos", new Vector2(14f, -214f), new Vector2(412f, 106f), UiFontSize, font);
-            combos.color = new Color(0.95f, 0.82f, 0.35f, 1f);
-
-            CampTooltipView view = panel.gameObject.AddComponent<CampTooltipView>();
-            SetObjectReference(view, "_scope", scope);
-            SetObjectReference(view, "_root", panel.gameObject);
-            SetObjectReference(view, "_titleLabel", title);
-            SetObjectReference(view, "_tierLabel", tier);
-            SetObjectReference(view, "_statusLabel", status);
-            SetObjectReference(view, "_descriptionLabel", description);
-            SetObjectReference(view, "_combosLabel", combos);
-
-            panel.gameObject.SetActive(false);
-            return view;
-        }
-
-        /// <summary>A button with a centred label, laid out from its parent's top-left corner.</summary>
-        /// <summary>
-        /// A button on <paramref name="parent"/>, laid out from its top-left corner unless
-        /// <paramref name="anchor"/> says otherwise.
-        /// </summary>
-        /// <param name="anchor">
-        /// The point of the parent the button is placed against, used as both its anchor and its pivot,
-        /// so that <paramref name="anchoredPosition"/> is the offset of its <b>centre</b> when it is
-        /// <c>(0.5, 0.5)</c>. The default is the parent's top-left corner, which is what every panel and
-        /// column in this project lays its controls out from.
-        /// </param>
-        private static Button CreateUiButton(
-            RectTransform parent, string name, Vector2 anchoredPosition, Vector2 size,
-            TMP_FontAsset font, out TMP_Text label, Vector2? anchor = null)
-        {
-            Vector2 corner = anchor ?? new Vector2(0f, 1f);
-
-            RectTransform rect = CreateUiRect(
-                parent, name, corner, corner, anchoredPosition, size);
-
-            var image = rect.gameObject.AddComponent<Image>();
-            image.color = new Color(0.25f, 0.26f, 0.30f, 1f);
-
-            var button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = image;
-
-            label = CreateUiText(rect, "Label", Vector2.zero, size, UiFontSize, font, TextAlignmentOptions.Center);
-            return button;
-        }
-
-        /// <summary>Creates an empty UI rectangle (a panel or a track) at an anchored position.</summary>
-        private static RectTransform CreateUiRect(
-            RectTransform parent, string name, Vector2 anchor, Vector2 pivot,
-            Vector2 anchoredPosition, Vector2 size)
-        {
-            var gameObject = new GameObject(name, typeof(RectTransform));
-            var rect = (RectTransform)gameObject.transform;
-            rect.SetParent(parent, worldPositionStays: false);
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.pivot = pivot;
-            rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = size;
-            return rect;
-        }
-
-        /// <summary>A label inside a panel, laid out from the panel's top-left corner.</summary>
-        private static TMP_Text CreateUiText(
-            RectTransform parent, string name, Vector2 anchoredPosition, Vector2 size, float fontSize,
-            TMP_FontAsset font, TextAlignmentOptions alignment = TextAlignmentOptions.TopLeft)
-        {
-            RectTransform rect = CreateUiRect(
-                parent, name, new Vector2(0f, 1f), new Vector2(0f, 1f), anchoredPosition, size);
-
-            TextMeshProUGUI label = rect.gameObject.AddComponent<TextMeshProUGUI>();
-            label.font = font;
-            label.fontSize = fontSize;
-            label.color = Color.white;
-            label.alignment = alignment;
-            label.text = string.Empty;
-            return label;
-        }
-
-        /// <summary>
-        /// Creates a rectangle stretched between two anchors, with explicit insets from each side.
-        /// </summary>
-        /// <remarks>
-        /// The Stage 08c HUD is built out of these: a panel is authored as a <i>band</i> of the
-        /// canvas ("a quarter of the width, from 45 % of the height up") rather than as a pixel
-        /// rectangle, so the arrangement survives the two sizes the GDD names. The old
-        /// <see cref="CreateUiRect"/> is still what an absolutely-placed label inside a panel uses.
-        /// </remarks>
-        private static RectTransform StretchUiRect(
-            RectTransform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
-            Vector2 offsetMin, Vector2 offsetMax)
-        {
-            var gameObject = new GameObject(name, typeof(RectTransform));
-            var rect = (RectTransform)gameObject.transform;
-            rect.SetParent(parent, worldPositionStays: false);
-            rect.anchorMin = anchorMin;
-            rect.anchorMax = anchorMax;
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.offsetMin = offsetMin;
-            rect.offsetMax = offsetMax;
-            return rect;
-        }
-
-        /// <summary>A label stretched between two anchors, with the same 22 px floor as the rest of the HUD.</summary>
-        private static TMP_Text StretchUiText(
-            RectTransform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
-            Vector2 offsetMin, Vector2 offsetMax, float fontSize, TMP_FontAsset font,
-            TextAlignmentOptions alignment = TextAlignmentOptions.TopLeft)
-        {
-            RectTransform rect = StretchUiRect(parent, name, anchorMin, anchorMax, offsetMin, offsetMax);
-
-            TextMeshProUGUI label = rect.gameObject.AddComponent<TextMeshProUGUI>();
-            label.font = font;
-            label.fontSize = fontSize;
-            label.color = Color.white;
-            label.alignment = alignment;
-            label.text = string.Empty;
-            return label;
-        }
-
-        /// <summary>Gives a panel the battle HUD's own background; it never swallows a click.</summary>
-        private static void AddPanelBackground(RectTransform panel, Color colour)
-        {
-            var background = panel.gameObject.AddComponent<Image>();
-            background.color = colour;
-            background.raycastTarget = false;
-        }
-
-        /// <summary>
-        /// A track stretched between two anchors and its fill, returning the fill.
-        /// </summary>
-        /// <remarks>
-        /// The stretched form of <see cref="CreateUiBar"/>: the fill is anchored to the track's left
-        /// edge, so the HUD sets a bar by writing <c>anchorMax.x</c> and no sprite asset is needed
-        /// anywhere in the UI — and the bar is as wide as the panel it lives in, at both sizes.
-        /// </remarks>
-        private static RectTransform StretchUiBar(
-            RectTransform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
-            Vector2 offsetMin, Vector2 offsetMax, Color fillColour)
-        {
-            RectTransform track = StretchUiRect(parent, name, anchorMin, anchorMax, offsetMin, offsetMax);
-            Image trackImage = track.gameObject.AddComponent<Image>();
-            trackImage.color = new Color(0f, 0f, 0f, 0.5f);
-            trackImage.raycastTarget = false;
-
-            RectTransform fill = StretchUiRect(
-                track, "Fill", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            fill.pivot = new Vector2(0f, 0.5f);
-
-            Image fillImage = fill.gameObject.AddComponent<Image>();
-            fillImage.color = fillColour;
-            fillImage.raycastTarget = false;
-            return fill;
-        }
-
-        /// <summary>
-        /// Creates a track and its fill, and returns the fill.
-        /// </summary>
-        /// <remarks>
-        /// The fill is a rectangle anchored to the track's left edge, so the HUD sets a bar by
-        /// writing <c>anchorMax.x</c> and no sprite asset is needed anywhere in the UI.
-        /// </remarks>
-        private static RectTransform CreateUiBar(
-            RectTransform parent, string name, Vector2 anchoredPosition, Vector2 size, Color fillColour)
-        {
-            RectTransform track = CreateUiRect(
-                parent, name, new Vector2(0f, 1f), new Vector2(0f, 1f), anchoredPosition, size);
-            Image trackImage = track.gameObject.AddComponent<Image>();
-            trackImage.color = new Color(0f, 0f, 0f, 0.5f);
-
-            RectTransform fill = CreateUiRect(
-                track, "Fill", new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
-            fill.anchorMin = Vector2.zero;
-            fill.anchorMax = Vector2.one;
-            fill.pivot = new Vector2(0f, 0.5f);
-            fill.offsetMin = Vector2.zero;
-            fill.offsetMax = Vector2.zero;
-
-            Image fillImage = fill.gameObject.AddComponent<Image>();
-            fillImage.color = fillColour;
-            return fill;
-        }
-
-        // ------------------------------------------------------------------
-        // Stage 10: the Result scene
-        // ------------------------------------------------------------------
-
-        /// <summary>
-        /// Builds the summary scene: the scope that shows a finished run, one centred column of
-        /// summary lines, and the two ways out (Restart, back to the title).
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// Everything is created through the Editor API (AGENTS rule 11) — no hand-written
-        /// <c>.unity</c> YAML — and every string on the screen arrives at runtime over
-        /// <c>ResultUiState</c> from the localization table (AGENTS rule 5), so this method only
-        /// places nine empty widgets and wires the references the view needs.
-        /// </para>
-        /// <para>
-        /// <b>One centred column, measured rather than guessed.</b> The <c>Summary</c> rect is
-        /// centred on the canvas (anchor and pivot both 0.5) and 1200×1000 at the 1920×1080
-        /// reference, so nothing here is positioned in absolute screen pixels: at 1280×720 the
-        /// column keeps the same proportions and the same gaps between lines. The rows are 60 px
-        /// apart with 44 px line boxes and the headings are 96 px, all above the 22 px Thai floor
-        /// (Stage 09d) — a 32 px line box holds a Thai line with its upper and lower marks inside
-        /// the box instead of clipping them.
-        /// </para>
-        /// <para>
-        /// The two buttons are 400×76 and centred in the column: the same touch target the camp
-        /// author their panel controls at, so the summary screen cannot be the one screen whose
-        /// buttons are too small to press on a phone.
-        /// </para>
-        /// </remarks>
-        private static void CreateResultScene()
-        {
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-
-            (TMP_FontAsset font, _) = EnsureFontAssets();
-
-            var scopeObject = new GameObject("Result");
-            ResultSceneScope scope = scopeObject.AddComponent<ResultSceneScope>();
-            ResultSceneDirector director = scopeObject.AddComponent<ResultSceneDirector>();
-
-            CreateCamera();
-            CreateEventSystem();
-
-            Canvas canvas = CreateCanvas(out GameObject canvasObject);
-            var canvasRect = (RectTransform)canvas.transform;
-
-            RectTransform column = CreateUiRect(
-                canvasRect, "Summary", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(1200f, 1000f));
-
-            // The column carries a background of its own, at the camp's panel alpha (0.92 — the value
-            // `ProjectSurvive/Tools/1. Capture UI` measures on the camp's Board, ChestPanel and Altar,
-            // and the one `UiLayoutCheck.OpaqueFloor` names for a panel the reader must not see through).
-            // It is not the จัดย่าม screen's 0.62 full-screen overlay: that one is translucent so ศาลาพัก
-            // stays readable behind it, and over this scene's flat clear colour 0.62 is invisible
-            // (0.06/0.08/0.10 at 62 % over 13/15/20 is a 0.5 %-per-channel shift). A summary is a column
-            // of text, so it gets the panel treatment the other screens' panels get.
-            var columnBackground = column.gameObject.AddComponent<Image>();
-            columnBackground.color = new Color(0.07f, 0.09f, 0.12f, 0.92f);
-
-            // The buttons answer their own clicks, so the column behind them must not swallow one: the
-            // camp's own non-blocking panels (Instructions, Board, ChestPanel) are authored the same way.
-            columnBackground.raycastTarget = false;
-
-            TMP_Text headline = CreateUiText(
-                column, "Headline", new Vector2(0f, -40f), new Vector2(1200f, 140f), 96f, font,
-                TextAlignmentOptions.Center);
-
-            TMP_Text floor = CreateUiText(
-                column, "FloorLine", new Vector2(0f, -200f), new Vector2(1200f, 44f),
-                ResultLineFontSize, font, TextAlignmentOptions.Center);
-
-            TMP_Text kills = CreateUiText(
-                column, "KillsLine", new Vector2(0f, -260f), new Vector2(1200f, 44f),
-                ResultLineFontSize, font, TextAlignmentOptions.Center);
-
-            TMP_Text bia = CreateUiText(
-                column, "BiaLine", new Vector2(0f, -320f), new Vector2(1200f, 44f),
-                ResultLineFontSize, font, TextAlignmentOptions.Center);
-
-            TMP_Text hp = CreateUiText(
-                column, "HpLine", new Vector2(0f, -380f), new Vector2(1200f, 44f),
-                ResultLineFontSize, font, TextAlignmentOptions.Center);
-
-            Button restart = CreateUiButton(
-                column, "RestartButton", new Vector2(400f, -560f), new Vector2(400f, 76f), font,
-                out TMP_Text restartLabel);
-
-            Button title = CreateUiButton(
-                column, "TitleButton", new Vector2(400f, -660f), new Vector2(400f, 76f), font,
-                out TMP_Text titleLabel);
-
-            ResultView view = canvasObject.AddComponent<ResultView>();
-            SetObjectReference(view, "_scope", scope);
-            SetObjectReference(view, "_headlineLabel", headline);
-            SetObjectReference(view, "_floorLabel", floor);
-            SetObjectReference(view, "_killsLabel", kills);
-            SetObjectReference(view, "_biaLabel", bia);
-            SetObjectReference(view, "_hpLabel", hp);
-            SetObjectReference(view, "_restartButton", restart);
-            SetObjectReference(view, "_titleButton", title);
-            SetObjectReference(view, "_restartLabel", restartLabel);
-            SetObjectReference(view, "_titleLabel", titleLabel);
-
-            SetObjectReference(director, "_scope", scope);
-
-            EditorSceneManager.SaveScene(scene, ResultScenePath);
-        }
-
-        // ------------------------------------------------------------------
         // Scene building blocks
         // ------------------------------------------------------------------
 
-        private static RootLifetimeScope CreateScopeObject()
+        /// <summary>Creates the scope object every scene except Boot is built around.</summary>
+        public static RootLifetimeScope CreateScopeObject()
         {
             var scopeObject = new GameObject("RootLifetimeScope");
             return scopeObject.AddComponent<RootLifetimeScope>();
         }
 
-        private static Camera CreateCamera()
+        /// <summary>The shell's camera: orthographic, the project's clear colour, URP camera data attached.</summary>
+        public static Camera CreateCamera()
         {
             var cameraObject = new GameObject("Main Camera") { tag = "MainCamera" };
             Camera camera = cameraObject.AddComponent<Camera>();
@@ -2079,14 +684,16 @@ namespace ProjectSurvive.Game.Editor
             return camera;
         }
 
-        private static void CreateEventSystem()
+        /// <summary>The scene's event system: uGUI's, driven by the Input System module.</summary>
+        public static void CreateEventSystem()
         {
             var eventSystemObject = new GameObject("EventSystem");
             eventSystemObject.AddComponent<EventSystem>();
             eventSystemObject.AddComponent<InputSystemUIInputModule>();
         }
 
-        private static Canvas CreateCanvas(out GameObject canvasObject) =>
+        /// <summary>A screen-space canvas at the project's draw order 0, with a raycaster.</summary>
+        public static Canvas CreateCanvas(out GameObject canvasObject) =>
             CreateCanvas(out canvasObject, sortingOrder: 0, withRaycaster: true);
 
         /// <summary>
@@ -2103,7 +710,7 @@ namespace ProjectSurvive.Game.Editor
         /// to be the last thing drawn and the first thing ignored, and without a
         /// <c>GraphicRaycaster</c> its graphics are not hit-tested at all.
         /// </param>
-        private static Canvas CreateCanvas(out GameObject canvasObject, int sortingOrder, bool withRaycaster)
+        public static Canvas CreateCanvas(out GameObject canvasObject, int sortingOrder, bool withRaycaster)
         {
             canvasObject = new GameObject(sortingOrder == 0 ? "UI" : "UI" + sortingOrder);
             Canvas canvas = canvasObject.AddComponent<Canvas>();
@@ -2133,7 +740,7 @@ namespace ProjectSurvive.Game.Editor
         /// height of the line it holds reports a collision that is not on screen (the title screen's
         /// own heading and build line did exactly that, which is why the parameter is here).
         /// </param>
-        private static TMP_Text CreateTmpLabel(
+        public static TMP_Text CreateTmpLabel(
             Canvas canvas, string name, Vector2 anchoredPosition, float fontSize, TMP_FontAsset font,
             Vector2? size = null)
         {
@@ -2158,31 +765,201 @@ namespace ProjectSurvive.Game.Editor
         }
 
         // ------------------------------------------------------------------
+        // UI building blocks
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// A button on <paramref name="parent"/>, laid out from its top-left corner unless
+        /// <paramref name="anchor"/> says otherwise.
+        /// </summary>
+        /// <param name="anchor">
+        /// The point of the parent the button is placed against, used as both its anchor and its pivot,
+        /// so that <paramref name="anchoredPosition"/> is the offset of its <b>centre</b> when it is
+        /// <c>(0.5, 0.5)</c>. The default is the parent's top-left corner, which is what every panel and
+        /// column in this project lays its controls out from.
+        /// </param>
+        public static Button CreateUiButton(
+            RectTransform parent, string name, Vector2 anchoredPosition, Vector2 size,
+            TMP_FontAsset font, out TMP_Text label, Vector2? anchor = null)
+        {
+            Vector2 corner = anchor ?? new Vector2(0f, 1f);
+
+            RectTransform rect = CreateUiRect(
+                parent, name, corner, corner, anchoredPosition, size);
+
+            var image = rect.gameObject.AddComponent<Image>();
+            image.color = new Color(0.25f, 0.26f, 0.30f, 1f);
+
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+
+            label = CreateUiText(rect, "Label", Vector2.zero, size, UiFontSize, font, TextAlignmentOptions.Center);
+            return button;
+        }
+
+        /// <summary>Creates an empty UI rectangle (a panel or a track) at an anchored position.</summary>
+        public static RectTransform CreateUiRect(
+            RectTransform parent, string name, Vector2 anchor, Vector2 pivot,
+            Vector2 anchoredPosition, Vector2 size)
+        {
+            var gameObject = new GameObject(name, typeof(RectTransform));
+            var rect = (RectTransform)gameObject.transform;
+            rect.SetParent(parent, worldPositionStays: false);
+            rect.anchorMin = anchor;
+            rect.anchorMax = anchor;
+            rect.pivot = pivot;
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = size;
+            return rect;
+        }
+
+        /// <summary>A label inside a panel, laid out from the panel's top-left corner.</summary>
+        public static TMP_Text CreateUiText(
+            RectTransform parent, string name, Vector2 anchoredPosition, Vector2 size, float fontSize,
+            TMP_FontAsset font, TextAlignmentOptions alignment = TextAlignmentOptions.TopLeft)
+        {
+            RectTransform rect = CreateUiRect(
+                parent, name, new Vector2(0f, 1f), new Vector2(0f, 1f), anchoredPosition, size);
+
+            TextMeshProUGUI label = rect.gameObject.AddComponent<TextMeshProUGUI>();
+            label.font = font;
+            label.fontSize = fontSize;
+            label.color = Color.white;
+            label.alignment = alignment;
+            label.text = string.Empty;
+            return label;
+        }
+
+        /// <summary>
+        /// Creates a rectangle stretched between two anchors, with explicit insets from each side.
+        /// </summary>
+        /// <remarks>
+        /// The Stage 08c HUD is built out of these: a panel is authored as a <i>band</i> of the
+        /// canvas ("a quarter of the width, from 45 % of the height up") rather than as a pixel
+        /// rectangle, so the arrangement survives the two sizes the GDD names. The old
+        /// <see cref="CreateUiRect"/> is still what an absolutely-placed label inside a panel uses.
+        /// </remarks>
+        public static RectTransform StretchUiRect(
+            RectTransform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
+            Vector2 offsetMin, Vector2 offsetMax)
+        {
+            var gameObject = new GameObject(name, typeof(RectTransform));
+            var rect = (RectTransform)gameObject.transform;
+            rect.SetParent(parent, worldPositionStays: false);
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.offsetMin = offsetMin;
+            rect.offsetMax = offsetMax;
+            return rect;
+        }
+
+        /// <summary>A label stretched between two anchors, with the same 22 px floor as the rest of the HUD.</summary>
+        public static TMP_Text StretchUiText(
+            RectTransform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
+            Vector2 offsetMin, Vector2 offsetMax, float fontSize, TMP_FontAsset font,
+            TextAlignmentOptions alignment = TextAlignmentOptions.TopLeft)
+        {
+            RectTransform rect = StretchUiRect(parent, name, anchorMin, anchorMax, offsetMin, offsetMax);
+
+            TextMeshProUGUI label = rect.gameObject.AddComponent<TextMeshProUGUI>();
+            label.font = font;
+            label.fontSize = fontSize;
+            label.color = Color.white;
+            label.alignment = alignment;
+            label.text = string.Empty;
+            return label;
+        }
+
+        /// <summary>Gives a panel the battle HUD's own background; it never swallows a click.</summary>
+        public static void AddPanelBackground(RectTransform panel, Color colour)
+        {
+            var background = panel.gameObject.AddComponent<Image>();
+            background.color = colour;
+            background.raycastTarget = false;
+        }
+
+        /// <summary>
+        /// A track stretched between two anchors and its fill, returning the fill.
+        /// </summary>
+        /// <remarks>
+        /// The stretched form of <see cref="CreateUiBar"/>: the fill is anchored to the track's left
+        /// edge, so the HUD sets a bar by writing <c>anchorMax.x</c> and no sprite asset is needed
+        /// anywhere in the UI — and the bar is as wide as the panel it lives in, at both sizes.
+        /// </remarks>
+        public static RectTransform StretchUiBar(
+            RectTransform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
+            Vector2 offsetMin, Vector2 offsetMax, Color fillColour)
+        {
+            RectTransform track = StretchUiRect(parent, name, anchorMin, anchorMax, offsetMin, offsetMax);
+            Image trackImage = track.gameObject.AddComponent<Image>();
+            trackImage.color = new Color(0f, 0f, 0f, 0.5f);
+            trackImage.raycastTarget = false;
+
+            RectTransform fill = StretchUiRect(
+                track, "Fill", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            fill.pivot = new Vector2(0f, 0.5f);
+
+            Image fillImage = fill.gameObject.AddComponent<Image>();
+            fillImage.color = fillColour;
+            fillImage.raycastTarget = false;
+            return fill;
+        }
+
+        /// <summary>
+        /// Creates a track and its fill, and returns the fill.
+        /// </summary>
+        /// <remarks>
+        /// The fill is a rectangle anchored to the track's left edge, so the HUD sets a bar by
+        /// writing <c>anchorMax.x</c> and no sprite asset is needed anywhere in the UI.
+        /// </remarks>
+        public static RectTransform CreateUiBar(
+            RectTransform parent, string name, Vector2 anchoredPosition, Vector2 size, Color fillColour)
+        {
+            RectTransform track = CreateUiRect(
+                parent, name, new Vector2(0f, 1f), new Vector2(0f, 1f), anchoredPosition, size);
+            Image trackImage = track.gameObject.AddComponent<Image>();
+            trackImage.color = new Color(0f, 0f, 0f, 0.5f);
+
+            RectTransform fill = CreateUiRect(
+                track, "Fill", new Vector2(0f, 1f), new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
+            fill.anchorMin = Vector2.zero;
+            fill.anchorMax = Vector2.one;
+            fill.pivot = new Vector2(0f, 0.5f);
+            fill.offsetMin = Vector2.zero;
+            fill.offsetMax = Vector2.zero;
+
+            Image fillImage = fill.gameObject.AddComponent<Image>();
+            fillImage.color = fillColour;
+            return fill;
+        }
+
+        // ------------------------------------------------------------------
         // Serialized-field helpers
         // ------------------------------------------------------------------
 
-        private static void SetObjectReference(Object target, string fieldName, Object value)
+        public static void SetObjectReference(Object target, string fieldName, Object value)
         {
             SerializedProperty property = FindProperty(target, fieldName);
             property.objectReferenceValue = value;
             property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void SetBool(Object target, string fieldName, bool value)
+        public static void SetBool(Object target, string fieldName, bool value)
         {
             SerializedProperty property = FindProperty(target, fieldName);
             property.boolValue = value;
             property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void SetString(Object target, string fieldName, string value)
+        public static void SetString(Object target, string fieldName, string value)
         {
             SerializedProperty property = FindProperty(target, fieldName);
             property.stringValue = value;
             property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void SetInt(Object target, string fieldName, int value)
+        public static void SetInt(Object target, string fieldName, int value)
         {
             SerializedProperty property = FindProperty(target, fieldName);
             property.intValue = value;
@@ -2197,7 +974,7 @@ namespace ProjectSurvive.Game.Editor
         }
 
         /// <summary>Sets an enum field by its index. Enum indices are the authored order.</summary>
-        private static void SetEnum(Object target, string fieldName, int index)
+        public static void SetEnum(Object target, string fieldName, int index)
         {
             SerializedProperty property = FindProperty(target, fieldName);
             property.enumValueIndex = index;
@@ -2205,7 +982,7 @@ namespace ProjectSurvive.Game.Editor
         }
 
         /// <summary>Replaces a string-array field, e.g. the Boot scene's scene allow-list.</summary>
-        private static void SetStringArray(Object target, string fieldName, string[] values)
+        public static void SetStringArray(Object target, string fieldName, string[] values)
         {
             SerializedProperty property = FindProperty(target, fieldName);
             property.arraySize = values.Length;
@@ -2230,7 +1007,8 @@ namespace ProjectSurvive.Game.Editor
             return property;
         }
 
-        private static void EnsureFolder(string path)
+        /// <summary>Creates <paramref name="path"/> and any missing folder above it.</summary>
+        public static void EnsureFolder(string path)
         {
             if (AssetDatabase.IsValidFolder(path))
             {

@@ -244,3 +244,19 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
 - **Next:** Stage 11's Thai ghost AI and balance; and the two things this stage named rather than fixed —
   a Release-build check of the title/Result screens, and the bulk PlayMode run, which is still a FAIL as a
   suite (25 of 45) and still nobody's failed assertion.
+
+## Stage 10t — generic buffers in Shared, one builder per scene, one name per global
+
+- **Did:** moved the battle ring and the Prev/Cur double buffer's mechanics into
+  `ProjectSurvive.Core.Shared` (`EventRing<T>`, `PrevCurBuffer<T>`, ADR 0024) and left the battle types as
+  thin adapters; split `ProjectSetup`'s scene creation into six `*SceneBuilder` files with the same menu
+  paths; gave the three page globals one home per side (`WebGlBridge` constants, `tests/web/globals.mjs`,
+  `.jslib` takes the name as an argument) with an EditMode test that fails on drift; AGENTS rule 14 asks
+  for a `generic:` commit prefix on work that names no game type.
+- **Result:** dotnet **497** (16 new), EditMode **147/147** (3 new), PlayMode **46/46 per class** (bulk is
+  the same 21/46 ambient-log FAIL before and after), Playwright **10/10** on the harness's five specs,
+  WebGL build 244.6 s. All six scenes regenerate to the same scene object-for-object; the checked-in
+  files are the builder's current output, which also repaired Camp's chooser colours and the Thai spike's
+  input module.
+- **Next:** Stage 11's Thai ghost AI and balance; the bulk PlayMode flake and the camp specs' 15 s polls
+  are still the two things that make a Full run red for reasons nobody owns yet.

@@ -8,6 +8,8 @@
 
 import { chromium } from "@playwright/test";
 
+import { SCENE, SMOKE, THAI_SPIKE } from "../globals.mjs";
+
 const url = process.argv[2] ?? process.env.BASE_URL ?? "http://127.0.0.1:8080/";
 
 const browser = await chromium.launch({
@@ -26,7 +28,7 @@ console.log(`opening ${url}`);
 await page.goto(url, { waitUntil: "domcontentloaded" });
 
 try {
-  await page.waitForFunction(() => Boolean(window.__projectSurviveSmoke), null, {
+  await page.waitForFunction((name) => Boolean(window[name]), SMOKE, {
     timeout: 150_000,
     polling: 500,
   });
@@ -34,8 +36,8 @@ try {
   console.log(`[wait] smoke global never appeared: ${error.message}`);
 }
 
-console.log("smoke:", JSON.stringify(await page.evaluate(() => window.__projectSurviveSmoke ?? null)));
-console.log("scene:", JSON.stringify(await page.evaluate(() => window.__projectSurviveScene ?? null)));
-console.log("thai :", JSON.stringify(await page.evaluate(() => window.__projectSurviveThaiSpike ?? null)));
+console.log("smoke:", JSON.stringify(await page.evaluate((name) => window[name] ?? null, SMOKE)));
+console.log("scene:", JSON.stringify(await page.evaluate((name) => window[name] ?? null, SCENE)));
+console.log("thai :", JSON.stringify(await page.evaluate((name) => window[name] ?? null, THAI_SPIKE)));
 
 await browser.close();

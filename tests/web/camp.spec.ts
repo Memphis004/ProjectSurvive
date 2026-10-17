@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { SCENE } from "./globals.mjs";
+
 /**
  * Stage 09 acceptance in the browser: "ซื้อ → วาง → หมุน → รวม → ถวายคืน → คืนสภาพ ผ่าน UI แล้ว
  * state ตรงกับ Core", "invalid drop ไม่ทำของหาย" and "Playwright ทดสอบเมาส์และ keyboard focus
@@ -33,7 +35,6 @@ import { expect, test, type Page } from "@playwright/test";
 
 const CAMP = "__projectSurviveCamp";
 const GEOMETRY = "__projectSurviveCampGeometry";
-const SCENE = "__projectSurviveScene";
 
 /** Boot: download + compile the player. */
 const PLAYER_BOOT_TIMEOUT_MS = 180_000;

@@ -119,7 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &1934354345
+--- !u!1 &1362040570
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,9 +127,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1934354348}
-  - component: {fileID: 1934354347}
-  - component: {fileID: 1934354346}
+  - component: {fileID: 1362040573}
+  - component: {fileID: 1362040572}
+  - component: {fileID: 1362040571}
   m_Layer: 0
   m_Name: Boot
   m_TagString: Untagged
@@ -137,19 +137,19 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1934354346
+--- !u!114 &1362040571
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1934354345}
+  m_GameObject: {fileID: 1362040570}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6cfba4eeb6a16e642b0cf0a81ba5654f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: ProjectSurvive.Game.Presentation::ProjectSurvive.Game.Presentation.SceneBoot
-  _scope: {fileID: 1934354347}
+  _scope: {fileID: 1362040572}
   _continueToTitleScene: 1
   _titleSceneName: Title
   _urlSceneOverrides:
@@ -157,13 +157,13 @@ MonoBehaviour:
   - Battle
   - Camp
   - Result
---- !u!114 &1934354347
+--- !u!114 &1362040572
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1934354345}
+  m_GameObject: {fileID: 1362040570}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4ce55b0c51de7bb4e89c25f8763a1289, type: 3}
@@ -174,13 +174,13 @@ MonoBehaviour:
   autoRun: 1
   autoInjectGameObjects: []
   _runSeed: 20261015
---- !u!4 &1934354348
+--- !u!4 &1362040573
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1934354345}
+  m_GameObject: {fileID: 1362040570}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -193,4 +193,4 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 1934354348}
+  - {fileID: 1362040573}

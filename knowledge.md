@@ -30,6 +30,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **09g** | **Upgrade-choice window on SceneCamp** | **DONE** — see [`docs/stages/09g-report.md`](docs/stages/09g-report.md), [ADR 0021](docs/adr/0021-merge-upgrade-choice.md) |
 | **10** | **Full loop (vertical slice)** | **DONE** — see [`docs/stages/10-report.md`](docs/stages/10-report.md); the systems note is [`llmwiki/systems/loop-and-scopes.md`](llmwiki/systems/loop-and-scopes.md) |
 | **10d** | **Title screen and its start control** | **DONE** — see [`docs/stages/10d-report.md`](docs/stages/10d-report.md), [ADR 0022](docs/adr/0022-the-title-starts-a-run.md) |
+| **10t** | **Shared generic buffers and per-scene builders (template groundwork)** | **DONE** — see [`docs/stages/10t-report.md`](docs/stages/10t-report.md), [ADR 0024](docs/adr/0024-shared-generic-buffers.md) |
 | 11 | Thai ghost AI, Pob boss, balance | not started |
 | 12 | Save, resume, settings | not started |
 | 13 | Content complete & UX | not started |
@@ -87,13 +88,14 @@ and correct-looking capture shots all missed it, because the capture tool finds 
 builds it itself), and the layout work is judged by the existing overlap rule rather than by an eye:
 `UiLayoutCheck` gained the battle HUD's six surfaces and the controls inside them, and the capture
 command reports **0 overlaps over 36 battle regions per state per size** at 1920 × 1080 and 1280 × 720.
-**481 xUnit tests pass** (57 Stage 01, 73
+**497 xUnit tests pass** (57 Stage 01, 73
 Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05,
 44 Stage 06, 28 Stage 07, 11 Stage 09, the 8 the carried-item rule added in Stage 09f, the 33
 the upgrade choice added — 31 for the engine and the chooser's own rules, 2 for the stat-direction
 rule the window colours a card line from — and the 11 the cooldown frame added in Stage 08b: a shared
 suite of 4 cases that runs twice, one case per factory, and the three that check the list's lifetime and
-bound at the buffer and the board id at its only producer). The bag rules, the combo rules, the economy, the run/scene flow
+bound at the buffer and the board id at its only producer, and the 16 Stage 10t added with the Shared
+ring and double buffer — 9 and 7, including a zero-allocation measurement per write and per read). The bag rules, the combo rules, the economy, the run/scene flow
 and the **battle simulation** are real code now: `Domain/Combat/Battle` and `Application`
 hold the battle **contract** (v1) — which the fake implements as a contract exercise — and
 `lib/Runtime/Simulation` holds the real EcsLite battle that implements it, reached only
@@ -101,7 +103,11 @@ through `IBattleSessionFactory`.
 
 Stage 03 built the **Unity shell** (`UnityProject/`, Unity `6000.3.9f1` + URP,
 referencing `lib/` as a local package): a composition root, three scenes
-(Boot / Title / ThaiTextSpike — Stage 08 added the fourth, Battle) built through the Editor API,
+(Boot / Title / ThaiTextSpike — Stage 08 added the fourth, Battle) built through the Editor API
+(Stage 10t moved scene creation out of the `ProjectSetup` monolith into one builder per scene —
+`BootSceneBuilder`, `TitleSceneBuilder`, `ThaiTextSpikeSceneBuilder`, `CampSceneBuilder`,
+`BattleSceneBuilder`, `ResultSceneBuilder` — so a new scene is added without editing a 2 000-line file;
+regenerating all six after the move produced the same scenes, object for object),
 a 7-probe smoke suite,
 and a WebGL2 build that a Playwright suite asserts on through page globals. It
 settled the Thai text question in [ADR 0008](docs/adr/0008-thai-text-ui-stack.md)

@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { SCENE } from "./globals.mjs";
+
 /**
  * Stage 09d item 4: screenshots of the **real WebGL player** at the two resolutions the GDD names
  * (1280×720 and 1920×1080) with `deviceScaleFactor` 1 and 2.
@@ -25,7 +27,6 @@ import { expect, test, type Page } from "@playwright/test";
 
 const CAMP = "__projectSurviveCamp";
 const GEOMETRY = "__projectSurviveCampGeometry";
-const SCENE = "__projectSurviveScene";
 const BATTLE = "__projectSurviveBattle";
 
 const PLAYER_BOOT_TIMEOUT_MS = 180_000;

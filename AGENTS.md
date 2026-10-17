@@ -43,6 +43,9 @@ Google.Protobuf, Input System, Unity Test Framework, xUnit, Playwright
     ถ้าข้อกำหนดกำกวมให้เลือกทางที่ง่ายที่สุดที่ไม่ปิดทางขยาย แล้วเขียน ADR ที่ docs/adr/NNNN-title.md
 13. Placeholder art ต้องมีสิทธิ์ใช้งาน ห้ามคัดลอก asset จากเกมอ้างอิง
     ชื่อคาถาและพิธีเป็นการออกแบบแฟนตาซีใหม่ ไม่อ้างว่าเป็นพิธีจริง
+14. commit ที่ไม่อ้าง type ของเกมเลย ให้ขึ้นต้นข้อความว่า `generic:` (เช่น commit ที่ย้ายโค้ด
+    กลางเข้า `Shared` หรือแก้ template) เพื่อให้แยกออกจาก commit ของเกมและ cherry-pick ไป
+    branch template ได้โดยไม่กำกวม
 
 Definition of Done ของทุก Stage:
 - compile ผ่าน (ถ้ามี environment รองรับ)

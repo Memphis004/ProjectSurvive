@@ -1,11 +1,12 @@
 using System;
+using ProjectSurvive.Core.Shared;
 
 namespace ProjectSurvive.Core.Domain.Combat.Battle
 {
     /// <summary>
     /// The one <see cref="IBattleFrame"/>: a reusable double buffer of
-    /// <see cref="RenderEntity"/> snapshots (Prev/Cur) plus a single
-    /// <see cref="HudState"/>.
+    /// <see cref="RenderEntity"/> snapshots (Prev/Cur), the loadout cooldown list that
+    /// swaps with them, and a single <see cref="HudState"/>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -42,6 +43,13 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
     /// implementation.
     /// </para>
     /// <para>
+    /// Since Stage 10t the swap itself is the generic
+    /// <see cref="PrevCurBuffer{T}"/> in <c>Shared</c> (ADR 0024): this class holds
+    /// one for the entities and one for the cooldown list. The capacity caps stay
+    /// here because they are battle-contract bounds, not properties of a generic
+    /// buffer.
+    /// </para>
+    /// <para>
     /// <see cref="HudState"/> is deliberately *not* double-buffered: a HUD is a
     /// single by-value snapshot overwritten each tick, and nothing interpolates it.
     /// The cooldown list *is* swapped with the entities (Stage 08b) — it is not a
@@ -51,31 +59,12 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
     /// </remarks>
     public sealed class BattleFrameBuffer : IBattleFrame
     {
-        private readonly RenderEntity[] _slotA;
-        private readonly RenderEntity[] _slotB;
+        /// <summary>The entity slots, swapped as one pair on <see cref="Publish"/>.</summary>
+        private readonly PrevCurBuffer<RenderEntity> _entities;
 
-        /// <summary>Cooldown slots, alternating with the entity slots so a reader is never mid-write.</summary>
-        private readonly LoadoutCooldown[] _cooldownSlotA;
+        /// <summary>The cooldown slots, swapping with the entity slots so a reader is never mid-write.</summary>
+        private readonly PrevCurBuffer<LoadoutCooldown> _cooldowns;
 
-        private readonly LoadoutCooldown[] _cooldownSlotB;
-
-        /// <summary>The slot holding the published frame ("Cur").</summary>
-        private RenderEntity[] _current;
-
-        /// <summary>The slot holding the tick before it ("Prev") — and the write target.</summary>
-        private RenderEntity[] _previous;
-
-        /// <summary>The cooldown slot paired with <see cref="_current"/> (the published frame).</summary>
-        private LoadoutCooldown[] _currentCooldowns;
-
-        /// <summary>The cooldown slot paired with <see cref="_previous"/> — the write target.</summary>
-        private LoadoutCooldown[] _previousCooldowns;
-
-        private int _currentCount;
-        private int _previousCount;
-        private int _written;
-        private int _cooldownCount;
-        private int _coolWritten;
         private HudState _hud;
         private long _tick;
         private long _pendingTick;
@@ -102,15 +91,8 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
 
             int coolCapped = capped > BattleConstants.MaxLoadoutEntries ? BattleConstants.MaxLoadoutEntries : capped;
 
-            _slotA = new RenderEntity[capped];
-            _slotB = new RenderEntity[capped];
-            _current = _slotA;
-            _previous = _slotB;
-
-            _cooldownSlotA = new LoadoutCooldown[coolCapped];
-            _cooldownSlotB = new LoadoutCooldown[coolCapped];
-            _currentCooldowns = _cooldownSlotA;
-            _previousCooldowns = _cooldownSlotB;
+            _entities = new PrevCurBuffer<RenderEntity>(capped);
+            _cooldowns = new PrevCurBuffer<LoadoutCooldown>(coolCapped);
         }
 
         /// <inheritdoc />
@@ -120,29 +102,27 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
         public HudState Hud => _hud;
 
         /// <inheritdoc />
-        public ReadOnlySpan<RenderEntity> Entities => new ReadOnlySpan<RenderEntity>(_current, 0, _currentCount);
+        public ReadOnlySpan<RenderEntity> Entities => _entities.Current;
 
         /// <inheritdoc />
-        public ReadOnlySpan<RenderEntity> PreviousEntities =>
-            new ReadOnlySpan<RenderEntity>(_previous, 0, _previousCount);
+        public ReadOnlySpan<RenderEntity> PreviousEntities => _entities.Previous;
 
         /// <inheritdoc />
-        public ReadOnlySpan<LoadoutCooldown> Cooldowns =>
-            new ReadOnlySpan<LoadoutCooldown>(_currentCooldowns, 0, _cooldownCount);
+        public ReadOnlySpan<LoadoutCooldown> Cooldowns => _cooldowns.Current;
 
         /// <summary>Capacity of either entity slot.</summary>
-        public int Capacity => _slotA.Length;
+        public int Capacity => _entities.Capacity;
 
         /// <summary>How many entities the current frame exposes.</summary>
-        public int Count => _currentCount;
+        public int Count => _entities.CurrentCount;
 
         /// <summary>How many entities the previous frame exposes.</summary>
-        public int PreviousCount => _previousCount;
+        public int PreviousCount => _entities.PreviousCount;
 
         /// <summary>How many loadout cooldowns the current frame exposes.</summary>
-        public int CooldownCount => _cooldownCount;
+        public int CooldownCount => _cooldowns.CurrentCount;
 
-        /// <summary>Starts the frame for <paramref name="tick"/> and rewinds the write cursor.</summary>
+        /// <summary>Starts the frame for <paramref name="tick"/> and rewinds the write cursors.</summary>
         /// <remarks>
         /// Does not touch the published frame, so a reader that is mid-frame keeps
         /// seeing the last completed tick and <see cref="Tick"/> keeps naming it.
@@ -153,8 +133,8 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
         public void BeginFrame(long tick)
         {
             _pendingTick = tick;
-            _written = 0;
-            _coolWritten = 0;
+            _entities.BeginFrame();
+            _cooldowns.BeginFrame();
         }
 
         /// <summary>Replaces the HUD snapshot (a single value, copied straight over).</summary>
@@ -173,13 +153,7 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
         /// <summary>Appends one entity, ignoring it when the slot is full.</summary>
         public void Add(in RenderEntity entity)
         {
-            if (_written >= _previous.Length)
-            {
-                return;
-            }
-
-            _previous[_written] = entity;
-            _written++;
+            _entities.Add(entity);
         }
 
         /// <summary>Appends one loadout entry's casting state, ignoring it when the slot is full.</summary>
@@ -191,19 +165,13 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
         /// </remarks>
         public void AddCooldown(in LoadoutCooldown cooldown)
         {
-            if (_coolWritten >= _previousCooldowns.Length)
-            {
-                return;
-            }
-
-            _previousCooldowns[_coolWritten] = cooldown;
-            _coolWritten++;
+            _cooldowns.Add(cooldown);
         }
 
         /// <summary>Ends the frame and swaps the slots, making what was written the current frame.</summary>
         /// <remarks>
-        /// Call once, after the tick's entities are all in. Nothing is copied: the
-        /// two slot references trade places, so the frame just built becomes
+        /// Call once, after the tick's entities are all in. Nothing is copied: each
+        /// buffer's two slot references trade places, so the frame just built becomes
         /// <see cref="Entities"/> and the one it replaced becomes
         /// <see cref="PreviousEntities"/> with its count intact. <see cref="Tick"/> is
         /// applied here rather than in <see cref="BeginFrame"/> so it always names
@@ -211,23 +179,9 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
         /// </remarks>
         public void Publish()
         {
-            RenderEntity[] bulk = _current;
-            int bulkCount = _currentCount;
-
-            _current = _previous;
-            _currentCount = _written;
+            _entities.Publish();
+            _cooldowns.Publish();
             _tick = _pendingTick;
-
-            _previous = bulk;
-            _previousCount = bulkCount;
-
-            LoadoutCooldown[] coolBulk = _currentCooldowns;
-            _currentCooldowns = _previousCooldowns;
-            _cooldownCount = _coolWritten;
-            _previousCooldowns = coolBulk;
-
-            _written = 0;
-            _coolWritten = 0;
         }
     }
 }

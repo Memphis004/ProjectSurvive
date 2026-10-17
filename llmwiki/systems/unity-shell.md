@@ -17,7 +17,8 @@ the pieces fit.
 | Report writer | `Assets/Main/Scripts/Presentation/Web/JsonReportWriter.cs` | tiny JSON writer; escapes **every** non-ASCII code point as `\uXXXX` because the report crosses an ANSI `LPStr` marshalling boundary |
 | Title | `TitlePresenter.cs` + `TitleView.cs` + `UiState.cs` | thin MVP: presenter calls Application, view only assigns text (AGENTS rule 10) |
 | Thai spike | `Thai/ThaiSpikeReporter.cs`, `ThaiSpikeTmpView.cs`, `ThaiSpikeToolkitView.cs` | measures the same strings through uGUI+TMP and UI Toolkit, publishes the numbers — evidence for [ADR 0008](../../docs/adr/0008-thai-text-ui-stack.md) |
-| Editor setup | `Assets/Main/Scripts/Editor/ProjectSetup.cs` | URP asset, player settings, font baking, scene creation. Scenes are built through the Editor API (AGENTS rule 11) |
+| Editor setup | `Assets/Main/Scripts/Editor/ProjectSetup.cs` | URP asset, player settings, font baking. Entering Play Mode rebuilds `Boot.unity` (a template) |
+| Scene builders | `Assets/Main/Scripts/Editor/{Boot,Title,ThaiTextSpike,Camp,Battle,Result}SceneBuilder.cs` | one menu the per-scene builder owns (`Stage 03/2`, `10d/7`, `03/4`, `09/5`, `08/3`, `10/6`), each written through the Editor API (AGENTS rule 11). `ProjectSetup` keeps only what is shared: URP/player settings, font baking, and the UI/entity helpers the builders call |
 | Build | `Assets/Main/Scripts/Editor/WebBuildPipeline.cs` | `BuildWebDevelopment` / `BuildWebRelease`, writes `build-info.json` next to the player |
 
 ## The two published globals are the test surface
@@ -30,6 +31,11 @@ browser is guesswork, so the player publishes what it did:
 | `__projectSurviveSmoke` | `{platform, configHash, probeCount, failedCount, passed, probes[]}` | `tests/web/smoke.spec.ts` (every probe named, `failedCount === 0`) |
 | `__projectSurviveScene` | the scene name on screen | the same spec (Boot → Title) |
 | `__projectSurviveThaiSpike` | `{platform, font, rowCount, totalMissingGlyphs, coversEveryGlyph, stacksMeasureEqually, rows[]}` | the Thai test in the same spec (`totalMissingGlyphs === 0`) |
+
+The **names** of those globals have one home on each side (Stage 10t): the three
+constants in `WebGlBridge`, and `tests/web/globals.mjs` for the specs. The `.jslib`
+takes the name as an argument instead of writing it into the plugin, and the EditMode
+`WebGlBridgeTests` fails if the plugin hard-codes a name or the two files disagree.
 
 Two details that cost real debugging time:
 

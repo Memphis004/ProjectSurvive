@@ -25,6 +25,15 @@ namespace ProjectSurvive.Game.Presentation.Web
     /// deprecated in Unity 6, so the calls go through a small <c>.jslib</c> plugin
     /// (<c>Assets/Main/Plugins/WebGL/ProjectSurviveWeb.jslib</c>) instead.
     /// </para>
+    /// <para>
+    /// <b>The three global names live here and nowhere else on the C# side (Stage 10t).</b>
+    /// The <c>.jslib</c> functions take the name as an argument rather than
+    /// hard-coding it, so the page global a report lands on is decided by the
+    /// constants below — a rename is one edit here, and the browser-test side has
+    /// the matching single file in <c>tests/web/globals.mjs</c>. An EditMode test
+    /// asserts both halves: the constants' values, that the plugin carries no
+    /// global name of its own, and that the two files agree.
+    /// </para>
     /// </remarks>
     public static class WebGlBridge
     {
@@ -44,20 +53,21 @@ namespace ProjectSurvive.Game.Presentation.Web
         public const string SceneEvent = "projectsurvive:scene";
 
         /// <summary>
-        /// Publishes the smoke report. Always logs locally first, so the same
-        /// verdict is visible in the Editor console and in the player log.
+        /// Publishes the smoke report under <see cref="SmokeReportGlobal"/>. Always logs
+        /// locally first, so the same verdict is visible in the Editor console and in the
+        /// player log.
         /// </summary>
         public static void PublishSmokeReport(string json)
         {
             Debug.Log("[ProjectSurvive] smoke report: " + json);
-            ProjectSurvive_Report(json);
+            ProjectSurvive_Report(SmokeReportGlobal, json);
         }
 
-        /// <summary>Publishes the scene that is on screen.</summary>
+        /// <summary>Publishes the scene that is on screen under <see cref="SceneGlobal"/>.</summary>
         public static void PublishScene(string sceneName)
         {
             Debug.Log("[ProjectSurvive] scene: " + sceneName);
-            ProjectSurvive_Scene(sceneName);
+            ProjectSurvive_Scene(SceneGlobal, sceneName);
         }
 
         /// <summary>
@@ -80,10 +90,14 @@ namespace ProjectSurvive.Game.Presentation.Web
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")]
-        private static extern void ProjectSurvive_Report([MarshalAs(UnmanagedType.LPStr)] string json);
+        private static extern void ProjectSurvive_Report(
+            [MarshalAs(UnmanagedType.LPStr)] string globalName,
+            [MarshalAs(UnmanagedType.LPStr)] string json);
 
         [DllImport("__Internal")]
-        private static extern void ProjectSurvive_Scene([MarshalAs(UnmanagedType.LPStr)] string sceneName);
+        private static extern void ProjectSurvive_Scene(
+            [MarshalAs(UnmanagedType.LPStr)] string globalName,
+            [MarshalAs(UnmanagedType.LPStr)] string sceneName);
 
         [DllImport("__Internal")]
         private static extern void ProjectSurvive_Publish(
@@ -93,12 +107,12 @@ namespace ProjectSurvive.Game.Presentation.Web
         [DllImport("__Internal")]
         private static extern void ProjectSurvive_Log([MarshalAs(UnmanagedType.LPStr)] string message);
 #else
-        private static void ProjectSurvive_Report(string json)
+        private static void ProjectSurvive_Report(string globalName, string json)
         {
             // No page to talk to outside the WebGL player.
         }
 
-        private static void ProjectSurvive_Scene(string sceneName)
+        private static void ProjectSurvive_Scene(string globalName, string sceneName)
         {
             // No page to talk to outside the WebGL player.
         }

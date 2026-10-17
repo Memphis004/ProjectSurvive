@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { SCENE } from "./globals.mjs";
+
 /**
  * Stage 08 acceptance in the browser: "เล่นชั้น 1 จนชนะหรือแพ้ได้ใน Web".
  *
@@ -23,7 +25,6 @@ import { expect, test, type Page } from "@playwright/test";
 
 const BATTLE = "__projectSurviveBattle";
 const CAMP = "__projectSurviveCamp";
-const SCENE = "__projectSurviveScene";
 
 /** Boot: download + compile the player. */
 const PLAYER_BOOT_TIMEOUT_MS = 180_000;
