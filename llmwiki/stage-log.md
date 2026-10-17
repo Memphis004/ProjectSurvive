@@ -260,3 +260,20 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   input module.
 - **Next:** Stage 11's Thai ghost AI and balance; the bulk PlayMode flake and the camp specs' 15 s polls
   are still the two things that make a Full run red for reasons nobody owns yet.
+
+## Template extraction (branch `template/main`)
+
+| Step | Landed | What it added | Report |
+| --- | --- | --- | --- |
+| T0 | 2026-10-18 | classified every file under `lib/`, `UnityProject/Assets/`, `data/`, `proto/`, `tools/`, `tests/web/`, `docs/`, `llmwiki/`, `.agents/skills/` as KEEP / GENERALIZE / DROP / MOVE / REGEN, with the cut order and the open user decisions | [`docs/template/inventory.md`](../docs/template/inventory.md) |
+| T1a | 2026-10-18 | engine-free half of the cut: game rules, ECS engine and backpack save gone; `Application/Run` skeleton + `SceneFlow`; config down to two tables; Sim reduced to one streams mode | [`docs/template/t1-report.md`](../docs/template/t1-report.md) |
+| T1b | 2026-10-18 | Unity shell: Battle/Camp screens, scenes, editors and their suites removed; Hub ⇄ Encounter placeholder screens added (state/presenter/view/director/scope each); every scene rebuilt through the Editor API; `UiCaptureTool`/`UiLayoutCheck` left with the game screens | same report, §4 |
+| T1c | 2026-10-18 | tools and tests follow the template: `sim.ps1` one streams mode, `test.ps1` without the bot step, two fixtures (`out-of-range`, `blank-text`), Playwright down to smoke + title, docs updated | same report, §4 |
+
+- **What:** `lib/` and `data/` no longer name any game system; the loop that survives is Boot → Title → Hub ⇄
+  Encounter → Result → Title, with `RandomStreamKind` = run / encounter / reward / visual.
+- **Result:** `tools/test.ps1 -Suite Full` = **PASS 10 | FAIL 0 | NOT RUN 2** (dotnet **115**, EditMode
+  **30/30**, PlayMode **6/6**); the two NOT RUNs are the WebGL build and Playwright, which need the Editor
+  closed. Screenshots of the real Hub and Encounter screens are in `artifacts/ui/`.
+- **Next:** a WebGL build + the loop's browser spec with the Editor closed, then the T2/MOVE half of the
+  inventory (docs examples, llmwiki systems split, `tools/rename.ps1`).

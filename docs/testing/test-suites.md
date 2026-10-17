@@ -1,5 +1,13 @@
 # Test suites — Fast, Full, and every test's home
 
+> **Template branch note (2026-10-18).** The numbers in this file below are the *game* repo's, kept
+> deliberately as the measured history the template inherited. On `template/main` the game screens,
+> their PlayMode suites and the browser specs that drove them are gone, and so is the bot/benchmark
+> mode of the Sim. Measured today with `tools/test.ps1 -Suite Full`: **PASS 10 | FAIL 0 | NOT RUN 2**
+> (`dotnet test` **115**, `unity: EditMode` **30/30**, `unity: PlayMode` **6/6**, two fixtures rejected);
+> the NOT RUNs are the WebGL build and Playwright, which need the Editor closed. See
+> [`docs/template/t1-report.md`](../template/t1-report.md).
+
 `tools/test.ps1` runs one of two suites. This file is the contract between the two: which test lives
 where, what each step really costs on this machine, and what has to be missing before a step is
 allowed to report NOT RUN.
@@ -19,17 +27,16 @@ need to run, and the Web build moved behind the Full suite.
 | --- | --- | --- |
 | `toolchain: .NET SDK` | Fast | an SDK ≥ 8 is present |
 | `dotnet build` | Fast | every `lib/` layer, the xUnit project and the Sim compile |
-| `dotnet test (xUnit)` | Fast | 481 tests: the rule engine, the architecture guards, the contract suites, the Sim |
+| `dotnet test (xUnit)` | Fast | the core tests: the shared primitives, the config tables, the data rules, the architecture guards, the run skeleton |
 | `sim: determinism` | Fast | the same seed prints the same `determinismDigest` twice, a different seed does not |
-| `sim: stream separation` | Fast | shop / battle / visual digests differ, `ticksProduced=300` |
-| `sim: bot smoke run` | Fast | the kiting bot plays 2 seeds and writes balance rows |
+| `sim: stream separation` | Fast | run / encounter / visual digests differ, `ticksProduced=300` |
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
-| `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 20 broken data sets rejected for the right reason |
-| `unity: EditMode` | Fast | 144 tests in `ProjectSurvive.Game.Tests.EditMode` |
-| `unity: PlayMode` | **Full** | 46 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the battle HUD's mini ย่าม and its cooldown plates, the three scopes and the 20-round-trip loop) |
+| `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — `out-of-range` and `blank-text` rejected for the right reason |
+| `unity: EditMode` | Fast | `ProjectSurvive.Game.Tests.EditMode` (the game-screen suites leave with T1b) |
+| `unity: PlayMode` | **Full** | `ProjectSurvive.Game.Tests.PlayMode` — scenes, the three scopes, the scene flow and the 20-round-trip loop |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
-| `web: Playwright (smoke + title + battle + camp + result)` | **Full** | 10 browser tests against that build, in Chrome (13 more are the opt-in screenshot generator, skipped unless `SCREENS=1`) |
+| `web: Playwright (smoke + title + loop)` | **Full** | the browser tests against that build, in Chrome |
 
 `-Release` moves the dotnet build and the WebGL build to Release. It is for a Stage gate or a
 measurement — a Development build's numbers may not be quoted ([ADR 0003](../adr/0003-performance-baseline-machine-and-browser.md)).
@@ -112,7 +119,7 @@ clean `lib/` output tree) and `artifacts/proc10/fast-run2.log` (warm, immediatel
 | `dotnet test (xUnit)` | 2.7 | 2.5 |
 | `sim: determinism` | 36.5 | 1.3 |
 | `sim: stream separation` | 0.1 | 0.1 |
-| `sim: bot smoke run` | 49.0 | 2.6 |
+| ~~`sim: bot smoke run`~~ (removed on template) | 49.0 | 2.6 |
 | `data: generated tables validate` | 62.7 | 3.9 |
 | `data: generated code reproducible` | 4.7 | 3.4 |
 | `data: broken fixtures rejected` | 52.3 | 48.2 |
@@ -221,22 +228,21 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `TitleScenePlayModeTests` | 5 | **Stage 10d** — the loop's first screen through the real scenes: Boot hands over and **stops** there (the scene marker, the absent run and the screen's own report are read after the handover the boot scene performed by itself), pressing เริ่มเล่น with the mouse starts a run and walks into the camp as **one** run and one scene scope on floor 1, `Enter` and `Space` reach the same control (the focus is asserted first, because "the key did nothing" and "the button was never focused" are different defects), a second press while the move is in flight is refused by the presenter and by the loader with its typed reason, and playing a run to its summary, going back to the title and pressing again starts a run that is **new** (floor 1, starting purse, the starting bag as a `RunSession` built from scratch on the same seed) |
 | `ShellPlayModeTests` | 5 | scene loading, the title, the Thai spike's two stacks, UniTask cancellation in play mode. **Note:** the assembly's bulk payload reports four of these five — `Thai_spike_scene_measures_both_stacks_without_missing_glyphs` was absent from the payload of every run since Stage 10 while the file still declares it (see §7) |
 
-### Playwright — `tests/web` (10 gate tests) → **Full**
+### Playwright — `tests/web` → **Full**
 
 | Spec | Tests | What it covers |
 | --- | --- | --- |
 | `smoke.spec.ts` | 2 | the player boots, passes its own 7-probe self-check, hands over to Title; the Thai spike's glyph coverage |
-| `battle.spec.ts` | 2 | floor 1 played to a win or a loss in a real browser; a mid-floor report. Since Stage 10 the first test also rides the handover that follows: a **won** floor does not end the run, so the arena carries it back to the camp and the camp's own report has to be the same run — `__projectSurviveScene` becomes `Camp`, `floor` is 2 (a new run would be 1), `hp` is the arena's `finalHp`, `bia` is the run's purse and `canDepart` is true |
-| `camp.spec.ts` | 4 | the จัดย่าม flow end-to-end, the sala's controls, WASD + `E`, the layout at 1280×720 and 1920×1080. Its merge step presses `1` to pick the first card of the Stage 09g window after the drop (the camp report publishes no card rectangle, so the key path is the honest one) — that edit was unverified when it landed in 09g and **is verified now**: the Stage 10 Full run with the Editor closed ran this spec **4/4** against the Development player (`artifacts/stage10/full-suite-editor-closed.log`) |
-| `result.spec.ts` | 1 | **the last leg of Stage 10's loop in a built player** (2026-10-16): `?scene=Battle`, the dev menu's แพ้ทันที / lose now pressed through the centres `__projectSurviveDevMenu` publishes, then the handover to the summary screen, where `__projectSurviveResult` has to agree with the arena's own last report (`kills`, `bia`, `hp` = `finalHp`, `maxHp`), carry non-empty Thai lines with the run's numbers in them, and name both controls with a point inside the canvas. The player then presses **Restart** — the control the scene drew — and the camp has to come up with a run that is new: `flow` Camp, `floor` 1, `canDepart`, `hp` = the dead run's `maxHp`. Needs a Development build (that is what a dev menu means); a Release build publishes no menu document at all. Measured in a real player (2026-10-17, Full, Editor closed): the step reports **9 passed in Chrome, 140.0 s**, this spec 1/1 of them — after the `loseNow` fix below, and after its own second assertion was corrected (it compared the summary's *purse* with the arena's earned-currency counter; the two are different numbers and the spec now says so) |
-| `title.spec.ts` | 1 | **Stage 10d** — the first screen of the loop **in a built player**: the boot self-check hands over and the marker becomes `Title`, `__projectSurviveTitle` carries the two Thai strings the screen drew (heading and เริ่มเล่น) plus the build line, names exactly one control (`start`) inside the canvas, and the control is **at the canvas' centre** — 480 of 960 at the template's own size and 640 of 1280 after the canvas is resized to the GDD's second size, which is asserted by polling the published point so that a document frozen at the old size cannot pass. Then it clicks where the screen said the control is and asserts the game's own answer: `__projectSurviveScene` becomes `Camp` and the camp's report has `flow` Camp, `floor` 1, `canDepart` and a live purse and HP. The two facts that had to change to make this pass are in [10d's report](../stages/10d-report.md) §5 |
-| `screens.spec.ts` | 13 | **not a gate**: the screenshot generator, opt-in with `SCREENS=1` (`test.skip(process.env.SCREENS !== "1")`), skipped in a plain run |
+| ~~`battle.spec.ts`, `camp.spec.ts`, `result.spec.ts`, `screens.spec.ts`~~ | — | these left with the game screens they drove (tag `survive-stage-10` keeps them); `loop.spec.ts` replaces them |
+| `title.spec.ts` | 1 | **the template's first screen in a built player**: the boot self-check hands over and the marker becomes `Title`, `__projectSurviveTitle` carries the two Thai strings the screen drew plus the build line, names exactly one control (`start`) inside the canvas, and the control is **at the canvas' centre** — 480 of 960 at the template's own size and 640 of 1280 after the canvas is resized (polled, so a document frozen at the old size cannot pass). It then clicks where the screen said the control is and asserts the game's own answer: `__projectSurviveScene` becomes `Hub` and `__projectSurviveHub` reports a run that has cleared no encounters, in Thai, with both ways out |
+| `loop.spec.ts` | 1 | **the whole loop in a built player** — Title → Hub → Encounter → Hub → Result → Title. Every step is a click at the point the screen published (`__projectSurviveTitle`, `Hub`, `Encounter`, `Result`), and every assertion is the game's own answer: the scene marker, the Hub's cleared-encounter count going 0 → 1, the Encounter's progress line, the summary reporting `finished` with one encounter, and the page's console staying clean. One round only — the twenty-round memory claim stays a PlayMode test, which is where a scene scope can be counted |
 
 ### Process-level checks inside the harness → **Fast**
 
-`sim: determinism`, `sim: stream separation` and `sim: bot smoke run` are not test-framework tests: they
+`sim: determinism` and `sim: stream separation` are not test-framework tests: they
 run `ProjectSurvive.Sim` as a process and compare its output, which is the only place determinism across
-*processes* is observable at all. They stay in Fast because they are cheap (52.3 s cold, 4.0 s warm).
+*processes* is observable at all. They stay in Fast because they are cheap (52.3 s cold, 4.0 s warm). The template keeps one Sim mode;
+`sim: bot smoke run` went with the game rules it drove.
 
 ## 4. NOT RUN, and what makes it happen
 

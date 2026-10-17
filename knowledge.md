@@ -11,6 +11,19 @@ This file is the fast on-ramp. Read it first, then follow the links.
 
 ## Status
 
+> **This is the template branch (`template/main`).** The game-specific systems have been cut: the grid bag,
+> the shop, the battle simulation, the Thai ghost roster and the ECS engine are gone from `lib/` and `data/`.
+> What remains is the shell (`Boot → Title → Hub ⇄ Encounter → Result → Title`), the deterministic core
+> primitives, the two-table data pipeline and the tooling. The stage table below is the **history** of the
+> game repo the template was cut from (tag `survive-stage-10`), not the template's own backlog.
+>
+> | Template step | State | Report |
+> | --- | --- | --- |
+> | T0 — inventory and plan | done | [`docs/template/inventory.md`](docs/template/inventory.md) |
+> | T1a — `lib/` + `data/` cut | done, green (102 xUnit, validator, 2 fixtures) | [`docs/template/t1-report.md`](docs/template/t1-report.md) |
+> | T1b — Unity shell (Hub/Encounter, scenes) | done, green (EditMode 30, PlayMode 6) | §4 of the T1 report |
+> | T1c — tools/web/docs | done except `loop.spec.ts` (needs a WebGL build) | §4 of the T1 report |
+
 | Stage | Title | Status |
 | --- | --- | --- |
 | **00** | **Discovery & Baseline** | **DONE** — see [`docs/stages/00-report.md`](docs/stages/00-report.md) |

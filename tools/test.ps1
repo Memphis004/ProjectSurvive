@@ -11,16 +11,16 @@
     Fast (the default, and what you run while working):
       1. dotnet SDK present
       2. `dotnet build` of every layer, the test project and the Sim
-      3. `dotnet test` (xUnit, 425 tests) with a .trx in artifacts/dotnet/
+      3. `dotnet test` (xUnit) with a .trx in artifacts/dotnet/
       4. the Sim, at process level: the same seed repeats a fingerprint, a different seed does not,
-         the three streams stay separate, and the bot plays two floors
+         and the three streams stay separate
       5. the static data gates: validate-data, verify-generated, check-fixtures
       6. Unity EditMode tests, through the Editor that is already open
 
     Full (before a Stage's commit, or at a Stage gate) = Fast, then:
       7. Unity PlayMode tests, through the same Editor
       8. a WebGL build (Development; Release only with -Release)
-      9. the browser suite: smoke, battle and camp in a real Chrome
+      9. the browser suite: smoke and title in a real Chrome (the loop spec joins in T1b)
 
     Unity steps need an Editor with this project open (the `unity` CLI's own connection, the same one
     `run_tests` uses). With no Editor connected they report NOT RUN with that reason - they never
@@ -330,57 +330,31 @@ if ($dotnet -and (Test-Path -LiteralPath $script:Sln)) {
         $full = Invoke-Native $dotnet @('exec', $script:SimDll, '--seed', "$Seed")
         Write-Artifact $script:DotnetDir 'sim-full.txt' $full.Output
 
-        $battle = ($full.Output -split "`r?`n" | Where-Object { $_ -match '^battleDigest=' } | Select-Object -First 1)
+        $encounter = ($full.Output -split "`r?`n" | Where-Object { $_ -match '^encounterDigest=' } | Select-Object -First 1)
         $visual = ($full.Output -split "`r?`n" | Where-Object { $_ -match '^visualDigest=' } | Select-Object -First 1)
-        $shop = ($full.Output -split "`r?`n" | Where-Object { $_ -match '^shopDigest=' } | Select-Object -First 1)
+        $run = ($full.Output -split "`r?`n" | Where-Object { $_ -match '^runDigest=' } | Select-Object -First 1)
         $produced = ($full.Output -split "`r?`n" | Where-Object { $_ -match '^ticksProduced=' } | Select-Object -First 1)
 
         if (-not $full.Ok) { return @{ Status = 'FAIL'; Detail = ("sim exited with {0}" -f $full.Code) } }
-        if (-not $battle -or -not $visual -or -not $shop) {
+        if (-not $encounter -or -not $visual -or -not $run) {
             return @{ Status = 'FAIL'; Detail = 'could not read the per-stream digests from the Sim output' }
         }
-        if ($battle -eq $visual -or $battle -eq $shop -or $visual -eq $shop) {
-            return @{ Status = 'FAIL'; Detail = ("{0} / {1} / {2}" -f $shop, $battle, $visual) }
+        if ($encounter -eq $visual -or $encounter -eq $run -or $visual -eq $run) {
+            return @{ Status = 'FAIL'; Detail = ("{0} / {1} / {2}" -f $run, $encounter, $visual) }
         }
         if ($produced -ne 'ticksProduced=300') {
             return @{ Status = 'FAIL'; Detail = ("expected ticksProduced=300, got '{0}'" -f $produced) }
         }
 
-        return @{ Status = 'PASS'; Detail = ("{0} {1} {2}" -f $shop, $battle, $visual) }
+        return @{ Status = 'PASS'; Detail = ("{0} {1} {2}" -f $run, $encounter, $visual) }
     } | Out-Null
 
-    # The bot plays two floors headlessly; full runs are `tools/sim.ps1 --seeds 200`.
-    Invoke-Step 'sim: bot smoke run' 'Fast' {
-        if (-not (Test-Path -LiteralPath $script:SimDll)) {
-            return @{ Status = 'FAIL'; Detail = 'the Sim assembly was not built' }
-        }
-
-        $botCsv = Join-Path $script:DotnetDir 'balance-smoke.csv'
-        $bot = Invoke-Native $dotnet @('exec', $script:SimDll, '--mode', 'bot', '--seeds', '2', '--out', $botCsv, '--quiet')
-        if (-not $bot.Ok) {
-            return @{ Status = 'FAIL'; Detail = ("bot exited with {0}" -f $bot.Code) }
-        }
-
-        $rows = 0
-        if (Test-Path -LiteralPath $botCsv) {
-            $rows = @(
-                Get-Content -LiteralPath $botCsv | Where-Object { $_ -notmatch '^##' -and $_ -notmatch '^seed,' }
-            ).Count
-        }
-
-        if ($rows -lt 1) {
-            return @{ Status = 'FAIL'; Detail = "the bot wrote no balance rows to $botCsv" }
-        }
-
-        return @{ Status = 'PASS'; Detail = ("2 seeds -> {0} floor rows" -f $rows) }
-    } | Out-Null
 }
 else {
     Add-Step 'dotnet build' 'Fast' 'NOT RUN' 'dotnet is unavailable'
     Add-Step 'dotnet test (xUnit)' 'Fast' 'NOT RUN' 'dotnet is unavailable'
     Add-Step 'sim: determinism' 'Fast' 'NOT RUN' 'dotnet is unavailable'
     Add-Step 'sim: stream separation' 'Fast' 'NOT RUN' 'dotnet is unavailable'
-    Add-Step 'sim: bot smoke run' 'Fast' 'NOT RUN' 'dotnet is unavailable'
 }
 
 # ---------------------------------------------------------------------------
@@ -540,7 +514,7 @@ else {
 # ---------------------------------------------------------------------------
 if ($Suite -ne 'Full') {
     Add-Step 'web: WebGL build (Development)' 'Full' 'NOT RUN' 'the Full suite was not requested (-Suite Full)'
-    Add-Step 'web: Playwright (smoke + title + battle + camp + result)' 'Full' 'NOT RUN' 'the Full suite was not requested (-Suite Full)'
+    Add-Step 'web: Playwright (smoke + title + loop)' 'Full' 'NOT RUN' 'the Full suite was not requested (-Suite Full)'
 }
 else {
     $buildOk = $false
@@ -576,7 +550,7 @@ else {
         return @{ Status = 'PASS'; Detail = ("{0} configuration -> {1}" -f $script:WebConfiguration, $script:WebRoot) }
     } | Out-Null
 
-    Invoke-Step 'web: Playwright (smoke + title + battle + camp + result)' 'Full' {
+    Invoke-Step 'web: Playwright (smoke + title + loop)' 'Full' {
         if (-not $script:WebBuildOk) {
             return @{ Status = 'NOT RUN'; Detail = 'the WebGL build step did not produce a player to test' }
         }
@@ -617,8 +591,7 @@ else {
             }
 
             $playwright = Invoke-Native $npx @(
-                'playwright', 'test', 'smoke.spec.ts', 'title.spec.ts', 'battle.spec.ts', 'camp.spec.ts',
-                'result.spec.ts'
+                'playwright', 'test', 'smoke.spec.ts', 'title.spec.ts', 'loop.spec.ts'
             ) $testsDir
             Write-Artifact $script:DotnetDir 'playwright.log' $playwright.Output
 

@@ -67,7 +67,6 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 | Node.js | tooling + Playwright | `node --version` | `v25.6.1` | MIT | bundled npm | n/a (build-time) |
 | xUnit | Domain/Sim unit tests | `api.nuget.org/v3-flatcontainer/xunit/index.json` | **`2.9.3`** — installed and passing at Stage 01 | Apache-2.0 (`github.com/xunit/xunit/license`) | `xunit.core`, `xunit.assert`, `xunit.analyzers` | n/a (not shipped) |
 | Microsoft.NET.Test.Sdk / xunit.runner.visualstudio | `dotnet test` host + xUnit runner | versions taken from the installed `dotnet 9.0.311` `dotnet new xunit` template | **`17.12.0`** / **`2.8.2`** | MIT / Apache-2.0 | test host only | n/a (test-only) |
-| **EcsLite** (vendored) | Battle/ECS simulation | `github.com/Leopotam/ecslite`, copied into `lib/third_party/ecslite` | commit **`d46f3b209ea163810823aeea7d2610d38ad6cdf8`** (version string `2026.4.25`, 2026-04-25) | **MIT-Red** — MIT plus extra restrictions; see `lib/third_party/ecslite/LICENSE.md` | none (single-file-set library) | **Low** — pure C#, no reflection in the core; the only Unity usage is `#if`-guarded IL2CPP attributes |
 | Git LFS | binary asset storage | `git lfs version` | see doctor output | MIT | — | n/a |
 
 ### 2.2 Proposed (chosen but not yet installed / not yet proven on Web)
@@ -93,7 +92,6 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 | --- | --- | --- |
 | **UI.MVP Lite package** | The GDD names `UI.MVP Lite` but **no repository/source has been supplied**. | Project owner provides the repo URL. Until then, ADR 0002 mandates a thin, project-owned MVP. |
 | **MessagePack Unity UPM variant version** | NuGet version is confirmed; the Unity-facing distribution (`com.cysharp.messagepack` / `MessagePack.Unity`) version is not. **Still open after Stage 01**, which introduced no save DTOs. | Confirm the Unity package name + version when the first checkpoint DTO lands (Stage 12). |
-| ~~**EcsLite exact commit**~~ | **Resolved at Stage 01** — vendored at `d46f3b209ea163810823aeea7d2610d38ad6cdf8` (version string `2026.4.25`), recorded in `lib/third_party/ecslite/VENDOR.md` and `tools/versions.lock.json`, and asserted by a test. | — |
 | ~~**Luban CLI syntax**~~ | **Resolved at Stage 02** — the pinned 5.1.0 binary was driven directly (`--conf` / `-t` / `-c` / `-d` / `--strict` / `--errorFormat` / `-x key=value`) and the `__tables__.csv` registry format was read off its own loader; nothing was guessed. Recorded in `llmwiki/gotchas/luban-5-strict-and-tables.md`, asserted by twelve fixtures. | — |
 | **Firefox** | Not installed on this machine. | Install Firefox before the Stage 14 cross-browser run, or record Firefox as NOT RUN. |
 | ~~**IL2CPP stripping / AOT behaviour** (MessagePack, Protobuf, R3, VContainer)~~ | **Resolved at Stage 03** — all four round-trip in a real WebGL2 player (see the probes above), and the one real failure (VContainer's reflected constructors) is written down with its rule in `llmwiki/gotchas/il2cpp-di-and-reflection.md`. | — |
@@ -103,17 +101,6 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 
 ## 3. Transitive dependency notes
 
-- **EcsLite** is a single-file-set library with no external dependencies — that
-  is why it is vendored (source in-tree, `lib/third_party/ecslite`) rather than
-  referenced from a registry. It is **MIT-Red**, not plain MIT: the grant adds
-  restrictions on military use and on use by parties hostile to Russians. The
-  license text is vendored verbatim and the pinned revision is recorded in
-  `VENDOR.md`; an upgrade needs owner approval (AGENTS.md rule 2).
-- **EcsLite and Unity references:** upstream's `.asmdef` sets
-  `noEngineReferences: false` and is kept verbatim, because the `#if ENABLE_IL2CPP`
-  blocks use `Unity.IL2CPP.CompilerServices`. Outside Unity those blocks are
-  excluded, so the harness compiles it as pure BCL — verified by a guard test
-  rather than assumed.
 - **VContainer / R3 / UniTask / MessagePack** are pulled through OpenUPM
   (`https://package.openupm.com`) so that scoped registries pin them rather than
   resolving from a moving Git URL.

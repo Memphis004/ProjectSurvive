@@ -1,9 +1,10 @@
-คุณเป็น Coding Agent ของโปรเจกต์ ProjectSurvive
-เกม: survivor-like (สไตล์ Vampire Survivors) ผสมกริดจัดย่าม (อ้างอิงระบบจาก Backpack Immortal Tale)
-ธีมพ่อหมอปราบผีไทย 2.5D มีพ่อหมอ 1 คลาส
+คุณเป็น Coding Agent ของโปรเจกต์ ProjectSurvive **template**
+ธรรมชาติของโปรเจกต์: โครงเกมที่ไม่ผูกกับแนวเกม (engine shell + core library + data pipeline) ใช้ชื่อ ProjectSurvive ต่อไป
+จนกว่าจะสร้างเกมใหม่ แล้วค่อยเปลี่ยนชื่อด้วย tools/rename.ps1
+Loop ที่ template มีให้: Boot → Title → Hub ⇄ Encounter → Result → Title (Run scope เกิดที่ Title, ADR 0022)
 Engine: Unity 6.3 (ล็อก patch ใน tools/versions.lock.json), URP; เป้าหมาย: Web (WebGL2) single-thread บน desktop browser
-Stack: VContainer, EcsLite (Leopotam official), R3, UniTask, Luban, MessagePack (source generator),
-Google.Protobuf, Input System, Unity Test Framework, xUnit, Playwright
+Stack: VContainer, R3, UniTask, Luban, MessagePack (source generator), Google.Protobuf,
+Input System, Unity Test Framework, xUnit, Playwright — ECS engine ไม่อยู่ใน template แล้ว (เกมที่ต้องการเพิ่มเองได้)
 
 เอกสารที่ต้องอ่านก่อนทำงานทุก Stage:
 1. AGENTS.md
@@ -19,15 +20,15 @@ Google.Protobuf, Input System, Unity Test Framework, xUnit, Playwright
    ห้าม reset repo หรือแก้ lockfile แบบเหมารวม
 2. ห้ามเดา API ของ package, Luban CLI, Unity API หรือ version ให้ตรวจจาก package ที่ติดตั้งและเอกสารของ version นั้น
    ถ้าไม่ชัดให้รายงาน blocker หรือเสนอ adapter และไม่อัปเกรด engine หรือ dependency ข้าม version โดยไม่ได้รับอนุมัติ
-3. Layer: Shared <- Domain <- Application <- Presentation; Simulation อ้าง Domain/Shared/EcsLite;
+3. Layer: Shared <- Domain <- Application <- Presentation; Simulation อ้าง Domain/Shared;
    Infrastructure อ้าง Application ports ห้ามอ้างย้อนทิศ
    Domain, Application, Simulation ห้ามใช้ UnityEngine; Domain และ Simulation ห้ามใช้ R3, VContainer, serializer
    บังคับด้วย asmdef
 4. ห้ามแก้ไฟล์ใน lib/Runtime/Generated/** ด้วยมือ ให้แก้ proto/ หรือ data/ แล้วรัน tools/gen.ps1
 5. ตัวเลขบาลานซ์ทั้งหมดอยู่ใน data/ ห้ามฝังในโค้ด; ข้อความผู้เล่นมาจาก localization เท่านั้น;
    ชื่อในโค้ดเป็นภาษาอังกฤษตาม llmwiki/glossary.md
-6. Battle simulation: fixed tick 30 Hz; สุ่มผ่าน IRandomSource เท่านั้น แยกสาย shop / battle / visual
-   ห้ามใช้ UnityEngine.Random, Time, DateTime.Now ใน Core
+6. Simulation: fixed tick 30 Hz (FixedTicker); สุ่มผ่าน IRandomSource เท่านั้น แยกสาย run / encounter / reward / visual
+   (RandomStreams + RandomStreamKind) ห้ามใช้ UnityEngine.Random, Time, DateTime.Now ใน Core
    รับประกัน determinism เฉพาะใน runtime เดียวกัน ไม่ข้าม browser หรือ CPU
 7. คำสั่งที่เปลี่ยน state (ซื้อ ขาย ย้าย หมุน รวม ให้รางวัล) ต้อง atomic และคืน typed result
    ถ้าล้มเหลว state ต้องไม่เปลี่ยน
@@ -56,8 +57,9 @@ Definition of Done ของทุก Stage:
 - ระหว่างทำงานรัน `tools/test.ps1 -Suite Fast` เท่านั้น; รัน `-Suite Full` ตอนปิด Stage หรือก่อน commit ของ Stage
   (รายละเอียดชุดและเวลาจริงของแต่ละขั้นอยู่ที่ docs/testing/test-suites.md)
 - รัน WebGL build และ Playwright เฉพาะ Stage ที่ระบุ gate (10, 12, 14, 15) หรือเมื่อ `-Suite Full`; ระหว่างทางใช้ Editor Play Mode และ PlayMode tests
-- งาน UI: ตรวจ layout จากภาพของ Editor capture (`ProjectSurvive/Tools/1. Capture UI` → artifacts/ui) ไม่ต้อง build Web ทุกครั้ง;
+- งาน UI: ตรวจ layout จากภาพจริงของฉาก (Game view ตอน Play Mode → `artifacts/ui/`) ไม่ต้อง build Web ทุกครั้ง;
   ก่อนปิด Stage ยังต้องส่ง screenshot จากเกมจริงให้ผู้ใช้ดูก่อน และห้ามประกาศ PASS ด้านภาพจากเทสต์อย่างเดียว
+  (เครื่องมือ capture อัตโนมัติตัวเดิมถูกลบไปพร้อมหน้าจอเกม; ถ้าต้องการกลับมาให้เพิ่มเป็นงานแยก)
 - อ่านเฉพาะ AGENTS.md, ตารางสถานะใน knowledge.md และเอกสารของระบบที่กำลังแก้
 - เขียน ADR เฉพาะเมื่อมีทางเลือกที่ต่างกันจริงอย่างน้อยสองทางและกระทบ Stage อื่น
 - อัปเดต llmwiki/stage-log.md ตอนปิด Stage ด้วย 3 บรรทัด (ทำอะไร / ผลเป็นอย่างไร / อะไรต่อ) และอัปเดตเอกสารอื่นเฉพาะที่พฤติกรรมเปลี่ยนจริง
