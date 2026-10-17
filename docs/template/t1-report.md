@@ -40,17 +40,17 @@ each screen published (4 specs, Chrome).
 |---|---|---|
 | `dotnet build lib/Tests~/ProjectSurvive.Core.sln` | **PASS** — 0 errors, 0 warnings | see §5 command 1 |
 | `dotnet test` Core.Tests | **PASS** — 115 passed, 0 failed | §5 command 2 |
-| `pwsh tools/gen.ps1` | **PASS** — 6 `.cs`, 2 `.bytes`, config hash `8CEF044B…` | §5 command 3 |
+| `pwsh tools/gen.ps1` | **PASS** — 7 `.cs`, 2 `.bytes`, config hash `C12A4424…` (the same hash the build and the smoke report carry) | §5 command 3 |
 | `Data.Validator --data lib/Tests~/data` | **PASS** — no findings | §5 command 4 |
 | Sim, 3 streams, same seed repeats | **PASS** — `encounterDigest≠visualDigest≠runDigest`; reruns identical | §5 command 5 |
 | No `UnityEngine` in Domain/Application/Simulation | **PASS** — `ArchitectureTests` fails the build if one appears | Core.Tests |
 | No EcsLite / Leopotam reference left in `lib/` + `tools/versions.lock.json` | **PASS** — `git grep` finds no tracked hit (stale `bin/`/`obj/` artifacts from the old build remain on disk, ignored by Git) | §5 command 6 |
-| `tools/test.ps1 -Suite Full` (Editor closed) | **PASS** — 10 PASS, 0 FAIL, 2 NOT RUN (the two Unity suites, which need a connected Editor) | §5 command 10 |
-| `tools/test.ps1 -Suite Full` (Editor open) | **PASS** for the Unity half — `unity: EditMode` 30/30 and `unity: PlayMode` 6/6; the web half reports NOT RUN because an Editor holding the lock cannot build | §5 commands 7–8 |
-| `tools/sim.ps1` (rewritten for the streams mode) | **PASS** — runs, writes `artifacts/sim-streams.txt` | §5 command 8 |
-| `tools/check-fixtures.ps1` | **PASS** — 6 PASS / 0 FAIL, both fixtures rejected for the right reason | §5 command 9 |
+| `tools/test.ps1 -Suite Full` (Editor closed) | **PASS** — 10 PASS, 0 FAIL, 2 NOT RUN (the two Unity suites, which need a connected Editor) | §5 command 11 |
+| `tools/test.ps1 -Suite Full` (Editor open) | **PASS** for the Unity half — `unity: EditMode` 30/30 and `unity: PlayMode` 6/6; the web half reports NOT RUN because an Editor holding the lock cannot build | §5 command 9 |
+| `tools/sim.ps1` (rewritten for the streams mode) | **PASS** — runs, writes `artifacts/sim-streams.txt` | §5 command 7 |
+| `tools/check-fixtures.ps1` | **PASS** — 6 PASS / 0 FAIL, both fixtures rejected for the right reason | §5 command 8 |
 | WebGL build (Development, `tools/build-web.ps1 -Force`) | **PASS** — exit 0, 0 `error CS`, `index.html` + 1 wasm, `build-info.json` config hash `C12A4424…` | §5 command 10; `artifacts/dotnet/web-build.log` |
-| Playwright (`smoke`, `title`, `loop`) | **PASS** — 4 passed in Chrome 8080 (0 failures) | §5 command 10; screenshots in `artifacts/web/` |
+| Playwright (`smoke`, `title`, `loop`) | **PASS** — 4 passed in Chrome 8080 (0 failures) | §5 command 12; screenshots in `artifacts/web/` |
 
 ## 4. How T1 was split, and what each part closed
 
@@ -115,13 +115,13 @@ pwsh -NoProfile -File tools/gen.ps1
 dotnet run --project "lib/Tests~/Data.Validator/ProjectSurvive.Data.Validator.csproj" -- --data "lib/Tests~/data"
 dotnet run --project "lib/Tests~/Sim/ProjectSurvive.Sim.csproj" -- --seed 7 --ticks 300
 git grep -n "EcsLite\|Leopotam" -- lib tools/versions.lock.json docs/architecture/dependencies.md
-pwsh -NoProfile -File tools/sim.ps1 --seed 7 --ticks 300
-pwsh -NoProfile -File tools/check-fixtures.ps1
-pwsh -NoProfile -File tools/test.ps1 -Suite Full          # 7. Editor open: Unity suites green, web NOT RUN
-# (Editor closed, and after npm install in tests/web)
-pwsh -NoProfile -File tools/build-web.ps1 -Force           # 9.
-pwsh -NoProfile -File tools/test.ps1 -Suite Full           # 10. PASS 10 | FAIL 0 | NOT RUN 2
-cd tests/web && npx playwright test smoke.spec.ts title.spec.ts loop.spec.ts   # 11. 4 passed
+pwsh -NoProfile -File tools/sim.ps1 --seed 7 --ticks 300                     # 7
+pwsh -NoProfile -File tools/check-fixtures.ps1                              # 8
+pwsh -NoProfile -File tools/test.ps1 -Suite Full                            # 9. Editor open: Unity 30/30 + 6/6, web NOT RUN
+# Editor closed, and after npm install in tests/web
+pwsh -NoProfile -File tools/build-web.ps1 -Force                            # 10. exit 0, 0 error CS
+pwsh -NoProfile -File tools/test.ps1 -Suite Full                            # 11. PASS 10 | FAIL 0 | NOT RUN 2
+cd tests/web && npx playwright test smoke.spec.ts title.spec.ts loop.spec.ts # 12. 4 passed
 pwsh -NoProfile -File tools/doctor.ps1
 ```
 
@@ -142,3 +142,14 @@ pwsh -NoProfile -File tools/doctor.ps1
 - `loop.spec.ts` walks **one** Hub ⇄ Encounter round. The twenty-round memory claim stays a PlayMode test
   (`LoopPlayModeTests`): twenty browser round trips would be twenty scene loads in a player that has to
   re-download nothing but still spends seconds per fade.
+
+## 7. Commits
+
+All on `template/main`, each prefixed `generic:` (AGENTS rule 14 — none of them names a game type, so they
+are the candidates to cherry-pick into another project branch):
+
+| Commit | What it carries |
+|---|---|
+| `ecdc226` | `generic: reduce the core to a game-agnostic skeleton` — `lib/`, `data/`, `proto/`, `tools/versions.lock.json`, the regenerated config bytes |
+| `05c11ac` | `generic: replace the game screens with a Hub/Encounter loop` — scenes, scripts, asmdefs, Unity tests, the two screen reports |
+| `c129ba6` | `generic: point the tooling, browser specs and docs at the template` — `tools/`, `tests/web/` (incl. `loop.spec.ts`), `docs/`, `AGENTS.md`, `knowledge.md`, `llmwiki/` |
