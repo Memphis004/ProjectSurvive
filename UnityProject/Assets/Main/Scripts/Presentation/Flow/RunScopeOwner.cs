@@ -45,6 +45,7 @@ namespace ProjectSurvive.Game.Presentation.Flow
 
         private RunLifetimeScope _scope;
         private RunSession _run;
+        private SceneFlow _flow;
 
         /// <summary>Creates an owner under <paramref name="owner"/>.</summary>
         /// <exception cref="ArgumentNullException"><paramref name="owner"/> is null.</exception>
@@ -62,6 +63,16 @@ namespace ProjectSurvive.Game.Presentation.Flow
 
         /// <summary>The live run, or null when there is none. Never creates one.</summary>
         public RunSession Current => _run;
+
+        /// <summary>
+        /// The loop state machine of the live run, or null when there is none.
+        /// </summary>
+        /// <remarks>
+        /// It lives in the Run scope with the run it drives, so a scene scope cannot resolve it on its
+        /// own — the scene scope is a sibling, not a child. The owner is the seam: it hands out both the
+        /// run and the flow that belongs to it.
+        /// </remarks>
+        public SceneFlow Flow => _flow;
 
         /// <summary>
         /// The run, created on first use. Idempotent: every caller in a session of play gets the
@@ -104,6 +115,7 @@ namespace ProjectSurvive.Game.Presentation.Flow
 
             _scope = scope;
             _run = scope.Container.Resolve<RunSession>();
+            _flow = scope.Container.Resolve<SceneFlow>();
             return _run;
         }
 
@@ -120,6 +132,7 @@ namespace ProjectSurvive.Game.Presentation.Flow
             RunLifetimeScope scope = _scope;
             _scope = null;
             _run = null;
+            _flow = null;
 
             if (scope is null)
             {

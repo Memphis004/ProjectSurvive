@@ -39,7 +39,7 @@ namespace ProjectSurvive.Game.Presentation
         [SerializeField] private string _titleSceneName = "Title";
 
         [Tooltip("Scenes the page URL may request with ?scene=<name>. Only these names are accepted.")]
-        [SerializeField] private string[] _urlSceneOverrides = { "ThaiTextSpike", "Battle" };
+        [SerializeField] private string[] _urlSceneOverrides = { "ThaiTextSpike", "Hub", "Encounter", "Result" };
 
         private CancellationTokenSource _lifetime;
 

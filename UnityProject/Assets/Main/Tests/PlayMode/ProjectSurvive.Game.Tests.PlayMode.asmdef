@@ -4,13 +4,10 @@
     "references": [
         "ProjectSurvive.Game.Infrastructure",
         "ProjectSurvive.Game.Presentation",
-        "ProjectSurvive.Game.Battle",
-        "ProjectSurvive.Game.Camp",
         "ProjectSurvive.Game.ResultScene",
         "Unity.InputSystem",
         "Unity.InputSystem.TestFramework",
         "ProjectSurvive.Core.Simulation",
-        "Leopotam.EcsLite",
         "ProjectSurvive.Core.Shared",
         "ProjectSurvive.Core.Domain",
         "ProjectSurvive.Core.Application",

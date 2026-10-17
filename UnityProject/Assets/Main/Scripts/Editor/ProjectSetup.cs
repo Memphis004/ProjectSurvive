@@ -43,7 +43,7 @@ namespace ProjectSurvive.Game.Editor
     /// <b>One builder file per scene (Stage 10t).</b> Each scene's construction lives
     /// in its own <c>*SceneBuilder</c> next to this file — <c>BootSceneBuilder</c>,
     /// <c>TitleSceneBuilder</c>, <c>ThaiTextSpikeSceneBuilder</c>,
-    /// <c>BattleSceneBuilder</c>, <c>CampSceneBuilder</c>, <c>ResultSceneBuilder</c> —
+    /// <c>HubSceneBuilder</c>, <c>EncounterSceneBuilder</c>, <c>ResultSceneBuilder</c> —
     /// together with the menu items that build it. A scene can therefore be removed
     /// (or left out of a template branch) by deleting one file, and the helpers here
     /// are the vocabulary those builders share: a scope object, a camera, an event
@@ -74,13 +74,13 @@ namespace ProjectSurvive.Game.Editor
         public const string TitleScenePath = ScenesFolder + "/Title.unity";
         public const string SpikeScenePath = ScenesFolder + "/ThaiTextSpike.unity";
 
-        /// <summary>The Stage 08 battle scene.</summary>
-        public const string BattleScenePath = ScenesFolder + "/Battle.unity";
+        /// <summary>The loop's preparation screen (between encounters).</summary>
+        public const string HubScenePath = ScenesFolder + "/Hub.unity";
 
-        /// <summary>The Stage 09 camp scene (ศาลาพัก).</summary>
-        public const string CampScenePath = ScenesFolder + "/Camp.unity";
+        /// <summary>The loop's unit-of-play screen.</summary>
+        public const string EncounterScenePath = ScenesFolder + "/Encounter.unity";
 
-        /// <summary>The Stage 10 run-summary scene.</summary>
+        /// <summary>The run-summary scene.</summary>
         public const string ResultScenePath = ScenesFolder + "/Result.unity";
 
         /// <summary>
@@ -88,7 +88,7 @@ namespace ProjectSurvive.Game.Editor
         /// the Boot scene is created and when a scene that should be reachable is added, so the two
         /// cannot drift.
         /// </summary>
-        public static readonly string[] UrlSceneAllowList = { "ThaiTextSpike", "Battle", "Camp", "Result" };
+        public static readonly string[] UrlSceneAllowList = { "ThaiTextSpike", "Hub", "Encounter", "Result" };
 
         private const string SourceFontFile = FontsFolder + "/Sarabun-Regular.ttf";
 
@@ -596,7 +596,7 @@ namespace ProjectSurvive.Game.Editor
         /// Rewrites the build list from the scenes that exist on disk.
         /// </summary>
         /// <remarks>
-        /// Boot, Title and ThaiTextSpike are always listed; the later scenes join only once their
+        /// Boot, Title and ThaiTextSpike are always listed; Hub, Encounter and Result join once their
         /// file exists, so an older checkout keeps a build list of scenes that are really there and
         /// a departure to a missing scene is refused with a typed error instead of attempted.
         /// </remarks>
@@ -609,14 +609,14 @@ namespace ProjectSurvive.Game.Editor
                 new EditorBuildSettingsScene(SpikeScenePath, true),
             };
 
-            if (File.Exists(BattleScenePath))
+            if (File.Exists(HubScenePath))
             {
-                scenes.Add(new EditorBuildSettingsScene(BattleScenePath, true));
+                scenes.Add(new EditorBuildSettingsScene(HubScenePath, true));
             }
 
-            if (File.Exists(CampScenePath))
+            if (File.Exists(EncounterScenePath))
             {
-                scenes.Add(new EditorBuildSettingsScene(CampScenePath, true));
+                scenes.Add(new EditorBuildSettingsScene(EncounterScenePath, true));
             }
 
             if (File.Exists(ResultScenePath))
@@ -632,7 +632,7 @@ namespace ProjectSurvive.Game.Editor
         /// </summary>
         /// <remarks>
         /// Boot's allow-list is the only way a browser can choose a scene, and Stage 08 had to
-        /// re-run the Boot menu item to get <c>Battle</c> into it. Doing it here means creating a
+        /// re-run the Boot menu item to get <c>Hub</c> into it. Doing it here means creating a
         /// scene is enough to make it reachable — the two halves of the feature (a scene that
         /// publishes its own name, and an allow-list that permits it) stay in step without a second
         /// manual step nobody remembers.

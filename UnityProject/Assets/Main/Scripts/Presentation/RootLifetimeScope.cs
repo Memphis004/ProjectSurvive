@@ -1,6 +1,5 @@
 using ProjectSurvive.Core.Application.Text;
 using ProjectSurvive.Core.Domain.Config;
-using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Infrastructure;
 using ProjectSurvive.Core.Shared;
 using ProjectSurvive.Game.Infrastructure;
@@ -124,14 +123,6 @@ namespace ProjectSurvive.Game.Presentation
                 // them again would give the scene its own config, its own clock and its own run.
                 return;
             }
-
-            // The one place that knows whether this build may cheat (Stage 10c). It is decided here
-            // — at the root, before anything can start a run — rather than in an `#if` scattered
-            // through the screens, and it is a plain value in Domain so that "a release build is
-            // off" is one expression (DevCheats.Allows) plus the shipped floor's own refusal (see
-            // DevCheatTests). Every floor copies the answer into `BattleSetup.DevCheatsAllowed` when
-            // it departs, so a run that left while cheats were off cannot be cheated afterwards.
-            DevCheats.Configure(isDevelopmentBuild: Debug.isDebugBuild, isEditor: Application.isEditor);
 
             // Every registration is an explicit factory, never a reflected constructor. The first
             // Web build failed with "VContainerException: Type does not found injectable

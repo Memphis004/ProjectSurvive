@@ -1,5 +1,5 @@
 using System;
-using ProjectSurvive.Core.Domain.Run;
+using ProjectSurvive.Core.Application.Flow;
 using ProjectSurvive.Game.Presentation.Web;
 using UnityEngine;
 using VContainer;
@@ -9,7 +9,7 @@ namespace ProjectSurvive.Game.Presentation.Flow
     /// <summary>
     /// Brings the Title scene up, and is the one place that knows how the game leaves it: the player
     /// presses เริ่มเล่น, the presenter starts a run, and this asks the <see cref="SceneLoader"/> for
-    /// the camp.
+    /// the Hub.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -207,7 +207,11 @@ namespace ProjectSurvive.Game.Presentation.Flow
                 string detail = _loader is null ? "no loader" : _loader.LastError;
                 StartError = "the move to " + target + " was refused: " + detail;
 
-                if (!string.Equals(detail, _lastRefusal, StringComparison.Ordinal))
+                // `transition.in_progress` means the loader is still finishing the move that brought this
+                // screen up — it clears on its own, and the retry below is free. Anything else is worth
+                // an error, once per distinct refusal.
+                if (!string.Equals(detail, TransitionError.InProgress, StringComparison.Ordinal)
+                    && !string.Equals(detail, _lastRefusal, StringComparison.Ordinal))
                 {
                     _lastRefusal = detail;
                     Debug.LogError(StartError, this);
@@ -219,7 +223,7 @@ namespace ProjectSurvive.Game.Presentation.Flow
             _departed = true;
             _lastRefusal = string.Empty;
             StartError = string.Empty;
-            Debug.Log("The title screen is starting a run: the camp is next.", this);
+            Debug.Log("The title screen is starting a run: the Hub is next.", this);
         }
     }
 }

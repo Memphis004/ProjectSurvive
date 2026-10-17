@@ -154,8 +154,8 @@ MonoBehaviour:
   _titleSceneName: Title
   _urlSceneOverrides:
   - ThaiTextSpike
-  - Battle
-  - Camp
+  - Hub
+  - Encounter
   - Result
 --- !u!114 &1362040572
 MonoBehaviour:

@@ -4,8 +4,6 @@
     "references": [
         "ProjectSurvive.Game.Infrastructure",
         "ProjectSurvive.Game.Presentation",
-        "ProjectSurvive.Game.Battle",
-        "ProjectSurvive.Game.Camp",
         "ProjectSurvive.Game.ResultScene",
         "ProjectSurvive.Game.Editor",
         "ProjectSurvive.Core.Simulation",

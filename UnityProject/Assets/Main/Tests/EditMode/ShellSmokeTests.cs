@@ -90,8 +90,8 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
             Assert.That(config.ConfigHash, Is.EqualTo(ConfigBuildMetadata.ConfigHash));
             Assert.That(config.Localization.Count, Is.GreaterThan(0));
-            Assert.That(config.Items.Count, Is.GreaterThan(0));
-            Assert.That(config.Constant.BoardWidth, Is.GreaterThan(0));
+            Assert.That(config.Constant.MaxHp, Is.GreaterThan(0));
+            Assert.That(config.Constant.MoveSpeed, Is.GreaterThan(0f));
         }
 
         [Test]

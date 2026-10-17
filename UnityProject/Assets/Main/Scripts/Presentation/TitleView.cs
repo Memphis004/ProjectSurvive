@@ -1,5 +1,4 @@
 using System;
-using ProjectSurvive.Game.Presentation.Camp;
 using R3;
 using TMPro;
 using UnityEngine;
@@ -153,7 +152,7 @@ namespace ProjectSurvive.Game.Presentation
         /// </summary>
         /// <remarks>
         /// The page's report needs somewhere to aim a click, and a click has to land <i>inside</i> the
-        /// control: the conversion is the camp's own (<see cref="CampScreenRects.TryCentre"/>) rather
+        /// control: the conversion is the camp's own (<see cref="UiScreenRects.TryCentre"/>) rather
         /// than a second copy of it here, for the reason that helper exists — a <c>RectTransform</c>
         /// whose pivot is a corner reports that corner as its position.
         /// </remarks>
@@ -161,7 +160,7 @@ namespace ProjectSurvive.Game.Presentation
         {
             Button target = button == TitleButton.Start ? _startButton : null;
 
-            return CampScreenRects.TryCentre(
+            return UiScreenRects.TryCentre(
                 target is null ? null : target.transform as RectTransform, out screen);
         }
 

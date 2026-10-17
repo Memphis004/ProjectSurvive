@@ -102,16 +102,14 @@ namespace ProjectSurvive.Game.Presentation.Smoke
         {
             string generated = ConfigBuildMetadata.ConfigHash;
             bool hashMatches = string.Equals(generated, _config.ConfigHash, StringComparison.Ordinal);
-            int rows = _config.Localization.Count + _config.Items.Count + _config.Enemies.Count;
+            int rows = _config.Localization.Count;
 
             string detail = string.Format(
                 CultureInfo.InvariantCulture,
-                "hash={0} generated={1} localization={2} items={3} enemies={4}",
+                "hash={0} generated={1} localization={2}",
                 Short(_config.ConfigHash),
                 Short(generated),
-                _config.Localization.Count,
-                _config.Items.Count,
-                _config.Enemies.Count);
+                _config.Localization.Count);
 
             if (!hashMatches)
             {

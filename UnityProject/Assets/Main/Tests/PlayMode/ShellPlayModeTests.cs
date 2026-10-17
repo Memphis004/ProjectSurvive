@@ -53,7 +53,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 // find a run in the Battle phase and (correctly) refuse to start, which is a
                 // statement about the loop, not about the scene. The question here is whether each
                 // scene loads on its own, so each scene gets its own shell.
-                SceneFlowHarness.ResetShell();
+                ResetShell();
                 yield return null;
 
                 string path = SceneUtility.GetScenePathByBuildIndex(index);
@@ -79,7 +79,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             }
 
             // Whatever the last scene left behind goes away with the fixture, not with the next one.
-            SceneFlowHarness.ResetShell();
+            ResetShell();
             yield return null;
         }
 
@@ -88,7 +88,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         {
             int completedBefore = SceneBoot.CompletedBootCount;
 
-            SceneFlowHarness.ResetShell();
+            ResetShell();
             yield return null;
 
             yield return SceneManager.LoadSceneAsync(SceneIndex("Boot"), LoadSceneMode.Single);
@@ -113,7 +113,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         [UnityTest]
         public IEnumerator Title_scene_shows_the_localized_title()
         {
-            SceneFlowHarness.ResetShell();
+            ResetShell();
             yield return null;
 
             yield return SceneManager.LoadSceneAsync(SceneIndex(TitleSceneName), LoadSceneMode.Single);
@@ -141,7 +141,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         [UnityTest]
         public IEnumerator Thai_spike_scene_measures_both_stacks_without_missing_glyphs()
         {
-            SceneFlowHarness.ResetShell();
+            ResetShell();
             yield return null;
 
             yield return SceneManager.LoadSceneAsync(SceneIndex("ThaiTextSpike"), LoadSceneMode.Single);
@@ -215,6 +215,33 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         {
             GameObject found = GameObject.Find(objectName);
             return found is null ? null : found.GetComponent<TMP_Text>();
+        }
+
+        /// <summary>
+        /// Tears down the App scope a previous scene left behind.
+        /// </summary>
+        /// <remarks>
+        /// Boot moves the composition root into <c>DontDestroyOnLoad</c> and keeps a global parent
+        /// override alive, so a scene loaded afterwards is its child. A fixture that wants to load each
+        /// scene "on its own" has to undo both — otherwise the second scene inherits the first scene's
+        /// run and the test stops measuring what it says it measures.
+        /// </remarks>
+        private static void ResetShell()
+        {
+            RootLifetimeScope[] scopes = UnityEngine.Object.FindObjectsByType<RootLifetimeScope>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+            for (int i = 0; i < scopes.Length; i++)
+            {
+                RootLifetimeScope scope = scopes[i];
+                if (scope is null)
+                {
+                    continue;
+                }
+
+                scope.StopPersisting();
+                UnityEngine.Object.Destroy(scope.gameObject);
+            }
         }
     }
 }
