@@ -1,0 +1,4 @@
+##,id,name_key,value,note_key
+,sample.alpha,ui.sample.alpha,10,
+,sample.alpha,ui.sample.beta,20,
+,sample.gamma,ui.sample.gamma,30,

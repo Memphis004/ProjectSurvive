@@ -122,6 +122,100 @@ namespace ProjectSurvive.Core.Tests
         }
 
         [Fact]
+        public void A_localization_row_missing_one_language_is_a_finding()
+        {
+            var config = new TestConfig();
+            config.Rows = new List<LocalizationEntry>
+            {
+                new LocalizationEntry { Key = "ui.half", Th = "ไทย", En = string.Empty },
+            };
+
+            Finding finding = Assert.Single(ConfigValidator.Validate(config));
+            Assert.Equal("localization.missing_language", finding.Code);
+            Assert.Equal("tblocalization['ui.half']", finding.Target);
+        }
+
+        // -- sample ------------------------------------------------------------
+
+        [Fact]
+        public void A_sample_row_pointing_at_a_missing_localization_key_is_a_finding()
+        {
+            var config = new TestConfig();
+            config.SampleRows = new List<SampleEntry>
+            {
+                new SampleEntry { Id = "sample.one", NameKey = "ui.nothing.here", Value = 1 },
+            };
+
+            Finding finding = Assert.Single(ConfigValidator.Validate(config));
+            Assert.Equal("sample.missing_name_key", finding.Code);
+            Assert.Equal("tbsample['sample.one'].name_key", finding.Target);
+        }
+
+        [Fact]
+        public void A_sample_row_with_an_optional_note_key_that_does_not_exist_is_a_finding()
+        {
+            var config = new TestConfig();
+            config.SampleRows = new List<SampleEntry>
+            {
+                new SampleEntry { Id = "sample.one", NameKey = "ui.title", Value = 1, NoteKey = "ui.gone" },
+            };
+
+            Finding finding = Assert.Single(ConfigValidator.Validate(config));
+            Assert.Equal("sample.missing_note_key", finding.Code);
+            Assert.Equal("tbsample['sample.one'].note_key", finding.Target);
+        }
+
+        [Fact]
+        public void An_empty_note_key_is_not_a_finding_because_the_column_is_optional()
+        {
+            var config = new TestConfig();
+            config.SampleRows = new List<SampleEntry>
+            {
+                new SampleEntry { Id = "sample.one", NameKey = "ui.title", Value = 1, NoteKey = string.Empty },
+            };
+
+            Assert.Empty(ConfigValidator.Validate(config));
+        }
+
+        [Fact]
+        public void A_duplicate_sample_id_is_a_finding()
+        {
+            var config = new TestConfig();
+            config.SampleRows = new List<SampleEntry>
+            {
+                new SampleEntry { Id = "sample.one", NameKey = "ui.title", Value = 1 },
+                new SampleEntry { Id = "sample.one", NameKey = "ui.title", Value = 2 },
+            };
+
+            Finding finding = Assert.Single(ConfigValidator.Validate(config));
+            Assert.Equal("sample.duplicate_id", finding.Code);
+            Assert.Equal("tbsample['sample.one']", finding.Target);
+        }
+
+        [Fact]
+        public void A_blank_sample_id_is_a_finding()
+        {
+            var config = new TestConfig();
+            config.SampleRows = new List<SampleEntry>
+            {
+                new SampleEntry { Id = "  ", NameKey = "ui.title", Value = 1 },
+            };
+
+            Finding finding = Assert.Single(ConfigValidator.Validate(config));
+            Assert.Equal("sample.blank_id", finding.Code);
+        }
+
+        [Fact]
+        public void An_empty_sample_table_is_one_finding_not_none()
+        {
+            var config = new TestConfig();
+            config.SampleRows = new List<SampleEntry>();
+
+            Finding finding = Assert.Single(ConfigValidator.Validate(config));
+            Assert.Equal("sample.empty", finding.Code);
+        }
+
+        [Fact]
         public void An_empty_localization_table_is_one_finding_not_none()
         {
             var config = new TestConfig();
@@ -167,7 +261,31 @@ namespace ProjectSurvive.Core.Tests
                 new LocalizationEntry { Key = "ui.title", Th = "ไทย", En = "Title" },
             };
 
+            /// <summary>
+            /// The sample rows, or a baseline row whose <c>name_key</c> resolves against
+            /// <see cref="Rows"/>. A test that changes the localization table would otherwise make the
+            /// baseline sample row dangle, and every one of these tests would fail for that reason
+            /// instead of its own.
+            /// </summary>
+            public List<SampleEntry> SampleRows
+            {
+                get => _sampleRows ?? new List<SampleEntry>
+                {
+                    new SampleEntry
+                    {
+                        Id = "sample.one",
+                        NameKey = Rows.FirstOrDefault(row => !string.IsNullOrEmpty(row.Key))?.Key ?? string.Empty,
+                        Value = 1,
+                    },
+                };
+                set => _sampleRows = value;
+            }
+
             public IReadOnlyList<LocalizationEntry> Localization => Rows;
+
+            public IReadOnlyList<SampleEntry> Samples => SampleRows;
+
+            private List<SampleEntry>? _sampleRows;
 
             public bool TryGetLocalization(string key, out LocalizationEntry value) =>
                 (value = Rows.FirstOrDefault(row => row.Key == key)!) is not null;

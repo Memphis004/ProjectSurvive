@@ -14,9 +14,11 @@
               int#(range=[a,b])    (Luban value validator)
     * The generated namespace comes from target.topModule ("ProjectSurvive.Config").
 
-  The template keeps exactly two tables: `tbconstant` (tuned numbers) and
-  `tblocalization` (the only source of player-facing text, AGENTS rule 5).
-  A game adds its own beans here and its own CSV under data/tables/.
+  The template keeps three tables: `tbconstant` (tuned numbers), `tblocalization`
+  (the only source of player-facing text, AGENTS rule 5) and `tbsample` (a
+  worked example of the two ways data points at other data). A game adds its own
+  beans here and its own CSV under data/tables/ — and deletes `tbsample` once it
+  has a table of its own.
 
   Balance NUMBERS live in the CSV tables under data/tables/, never here.
 -->
@@ -49,6 +51,30 @@
     <var name="max_mp" type="int#(range=[0,1000000])"/>
     <var name="move_speed" type="float"/>
     <var name="pickup_radius" type="float"/>
+  </bean>
+
+  <!-- A worked example, and the only table a game is expected to delete.
+
+       It demonstrates the two ways one table points at another, because the
+       difference decides who reports a broken pointer:
+
+         name_key  string#ref=TbLocalization  a REQUIRED reference. The strict
+                   validator rejects a dangling cell during tools/gen.ps1, before
+                   any .bytes exist (fixture: `missing-ref`).
+                   (An XML comment may not contain a double dash, which is why
+                   the flag is named in prose here and spelled out in
+                   tools/gen.ps1.)
+         note_key  plain string              an OPTIONAL reference. Luban cannot
+                   express "if set, it must exist" - an empty cell is a legal
+                   ref - so the rule lives in Data.Validator and fires over the
+                   generated tables (fixture: `missing-note-key`).
+
+       A game copies whichever of the two its own columns need. -->
+  <bean name="Sample">
+    <var name="id" type="string"/>
+    <var name="name_key" type="string#ref=TbLocalization"/>
+    <var name="value" type="int#(range=[0,1000000])"/>
+    <var name="note_key" type="string"/>
   </bean>
 
 </module>

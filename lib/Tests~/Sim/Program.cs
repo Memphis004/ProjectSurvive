@@ -46,10 +46,16 @@ namespace ProjectSurvive.Sim
             {
                 if (!options.Quiet)
                 {
+                    // Seed and config hash are the two facts a result is only meaningful with: the first
+                    // makes a run reproducible, the second says which balance data produced it. A game
+                    // adds its own mode here; this line is the part every mode wants.
                     LubanGameConfig config = SimEnvironment.LoadConfig(options.DataDirectory);
                     Console.WriteLine(
-                        "data=" + SimEnvironment.DataDirectory(options.DataDirectory)
+                        "seed=" + options.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        + " configHash=" + config.ConfigHash
+                        + " data=" + SimEnvironment.DataDirectory(options.DataDirectory)
                         + " tables=localization " + config.Localization.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        + ", sample " + config.Samples.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)
                         + ", maxHp " + config.Constant.MaxHp.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 }
 

@@ -1,0 +1,6 @@
+{
+  "name": "missing-language",
+  "stage": "semantic",
+  "why": "ui.generic.ok has Thai text and an empty English cell, so the two languages do not line up",
+  "expectedCodes": ["localization.missing_language"]
+}

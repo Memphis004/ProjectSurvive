@@ -1,3 +1,7 @@
 ##,key,th,en
 ,ui.title,เกมของฉัน,My Game
+,ui.sample.alpha,ตัวอย่าง ก,Sample A
+,ui.sample.beta,ตัวอย่าง ข,Sample B
+,ui.sample.gamma,ตัวอย่าง ค,Sample C
+,ui.sample.note,บันทึกตัวอย่างของแถวนี้,A row's optional note
 ,ui.blank,,

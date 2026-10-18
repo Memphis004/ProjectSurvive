@@ -1,8 +1,13 @@
 using System;
 using Google.Protobuf;
 using ProjectSurvive.Core.Contracts.Save;
-using ProjectSurvive.Core.Generated.Proto;
 using Xunit;
+
+// The generated contract and the MessagePack probe deliberately share the name `CheckpointProbe`:
+// both answer "does our serialization actually work away from the desktop runtime?". The alias keeps
+// this file readable where both are in scope at once.
+using ProtoProbe = ProjectSurvive.Core.Generated.Proto.CheckpointProbe;
+using ProtoSaveHeader = ProjectSurvive.Core.Generated.Proto.SaveHeader;
 
 namespace ProjectSurvive.Core.Tests
 {
@@ -84,30 +89,52 @@ namespace ProjectSurvive.Core.Tests
         [Fact]
         public void Protobuf_round_trip_preserves_the_external_contract()
         {
-            var original = new AppInfo
+            var original = new ProtoProbe
             {
-                AppVersion = "0.1.0",
+                SchemaVersion = 3,
                 ConfigHash = ProjectSurvive.Config.ConfigBuildMetadata.ConfigHash,
-                Platform = Platform.Web,
-                Locale = "th",
+                Tick = 1234567890123L,
+                NoteKey = "ui.title",
             };
 
             byte[] bytes = original.ToByteArray();
-            AppInfo restored = AppInfo.Parser.ParseFrom(bytes);
+            ProtoProbe restored = ProtoProbe.Parser.ParseFrom(bytes);
 
             Assert.Equal(original, restored);
-            Assert.Equal(Platform.Web, restored.Platform);
+            Assert.Equal(3u, restored.SchemaVersion);
+            Assert.Equal(ProjectSurvive.Config.ConfigBuildMetadata.ConfigHash, restored.ConfigHash);
+            Assert.Equal(1234567890123L, restored.Tick);
+        }
+
+        [Fact]
+        public void The_save_header_carries_the_schema_and_the_config_hash()
+        {
+            // The two fields a reader needs before it parses a payload: which format this is, and which
+            // balance data it was written against.
+            var header = new ProtoSaveHeader
+            {
+                SchemaVersion = 4,
+                ConfigHash = ProjectSurvive.Config.ConfigBuildMetadata.ConfigHash,
+            };
+
+            ProtoSaveHeader restored = ProtoSaveHeader.Parser.ParseFrom(header.ToByteArray());
+
+            Assert.Equal(4u, restored.SchemaVersion);
             Assert.Equal(ProjectSurvive.Config.ConfigBuildMetadata.ConfigHash, restored.ConfigHash);
         }
 
         [Fact]
-        public void Protobuf_enum_values_match_the_proto_definition()
+        public void Protobuf_field_numbers_match_the_proto_definition()
         {
-            // proto/app.proto is the external contract; the numbers are the wire
-            // format and must never drift with a refactor.
-            Assert.Equal(0, (int)Platform.Unspecified);
-            Assert.Equal(1, (int)Platform.Web);
-            Assert.Equal(2, (int)Platform.Editor);
+            // proto/app.proto is the external contract; the field numbers are the wire format and must
+            // never drift with a refactor. Read through the descriptors rather than by reflection on C#
+            // property names, because the numbers - not the names - are what a peer decodes with.
+            Assert.Equal(1, ProtoProbe.Descriptor.FindFieldByNumber(1).FieldNumber);
+            Assert.Equal(2, ProtoProbe.Descriptor.FindFieldByNumber(2).FieldNumber);
+            Assert.Equal(3, ProtoProbe.Descriptor.FindFieldByNumber(3).FieldNumber);
+            Assert.Equal(4, ProtoProbe.Descriptor.FindFieldByNumber(4).FieldNumber);
+            Assert.Equal(2, ProtoSaveHeader.Descriptor.Fields.InFieldNumberOrder().Count);
+            Assert.Equal("config_hash", ProtoSaveHeader.Descriptor.FindFieldByNumber(2).Name);
         }
     }
 }

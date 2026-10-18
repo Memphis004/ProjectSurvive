@@ -1,0 +1,6 @@
+{
+  "name": "duplicate-id",
+  "stage": "luban",
+  "why": "two sample rows share the id sample.alpha, and the table is keyed by id, so the duplicate key is rejected during generation rather than by the validator",
+  "expectedCodes": []
+}

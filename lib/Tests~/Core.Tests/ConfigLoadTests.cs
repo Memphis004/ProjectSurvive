@@ -31,6 +31,32 @@ namespace ProjectSurvive.Core.Tests
         }
 
         [Fact]
+        public void The_sample_table_loads_with_its_reference_and_its_optional_cell()
+        {
+            IGameConfig config = ConfigFixture.Load();
+
+            Assert.Equal(3, config.Samples.Count);
+
+            SampleEntry first = config.Samples[0];
+            Assert.Equal("sample.alpha", first.Id);
+            Assert.Equal("ui.sample.alpha", first.NameKey);
+            Assert.Equal(10, first.Value);
+
+            // An empty optional cell reads back as an empty string, not as a default invented here:
+            // "this row has no note" is a value the data can carry.
+            Assert.Equal(string.Empty, first.NoteKey);
+            Assert.Equal("ui.sample.note", config.Samples[1].NoteKey);
+
+            // The reference the schema enforces is a real localization key, so a data row can be named.
+            foreach (SampleEntry row in config.Samples)
+            {
+                Assert.True(
+                    config.TryGetLocalization(row.NameKey, out _),
+                    "sample '" + row.Id + "' points at '" + row.NameKey + "', which is not a localization key");
+            }
+        }
+
+        [Fact]
         public void The_shipped_hash_matches_the_tables_on_disk()
         {
             Dictionary<string, byte[]> tables = ConfigFixture.ReadTables();
@@ -91,9 +117,9 @@ namespace ProjectSurvive.Core.Tests
         }
 
         [Fact]
-        public void TableNames_are_the_two_the_template_keeps()
+        public void TableNames_are_the_three_the_template_keeps()
         {
-            Assert.Equal(new[] { "tblocalization", "tbconstant" }, LubanGameConfig.TableNames);
+            Assert.Equal(new[] { "tblocalization", "tbconstant", "tbsample" }, LubanGameConfig.TableNames);
         }
 
         /// <summary>A hand-built config, for the paths a real load cannot reach.</summary>
@@ -118,6 +144,10 @@ namespace ProjectSurvive.Core.Tests
             };
 
             public IReadOnlyList<LocalizationEntry> Localization { get; }
+
+            // Empty rather than a row: this fake exists for the load paths, and an empty sample table is
+            // already the shape Data.Validator has a rule for.
+            public IReadOnlyList<SampleEntry> Samples { get; } = Array.Empty<SampleEntry>();
 
             public bool TryGetLocalization(string key, out LocalizationEntry value) =>
                 _byKey.TryGetValue(key, out value!);

@@ -34,12 +34,15 @@ namespace ProjectSurvive.Core.Infrastructure.Config
         {
             "tblocalization",
             "tbconstant",
+            "tbsample",
         };
 
         private readonly Dictionary<string, LocalizationEntry> _localization =
             new Dictionary<string, LocalizationEntry>(StringComparer.Ordinal);
 
         private readonly List<LocalizationEntry> _localizationList = new List<LocalizationEntry>();
+
+        private readonly List<SampleEntry> _samples = new List<SampleEntry>();
 
         private LubanGameConfig(string configHash, GeneratedTables tables)
         {
@@ -70,6 +73,18 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                 MoveSpeed = constant.MoveSpeed,
                 PickupRadius = constant.PickupRadius,
             };
+
+            ProjectSurvive.Config.TbSample samples = tables.TbSample;
+            foreach (ProjectSurvive.Config.Sample row in samples.DataList)
+            {
+                _samples.Add(new SampleEntry
+                {
+                    Id = row.Id,
+                    NameKey = row.NameKey,
+                    Value = row.Value,
+                    NoteKey = row.NoteKey,
+                });
+            }
         }
 
         /// <inheritdoc />
@@ -80,6 +95,9 @@ namespace ProjectSurvive.Core.Infrastructure.Config
 
         /// <inheritdoc />
         public IReadOnlyList<LocalizationEntry> Localization => _localizationList;
+
+        /// <inheritdoc />
+        public IReadOnlyList<SampleEntry> Samples => _samples;
 
         /// <inheritdoc />
         public bool TryGetLocalization(string key, out LocalizationEntry value)

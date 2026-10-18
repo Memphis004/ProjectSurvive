@@ -157,6 +157,7 @@ namespace ProjectSurvive.Data.Validator
             {
                 Console.WriteLine("  configHash: " + config.ConfigHash);
                 Console.WriteLine("  rows      : localization " + config.Localization.Count
+                    + ", sample " + config.Samples.Count
                     + ", maxHp " + config.Constant.MaxHp
                     + ", moveSpeed " + config.Constant.MoveSpeed);
             }

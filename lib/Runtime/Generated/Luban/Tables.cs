@@ -15,11 +15,13 @@ public partial class Tables
 {
     public TbLocalization TbLocalization {get; }
     public TbConstant TbConstant {get; }
+    public TbSample TbSample {get; }
 
     public Tables(System.Func<string, ByteBuf> loader)
     {
         TbLocalization = new TbLocalization(loader("tblocalization"));
         TbConstant = new TbConstant(loader("tbconstant"));
+        TbSample = new TbSample(loader("tbsample"));
         ResolveRef();
     }
     
@@ -27,6 +29,7 @@ public partial class Tables
     {
         TbLocalization.ResolveRef(this);
         TbConstant.ResolveRef(this);
+        TbSample.ResolveRef(this);
     }
 }
 

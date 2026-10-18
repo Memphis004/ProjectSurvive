@@ -1,0 +1,6 @@
+{
+  "name": "missing-ref",
+  "stage": "luban",
+  "why": "sample.beta's required name_key points at ui.sample.gone, which is not a localization key, so --strict rejects the whole generation",
+  "expectedCodes": []
+}

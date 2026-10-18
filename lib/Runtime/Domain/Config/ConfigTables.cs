@@ -21,6 +21,31 @@ namespace ProjectSurvive.Core.Domain.Config
     }
 
     /// <summary>
+    /// One row of the template's worked-example table.
+    /// </summary>
+    /// <remarks>
+    /// This table exists to keep the data pipeline's two reference mechanisms testable in a project
+    /// that has no game tables yet: <see cref="NameKey"/> is a required <c>#ref</c> (Luban rejects a
+    /// dangling cell during generation) and <see cref="NoteKey"/> is an optional localization key
+    /// (empty is legal, so <c>Data.Validator</c> owns the rule). A game deletes this table with its
+    /// bean, its CSV and this type, and copies whichever mechanism its own columns need.
+    /// </remarks>
+    public sealed class SampleEntry
+    {
+        /// <summary>Stable id, e.g. <c>sample.alpha</c>.</summary>
+        public string Id { get; set; } = string.Empty;
+
+        /// <summary>Localization key holding this row's name (a required reference).</summary>
+        public string NameKey { get; set; } = string.Empty;
+
+        /// <summary>A number the row carries; the range is enforced by the schema.</summary>
+        public int Value { get; set; }
+
+        /// <summary>An optional localization key, or an empty string when the row has no note.</summary>
+        public string NoteKey { get; set; } = string.Empty;
+    }
+
+    /// <summary>
     /// The singleton row of tuned numbers every build needs.
     /// </summary>
     /// <remarks>

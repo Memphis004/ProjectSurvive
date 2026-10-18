@@ -1,0 +1,29 @@
+##,key,th,en
+,ui.title,เกมของฉัน,My Game
+,ui.generic.ok,ตกลง,
+,ui.generic.close,ปิด,Close
+,ui.generic.continue,ไปต่อ,Continue
+,ui.generic.error,เกิดข้อผิดพลาด กรุณาลองใหม่,Something went wrong. Please try again.
+,ui.sample.alpha,ตัวอย่าง ก,Sample A
+,ui.sample.beta,ตัวอย่าง ข,Sample B
+,ui.sample.gamma,ตัวอย่าง ค,Sample C
+,ui.sample.note,บันทึกตัวอย่างของแถวนี้,A row's optional note
+,ui.spike.thai,พ่อหมอปราบผีกระสือ ฤๅษี ปั้นน้ำตาล ญี่ปุ่น,Ghost-Doctor vs Krasue Ruesi sugar-moulding Japan
+,ui.spike.thai.marks,ปื๊ด ตู้ เบ๊ ญี่ปุ่น น้ำตาล ฤๅษี ฎ ฏ ฐ ฅ ฃ,Thai tone-mark and rare-glyph stress sample
+,title.start,เริ่มเล่น,Start
+,title.quit,ออก,Quit
+,hub.title,ที่พัก,Hub
+,hub.instructions,เตรียมตัวแล้วออกเดินทาง,"Prepare, then set out."
+,hub.encounters.format,ผ่านมาแล้ว {0} รอบ,Cleared {0} encounters
+,hub.depart,ออกเดินทาง,Depart
+,hub.finish,จบการเดินทาง,End the run
+,encounter.title,การเผชิญหน้า,Encounter
+,encounter.progress.format,รอบที่ {0} จาก {1},Round {0} of {1}
+,encounter.win,ชนะ,Win
+,encounter.lose,แพ้,Lose
+,result.victory,สำเร็จ,Run complete
+,result.defeat,จบแล้ว,Run over
+,result.summary.format,ผ่าน {0} รอบ,Cleared {0} encounters
+,result.seed.format,seed {0},seed {0}
+,result.restart,เริ่มใหม่,New run
+,result.title,กลับหน้าแรก,Back to title

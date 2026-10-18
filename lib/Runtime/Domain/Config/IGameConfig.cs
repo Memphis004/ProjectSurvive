@@ -15,8 +15,9 @@ namespace ProjectSurvive.Core.Domain.Config
     /// </para>
     /// <para>
     /// The template keeps the two tables every project needs: a singleton of
-    /// constants and the localization table. A game adds its own tables and its
-    /// own <c>TryGet*</c> lookups here, next to these.
+    /// constants and the localization table, plus a worked-example table
+    /// (<see cref="Samples"/>) that a game deletes. A game adds its own tables and
+    /// its own <c>TryGet*</c> lookups here, next to these.
     /// </para>
     /// <para>
     /// Every list is exposed in data-file order and every lookup is by the
@@ -38,6 +39,13 @@ namespace ProjectSurvive.Core.Domain.Config
 
         /// <summary>Every localization row, in data-file order.</summary>
         IReadOnlyList<LocalizationEntry> Localization { get; }
+
+        /// <summary>
+        /// Every row of the template's worked-example table, in data-file order.
+        /// Exists so the two reference mechanisms stay testable before a game has
+        /// tables of its own; a game deletes it along with the CSV and the bean.
+        /// </summary>
+        IReadOnlyList<SampleEntry> Samples { get; }
 
         /// <summary>Looks one localization row up by key.</summary>
         bool TryGetLocalization(string key, out LocalizationEntry value);

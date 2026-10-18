@@ -1,3 +1,4 @@
 ##,full_name,value_type,index,mode,group,comment,read_schema_from_file,input,output,tags
 ,TbLocalization,Localization,key,,,,,localization/localization.csv,,
 ,TbConstant,Constant,,one,,,,tables/constant.csv,,
+,TbSample,Sample,id,,,,,tables/sample.csv,,

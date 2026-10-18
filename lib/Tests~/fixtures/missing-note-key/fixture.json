@@ -1,0 +1,6 @@
+{
+  "name": "missing-note-key",
+  "stage": "semantic",
+  "why": "sample.beta's optional note_key points at ui.sample.gone, which does not exist; the schema cannot check it because an empty cell is a legal value there",
+  "expectedCodes": ["sample.missing_note_key"]
+}
