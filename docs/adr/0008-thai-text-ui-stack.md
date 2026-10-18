@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-14
+- **Inherited by:** template-v1 — the decision still applies; the numbering below is the template's own (0001–0099).
 - **Stage:** 03 (Unity shell, first Web build, Thai text spike)
 - **Related:** [ADR 0002](0002-thin-mvp-ui-approach.md) (thin MVP UI),
   [ADR 0003](0003-performance-baseline-machine-and-browser.md) (measured on a named

@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-13
+- **Inherited by:** template-v1 — the decision still applies; the numbering below is the template's own (0001–0099).
 - **Stage:** 00
 
 ## Context
@@ -37,10 +38,11 @@ fixed.
    plus common Unity binaries). Text assets (`.unity`, `.prefab`, `.asset`,
    `.meta`, code, data, docs) stay in normal Git with LF normalization so diffs
    and code review stay readable.
-6. **The canonical GDD is `docs/gdd/prototype-v0.3.md`.** The original combined
-   document is kept at the repository root as the verbatim source it was copied
-   from; if the two ever diverge, `docs/gdd/` wins and the root copy is updated
-   by copying again.
+6. ~~**The canonical GDD is `docs/gdd/prototype-v0.3.md`.**~~ **Superseded by the
+   template cut (T3):** the template has no design document, and the game's GDD is
+   archived as `docs/template/examples/game-gdd-and-extraction-plan.md` — an example,
+   not a rule. A game built from the template writes its own design document and
+   names it here.
 
 ## Consequences
 

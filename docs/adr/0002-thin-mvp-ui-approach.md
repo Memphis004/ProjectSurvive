@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-13
+- **Inherited by:** template-v1 — the decision still applies; the numbering below is the template's own (0001–0099).
 - **Stage:** 00
 - **Supersedes:** nothing
 

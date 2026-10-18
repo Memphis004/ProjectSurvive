@@ -1,7 +1,7 @@
-# System — Unity shell (Stage 03)
+# System — Unity shell
 
-The `UnityProject/` half of the repository: the Unity `6000.3.9f1` project that
-loads the rules package, shows the title screen, and produces the WebGL2 build the
+The `UnityProject/` half of the repository: the Unity `6000.3.9f1` project that loads
+the rules package, shows the placeholder loop, and produces the WebGL2 build the
 browser tests run against. Setup and commands live in
 [`../../UnityProject/SETUP.md`](../../UnityProject/SETUP.md); this note explains how
 the pieces fit.
@@ -10,73 +10,74 @@ the pieces fit.
 
 | Piece | File | Job |
 | --- | --- | --- |
-| Composition root | `Assets/Main/Scripts/Presentation/RootLifetimeScope.cs` | the only place a port is bound to an adapter. One scope per scene (a run-level scope is a Stage 06 concern) |
-| Boot | `Assets/Main/Scripts/Presentation/SceneBoot.cs` | runs the smoke suite, publishes the verdict, then loads Title |
-| Smoke suite | `Assets/Main/Scripts/Presentation/Smoke/SmokeRunner.cs` | 7 probes (DI, config hash + tables, R3, UniTask cancellation, MessagePack generated formatter, Protobuf, Thai text) |
-| Page bridge | `Assets/Main/Scripts/Presentation/Web/WebGlBridge.cs` + `Assets/Main/Plugins/WebGL/ProjectSurviveWeb.jslib` | publishes reports as `window.__projectSurvive*` globals and dispatches `projectsurvive:smoke` / `:scene` events |
-| Report writer | `Assets/Main/Scripts/Presentation/Web/JsonReportWriter.cs` | tiny JSON writer; escapes **every** non-ASCII code point as `\uXXXX` because the report crosses an ANSI `LPStr` marshalling boundary |
-| Title | `TitlePresenter.cs` + `TitleView.cs` + `UiState.cs` | thin MVP: presenter calls Application, view only assigns text (AGENTS rule 10) |
-| Thai spike | `Thai/ThaiSpikeReporter.cs`, `ThaiSpikeTmpView.cs`, `ThaiSpikeToolkitView.cs` | measures the same strings through uGUI+TMP and UI Toolkit, publishes the numbers — evidence for [ADR 0008](../../docs/adr/0008-thai-text-ui-stack.md) |
-| Editor setup | `Assets/Main/Scripts/Editor/ProjectSetup.cs` | URP asset, player settings, font baking. Entering Play Mode rebuilds `Boot.unity` (a template) |
-| Scene builders | `Assets/Main/Scripts/Editor/{Boot,Title,ThaiTextSpike,Camp,Battle,Result}SceneBuilder.cs` | one menu the per-scene builder owns (`Stage 03/2`, `10d/7`, `03/4`, `09/5`, `08/3`, `10/6`), each written through the Editor API (AGENTS rule 11). `ProjectSetup` keeps only what is shared: URP/player settings, font baking, and the UI/entity helpers the builders call |
+| Composition root | `Assets/Main/Scripts/Presentation/RootLifetimeScope.cs` | the only place a port is bound to an adapter. Persists across scenes; a scene scope inherits it |
+| Boot | `Assets/Main/Scripts/Presentation/SceneBoot.cs` | runs the smoke suite, publishes the verdict, then hands over to Title. Accepts `?scene=<name>` for an allow-listed scene |
+| Smoke suite | `Presentation/Smoke/SmokeRunner.cs` | 7 probes: `di.resolution`, `config.tables`, `r3.subscribe`, `unitask.cancellation`, `messagepack.roundtrip`, `protobuf.roundtrip`, `localization.thai` |
+| Page bridge | `Presentation/Web/WebGlBridge.cs` + `Assets/Main/Plugins/WebGL/ProjectSurviveWeb.jslib` | publishes reports as `window.__projectSurvive*` globals and dispatches `projectsurvive:smoke` / `:scene` events |
+| Report writer | `Presentation/Web/JsonReportWriter.cs` | tiny JSON writer; escapes **every** non-ASCII code point as `\uXXXX` because the report crosses an ANSI `LPStr` marshalling boundary |
+| Title / Hub / Encounter / Result | `Presentation/{Title,Hub,Encounter,Result}*` + `Hub/`, `Encounter/`, `ResultScene/` | thin MVP per screen: a presenter calls Application, a view only assigns text, a director starts the screen and asks the loader to leave |
+| Thai spike | `Presentation/Thai/*` | measures the same strings through uGUI+TMP and UI Toolkit, publishes the numbers — the evidence behind [ADR 0008](../../docs/adr/0008-thai-text-ui-stack.md) |
+| Scopes | `Presentation/Flow/{RunLifetimeScope,RunScopeOwner,SceneLoader,TitleSceneDirector}.cs` | the Run scope and the only scene loader |
+| Editor setup | `Assets/Main/Scripts/Editor/ProjectSetup.cs` | URP asset, player settings, font baking, the build list, and the UI/entity helpers the builders call |
+| Scene builders | `Assets/Main/Scripts/Editor/{Boot,Title,Hub,Encounter,Result,ThaiTextSpike}SceneBuilder.cs` | one menu per scene, each written through the Editor API (AGENTS rule 11) |
 | Build | `Assets/Main/Scripts/Editor/WebBuildPipeline.cs` | `BuildWebDevelopment` / `BuildWebRelease`, writes `build-info.json` next to the player |
 
-## The two published globals are the test surface
+`ProjectSettings/` and `Packages/manifest.json` are part of the template: the engine
+patch is locked in `tools/versions.lock.json`, and a package version is not changed
+without an ADR and a re-measurement.
 
-A WebGL build cannot run Unity's test framework, and scraping the Unity log from a
-browser is guesswork, so the player publishes what it did:
+## The published globals are the test surface
+
+A WebGL build cannot run Unity's test framework, and scraping the log from a browser
+is guesswork, so the player publishes what it did:
 
 | Global | Shape | Asserted by |
 | --- | --- | --- |
 | `__projectSurviveSmoke` | `{platform, configHash, probeCount, failedCount, passed, probes[]}` | `tests/web/smoke.spec.ts` (every probe named, `failedCount === 0`) |
-| `__projectSurviveScene` | the scene name on screen | the same spec (Boot → Title) |
-| `__projectSurviveThaiSpike` | `{platform, font, rowCount, totalMissingGlyphs, coversEveryGlyph, stacksMeasureEqually, rows[]}` | the Thai test in the same spec (`totalMissingGlyphs === 0`) |
+| `__projectSurviveScene` | the scene name on screen | `smoke.spec.ts` and `loop.spec.ts` |
+| `__projectSurviveThaiSpike` | `{platform, font, rowCount, totalMissingGlyphs, coversEveryGlyph, stacksMeasureEqually, rows[]}` | the Thai test in `smoke.spec.ts` (`totalMissingGlyphs === 0`) |
+| `__projectSurviveTitle` / `Hub` / `Encounter` / `Result` | the screen's strings plus every control's centre in canvas pixels | `title.spec.ts`, `loop.spec.ts` |
 
-The **names** of those globals have one home on each side (Stage 10t): the three
-constants in `WebGlBridge`, and `tests/web/globals.mjs` for the specs. The `.jslib`
-takes the name as an argument instead of writing it into the plugin, and the EditMode
-`WebGlBridgeTests` fails if the plugin hard-codes a name or the two files disagree.
+The **names** have one home on each side: the constants in `WebGlBridge`, and
+`tests/web/globals.mjs` for the specs. The `.jslib` takes the name as an argument
+instead of writing it into the plugin, and `WebGlBridgeTests` fails if the plugin
+hard-codes a name or the two files disagree.
 
 Two details that cost real debugging time:
 
 - If the JSON cannot be parsed, the `.jslib` **still publishes** a global with
-  `passed:false` and the parse error. A browser test then fails on a value instead
-  of timing out on a missing global.
+  `passed:false` and the parse error. A browser test then fails on a value instead of
+  timing out on a missing global.
 - `SceneBoot` accepts `?scene=<name>` for an allow-listed scene
-  (`SceneBoot._urlSceneOverrides` — `ThaiTextSpike` and, since Stage 08, `Battle`).
-  It is the only way a page can reach the Thai spike or the arena directly.
-- A scene that is on screen says so: `TitleView`, `ThaiSpikeReporter` and
-  `BattleSceneDirector` each publish `__projectSurviveScene` for their own scene, so
-  a handover is observable from a browser test. A scene that forgets to will look
-  like a boot failure to Playwright, not like a missing assertion.
+  (`ThaiTextSpike`, `Hub`, `Encounter`, `Result`). It is the only way a page reaches a
+  screen directly.
 
-## Environment facts that shape the tooling
+## Scenes are generated, never hand-written
 
-- **One Editor per project.** Batch mode (`unity test`, `unity build`,
-  `tools/build-web.ps1`) needs the interactive Editor closed. With it open, use the
-  pipeline: `unity command run_tests …`, or a **detached** job for a build
-  (`unity command eval 'ProjectSurvive.Game.Editor.WebBuildPipeline.BuildWebDevelopment(); …' --detach`
-  then `unity job wait <id>`) — a WebGL build takes minutes and one synchronous call
-  cannot carry it.
-- **`Assets/csc.rsp` carries one line** (`-nullable:annotations`) so the Unity
-  compilation of the nullable-annotated rule engine does not emit 12 `CS8632`
-  warnings per compile. Response files are raw argument lists — comments in them are
-  parsed as file names.
-- **Anything under `Assets/Resources/` ships**, referenced or not. The current build
-  includes `Assets/Resources/Fonts/THSarabunPSK SDF.asset` (4.0 mb, 3.6 % of the
-  build) and the TMP examples (~2 mb) that came with the project template. See
-  `SETUP.md` §8.
+Six scenes exist: `Boot`, `Title`, `ThaiTextSpike`, `Hub`, `Encounter`, `Result`. Each
+is built by its own builder through `EditorSceneManager` and saved; `ProjectSetup`
+keeps only what is shared (URP, player settings, font baking, the UI helpers,
+`ConfigureBuildSettings`). The build list only adds a scene whose file exists, so an
+older checkout still boots.
 
-## Measured, Stage 03
+Consequences:
 
-| Measurement | Value |
-| --- | --- |
-| Development Web build size | 116,854,350 bytes (`Web.wasm` 103 MB, `Web.data` 12 MB) — uncompressed and not stripped by design |
-| Build time | 70.1 s incremental, 310.8 s cold (this machine) |
-| Build warnings | 2 (empty `Simulation` asmdef; `com.unity.pipeline` runtime config) — both explained in `SETUP.md` §6 |
-| Unity EditMode / PlayMode | 12/12, 5/5 |
-| Frame timing in the browser | **not measured** — no per-frame timing was instrumented, so no performance claim is made in this stage |
+- A new scene is **one builder file plus one menu item** — the 2 000-line setup
+  monolith is not the place for it.
+- Re-running a builder recreates the scene with fresh `fileID`s, so a large harmless
+  diff is expected. Commit it with that said.
+- Never edit `.unity` YAML by hand:
+  [`../gotchas/unity-yaml-not-hand-editable.md`](../gotchas/unity-yaml-not-hand-editable.md).
 
-Per AGENTS, a Development build's numbers are not evidence of shipped performance:
-they are recorded here only as build facts. Timing claims need a Release build and
-are deferred to the stage that needs them.
+## The Web build
+
+`tools/build-web.ps1` runs the Editor in batch mode and calls
+`WebBuildPipeline.BuildWebDevelopment` (or `BuildWebRelease`), so the artifact is the
+same one the menu builds. It writes `build-report.json` (including `sizeSettings`) and
+`build-info.json` next to the player; **the configuration a size may be quoted under
+is the one recorded there**, never one assumed from the menu path. See
+[ADR 0011](../../docs/adr/0011-webgl-payload-budget-and-size-measurement.md) and
+[`../../docs/build/size-baseline.md`](../../docs/build/size-baseline.md).
+
+The build needs the interactive Editor **closed**; `tools/test.ps1` reports the web
+steps NOT RUN when the project is locked, never PASS.

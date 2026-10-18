@@ -1,11 +1,12 @@
 # ADR 0005 — Static data pipeline: shape format, placement, and reproducibility
 
 - **Status:** Accepted (Stage 02). **§1 (footprint authoring format) superseded by
-  [ADR 0009](0009-footprint-picture-format.md)** at Stage 04 — the canonical GDD
+  [ADR 0009](../template/examples/adr/0009-footprint-picture-format.md)** at Stage 04 — the canonical GDD
   specifies a footprint picture (`XX.|.XX`) and the picture makes a duplicated cell
   unrepresentable. Every other decision here — CSV tables, the two generated targets,
   the reproducibility gate, the `--strict`/validator split — still stands.
 - **Date:** 2026-10-13
+- **Inherited by:** template-v1 — the decision still applies; the numbering below is the template's own (0001–0099).
 
 ## Context
 
@@ -25,7 +26,7 @@ matters. Three things had to be decided before writing a single table:
 
 ### 1. A footprint is an explicit cell list, not a rectangle or a bitmap
 
-> **Superseded by [ADR 0009](0009-footprint-picture-format.md).** Read this section as
+> **Superseded by [ADR 0009](../template/examples/adr/0009-footprint-picture-format.md).** Read this section as
 > the Stage 02 reasoning, not as the current format: Stage 04 switched to the picture
 > string the GDD specifies.
 

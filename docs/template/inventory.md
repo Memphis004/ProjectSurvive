@@ -1,5 +1,10 @@
 # Template extraction inventory (T0)
 
+> **This is the T0 plan as written.** Some paths it proposes to cut, move or leave until
+> "T5" no longer exist or were handled in T1–T3 instead; the plan is kept unedited as
+> evidence of what was decided before the cut. For the tree as it stands, read
+> [`README.md`](README.md) and [`../stages/_TEMPLATE.md`](../stages/_TEMPLATE.md).
+
 Scope: classify **every file and folder** under `lib/`, `UnityProject/Assets/`, `data/`, `proto/`, `tools/`,
 `tests/web/`, `docs/`, `llmwiki/` and `.agents/skills/`, list what each surviving file depends on, order the
 cuts, and record what only the user can decide. Nothing outside `docs/template/` was changed.

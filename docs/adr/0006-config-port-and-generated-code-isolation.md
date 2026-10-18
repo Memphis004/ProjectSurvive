@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (Stage 02)
 - **Date:** 2026-10-13
+- **Inherited by:** template-v1 — the decision still applies; the numbering below is the template's own (0001–0099).
 - **Related:** [ADR 0004](0004-dotnet-layer-enforcement.md) (layer enforcement), [ADR 0005](0005-data-pipeline-shape-and-format.md) (the pipeline that produces the rows)
 
 ## Context

@@ -47,9 +47,10 @@ Stage 01 actually put in place to keep it honest.
 
 ## How it is verified
 
-- **Golden vectors** in `Xoshiro128Tests` / `RandomStreamsTests`, produced by an
-  independent reference implementation of xoshiro128++ (`docs/stages/01-report.md`
-  records how) — these lock the algorithm against accidental change.
+- **Golden vectors** in `Xoshiro128Tests` / `RandomStreamsTests`, produced by the
+  independent reference implementation in
+  [`../../tools/reference/xoshiro128_reference.py`](../../tools/reference/xoshiro128_reference.py) —
+  these lock the algorithm against accidental change.
 - **Process-level fingerprints**: `ProjectSurvive.Sim --seed N --quiet` prints one
   `determinismDigest`, and `tools/test.ps1` checks that the same seed repeats it
   and a different seed does not.

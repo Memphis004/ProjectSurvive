@@ -137,7 +137,7 @@ Unity refuses to open a project that another Editor has open, so:
 
 | Warning | Why it stays |
 | --- | --- |
-| `Assembly … ProjectSurvive.Core.Simulation.asmdef will not be compiled, because it has no scripts` | `lib/Runtime/Simulation` is deliberately empty until Stage 07 (EcsLite). The asmdef exists so Stage 07 only adds files. |
+| `Assembly … ProjectSurvive.Core.Simulation.asmdef will not be compiled, because it has no scripts` | `lib/Runtime/Simulation` is deliberately empty in the template (it holds one marker type and no scripts of its own). The asmdef exists so a game can add its simulation there without touching the layer matrix. |
 | `Pipeline: No RuntimePipelineConfig asset found … Pipeline will be disabled in Player builds` | Emitted by the `com.unity.pipeline` **tooling** package on every build. The player does not use it. |
 
 Anything else should be treated as a real finding. The twelve `CS8632` warnings

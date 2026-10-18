@@ -2,8 +2,9 @@
 
 - **Status:** Accepted (Stage 10d).
 - **Date:** 2026-10-17
-- **Related:** [ADR 0016](0016-run-settlement-and-shop-commit-boundaries.md) (where a run's state is
-  allowed to change), [ADR 0019](0019-camp-screen-read-model-and-gesture-preview.md) (the camp's read
+- **Inherited by:** template-v1 — the decision still applies; the numbering below is the template's own (0001–0099).
+- **Related:** [ADR 0016](../template/examples/adr/0016-run-settlement-and-shop-commit-boundaries.md) (where a run's state is
+  allowed to change), [ADR 0019](../template/examples/adr/0019-camp-screen-read-model-and-gesture-preview.md) (the camp's read
   model — the report shape this screen copies), AGENTS rules 5 (strings come from localization),
   7 (state-changing commands are atomic and typed) and 10 (a View has no logic)
 
@@ -104,7 +105,7 @@ the camp's own report and its run). The same document shape as `CampReport`, `De
   a click needs, and a rectangle invites a test to assert geometry rather than to make a press whose
   acceptance the game reports itself.
 - **Let the report carry a flag saying the control is enabled.** Rejected: the same reasoning as the
-  dev menu's report ([10-report](../stages/10-report.md) §7, row 3) — a document is not a permission,
+  dev menu's report (Stage 10's report §7, row 3 — kept in the game repo's history, tag `survive-stage-10`) — a document is not a permission,
   and the game's own answer is the assertion.
 - **Leave the screen as it was and let the browser suite drive the run through the dev menu.**
   Rejected: the dev menu belongs to the arena, not to the loop's first screen, and “the first screen

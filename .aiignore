@@ -1,0 +1,30 @@
+# Paths an AI agent should not read, search or quote.
+# Keep this list to paths that exist (or are created on demand) — a stale entry here
+# is worse than no entry, because it hides the fact that a file moved.
+
+# Unity's generated state (rebuilt by opening the project)
+UnityProject/Library/
+UnityProject/Logs/
+UnityProject/Temp/
+UnityProject/obj/
+UnityProject/UserSettings/
+UnityProject/Builds/
+UnityProject/*.sln
+UnityProject/*.csproj
+
+# Local run output: logs, screenshots, test summaries
+artifacts/
+
+# Downloaded CLI toolchain (tools/setup-tools.ps1 recreates it, verified by SHA-256)
+tools/vendor/
+
+# Test and build output
+lib/Tests~/**/bin/
+lib/Tests~/**/obj/
+tests/web/node_modules/
+tests/web/playwright-report/
+tests/web/test-results/
+
+# Markdown files here are an archive of the game the template came from:
+# read them only when a task is explicitly about that history.
+docs/template/examples/

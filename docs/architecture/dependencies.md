@@ -79,7 +79,7 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 | ~~**MessagePack for C#**~~ **Verified on Web at Stage 03** | save/checkpoint DTOs | NuGet via NuGetForUnity: `Google.Protobuf`, `MessagePack`, `MessagePack.Annotations`, `MessagePackAnalyzer` in `UnityProject/Assets/packages.config` | **`3.1.12`** (annotations + analyzer + `Microsoft.NET.StringTools 17.11.4`) | MIT | **source generator** only; the dynamic resolver is not IL2CPP-safe | **Verified** — `messagepack.roundtrip` probe asserts the *generated* formatter exists and round-trips in the WebGL player (26 bytes) |
 | ~~**Google.Protobuf**~~ **Verified on Web at Stage 03** | external contracts only | NuGet via NuGetForUnity (`UnityProject/Assets/packages.config`) | **`3.33.6`** (`protoc` 33.6 generates the matching runtime) | BSD-3-Clause | `System.Memory`, `System.Runtime.CompilerServices.Unsafe` | **Verified** — `protobuf.roundtrip` probe round-trips an `AppInfo` in the WebGL player (87 bytes); keep off the hot path |
 | **protoc** | `.proto` → C# contract | installed `tools/vendor/protoc/33.6` | **`libprotoc 33.6`** — verified at Stage 02 | BSD-3-Clause | none (CLI) | **Low** — build-time only |
-| ~~**Luban**~~ **Verified at Stage 02** | CSV → generated readers + `.bytes` | installed `tools/vendor/luban/5.1.0` (downloaded from `github.com/focus-creative-games/luban/releases` and SHA-256-checked) | **`v5.1.0`** — CLI syntax verified against the real binary; generates all twelve tables | MIT | bundled CLI (needs the .NET 8 **runtime**) | **Low** — offline code-gen; output is plain C#. See `llmwiki/gotchas/luban-5-strict-and-tables.md` |
+| ~~**Luban**~~ **Verified at Stage 02** | CSV → generated readers + `.bytes` | installed `tools/vendor/luban/5.1.0` (downloaded from `github.com/focus-creative-games/luban/releases` and SHA-256-checked) | **`v5.1.0`** — CLI syntax verified against the real binary; generates the three template tables | MIT | bundled CLI (needs the .NET 8 **runtime**) | **Low** — offline code-gen; output is plain C#. See `llmwiki/gotchas/luban-5-strict-and-tables.md` |
 | **Input System** | WASD / arrows / mouse | resolved in `Packages/manifest.json` | **`1.20.1`** | Unity Companion License | `com.unity.modules.*` | **Low** — the player initialises it (`Input System module state changed to: Initialized`) in the Web build. No gameplay input is wired yet (Stage 04+) |
 | **URP** | renderer | resolved in `Packages/manifest.json` | **`17.3.0`** | Unity Companion License | `com.unity.render-pipelines.core`, `com.unity.shadergraph` | **Verified, with a note** — renders in the WebGL player; three hidden/diagnostic URP shaders (`Hidden/CoreSRP/CoreCopy`, `StencilDitherMaskSeed`, `HDRDebugView`) report "not supported on this GPU" on the headless ANGLE path. No visible-pass impact observed; revisit if a real GPU run disagrees |
 | **Unity Test Framework** | EditMode/PlayMode | resolved in `Packages/manifest.json` | **`1.6.0`** | Unity Companion License | `com.unity.ext.nunit` | n/a (test-only) |
@@ -92,7 +92,7 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 | --- | --- | --- |
 | **UI.MVP Lite package** | The GDD names `UI.MVP Lite` but **no repository/source has been supplied**. | Project owner provides the repo URL. Until then, ADR 0002 mandates a thin, project-owned MVP. |
 | **MessagePack Unity UPM variant version** | NuGet version is confirmed; the Unity-facing distribution (`com.cysharp.messagepack` / `MessagePack.Unity`) version is not. **Still open after Stage 01**, which introduced no save DTOs. | Confirm the Unity package name + version when the first checkpoint DTO lands (Stage 12). |
-| ~~**Luban CLI syntax**~~ | **Resolved at Stage 02** — the pinned 5.1.0 binary was driven directly (`--conf` / `-t` / `-c` / `-d` / `--strict` / `--errorFormat` / `-x key=value`) and the `__tables__.csv` registry format was read off its own loader; nothing was guessed. Recorded in `llmwiki/gotchas/luban-5-strict-and-tables.md`, asserted by twelve fixtures. | — |
+| ~~**Luban CLI syntax**~~ | **Resolved at Stage 02** — the pinned 5.1.0 binary was driven directly (`--conf` / `-t` / `-c` / `-d` / `--strict` / `--errorFormat` / `-x key=value`) and the `__tables__.csv` registry format was read off its own loader; nothing was guessed. Recorded in `llmwiki/gotchas/luban-5-strict-and-tables.md`, asserted by the fixtures under `lib/Tests~/fixtures`. | — |
 | **Firefox** | Not installed on this machine. | Install Firefox before the Stage 14 cross-browser run, or record Firefox as NOT RUN. |
 | ~~**IL2CPP stripping / AOT behaviour** (MessagePack, Protobuf, R3, VContainer)~~ | **Resolved at Stage 03** — all four round-trip in a real WebGL2 player (see the probes above), and the one real failure (VContainer's reflected constructors) is written down with its rule in `llmwiki/gotchas/il2cpp-di-and-reflection.md`. | — |
 | **Release-build performance** | Stage 03 built and shipped only a **Development** build; its numbers are not evidence of shipped performance. | A Release build (`WebBuildPipeline.BuildWebRelease`) before any timing claim (ADR 0003). |
@@ -122,8 +122,8 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 5. Whether `Xoshiro128` / `FixedTicker` behaviour is identical under WebGL's
    32-bit wasm heap and an x64 desktop CPU. Stage 03 proved the *shell* runs on
    WebGL2 and that the config hash matches between Editor and player, but no
-   battle-tick hash comparison has been run: **still open**, and it is the one that
-   matters for replay determinism (Stage 07).
+   per-tick state-hash comparison across Editor and player has been run: **still
+   open**, and it is the one a game's replay determinism depends on.
 
 ## 5. Re-verification
 

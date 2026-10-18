@@ -1,243 +1,77 @@
-# Glossary — Thai term ↔ code name
+# Glossary — the template's own vocabulary
 
-> **Rule (AGENTS #5):** identifiers in code are **English**, taken from this
-> table. Player-facing text comes from localization only, never from these
-> names. Add a row here *before* introducing a new domain term.
+> **Rule (AGENTS #5):** identifiers in code are **English**, taken from this table.
+> Player-facing text comes from localization only, never from these names. Add a row
+> here *before* introducing a new domain term.
 
-Terminology is a **new fantasy design inspired by Thai folk motifs**; spell and
-ritual names are not presented as real practices (AGENTS #13).
+The template names **no game content**: there is no item, enemy, spell or currency in
+it. The game the template was cut from keeps its own glossary in
+[`../docs/template/examples/glossary-game.md`](../docs/template/examples/glossary-game.md);
+a game built from this template writes its own rows here.
 
-## Core concepts
+## Layers and boundaries
 
-| Thai | Code name | Kind | Notes |
-| --- | --- | --- | --- |
-| พ่อหมอ | `Mor` | Player class/entity | The single playable class |
-| ย่าม | `Bag` | Domain aggregate | The placeable bag piece |
-| ย่ามสองชั้น | `Bag` on `Board` | System | Bag must be placed on the Board first |
-| กระดาน / บอร์ด | `Board` | Domain | Max placement area, 9×7 default |
-| ช่องใช้งาน | `ActiveSlot` | Domain | Board cell covered by a bag |
-| ศาลาพัก | `Camp` | Scene/scope | The only place the bag can be edited |
-| หีบ (หีบไม้สัก) | `Chest` | Domain | 10 slots, no bonus, no attacking |
-| เบี้ย | `Bia` | Currency/Domain | Starting 15 |
-| ไอเทม / สินค้า | `Item` | Domain | ~14 items, 3 tiers |
-| อาวุธอาคม | `ArcaneWeapon` | Item category | Auto-cast on cooldown, costs MP |
-| เครื่องราง | `Charm` | Item category | Passive buff |
-| ตำราคาถา | `SpellTome` | Item category | Boosts same-row arcane weapons |
-| ของเซ่น | `Offering` | Item category | Limited-use consumable |
-| ภูติรับใช้ | `Familiar` | Item category | Follows and helps fight |
-| ตะกรุด | `Takrut` | Item | Amulet |
-| ผ้ายันต์ | `YantCloth` | Item | Talisman cloth |
-| คอมโบ | `Combo` | Domain system | Orthogonal adjacency only |
-| synergy | `Synergy` | Data table `synergy` | Combo rules |
-| รวมไอเทม | `Merge` | Command | Same id + tier → next tier, max 3 |
-| ถวายคืนศาล | `SellBack` | Command | 50% of base price, rounded down |
-| เสี่ยงเซียมซี | `RefreshShop` | Command | Randomize shop items |
-| คืนสภาพ (ย่าม) | `ResetBag` | Command | Revert bag to entry state |
-| ล็อกย่าม | `LockBag` | Command | Prevent accidental drags |
-| น้ำหนักย่าม | `BagWeight` | Stat | Heavier → slower movement |
-| รัศมีดูดของ | `PickupRadius` | Stat | Default 1.5 |
-| สมาธิ | `Focus` | Stat | MP regen, 5 MP/s |
-| พลังอาคม | `MP` / `ArcanePower` | Stat | Default 50 |
-| ออกเดินทาง | `Depart` / `StartFloor` | Command | Requires ≥1 arcane weapon active |
-| ผ่านชั้นแล้ว | `FloorCompleted` | Event | Reward handled once |
-| จบรอบ | `RunCompleted` | Event | Run finished |
-| ชั้น | `Floor` | Data table `floor` | 5 in prototype (4 + boss) |
-| wave | `Wave` | Data table `wave` | Spawn schedule |
-| ค่าคงที่ | `Constant` | Data table `constant` | Tuning constants |
-
-## Tiers, elements, combat
-
-| Thai | Code name | Notes |
+| Term | Code name | Notes |
 | --- | --- | --- |
-| ธรรมดา | `Common` | Tier 1 |
-| ปลุกเสก | `Consecrated` | Tier 2 |
-| มหาเวท | `GrandArcane` | Tier 3 (max) |
-| ธาตุไฟ | `Fire` | Burn DOT |
-| คุณไสย | `Curse` | Black-magic element |
-| เสื่อมพลัง | debuff | Curse near holy amulet weakens both by 30% |
-| telegraph | `Telegraph` | Warning marker before strong attacks |
-| ดาเมจ | `Damage` | Never computed in a View |
-| cooldown | `Cooldown` | Has a minimum in `constant` |
-| fixed tick 30 Hz | `FixedTicker` | Battle simulation rate |
-| สายสุ่ม | `RandomStreamKind` | `Shop` / `Battle` / `Visual` — independent random streams |
-| แหล่งสุ่ม | `IRandomSource` | The only randomness port Core may use |
-| เครื่องสุ่ม | `Xoshiro128` | xoshiro128++ generator implementing `IRandomSource` |
-| ชุดสายสุ่มของรอบ | `RandomStreams` | Derives the three streams from one run seed |
-| นาฬิกา | `IClock` / `SystemClock` | Monotonic time port (Core) and its real implementation (Infrastructure) |
-| ผลลัพธ์แบบมีชนิด | `Result` / `Result<T>` / `Error` | Typed command outcome; `Error.Code` is a machine identifier, never player text |
+| เลเยอร์พื้นฐาน | `Shared` | BCL only: RNG, clock, ticker, `Result`, ring and buffer |
+| กติกา | `Domain` | plain rules and data types; no Unity, no serializer |
+| 用例 / ชั้นแอป | `Application` | use cases and ports; the only command surface a Presenter may call |
+| การจำลอง | `Simulation` | a game's simulation; may reference Shared and Domain only |
+| อะแดปเตอร์ | `Infrastructure` | implements Application ports (config, clock) |
+| สัญญาภายนอก | `Contracts` | DTOs; references nothing of ours |
+| โค้ดที่สร้าง | `Generated` | Luban readers, protoc output; never edited |
+| พอร์ต | port | an interface declared by the layer that needs it (`IGameConfig`) |
+| อะแดปเตอร์ของพอร์ต | adapter | the one implementation that talks to the outside (`LubanGameConfig`) |
 
-## Battle contract (Stage 02b)
+## Determinism and time
 
-| Thai | Code name | Notes |
+| Term | Code name | Notes |
 | --- | --- | --- |
-| สนามรบ (หนึ่งชั้น) | `IBattleSession` | one running battle, driven tick by tick |
-| วงจรการต่อสู้ | `BattlePhase` | `Running` / `Won` / `Lost` / `Aborted` (1 reserved) |
-| เหตุผลจบชั้น | `BattleEndReason` | `SurvivedAllWaves` / `BossDefeated` / `PlayerDied` / `Timeout` / `Surrendered` |
-| ตัวสร้างสนามรบ | `IBattleSessionFactory` | creates a session from `BattleSetup`; config via constructor |
-| ตั้งค่าก่อนเข้าชั้น | `BattleSetup` | seed, floor, `CurrentHp`, loadout, dev flags |
-| ผลของชั้น | `BattleResult` | outcome, reason, `FinalHp`, kills, remaining consumables |
-| คำสั่งในสนามรบ | `BattleCommand` | surrender + dev cheats (typed `CommandResult`) |
-| อินพุตผู้เล่น | `PlayerInputFrame` | integer movement per tick (`FromAxis` normalises) |
-| เฟรมเรนเดอร์ | `IBattleFrame` / `RenderEntity` | per-tick presentation view |
-| HUD | `HudState` | HP/MP/currency/kills/timer (no level/XP) |
-| เหตุการณ์ต่อสู้ | `BattleEvent` / `BattleEventType` | **presentation only** — never decide rules from these |
-| วงแหวนเหตุการณ์ | `BattleEventRing` | fixed-capacity multi-reader stream, reports `dropped` |
-| ชุดรบที่แก้แล้ว | `CombatLoadoutSnapshot` | resolved build handed to the battle |
-| บันทึกเล่นซ้ำชั้น | `BattleReplay` | battle-level replay (`ReplayLog` = run-level) |
+| เมล็ดสุ่ม | `Seed` | one per run; every stream derives from it |
+| สายสุ่ม | `RandomStreamKind` | `Run`, `Encounter`, `Reward`, `Visual` |
+| ตัวสุ่ม | `IRandomSource` | the only randomness a rule may use; `Xoshiro128` implements it |
+| สตรีมสุ่ม | `RandomStreams` | owns one source per kind, so streams cannot shift each other |
+| นาฬิกา | `IClock` | injected; rules never read `DateTime.Now` |
+| ติ๊กคงที่ | `FixedTicker` | converts frame deltas into 30 Hz ticks, capped per frame |
+| ความเร็วคงที่ | `TickRate` | 30 Hz (AGENTS rule 6) |
 
-## Enemies (Thai ghosts)
+## State, commands and errors
 
-| Thai | Code name | Role |
+| Term | Code name | Notes |
 | --- | --- | --- |
-| วิญญาณเร่ร่อน | `WanderingSpirit` | Filler, charges straight at the player |
-| กระสือ | `Krasue` | Fast, hit-and-run drain |
-| นางตานี | `NangTani` | Elite, area control under a banana tree |
-| ปอบ | `Pob` | Floor-5 boss, 2 phases |
-| กระหัง | `Krathang` | *Post-prototype*: armored flyer, deflects frontal shots |
-| ผีนางรำ | `NangRam` | *Post-prototype*: rhythm dancer |
-| นางนาค (แม่นาค) | `NangNak` | *Post-prototype*: 3-phase boss |
+| คำสั่ง | command | a state change: validate fully, then mutate once |
+| ผลลัพธ์แบบมีชนิด | `Result` / `Result<T>` | success or a typed `Error` |
+| รหัสข้อผิดพลาด | `Error.Code` | stable string codes, never sentences |
+| รอบ | `RunSession` | one run: seed, streams, encounter counter, command log |
+| สถานะรอบ | `RunOutcome` | `InProgress`, `Completed`, `Lost` |
+| ลำดับเหตุการณ์ | `ReplayLog` | seed + accepted commands, replayable |
+| แฮชสถานะ | state hash | proves two replays are the same run |
 
-## Items (prototype set)
+## Screens, scopes and the shell
 
-| Thai | Code name | Category |
+| Term | Code name | Notes |
 | --- | --- | --- |
-| ย่ามผ้าดิบ | `RawCottonBag` | Bag (3×3) |
-| ถุงผ้ายันต์ | `YantClothPouch` | Bag (1×3) |
-| ตะกร้าหวายรูปตัว L | `WickerBasketL` | Bag (L shape) |
-| ยันต์เพลิงกาลี | `KaliFlameYant` | ArcaneWeapon (starting) |
-| ตะกรุดโทน | `TakrutTone` | ArcaneWeapon |
-| มีดหมอ | `MorKnife` | ArcaneWeapon |
-| สายสิญจน์ | `SaiSinThread` | ArcaneWeapon |
-| พระเครื่อง | `PhraAmulet` | Charm |
-| ผ้ายันต์คาดเอว | `WaistYant` | Charm |
-| เขี้ยวเสือ | `TigerFang` | Charm |
-| ตำราพระเวท | `SpellTome` (2×2) | SpellTome |
-| น้ำแดง | `RedSoda` | Offering |
-| ไข่ต้ม | `BoiledEgg` | Offering |
-| กุมารทอง | `KumanThong` (2×1) | Familiar |
+| ขอบเขตแอป | App scope | `RootLifetimeScope`; lives until the game closes |
+| ขอบเขตการเล่น | Run scope | `RunLifetimeScope`, owned by `RunScopeOwner` |
+| ขอบเขตฉาก | Scene scope | one per scene; dies with the scene |
+| ฉาก | `SceneId` | `Boot`, `Title`, `Hub`, `Encounter`, `Result` |
+| ตัวโหลดฉาก | `SceneLoader` | the one way a scene changes |
+| นโยบายลำดับฉาก | `SceneFlow` | which edges exist; pure and testable |
+| ผู้อำนวยฉาก | director | starts a screen and asks the loader to leave |
+| ตัวแสดง | presenter | calls Application only; never computes a rule |
+| หน้าจอ | view | assigns what the presenter gives it; no logic |
+| รายงานหน้าเว็บ | report / document | what a screen publishes as `__projectSurvive*` |
 
-## Item tags (the `synergy` interface, Stage 04)
+## Data
 
-A tag is a code identifier that lives in `data/tables/item.csv` and is matched by
-`data/tables/synergy.csv`. The full vocabulary, including which synergy reads each
-tag, is in [`systems/data-schema.md`](systems/data-schema.md#tag-vocabulary).
-
-| Thai | Tag | Notes |
+| Term | Code name | Notes |
 | --- | --- | --- |
-| อาวุธอาคม (ทุกชิ้น) | `weapon` | matched by the tome's same-row rule |
-| ตำราคาถา | `tome` | the tome's own tag |
-| ตะกรุด | `takrut` | |
-| ผ้ายันต์ / ยันต์ | `yant` | carried by the yant cloth and the waist yant |
-| คุณไสย | `curse` | carried by the familiar; the คุณไสย piece |
-| ของศักดิ์สิทธิ์ | `holy` | thread, amulet, waist yant, tiger fang |
-| ของเซ่น | `offering` | |
-| ภูติรับใช้ | `familiar` | |
-| ธาตุไฟ | `fire` | flavour today; nothing matches it yet |
-| มีดหมอ | `knife` | flavour |
-| สายสิญจน์ | `thread` | flavour |
-| พระเครื่อง | `amulet` | flavour |
-| เขี้ยวเสือ | `fang` | flavour |
-
-## Bag rules (Stage 05)
-
-| Thai | Code name | Kind | Notes |
-| --- | --- | --- | --- |
-| ชิ้นส่วน (ย่ามหรือไอเทม) | `Piece` | Domain | `PieceKind.Bag` / `PieceKind.Item` |
-| ชิ้นส่วนย่ามที่ถือครอง | `BagPiece` / `BagPieceInstance` | Domain | Opens `ActiveSlot`s; no bonus of its own |
-| ชิ้นไอเทมที่ถือครอง | `ItemInstance` | Domain | Must be fully covered by bags |
-| รหัสถาวรของชิ้น | `DefId` | Identity | `item.mor_knife`, `bag.raw_cotton_bag` |
-| รหัสชิ้นในรอบนี้ | `InstanceId` | Identity | Unique, never reused, starts at 1 |
-| ที่จับชิ้นของ | `PieceRef` | Identity | `PieceKind` + `InstanceId`; `Move`/`Merge`/`Recycle` address by this |
-| รูปทรงการวาง | `Footprint` | Domain | A *set* of `CellOffset`; authored as a picture (`"XX.|.XX"`) |
-| การหมุน | `Rotation` | Domain | `Degrees0/90/180/270`, quarter turns clockwise |
-| ย่ามทับกัน | `BagOverlap` | Error | `inventory.bag_overlap` |
-| ไอเทมหลุดพื้นที่ใช้งาน | `ItemStranded` | Error | `inventory.item_stranded` — taking a bag **off** the board while an item stands on it |
-| ไอเทมพาดสองย่าม | `ItemSpansBags` | Error | `inventory.item_spans_bags` — the item cannot ride, and the move would leave it uncovered |
-| ไอเทมติดไปกับย่าน | `BagCarry` / rider | Domain | One item a bag gesture brings along, with the cell and rotation it lands on |
-| เงาของไอเทมที่ติดไป | `CampCarryGhost` | View model | The landed cell + footprint the screen draws while a bag is in the air |
-| ย้ายชิ้นของ | `Move` | Command | Chest ⇄ board, and within the board; a bag carries its riders |
-| หมุนชิ้นของ | `Rotate` | Command | One quarter turn in place (board only); the bag and its riders turn as one |
-| เก็บของเข้าหีบ | `TransferToChest` | Command | Refused when the chest is full |
-| ถวายคืนศาล (ทิ้งของ) | `Recycle` | Command | `floor(base price × sell_back_percent / 100)` |
-| ย้อนกลับ | `Undo` | Command | Restores the previous snapshot |
-| สแนปช็อตย่าม | `BackpackSnapshot` | Data | The undo/checkpoint unit; MessagePack bytes via `IBackpackSnapshotCodec` |
-| ตัวแก้ไขย่าม | `BackpackEditor` | Domain | Owns every command; `Backpack` owns state |
-| โบนัสพื้นที่ย่าม | `BagArea` | synergy kind | Fires for any item sitting on a bag |
-| อยู่ในแถว/คอลัมน์เดียวกัน | `SameRow` / `SameColumn` | synergy kind | Two halves of the GDD's “แถวเดียวกัน” (ADR 0015) |
-| กำลังเสื่อม | `Debuff` | synergy stat | Applies to **both** pieces |
-| ความเร็วโจมตี | `AttackSpeed` | synergy stat | A positive percent *shortens* the cooldown |
-| ลดความเร็วจากน้ำหนัก | `WeightPenalty` | Stat | Linear slope, capped; chest pieces weigh nothing |
-| ตัวประเมินคอมโบ | `SynergyEvaluator` | Domain | One pass; counts distinct partners, capped by `max_stacks` |
-| ตัวแปลงย่ามเป็นชุดรบ | `LoadoutResolver` | Domain | Produces the Battle v1 `CombatLoadoutSnapshot`, cached on `Backpack.Revision` |
-
-## Run, economy and the camp shop (Stage 06)
-
-| Thai | Code name | Kind | Notes |
-| --- | --- | --- | --- |
-| เบี้ย (กระเป๋า) | `Wallet` | Domain | The only place bia changes; `TrySpend` is atomic |
-| รอบเล่น | `Run` / `RunSession` | Application | One seed, one purse, one bag, five floors; the only command surface |
-| ระยะของรอบ | `RunFlowState` | Enum | `Title` / `Camp` / `Battle` / `Result`; values are hash-fixed |
-| ฉากของแต่ละระยะ | `SceneId` / `SceneFlowMap` | Enum + map | Phase → scene, one explicit function |
-| ตัวขับลูปฉาก | `SceneFlow` | Application | Camp ↔ Battle; the only place a battle session is created |
-| แผงวัตถุมงคลยายจันทร์ | `ShopStock` | Domain | 4 slots; one stock per camp entry (`BeginCamp` re-rolls) |
-| ช่องสินค้า | `ShopSlot` | Domain | Offer + two flags; a rented slot is emptied, never refilled |
-| สุ่มแผงสินค้า / เสี่ยงเซียมซี | `ShopRoller` | Domain | Weighted draw without replacement; resolves the table price |
-| ล็อกสินค้าที่อยากเก็บไว้ | `SetSlotLocked` | Command | A pinned slot survives a re-roll |
-| ราคาเสี่ยงเซียมซี | `ShopStock.RefreshCost` | Rule | `refresh_base_cost + increment × refreshes this camp` |
-| เช่าสินค้า (ซื้อ) | `Purchase` | Command | Pays the shown price, then lands the piece in the chest |
-| ถวายคืนศาล (ขาย) | `Sell` | Command | `BackpackEditor.Recycle` + credit the purse |
-| เปิดร้าน | `OpenShop` | Command | A read: the same stock every time in one camp |
-| ออกเดินทาง / เริ่มชั้น | `StartFloor` | Command | The departure gate; returns the `BattleSetup` |
-| รับผลของชั้น (CompleteFloor) | `ApplyBattleResult` | Command | The one payout per floor |
-| ผลของการรับชั้น | `FloorSettlement` | Value | settlement id, floor, reward, heal, HP, run-ended |
-| ผลของการเช่า / สุ่ม | `PurchaseOutcome`, `RefreshOutcome` | Value | What one accepted command did |
-| ชุดเริ่มต้นของรอบ | `RunDefaults` | Data | Starting bag and weapon **ids + placement**; every number stays in `data/` |
-| คำสั่งของรอบ | `RunCommand` / `RunCommandKind` | Data | The replay log's vocabulary |
-| เหตุการณ์ของรอบ | `RunEvent` / `RunEventKind` | Data | Presentation only; never a rule input |
-| สแนปช็อตของรอบ | `RunState` | Data | The hashable picture; `ComputeHash()` |
-| บันทึกเล่นซ้ำของรอบ | `ReplayLog` | Application | seed + accepted commands + one `BattleReplay` per floor |
-
-## Scenes / flow
-
-| Thai | Code name | Notes |
-| --- | --- | --- |
-| ฉาก | `Scene` | Lifetime scope |
-| หน้าแรก / จอชื่อเกม | `Title` | Scene (also `RunFlowState.Title`) |
-| ศาลาพัก | `Camp` | Scene (also `RunFlowState.Camp`) |
-| สนามรบ | `Battle` | Scene (also `RunFlowState.Battle`) |
-| ผลรอบ | `Result` | Scene, ends the run |
-| ออกไปหน้าแรก | `ReturnToTitle` | Command: Result → Title |
-| บันทึก | `RunCheckpoint` | Saved only at Camp (Stage 12) |
-
-## Error codes
-
-`Error.Code` values are stable lowercase identifiers, `noun.problem`, and the UI
-resolves them through localization as `error.<code>` (AGENTS.md rule 5 — no
-player-facing text in Core). Examples: `bag.overlap`, `wallet.insufficient_bia`,
-`item.unknown_shape`, `floor.invalid`. Renaming a code is an API change: update
-the localization key in the same commit.
-
-The Stage 05 inventory codes are `inventory.` + `unknown_piece`, `wrong_zone`,
-`out_of_board`, `bag_overlap`, `item_not_covered`, `item_overlap`, `item_spans_bags`,
-`item_stranded`, `chest_full`, `locked`, `nothing_to_undo`, `merge_mismatch`,
-`merge_not_item`, `merge_max_tier`, `not_on_board` (`Domain/Inventory/Identity.cs`).
-`item_spans_bags` is Stage 09f's addition (ADR 0020): an item lying across two bags that
-the move would leave uncovered.
-
-The Stage 06 codes are `run.` + `wrong_state`, `no_arcane_weapon`, `not_in_battle`,
-`battle_running`, `unknown_piece` (plus the named preconditions `no_floor_left`,
-`unknown_floor`), `wallet.insufficient_bia` (`Domain/Run/RunError.cs`) and `shop.` +
-`unknown_slot`, `slot_empty`, `slot_purchased`, `unknown_piece` (`Domain/Shop/ShopError.cs`).
-A full chest reports **`inventory.chest_full`** rather than a shop code of its own.
-
-## Naming rules
-
-- `PascalCase` for types/commands/events, `camelCase` for locals.
-- Commands are verbs. Landed so far: `Move`, `Rotate`, `TransferToChest`, `Merge`,
-  `Recycle`, `Undo`, `Reset`, `SetLocked` (Stage 05) and `StartRun`, `Purchase`, `Sell`,
-  `RefreshShop`, `SetSlotLocked`, `OpenShop`, `StartFloor`, `ApplyBattleResult`,
-  `ReturnToTitle` (Stage 06) — the method names are the command names, so the glossary does
-  not list invented spellings (`PlaceBag`, `MoveItem`, `PurchaseItem`, `SellItem`).
-- Events are past-tense facts: `WalletChanged`, `InventoryChanged`,
-  `ShopStockChanged`, `LoadoutChanged`, `FloorCompleted`, `RunCompleted`.
-- Thai text never appears in identifiers — only in `data/localization/*.csv`.
+| ตารางข้อมูล | table | a CSV under `data/tables` or `data/localization` |
+| สคีมา | schema | `data/Defines/schema.xml` |
+| บัญชีตาราง | `__tables__.csv` | the table registry Luban reads |
+| ค่าคงที่ | `ConstantConfig` | the singleton row of tuned numbers |
+| ข้อความผู้เล่น | localization row | `Key` + one column per language |
+| ภาษา | `Language` | `Th`, `En` (mirrored from the generated enum) |
+| แฮชคอนฟิก | `ConfigHash` | SHA-256 of the generated bytes, upper-case hex |
+| ตัวตรวจ | `Data.Validator` | rules a schema cannot express |
+| ตัวอย่างที่พัง | fixture | a deliberately broken copy of `data/` |

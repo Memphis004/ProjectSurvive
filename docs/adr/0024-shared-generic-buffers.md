@@ -2,11 +2,12 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-18
+- **Inherited by:** template-v1 — the decision still applies; the numbering below is the template's own (0001–0099).
 - **Stage:** 10t (the step before `main` and `template` are split)
-- **Related:** [ADR 0007](0007-battle-contract-and-asmdef-placement.md) (battle contract v1;
+- **Related:** [ADR 0007](../template/examples/adr/0007-battle-contract-and-asmdef-placement.md) (battle contract v1;
   §5 argued the ring's *semantics* are what the fake and the simulation share),
   [ADR 0012](0012-prev-cur-frame-double-buffer.md) (the Prev/Cur frame pair),
-  [`llmwiki/systems/battle-contract.md`](../../llmwiki/systems/battle-contract.md)
+  [`docs/template/examples/systems/battle-contract.md`](../template/examples/systems/battle-contract.md)
 
 ## Context
 

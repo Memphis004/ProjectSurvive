@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-13
+- **Inherited by:** template-v1 — the decision still applies; the numbering below is the template's own (0001–0099).
 - **Stage:** 01
 
 ## Context
@@ -37,8 +38,9 @@ during Stage 01."*
 Take **option A**, plus a small set of guard tests for what a compiler cannot see.
 
 1. **One project per layer**, in `lib/Tests~/Layers/`:
-   `ProjectSurvive.Core.{Shared,Domain,Application,Simulation,Infrastructure,Contracts}.csproj`
-   and `Leopotam.EcsLite.csproj` for the vendored ECS. Each sets
+   `ProjectSurvive.Core.{Shared,Domain,Application,Simulation,Infrastructure,Contracts}.csproj`.
+   (A game that vendors an engine adds a project for it next to these; the template
+   keeps none.) Each sets
    `EnableDefaultCompileItems=false` and a single `<Compile Include="$(LibRuntimeDir)<Layer>/**/*.cs" />`,
    so the compiled set *is* the folder the `.asmdef` covers. A shared
    `Directory.Build.props` supplies `LibRuntimeDir` / `LibThirdPartyDir` and a
@@ -57,9 +59,8 @@ Take **option A**, plus a small set of guard tests for what a compiler cannot se
    every `.asmdef` and every layer `.csproj` matches the documented matrix, no
    built assembly references `UnityEngine`/`UnityEditor`, no `lib/Runtime` source
    names `UnityEngine`, the rule-engine layers avoid `System.Random`,
-   `DateTime.Now` and `Stopwatch`, the vendored EcsLite's Unity usage stays
-   inside `#if` regions, and the vendored revision is pinned in both `VENDOR.md`
-   and `tools/versions.lock.json`.
+   `DateTime.Now` and `Stopwatch`, and **every** assembly under `lib/` is
+   engine-free (the template vendors no engine, so rule 3 has no exception here).
 
 `tools/test.ps1` is the single entry point: build, `dotnet test`, then two
 process-level determinism checks on the Sim.

@@ -2,9 +2,10 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-14
+- **Inherited by:** template-v1 — the decision still applies; the numbering below is the template's own (0001–0099).
 - **Stage:** 02b (amendment to the contract, landed after Stage 04)
-- **Related:** [ADR 0007](0007-battle-contract-and-asmdef-placement.md) (battle contract v1),
-  [`llmwiki/systems/battle-contract.md`](../../llmwiki/systems/battle-contract.md)
+- **Related:** [ADR 0007](../template/examples/adr/0007-battle-contract-and-asmdef-placement.md) (battle contract v1),
+  [`docs/template/examples/systems/battle-contract.md`](../template/examples/systems/battle-contract.md)
 
 ## Context
 
