@@ -81,9 +81,11 @@ a number about debug symbols, not about the game, ADR 0003).
 | `.meta` pairs | renamed with their file, GUIDs unchanged — confirmed by the fact that the renamed scenes still load in the Editor and the player still builds |
 | Old name left behind | **none** |
 
-The 46 renamed files are the identity: 15 `.asmdef` + their `.meta`, the WebGL plugin
-(`ProjectSurviveWeb.jslib`), the URP assets, the `.sln`, 12 `.csproj`, and the two
-`.asmdef` files inside `lib/Runtime/Generated/`. The two renamed folders were
+The 46 renamed files are the identity, and they add up: **14** `.asmdef` + **14**
+`.meta` (28), **11** `.csproj`, the `.sln` (1), the WebGL plugin and its `.meta` (2),
+and the two URP assets with their `.meta` (4). Two of the 14 asmdefs live inside
+`lib/Runtime/Generated/` — the pair that made the first attempt fail (§5). The two
+renamed folders were
 Playwright's `test-results/` directories, named after a previous run — which is how a
 folder rename gets exercised at all, since no source folder is named after the project.
 
