@@ -27,7 +27,7 @@ regenerated tables reproduce, and the built player loads the new config.
 | `Domain/Config` | `SampleEntry` added; `IGameConfig` exposes `Samples` |
 | `Infrastructure/Config` | `LubanGameConfig.TableNames` is `tblocalization, tbconstant, tbsample`; the adapter maps the sample rows |
 | `Data.Validator` | new rules: `localization.missing_language`, `sample.blank_id`, `sample.duplicate_id`, `sample.empty`, `sample.missing_name_key`, `sample.missing_note_key`; a reference is resolved through `IGameConfig.TryGetLocalization`, not a second lookup table |
-| `lib/Tests~` | `ConfigRulesTests` +6 cases, `ConfigLoadTests` +1 (and `TableNames` now three), `ProbeSerializationTests` rewritten for the new messages; `Sim` prints `seed` and `configHash` in its header line |
+| `lib/Tests~` | `ConfigRulesTests` +7 cases, `ConfigLoadTests` +1 (the sample table's own load, and `TableNames` is now three), `ProbeSerializationTests` +1 net (the two protobuf tests rewritten for the new messages, plus the save header); 115 → 124 facts. `Sim` prints `seed` and `configHash` in its header line |
 | `lib/Tests~/fixtures` | `duplicate-id`, `missing-ref`, `missing-note-key`, `missing-language` added; `blank-text` had to grow the sample keys, because its overlay localization table left the sample rows dangling and Luban rejected a fixture that is meant to be schema-valid |
 | docs | `llmwiki/systems/data-schema.md` rewritten for the three tables; the 13-table version moved to `docs/template/examples/systems/data-schema.md` with an "example, not a rule" header; `validate-data.ps1`'s description no longer lists game rules |
 
@@ -38,7 +38,7 @@ regenerated tables reproduce, and the built player loads the new config.
 | `tools/gen.ps1` | **PASS** — 8 `.cs`, 3 `.bytes`, config hash `DDFDF338…` | §5 command 1 |
 | `dotnet test` Core.Tests | **PASS** — 124 passed, 0 failed (was 115) | §5 command 2 |
 | `Data.Validator --data lib/Tests~/data` | **PASS** — no findings (localization 28, sample 3) | §5 command 3 |
-| `tools/verify-generated.ps1` | **PASS** — 8 PASS, 1 WARN (the generated files are new on disk, i.e. not yet committed), regeneration reproduces the tracked output | §5 command 4 |
+| `tools/verify-generated.ps1` | **PASS** — 9 PASS, 0 WARN once the stage is committed: 9 generated `.cs` identical, `lib/Tests~/data` 3 and `Resources/Config` 3 `.bytes` identical, `App.cs` identical, `git status` clean for generated paths. (Before the commit the same run reported 8 PASS + 1 WARN, that warn being the uncommitted files.) | §5 command 4 |
 | `tools/check-fixtures.ps1` | **PASS** — 10 PASS / 0 FAIL: six fixtures, each rejected by the stage its `fixture.json` names | §5 command 5 |
 | `lib/Runtime/Generated` + `Resources/Config` hold no game table | **PASS** — 9 generated files for three tables (`Constant`, `Language`, `Localization`, `Sample`, `TbConstant`, `TbLocalization`, `TbSample`, `Tables`, `ConfigBuildMetadata`) and three `.bytes` | §5 command 6 |
 | `tools/test.ps1 -Suite Full` (Editor closed) | **PASS** — 10 PASS, 0 FAIL, 2 NOT RUN (the two Unity suites) | §5 command 7 |
