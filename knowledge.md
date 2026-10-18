@@ -30,7 +30,7 @@ The template is extracted from a finished prototype (the game repo, tag
 | **T2** | Data pipeline, proto, validator and fixtures | done, green | [`docs/template/t2-report.md`](docs/template/t2-report.md) |
 | **T3** | Docs and knowledge: layers, ADR split, gotchas, links | done, green | [`docs/template/t3-report.md`](docs/template/t3-report.md) |
 | **T4** | Rename tool + a rehearsal on a throwaway copy | done, green | [`docs/template/t4-report.md`](docs/template/t4-report.md) · [`rename-rehearsal.md`](docs/template/rename-rehearsal.md) |
-| **T5** | Baseline commit and `template-v1` tag | not started | — |
+| **T5** | Baseline commit and `template-v1` tag | done, green | [`docs/template/t5-report.md`](docs/template/t5-report.md) · [`docs/template/baseline.md`](docs/template/baseline.md) · [`docs/template/CHANGELOG.md`](docs/template/CHANGELOG.md) |
 
 A game built from this template starts its own stage numbering at 01 and writes
 its reports under `docs/stages/` (skeleton: [`docs/stages/_TEMPLATE.md`](docs/stages/_TEMPLATE.md)).
@@ -81,7 +81,7 @@ required check failed, `2` = the tool itself could not run.
 | [`coverage-report.mjs`](tools/coverage-report.mjs) | per-file line coverage from a Cobertura report | measuring a coverage target |
 | [`font-metrics.py`](tools/font-metrics.py) | measures a font file's glyph metrics at a fixed display size | an on-screen text-size claim about the face |
 | [`screen-text-metrics.py`](tools/screen-text-metrics.py) | measures the ink height of text inside rectangles a player published, from a screenshot | an on-screen text-size claim about the build |
-| [`check-links.mjs`](tools/check-links.mjs) | checks that every relative markdown link under `docs/` and `llmwiki/` resolves | before committing a docs change |
+| [`check-links.mjs`](tools/check-links.mjs) | checks that every relative markdown link under `docs/` and `llmwiki/` resolves to a path git tracks | before committing a docs change |
 | [`rename.ps1`](tools/rename.ps1) | renames the project identity (six spellings) in file contents, file names and folder names, or in a patch file | once, on a fresh copy, before the game's first commit |
 | [`reference/xoshiro128_reference.py`](tools/reference/xoshiro128_reference.py) | an independent reference implementation of the RNG | cross-checking `Xoshiro128Tests` |
 

@@ -53,6 +53,8 @@ before changing the area it names.
 | A scene must publish its own name | [`gotchas/scene-must-publish-name.md`](gotchas/scene-must-publish-name.md) | `__projectSurviveScene` is the only handover a browser test can see |
 | `.unity` YAML is not hand-editable | [`gotchas/unity-yaml-not-hand-editable.md`](gotchas/unity-yaml-not-hand-editable.md) | Scenes are created through the Editor API only; re-run the builder instead of merging |
 | A generator-owned folder holds hand-written files (`.asmdef` under `Generated/`) | [`gotchas/rename-generator-folder-hand-written.md`](gotchas/rename-generator-folder-hand-written.md) | Exclude what `gen.ps1` writes (`*.cs`), not the folder: a folder-wide skip leaves an assembly at the old name |
+| A docs link into git-ignored output passes locally, breaks in a clone | [`gotchas/docs-link-into-ignored-output.md`](gotchas/docs-link-into-ignored-output.md) | `artifacts/`, `Builds/`, `node_modules/` are absent from every clone; `check-links` now requires a tracked target |
+| A copied tree keeps git's pointer file, so the copy's git writes to the original | [`gotchas/copied-tree-keeps-git-pointer.md`](gotchas/copied-tree-keeps-git-pointer.md) | In a worktree `.git` is a file; `/XD .git` copies it, and `git commit` in the copy moves the original branch |
 
 Notes live in [`gotchas/`](gotchas/). Add one when a fact costs time twice.
 

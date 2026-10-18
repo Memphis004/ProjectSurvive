@@ -9,10 +9,11 @@ folder that is then deleted**.
 
 Everything below is from one run on 2026-10-18, on the reference machine
 (`knowledge.md` §Environment), worktree `C:\Workspace\ProjectSurvive-template`. Raw
-logs: [`artifacts/rename-rehearsal/`](../../artifacts/rename-rehearsal/) (the pair of
+logs: `artifacts/rename-rehearsal/` on the machine that ran it — the pair of
 `test-summary.md` files, the WebGL build log, the Playwright log, the rename/gen/verify
-logs). The throwaway folder was deleted at the end and nothing from it was committed
-here.
+logs. It is a path, not a link: `artifacts/` is git-ignored, so the folder exists only
+in that workspace and a link to it would be broken in every clone. The throwaway folder
+was deleted at the end and nothing from it was committed here.
 
 ## 1. The copy
 

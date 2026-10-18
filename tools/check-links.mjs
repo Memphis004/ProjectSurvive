@@ -11,6 +11,12 @@
  *   - inline links and images: [text](path) / ![alt](path)
  *   - reference definitions: [id]: path
  *   - the path resolves to a file (or a directory) that exists, with matching case
+ *   - the target is **in the repository** — a file git tracks, or an untracked file git
+ *     would add (`--others --exclude-standard`), so a document added in the same commit
+ *     as its link still passes. What fails is a target only ignored output has:
+ *     `artifacts/`, `UnityProject/Builds/`, `node_modules/` resolve on the machine that
+ *     produced them and are broken in every clone, which is a false PASS this check
+ *     exists to prevent
  *
  * What it does NOT check:
  *   - URLs (http, https, mailto)
@@ -29,6 +35,7 @@
  *   2 = the checker itself could not run
  */
 
+import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, parse, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -152,7 +159,39 @@ function existsWithCase(absolutePath) {
   return true;
 }
 
+/**
+ * Every path a clone would have - tracked files, plus untracked ones that are not ignored -
+ * or null when git cannot answer (a tarball export, no git installed). In that case the
+ * "is it in the repository" half of the check is reported as skipped rather than guessed at.
+ */
+function trackedPaths() {
+  try {
+    return new Set(
+      execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+        cwd: repoRoot,
+        encoding: "utf8",
+        maxBuffer: 64 * 1024 * 1024,
+      })
+        .split("\0")
+        .filter(Boolean),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** True when git tracks the file, or at least one file under the directory. */
+function isTracked(relPath, tracked) {
+  if (tracked.has(relPath)) return true;
+  const prefix = `${relPath.replace(/\/$/, "")}/`;
+  for (const path of tracked) {
+    if (path.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
 function main() {
+  const tracked = trackedPaths();
   const files = [];
   for (const root of roots) {
     const absolute = join(repoRoot, root);
@@ -185,29 +224,33 @@ function main() {
       checked++;
 
       const absolute = resolve(dirname(file), cleaned);
+      const relTarget = normalize(relative(repoRoot, absolute));
       if (!existsWithCase(absolute)) {
-        problems.push({
-          file: relFile,
-          line,
-          target,
-          resolved: normalize(relative(repoRoot, absolute)),
-        });
+        problems.push({ file: relFile, line, target, resolved: relTarget, why: "missing" });
+        continue;
+      }
+      if (tracked && (relTarget.startsWith("../") || !isTracked(relTarget, tracked))) {
+        problems.push({ file: relFile, line, target, resolved: relTarget, why: "not in the repository" });
       }
     }
   }
 
   for (const p of problems) {
-    console.log(`${p.file}:${p.line}  ${p.target}  ->  ${p.resolved} (missing)`);
+    console.log(`${p.file}:${p.line}  ${p.target}  ->  ${p.resolved} (${p.why})`);
   }
 
   console.log(
     `\n${checked} link(s) in ${files.length} file(s): ` +
-      (problems.length === 0 ? "all resolve" : `${problems.length} BROKEN`),
+      (problems.length === 0 ? "all resolve, and every target is in the repository" : `${problems.length} BROKEN`),
   );
+  if (tracked === null) {
+    console.log("git could not list repository paths, so ignored targets were not checked.");
+  }
   if (problems.length > 0) {
     console.log(
-      "Fix the link, or move the target back into the live tree. " +
-        "docs/template/examples/ is excluded because it is an archive.",
+      "Fix the link, or move the target back into the live tree. A target that only " +
+        "exists in ignored output (artifacts/, Builds/, node_modules/) is broken in every " +
+        "clone, and docs/template/examples/ is excluded because it is an archive.",
     );
     return 1;
   }

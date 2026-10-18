@@ -101,6 +101,9 @@ can be cherry-picked into a game without dragging game work along.
 | [`t2-report.md`](t2-report.md) | T2: the data pipeline and its fixtures |
 | [`t3-report.md`](t3-report.md) | T3: this documentation pass |
 | [`t4-report.md`](t4-report.md) | T4: the rename tool, and the rehearsal that proves it |
+| [`t5-report.md`](t5-report.md) | T5: the verification pass, the repairs it forced, and the tag |
+| [`baseline.md`](baseline.md) | what `template-v1` weighed, how long it took to load, and what passed |
+| [`CHANGELOG.md`](CHANGELOG.md) | one entry per released template version, starting at `template-v1` |
 | [`rename-rehearsal.md`](rename-rehearsal.md) | T4: a real rename of a throwaway copy, with the suites that followed it |
 | [`ORIGIN.md`](ORIGIN.md) | where this tree came from, and the one file the rename leaves alone |
 | [`examples/`](examples/) | the game's ADRs, system notes, EcsLite gotcha, glossary and design brief — **examples, not rules** |

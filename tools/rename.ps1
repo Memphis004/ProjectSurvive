@@ -39,8 +39,10 @@
       tools/vendor/** (downloaded binaries; tools/setup-tools.ps1 recreates them)
 
     .git is excluded because rewriting history is not what starting a game means: the
-    game's first commit is its own. The examples archive and ORIGIN.md keep the old name
-    on purpose - they are where the provenance stays readable.
+    game's first commit is its own. That covers both shapes git uses - the `.git`
+    directory of a clone and the `.git` *file* `git worktree` writes, whose content is a
+    path back to the repository it came from. The examples archive and ORIGIN.md keep
+    the old name on purpose - they are where the provenance stays readable.
 
     Inside lib/Runtime/Generated only the *.cs files are skipped: tools/gen.ps1 owns
     exactly those (it deletes and republishes them). The two .asmdef files in that
@@ -107,7 +109,10 @@ $script:SkipPaths = @(
 )
 
 $script:SkipFiles = @(
-    'docs/template/ORIGIN.md'
+    'docs/template/ORIGIN.md',
+    # A worktree's pointer is git's own metadata: rewriting the path inside it would
+    # make the renamed copy claim another repository's history.
+    '.git'
 )
 
 # Individual files that are never touched, by relative-path regex. lib/Runtime/Generated

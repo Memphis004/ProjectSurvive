@@ -285,7 +285,7 @@ else {
 # ---------------------------------------------------------------------------
 # 7. Repository structure sanity
 # ---------------------------------------------------------------------------
-$expectedDirs = @('lib', 'lib\Runtime', 'data', 'docs', 'docs\gdd', 'docs\architecture', 'docs\adr', 'docs\stages', 'llmwiki', 'tools', 'proto', 'tests\web', 'UnityProject')
+$expectedDirs = @('lib', 'lib\Runtime', 'data', 'docs', 'docs\architecture', 'docs\adr', 'docs\stages', 'docs\testing', 'llmwiki', 'tools', 'proto', 'tests\web', 'UnityProject')
 $missingDirs = @()
 foreach ($d in $expectedDirs) {
     if (-not (Test-Path -LiteralPath (Join-Path $script:Root $d))) { $missingDirs += $d }
@@ -297,7 +297,7 @@ else {
     Add-Result 'Repo structure' 'Required' 'FAIL' ("missing: {0}" -f ($missingDirs -join ', '))
 }
 
-$expectedFiles = @('AGENTS.md', 'knowledge.md', 'tools\versions.lock.json', 'tools\doctor.ps1', 'docs\gdd\prototype-v0.3.md', 'docs\architecture\overview.md', 'docs\architecture\dependencies.md', 'llmwiki\glossary.md')
+$expectedFiles = @('AGENTS.md', 'knowledge.md', 'tools\versions.lock.json', 'tools\doctor.ps1', 'docs\testing\test-suites.md', 'docs\architecture\overview.md', 'docs\architecture\dependencies.md', 'llmwiki\glossary.md')
 $missingFiles = @()
 foreach ($f in $expectedFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $script:Root $f))) { $missingFiles += $f }
@@ -357,12 +357,20 @@ else {
 # 9. Playwright (optional until Stage 03/14)
 # ---------------------------------------------------------------------------
 if ($npm) {
-    $r = Invoke-Native $npm @('ls', '--global', '--depth=0', '@playwright/test')
-    if ($r.Ok -and $r.Output -match '@playwright') {
-        Add-Result 'Playwright' 'Optional' 'PASS' 'installed globally'
+    # The repo installs it where the specs look for it (`npm ci --prefix tests/web`),
+    # so a local install is the expected shape and a global one only counts as a fallback.
+    $localPlaywright = Join-Path $script:Root 'tests\web\node_modules\@playwright\test'
+    if (Test-Path -LiteralPath $localPlaywright) {
+        Add-Result 'Playwright' 'Optional' 'PASS' 'installed in tests/web/node_modules'
     }
     else {
-        Add-Result 'Playwright' 'Optional' 'SKIP' 'not installed yet (added at Stage 03/14)'
+        $r = Invoke-Native $npm @('ls', '--global', '--depth=0', '@playwright/test')
+        if ($r.Ok -and $r.Output -match '@playwright') {
+            Add-Result 'Playwright' 'Optional' 'PASS' 'installed globally'
+        }
+        else {
+            Add-Result 'Playwright' 'Optional' 'SKIP' 'not installed; run `npm ci --prefix tests/web` before the browser suite'
+        }
     }
 }
 else {
