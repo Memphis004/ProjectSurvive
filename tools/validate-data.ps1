@@ -13,18 +13,17 @@
 
     The rules are split by what can enforce them, and this script only drives
     the second half:
-      * data/ -> Luban (--strict, via tools/gen.ps1) owns the SCHEMA: column
-        names, types, unique primary keys, `#ref` targets and `#(range=)` bounds.
-      * the generated .bytes -> ProjectSurvive.Data.Validator owns the GAME
-        rules that span tables, notably everything Luban cannot check because an
-        empty cell is legitimate there: duplicate ids across item/bag, missing
-        optional references (skill_id, description_key, boss_enemy_id), empty or
-        ragged footprint pictures, cooldown below constant.min_cooldown_seconds,
-        non-sequential or over-max merge tiers, a piece whose merge ladder is
-        incomplete, a shop-pool weight band that leaves a floor with no usable
-        entry, a piece no shop-pool band offers, a floor with no wave, a wave
-        whose spawns cannot fit its window, a synergy tag no item carries,
-        price <= 0, and localization rows missing a language.
+      * data/ -> Luban (strict, via tools/gen.ps1) owns the SCHEMA: column names,
+        types, unique primary keys, `#ref` targets and `#(range=)` bounds.
+      * the generated .bytes -> ProjectSurvive.Data.Validator owns the rules that
+        span tables, which is mostly everything Luban cannot check because an
+        empty cell is legitimate there. The template keeps a small set, one per
+        mechanism a game will copy: a duplicated or blank key (the table index
+        hides it from the loader), a localization row with one language missing,
+        a data row pointing at a localization key that does not exist, and a
+        tuned number that is zero or negative where the code divides by it.
+        The live list is ConfigValidator.cs - a game adds its own rules next to
+        those, each with a fixture under lib/Tests~/fixtures/.
 
     Exit code 0 = clean, 1 = violations, 2 = could not run (missing toolchain).
 

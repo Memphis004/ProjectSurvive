@@ -32,7 +32,7 @@ need to run, and the Web build moved behind the Full suite.
 | `sim: stream separation` | Fast | run / encounter / visual digests differ, `ticksProduced=300` |
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
-| `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — `out-of-range` and `blank-text` rejected for the right reason |
+| `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — six fixtures, each rejected for the reason its `fixture.json` names: `blank-text` and `missing-note-key` and `missing-language` by the validator, `out-of-range`, `missing-ref` and `duplicate-id` by Luban |
 | `unity: EditMode` | Fast | `ProjectSurvive.Game.Tests.EditMode` (the game-screen suites leave with T1b) |
 | `unity: PlayMode` | **Full** | `ProjectSurvive.Game.Tests.PlayMode` — scenes, the three scopes, the scene flow and the 20-round-trip loop |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |

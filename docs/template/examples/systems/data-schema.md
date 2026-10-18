@@ -1,3 +1,9 @@
+> **Example, not a rule.** This is ProjectSurvive's own `data/` documentation at the moment the template was
+> cut (tag `survive-stage-10`). It describes tables the template does not have — bags, items, waves, shop
+> pools — and it is kept because the *shape* of it is the useful part: how a project writes down its tables, its
+> cross-table rules and the values that are easy to get wrong. The template's own version is
+> [`llmwiki/systems/data-schema.md`](../../../llmwiki/systems/data-schema.md).
+
 # Static data schema (`data/`)
 
 Everything the game is balanced with lives here and nowhere else (AGENTS rule 5).

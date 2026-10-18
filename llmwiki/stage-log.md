@@ -273,7 +273,20 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
 - **What:** `lib/` and `data/` no longer name any game system; the loop that survives is Boot → Title → Hub ⇄
   Encounter → Result → Title, with `RandomStreamKind` = run / encounter / reward / visual.
 - **Result:** `tools/test.ps1 -Suite Full` = **PASS 10 | FAIL 0 | NOT RUN 2** (dotnet **115**, EditMode
-  **30/30**, PlayMode **6/6**); the two NOT RUNs are the WebGL build and Playwright, which need the Editor
-  closed. Screenshots of the real Hub and Encounter screens are in `artifacts/ui/`.
-- **Next:** a WebGL build + the loop's browser spec with the Editor closed, then the T2/MOVE half of the
-  inventory (docs examples, llmwiki systems split, `tools/rename.ps1`).
+  **30/30**, PlayMode **6/6**) — the two NOT RUNs are whichever half the open/closed Editor excludes, so the
+  gate is quoted as two runs. WebGL build + Playwright **4/4** (`smoke`, `title`, `loop`: the loop is walked
+  by clicking the controls each screen publishes). Screenshots of the real screens are in `artifacts/ui/`
+  and `artifacts/web/`.
+- **Next:** T2 — the data pipeline (a table that can carry a reference, the proto trimmed to its two
+  messages, fixtures per rule); then the MOVE half of the inventory (`tools/rename.ps1`, `check-links.mjs`).
+
+| T2 | 2026-10-18 | data pipeline: `sample` table added so both reference kinds (`#ref` at generate time, optional key at validation time) are exercised; `proto/app.proto` down to `CheckpointProbe` + `SaveHeader`; validator +4 rules and fixtures 2 → 6; `llmwiki/systems/data-schema.md` rewritten, old one kept as an example | [`docs/template/t2-report.md`](../docs/template/t2-report.md) |
+
+- **What:** three tables (`localization`, `constant`, `sample`), a validator whose rules a game can copy,
+  and six fixtures split by which stage must reject each one — schema-level cases at `luban`, the rest at
+  `semantic`.
+- **Result:** dotnet **124**, EditMode **30/30**, PlayMode **6/6**, `check-fixtures` **10 PASS / 0 FAIL**,
+  `verify-generated` reproduces, Full = **PASS 10 | FAIL 0 | NOT RUN 2**; the built player loads the new
+  config (`hash=DDFDF338 generated=DDFDF338 localization=28`).
+- **Next:** T3 — the docs/knowledge pass (AGENTS layer list, ADR split at 0001–0099, gotchas that currently
+  point at deleted game systems), then T4 (`tools/rename.ps1` + a rehearsal) and T5 (baseline + tag).

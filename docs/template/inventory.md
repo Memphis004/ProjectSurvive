@@ -489,10 +489,10 @@ project is the two URP settings assets, which are ours and stay. |
   14 tables still exist (step 5) and T2 delete the tables and REGEN. That leaves `lib/Runtime/Generated/`
   containing 39 files for 12 unused tables between the two steps. Accept the transient, or move the REGEN into
   T1's tail?
-- **Q7 — the two surviving fixtures** (`duplicate-id`, `missing-ref`) both target dropped tables
+- **RESOLVED in T2 — the two surviving fixtures** (`duplicate-id`, `missing-ref`) both target dropped tables
   (`item.csv`, `bag.csv`). Retarget them at the new `sample` table, or keep the fixture *shapes* and delete the
   rows? (The brief says keep both; the ids inside them are game ids.)
-- **Q8 — `sample.csv`.** The brief keeps `constant.csv` + `sample.csv`; `sample.csv` does not exist today. What
+- **RESOLVED in T2 — `sample.csv`.** The brief keeps `constant.csv` + `sample.csv`; `sample.csv` does not exist today. What
   should it demonstrate — one row of a generic `TbSample` (id, int, float, string, localization key), or a
   second generic table?
 - **Q9 — `Hub` / `Encounter` scene names.** Keep these names (brief) — confirm they are the template's names
