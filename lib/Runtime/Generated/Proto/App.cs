@@ -24,57 +24,37 @@ namespace ProjectSurvive.Core.Generated.Proto {
     static AppReflection() {
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
-            "CglhcHAucHJvdG8SFXByb2plY3RzdXJ2aXZlLmFwaS52MSJ2CgdBcHBJbmZv",
-            "EhMKC2FwcF92ZXJzaW9uGAEgASgJEhMKC2NvbmZpZ19oYXNoGAIgASgJEjEK",
-            "CHBsYXRmb3JtGAMgASgOMh8ucHJvamVjdHN1cnZpdmUuYXBpLnYxLlBsYXRm",
-            "b3JtEg4KBmxvY2FsZRgEIAEoCSI6CgtDbGllbnRIZWxsbxIrCgNhcHAYASAB",
-            "KAsyHi5wcm9qZWN0c3Vydml2ZS5hcGkudjEuQXBwSW5mbyJNCgtTZXJ2ZXJI",
-            "ZWxsbxIQCghhY2NlcHRlZBgBIAEoCBIXCg9taW5fYXBwX3ZlcnNpb24YAiAB",
-            "KAkSEwoLbWVzc2FnZV9rZXkYAyABKAkidQoJUnVuUmVwb3J0Eg4KBnJ1bl9p",
-            "ZBgBIAEoCRITCgtjb25maWdfaGFzaBgCIAEoCRIMCgRzZWVkGAMgASgNEg0K",
-            "BXNjb3JlGAQgASgFEhEKCWNvbXBsZXRlZBgFIAEoCBITCgtkdXJhdGlvbl9t",
-            "cxgGIAEoAypLCghQbGF0Zm9ybRIYChRQTEFURk9STV9VTlNQRUNJRklFRBAA",
-            "EhAKDFBMQVRGT1JNX1dFQhABEhMKD1BMQVRGT1JNX0VESVRPUhACQiaqAiNQ",
-            "cm9qZWN0U3Vydml2ZS5Db3JlLkdlbmVyYXRlZC5Qcm90b2IGcHJvdG8z"));
+            "CglhcHAucHJvdG8SFXByb2plY3RzdXJ2aXZlLmFwaS52MSJeCg9DaGVja3Bv",
+            "aW50UHJvYmUSFgoOc2NoZW1hX3ZlcnNpb24YASABKA0SEwoLY29uZmlnX2hh",
+            "c2gYAiABKAkSDAoEdGljaxgDIAEoAxIQCghub3RlX2tleRgEIAEoCSI5CgpT",
+            "YXZlSGVhZGVyEhYKDnNjaGVtYV92ZXJzaW9uGAEgASgNEhMKC2NvbmZpZ19o",
+            "YXNoGAIgASgJQiaqAiNQcm9qZWN0U3Vydml2ZS5Db3JlLkdlbmVyYXRlZC5Q",
+            "cm90b2IGcHJvdG8z"));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
-          new pbr::GeneratedClrTypeInfo(new[] {typeof(global::ProjectSurvive.Core.Generated.Proto.Platform), }, null, new pbr::GeneratedClrTypeInfo[] {
-            new pbr::GeneratedClrTypeInfo(typeof(global::ProjectSurvive.Core.Generated.Proto.AppInfo), global::ProjectSurvive.Core.Generated.Proto.AppInfo.Parser, new[]{ "AppVersion", "ConfigHash", "Platform", "Locale" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::ProjectSurvive.Core.Generated.Proto.ClientHello), global::ProjectSurvive.Core.Generated.Proto.ClientHello.Parser, new[]{ "App" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::ProjectSurvive.Core.Generated.Proto.ServerHello), global::ProjectSurvive.Core.Generated.Proto.ServerHello.Parser, new[]{ "Accepted", "MinAppVersion", "MessageKey" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::ProjectSurvive.Core.Generated.Proto.RunReport), global::ProjectSurvive.Core.Generated.Proto.RunReport.Parser, new[]{ "RunId", "ConfigHash", "Seed", "Score", "Completed", "DurationMs" }, null, null, null, null)
+          new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
+            new pbr::GeneratedClrTypeInfo(typeof(global::ProjectSurvive.Core.Generated.Proto.CheckpointProbe), global::ProjectSurvive.Core.Generated.Proto.CheckpointProbe.Parser, new[]{ "SchemaVersion", "ConfigHash", "Tick", "NoteKey" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::ProjectSurvive.Core.Generated.Proto.SaveHeader), global::ProjectSurvive.Core.Generated.Proto.SaveHeader.Parser, new[]{ "SchemaVersion", "ConfigHash" }, null, null, null, null)
           }));
     }
     #endregion
 
   }
-  #region Enums
-  /// <summary>
-  /// Where a build is running. Kept explicit so a report is unambiguous.
-  /// </summary>
-  public enum Platform {
-    [pbr::OriginalName("PLATFORM_UNSPECIFIED")] Unspecified = 0,
-    [pbr::OriginalName("PLATFORM_WEB")] Web = 1,
-    [pbr::OriginalName("PLATFORM_EDITOR")] Editor = 2,
-  }
-
-  #endregion
-
   #region Messages
   /// <summary>
-  /// Identity of a running build: what it is, over which balance data.
+  /// Identity of a build's balance data, for the round-trip self-check.
   /// </summary>
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class AppInfo : pb::IMessage<AppInfo>
+  public sealed partial class CheckpointProbe : pb::IMessage<CheckpointProbe>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
   {
-    private static readonly pb::MessageParser<AppInfo> _parser = new pb::MessageParser<AppInfo>(() => new AppInfo());
+    private static readonly pb::MessageParser<CheckpointProbe> _parser = new pb::MessageParser<CheckpointProbe>(() => new CheckpointProbe());
     private pb::UnknownFieldSet _unknownFields;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<AppInfo> Parser { get { return _parser; } }
+    public static pb::MessageParser<CheckpointProbe> Parser { get { return _parser; } }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
@@ -90,7 +70,7 @@ namespace ProjectSurvive.Core.Generated.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public AppInfo() {
+    public CheckpointProbe() {
       OnConstruction();
     }
 
@@ -98,29 +78,32 @@ namespace ProjectSurvive.Core.Generated.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public AppInfo(AppInfo other) : this() {
-      appVersion_ = other.appVersion_;
+    public CheckpointProbe(CheckpointProbe other) : this() {
+      schemaVersion_ = other.schemaVersion_;
       configHash_ = other.configHash_;
-      platform_ = other.platform_;
-      locale_ = other.locale_;
+      tick_ = other.tick_;
+      noteKey_ = other.noteKey_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public AppInfo Clone() {
-      return new AppInfo(this);
+    public CheckpointProbe Clone() {
+      return new CheckpointProbe(this);
     }
 
-    /// <summary>Field number for the "app_version" field.</summary>
-    public const int AppVersionFieldNumber = 1;
-    private string appVersion_ = "";
+    /// <summary>Field number for the "schema_version" field.</summary>
+    public const int SchemaVersionFieldNumber = 1;
+    private uint schemaVersion_;
+    /// <summary>
+    /// Bumped whenever this message's shape changes.
+    /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string AppVersion {
-      get { return appVersion_; }
+    public uint SchemaVersion {
+      get { return schemaVersion_; }
       set {
-        appVersion_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+        schemaVersion_ = value;
       }
     }
 
@@ -139,49 +122,55 @@ namespace ProjectSurvive.Core.Generated.Proto {
       }
     }
 
-    /// <summary>Field number for the "platform" field.</summary>
-    public const int PlatformFieldNumber = 3;
-    private global::ProjectSurvive.Core.Generated.Proto.Platform platform_ = global::ProjectSurvive.Core.Generated.Proto.Platform.Unspecified;
+    /// <summary>Field number for the "tick" field.</summary>
+    public const int TickFieldNumber = 3;
+    private long tick_;
+    /// <summary>
+    /// A tick count, so a field wider than the generated defaults is exercised.
+    /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::ProjectSurvive.Core.Generated.Proto.Platform Platform {
-      get { return platform_; }
+    public long Tick {
+      get { return tick_; }
       set {
-        platform_ = value;
+        tick_ = value;
       }
     }
 
-    /// <summary>Field number for the "locale" field.</summary>
-    public const int LocaleFieldNumber = 4;
-    private string locale_ = "";
+    /// <summary>Field number for the "note_key" field.</summary>
+    public const int NoteKeyFieldNumber = 4;
+    private string noteKey_ = "";
+    /// <summary>
+    /// A localization key, never raw player-facing text (AGENTS rule 5), so a string field is exercised.
+    /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string Locale {
-      get { return locale_; }
+    public string NoteKey {
+      get { return noteKey_; }
       set {
-        locale_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+        noteKey_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
       }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
-      return Equals(other as AppInfo);
+      return Equals(other as CheckpointProbe);
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(AppInfo other) {
+    public bool Equals(CheckpointProbe other) {
       if (ReferenceEquals(other, null)) {
         return false;
       }
       if (ReferenceEquals(other, this)) {
         return true;
       }
-      if (AppVersion != other.AppVersion) return false;
+      if (SchemaVersion != other.SchemaVersion) return false;
       if (ConfigHash != other.ConfigHash) return false;
-      if (Platform != other.Platform) return false;
-      if (Locale != other.Locale) return false;
+      if (Tick != other.Tick) return false;
+      if (NoteKey != other.NoteKey) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -189,10 +178,10 @@ namespace ProjectSurvive.Core.Generated.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override int GetHashCode() {
       int hash = 1;
-      if (AppVersion.Length != 0) hash ^= AppVersion.GetHashCode();
+      if (SchemaVersion != 0) hash ^= SchemaVersion.GetHashCode();
       if (ConfigHash.Length != 0) hash ^= ConfigHash.GetHashCode();
-      if (Platform != global::ProjectSurvive.Core.Generated.Proto.Platform.Unspecified) hash ^= Platform.GetHashCode();
-      if (Locale.Length != 0) hash ^= Locale.GetHashCode();
+      if (Tick != 0L) hash ^= Tick.GetHashCode();
+      if (NoteKey.Length != 0) hash ^= NoteKey.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -211,21 +200,21 @@ namespace ProjectSurvive.Core.Generated.Proto {
     #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       output.WriteRawMessage(this);
     #else
-      if (AppVersion.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(AppVersion);
+      if (SchemaVersion != 0) {
+        output.WriteRawTag(8);
+        output.WriteUInt32(SchemaVersion);
       }
       if (ConfigHash.Length != 0) {
         output.WriteRawTag(18);
         output.WriteString(ConfigHash);
       }
-      if (Platform != global::ProjectSurvive.Core.Generated.Proto.Platform.Unspecified) {
+      if (Tick != 0L) {
         output.WriteRawTag(24);
-        output.WriteEnum((int) Platform);
+        output.WriteInt64(Tick);
       }
-      if (Locale.Length != 0) {
+      if (NoteKey.Length != 0) {
         output.WriteRawTag(34);
-        output.WriteString(Locale);
+        output.WriteString(NoteKey);
       }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
@@ -237,21 +226,21 @@ namespace ProjectSurvive.Core.Generated.Proto {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (AppVersion.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(AppVersion);
+      if (SchemaVersion != 0) {
+        output.WriteRawTag(8);
+        output.WriteUInt32(SchemaVersion);
       }
       if (ConfigHash.Length != 0) {
         output.WriteRawTag(18);
         output.WriteString(ConfigHash);
       }
-      if (Platform != global::ProjectSurvive.Core.Generated.Proto.Platform.Unspecified) {
+      if (Tick != 0L) {
         output.WriteRawTag(24);
-        output.WriteEnum((int) Platform);
+        output.WriteInt64(Tick);
       }
-      if (Locale.Length != 0) {
+      if (NoteKey.Length != 0) {
         output.WriteRawTag(34);
-        output.WriteString(Locale);
+        output.WriteString(NoteKey);
       }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
@@ -263,17 +252,17 @@ namespace ProjectSurvive.Core.Generated.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public int CalculateSize() {
       int size = 0;
-      if (AppVersion.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(AppVersion);
+      if (SchemaVersion != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeUInt32Size(SchemaVersion);
       }
       if (ConfigHash.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(ConfigHash);
       }
-      if (Platform != global::ProjectSurvive.Core.Generated.Proto.Platform.Unspecified) {
-        size += 1 + pb::CodedOutputStream.ComputeEnumSize((int) Platform);
+      if (Tick != 0L) {
+        size += 1 + pb::CodedOutputStream.ComputeInt64Size(Tick);
       }
-      if (Locale.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(Locale);
+      if (NoteKey.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(NoteKey);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -283,21 +272,21 @@ namespace ProjectSurvive.Core.Generated.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(AppInfo other) {
+    public void MergeFrom(CheckpointProbe other) {
       if (other == null) {
         return;
       }
-      if (other.AppVersion.Length != 0) {
-        AppVersion = other.AppVersion;
+      if (other.SchemaVersion != 0) {
+        SchemaVersion = other.SchemaVersion;
       }
       if (other.ConfigHash.Length != 0) {
         ConfigHash = other.ConfigHash;
       }
-      if (other.Platform != global::ProjectSurvive.Core.Generated.Proto.Platform.Unspecified) {
-        Platform = other.Platform;
+      if (other.Tick != 0L) {
+        Tick = other.Tick;
       }
-      if (other.Locale.Length != 0) {
-        Locale = other.Locale;
+      if (other.NoteKey.Length != 0) {
+        NoteKey = other.NoteKey;
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -318,8 +307,8 @@ namespace ProjectSurvive.Core.Generated.Proto {
           default:
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
             break;
-          case 10: {
-            AppVersion = input.ReadString();
+          case 8: {
+            SchemaVersion = input.ReadUInt32();
             break;
           }
           case 18: {
@@ -327,11 +316,11 @@ namespace ProjectSurvive.Core.Generated.Proto {
             break;
           }
           case 24: {
-            Platform = (global::ProjectSurvive.Core.Generated.Proto.Platform) input.ReadEnum();
+            Tick = input.ReadInt64();
             break;
           }
           case 34: {
-            Locale = input.ReadString();
+            NoteKey = input.ReadString();
             break;
           }
         }
@@ -353,8 +342,8 @@ namespace ProjectSurvive.Core.Generated.Proto {
           default:
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
             break;
-          case 10: {
-            AppVersion = input.ReadString();
+          case 8: {
+            SchemaVersion = input.ReadUInt32();
             break;
           }
           case 18: {
@@ -362,11 +351,11 @@ namespace ProjectSurvive.Core.Generated.Proto {
             break;
           }
           case 24: {
-            Platform = (global::ProjectSurvive.Core.Generated.Proto.Platform) input.ReadEnum();
+            Tick = input.ReadInt64();
             break;
           }
           case 34: {
-            Locale = input.ReadString();
+            NoteKey = input.ReadString();
             break;
           }
         }
@@ -377,19 +366,23 @@ namespace ProjectSurvive.Core.Generated.Proto {
   }
 
   /// <summary>
-  /// First message a client sends when it reaches a backend.
+  /// The header a save carries ahead of its payload.
+  ///
+  /// A reader can refuse a save it cannot understand before parsing the payload: the schema version says
+  /// whether the format is one it knows, and the config hash says whether the balance data the save was
+  /// written against is the one being played. Both are numbers a build already knows.
   /// </summary>
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ClientHello : pb::IMessage<ClientHello>
+  public sealed partial class SaveHeader : pb::IMessage<SaveHeader>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
   {
-    private static readonly pb::MessageParser<ClientHello> _parser = new pb::MessageParser<ClientHello>(() => new ClientHello());
+    private static readonly pb::MessageParser<SaveHeader> _parser = new pb::MessageParser<SaveHeader>(() => new SaveHeader());
     private pb::UnknownFieldSet _unknownFields;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<ClientHello> Parser { get { return _parser; } }
+    public static pb::MessageParser<SaveHeader> Parser { get { return _parser; } }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
@@ -405,7 +398,7 @@ namespace ProjectSurvive.Core.Generated.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public ClientHello() {
+    public SaveHeader() {
       OnConstruction();
     }
 
@@ -413,526 +406,36 @@ namespace ProjectSurvive.Core.Generated.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public ClientHello(ClientHello other) : this() {
-      app_ = other.app_ != null ? other.app_.Clone() : null;
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public ClientHello Clone() {
-      return new ClientHello(this);
-    }
-
-    /// <summary>Field number for the "app" field.</summary>
-    public const int AppFieldNumber = 1;
-    private global::ProjectSurvive.Core.Generated.Proto.AppInfo app_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::ProjectSurvive.Core.Generated.Proto.AppInfo App {
-      get { return app_; }
-      set {
-        app_ = value;
-      }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override bool Equals(object other) {
-      return Equals(other as ClientHello);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(ClientHello other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if (!object.Equals(App, other.App)) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override int GetHashCode() {
-      int hash = 1;
-      if (app_ != null) hash ^= App.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      if (app_ != null) {
-        output.WriteRawTag(10);
-        output.WriteMessage(App);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (app_ != null) {
-        output.WriteRawTag(10);
-        output.WriteMessage(App);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public int CalculateSize() {
-      int size = 0;
-      if (app_ != null) {
-        size += 1 + pb::CodedOutputStream.ComputeMessageSize(App);
-      }
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(ClientHello other) {
-      if (other == null) {
-        return;
-      }
-      if (other.app_ != null) {
-        if (app_ == null) {
-          App = new global::ProjectSurvive.Core.Generated.Proto.AppInfo();
-        }
-        App.MergeFrom(other.App);
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 10: {
-            if (app_ == null) {
-              App = new global::ProjectSurvive.Core.Generated.Proto.AppInfo();
-            }
-            input.ReadMessage(App);
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            if (app_ == null) {
-              App = new global::ProjectSurvive.Core.Generated.Proto.AppInfo();
-            }
-            input.ReadMessage(App);
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
-  /// <summary>
-  /// Reply to ClientHello. Accepted=false means "stop, update first".
-  /// </summary>
-  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ServerHello : pb::IMessage<ServerHello>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<ServerHello> _parser = new pb::MessageParser<ServerHello>(() => new ServerHello());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<ServerHello> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::ProjectSurvive.Core.Generated.Proto.AppReflection.Descriptor.MessageTypes[2]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public ServerHello() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public ServerHello(ServerHello other) : this() {
-      accepted_ = other.accepted_;
-      minAppVersion_ = other.minAppVersion_;
-      messageKey_ = other.messageKey_;
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public ServerHello Clone() {
-      return new ServerHello(this);
-    }
-
-    /// <summary>Field number for the "accepted" field.</summary>
-    public const int AcceptedFieldNumber = 1;
-    private bool accepted_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Accepted {
-      get { return accepted_; }
-      set {
-        accepted_ = value;
-      }
-    }
-
-    /// <summary>Field number for the "min_app_version" field.</summary>
-    public const int MinAppVersionFieldNumber = 2;
-    private string minAppVersion_ = "";
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string MinAppVersion {
-      get { return minAppVersion_; }
-      set {
-        minAppVersion_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    /// <summary>Field number for the "message_key" field.</summary>
-    public const int MessageKeyFieldNumber = 3;
-    private string messageKey_ = "";
-    /// <summary>
-    /// Localization key, never raw player-facing text (AGENTS rule 5).
-    /// </summary>
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string MessageKey {
-      get { return messageKey_; }
-      set {
-        messageKey_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override bool Equals(object other) {
-      return Equals(other as ServerHello);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(ServerHello other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if (Accepted != other.Accepted) return false;
-      if (MinAppVersion != other.MinAppVersion) return false;
-      if (MessageKey != other.MessageKey) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override int GetHashCode() {
-      int hash = 1;
-      if (Accepted != false) hash ^= Accepted.GetHashCode();
-      if (MinAppVersion.Length != 0) hash ^= MinAppVersion.GetHashCode();
-      if (MessageKey.Length != 0) hash ^= MessageKey.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      if (Accepted != false) {
-        output.WriteRawTag(8);
-        output.WriteBool(Accepted);
-      }
-      if (MinAppVersion.Length != 0) {
-        output.WriteRawTag(18);
-        output.WriteString(MinAppVersion);
-      }
-      if (MessageKey.Length != 0) {
-        output.WriteRawTag(26);
-        output.WriteString(MessageKey);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Accepted != false) {
-        output.WriteRawTag(8);
-        output.WriteBool(Accepted);
-      }
-      if (MinAppVersion.Length != 0) {
-        output.WriteRawTag(18);
-        output.WriteString(MinAppVersion);
-      }
-      if (MessageKey.Length != 0) {
-        output.WriteRawTag(26);
-        output.WriteString(MessageKey);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public int CalculateSize() {
-      int size = 0;
-      if (Accepted != false) {
-        size += 1 + 1;
-      }
-      if (MinAppVersion.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(MinAppVersion);
-      }
-      if (MessageKey.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(MessageKey);
-      }
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(ServerHello other) {
-      if (other == null) {
-        return;
-      }
-      if (other.Accepted != false) {
-        Accepted = other.Accepted;
-      }
-      if (other.MinAppVersion.Length != 0) {
-        MinAppVersion = other.MinAppVersion;
-      }
-      if (other.MessageKey.Length != 0) {
-        MessageKey = other.MessageKey;
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 8: {
-            Accepted = input.ReadBool();
-            break;
-          }
-          case 18: {
-            MinAppVersion = input.ReadString();
-            break;
-          }
-          case 26: {
-            MessageKey = input.ReadString();
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-      if ((tag & 7) == 4) {
-        // Abort on any end group tag.
-        return;
-      }
-      switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 8: {
-            Accepted = input.ReadBool();
-            break;
-          }
-          case 18: {
-            MinAppVersion = input.ReadString();
-            break;
-          }
-          case 26: {
-            MessageKey = input.ReadString();
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
-  /// <summary>
-  /// Outcome of one run, reported after the run ends. The score is a single number
-  /// so the template stays neutral; a game may add its own breakdown fields.
-  /// </summary>
-  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class RunReport : pb::IMessage<RunReport>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<RunReport> _parser = new pb::MessageParser<RunReport>(() => new RunReport());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<RunReport> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::ProjectSurvive.Core.Generated.Proto.AppReflection.Descriptor.MessageTypes[3]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public RunReport() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public RunReport(RunReport other) : this() {
-      runId_ = other.runId_;
+    public SaveHeader(SaveHeader other) : this() {
+      schemaVersion_ = other.schemaVersion_;
       configHash_ = other.configHash_;
-      seed_ = other.seed_;
-      score_ = other.score_;
-      completed_ = other.completed_;
-      durationMs_ = other.durationMs_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public RunReport Clone() {
-      return new RunReport(this);
+    public SaveHeader Clone() {
+      return new SaveHeader(this);
     }
 
-    /// <summary>Field number for the "run_id" field.</summary>
-    public const int RunIdFieldNumber = 1;
-    private string runId_ = "";
+    /// <summary>Field number for the "schema_version" field.</summary>
+    public const int SchemaVersionFieldNumber = 1;
+    private uint schemaVersion_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public string RunId {
-      get { return runId_; }
+    public uint SchemaVersion {
+      get { return schemaVersion_; }
       set {
-        runId_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+        schemaVersion_ = value;
       }
     }
 
     /// <summary>Field number for the "config_hash" field.</summary>
     public const int ConfigHashFieldNumber = 2;
     private string configHash_ = "";
+    /// <summary>
+    /// SHA-256 of the generated config tables, upper-case hex.
+    /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public string ConfigHash {
@@ -942,75 +445,23 @@ namespace ProjectSurvive.Core.Generated.Proto {
       }
     }
 
-    /// <summary>Field number for the "seed" field.</summary>
-    public const int SeedFieldNumber = 3;
-    private uint seed_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public uint Seed {
-      get { return seed_; }
-      set {
-        seed_ = value;
-      }
-    }
-
-    /// <summary>Field number for the "score" field.</summary>
-    public const int ScoreFieldNumber = 4;
-    private int score_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public int Score {
-      get { return score_; }
-      set {
-        score_ = value;
-      }
-    }
-
-    /// <summary>Field number for the "completed" field.</summary>
-    public const int CompletedFieldNumber = 5;
-    private bool completed_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Completed {
-      get { return completed_; }
-      set {
-        completed_ = value;
-      }
-    }
-
-    /// <summary>Field number for the "duration_ms" field.</summary>
-    public const int DurationMsFieldNumber = 6;
-    private long durationMs_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public long DurationMs {
-      get { return durationMs_; }
-      set {
-        durationMs_ = value;
-      }
-    }
-
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
-      return Equals(other as RunReport);
+      return Equals(other as SaveHeader);
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(RunReport other) {
+    public bool Equals(SaveHeader other) {
       if (ReferenceEquals(other, null)) {
         return false;
       }
       if (ReferenceEquals(other, this)) {
         return true;
       }
-      if (RunId != other.RunId) return false;
+      if (SchemaVersion != other.SchemaVersion) return false;
       if (ConfigHash != other.ConfigHash) return false;
-      if (Seed != other.Seed) return false;
-      if (Score != other.Score) return false;
-      if (Completed != other.Completed) return false;
-      if (DurationMs != other.DurationMs) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -1018,12 +469,8 @@ namespace ProjectSurvive.Core.Generated.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override int GetHashCode() {
       int hash = 1;
-      if (RunId.Length != 0) hash ^= RunId.GetHashCode();
+      if (SchemaVersion != 0) hash ^= SchemaVersion.GetHashCode();
       if (ConfigHash.Length != 0) hash ^= ConfigHash.GetHashCode();
-      if (Seed != 0) hash ^= Seed.GetHashCode();
-      if (Score != 0) hash ^= Score.GetHashCode();
-      if (Completed != false) hash ^= Completed.GetHashCode();
-      if (DurationMs != 0L) hash ^= DurationMs.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -1042,29 +489,13 @@ namespace ProjectSurvive.Core.Generated.Proto {
     #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       output.WriteRawMessage(this);
     #else
-      if (RunId.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(RunId);
+      if (SchemaVersion != 0) {
+        output.WriteRawTag(8);
+        output.WriteUInt32(SchemaVersion);
       }
       if (ConfigHash.Length != 0) {
         output.WriteRawTag(18);
         output.WriteString(ConfigHash);
-      }
-      if (Seed != 0) {
-        output.WriteRawTag(24);
-        output.WriteUInt32(Seed);
-      }
-      if (Score != 0) {
-        output.WriteRawTag(32);
-        output.WriteInt32(Score);
-      }
-      if (Completed != false) {
-        output.WriteRawTag(40);
-        output.WriteBool(Completed);
-      }
-      if (DurationMs != 0L) {
-        output.WriteRawTag(48);
-        output.WriteInt64(DurationMs);
       }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
@@ -1076,29 +507,13 @@ namespace ProjectSurvive.Core.Generated.Proto {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (RunId.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(RunId);
+      if (SchemaVersion != 0) {
+        output.WriteRawTag(8);
+        output.WriteUInt32(SchemaVersion);
       }
       if (ConfigHash.Length != 0) {
         output.WriteRawTag(18);
         output.WriteString(ConfigHash);
-      }
-      if (Seed != 0) {
-        output.WriteRawTag(24);
-        output.WriteUInt32(Seed);
-      }
-      if (Score != 0) {
-        output.WriteRawTag(32);
-        output.WriteInt32(Score);
-      }
-      if (Completed != false) {
-        output.WriteRawTag(40);
-        output.WriteBool(Completed);
-      }
-      if (DurationMs != 0L) {
-        output.WriteRawTag(48);
-        output.WriteInt64(DurationMs);
       }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
@@ -1110,23 +525,11 @@ namespace ProjectSurvive.Core.Generated.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public int CalculateSize() {
       int size = 0;
-      if (RunId.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(RunId);
+      if (SchemaVersion != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeUInt32Size(SchemaVersion);
       }
       if (ConfigHash.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(ConfigHash);
-      }
-      if (Seed != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeUInt32Size(Seed);
-      }
-      if (Score != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeInt32Size(Score);
-      }
-      if (Completed != false) {
-        size += 1 + 1;
-      }
-      if (DurationMs != 0L) {
-        size += 1 + pb::CodedOutputStream.ComputeInt64Size(DurationMs);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -1136,27 +539,15 @@ namespace ProjectSurvive.Core.Generated.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(RunReport other) {
+    public void MergeFrom(SaveHeader other) {
       if (other == null) {
         return;
       }
-      if (other.RunId.Length != 0) {
-        RunId = other.RunId;
+      if (other.SchemaVersion != 0) {
+        SchemaVersion = other.SchemaVersion;
       }
       if (other.ConfigHash.Length != 0) {
         ConfigHash = other.ConfigHash;
-      }
-      if (other.Seed != 0) {
-        Seed = other.Seed;
-      }
-      if (other.Score != 0) {
-        Score = other.Score;
-      }
-      if (other.Completed != false) {
-        Completed = other.Completed;
-      }
-      if (other.DurationMs != 0L) {
-        DurationMs = other.DurationMs;
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -1177,28 +568,12 @@ namespace ProjectSurvive.Core.Generated.Proto {
           default:
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
             break;
-          case 10: {
-            RunId = input.ReadString();
+          case 8: {
+            SchemaVersion = input.ReadUInt32();
             break;
           }
           case 18: {
             ConfigHash = input.ReadString();
-            break;
-          }
-          case 24: {
-            Seed = input.ReadUInt32();
-            break;
-          }
-          case 32: {
-            Score = input.ReadInt32();
-            break;
-          }
-          case 40: {
-            Completed = input.ReadBool();
-            break;
-          }
-          case 48: {
-            DurationMs = input.ReadInt64();
             break;
           }
         }
@@ -1220,28 +595,12 @@ namespace ProjectSurvive.Core.Generated.Proto {
           default:
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
             break;
-          case 10: {
-            RunId = input.ReadString();
+          case 8: {
+            SchemaVersion = input.ReadUInt32();
             break;
           }
           case 18: {
             ConfigHash = input.ReadString();
-            break;
-          }
-          case 24: {
-            Seed = input.ReadUInt32();
-            break;
-          }
-          case 32: {
-            Score = input.ReadInt32();
-            break;
-          }
-          case 40: {
-            Completed = input.ReadBool();
-            break;
-          }
-          case 48: {
-            DurationMs = input.ReadInt64();
             break;
           }
         }

@@ -13,6 +13,11 @@ using ProjectSurvive.Game.Presentation;
 using ProjectSurvive.Game.Presentation.Smoke;
 using ProjectSurvive.Game.Presentation.Thai;
 using UnityEngine;
+
+// See SmokeRunner: the MessagePack DTO and the generated Protobuf message share a name, so both are
+// aliased here - the bare name is ambiguous, not merely unclear.
+using ProtoProbe = ProjectSurvive.Core.Generated.Proto.CheckpointProbe;
+using MsgPackProbe = ProjectSurvive.Core.Contracts.Save.CheckpointProbe;
 using VContainer;
 
 namespace ProjectSurvive.Game.Tests.EditMode
@@ -134,9 +139,9 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 Is.True,
                 "the dynamic resolver is not IL2CPP-safe, so a generated formatter must exist");
 
-            CheckpointProbe sample = CheckpointProbe.Sample();
+            MsgPackProbe sample = MsgPackProbe.Sample();
             byte[] bytes = CheckpointProbeCodec.Serialize(sample);
-            CheckpointProbe copy = CheckpointProbeCodec.Deserialize(bytes);
+            MsgPackProbe copy = CheckpointProbeCodec.Deserialize(bytes);
 
             Assert.That(bytes.Length, Is.GreaterThan(0));
             Assert.That(copy.Matches(sample), Is.True, "round-tripped probe differs from the sample");
@@ -145,20 +150,20 @@ namespace ProjectSurvive.Game.Tests.EditMode
         [Test]
         public void Protobuf_round_trips_the_external_contract()
         {
-            var original = new AppInfo
+            var original = new ProtoProbe
             {
-                AppVersion = "0.1.0-stage03-editmode",
+                SchemaVersion = 1,
                 ConfigHash = ConfigBuildMetadata.ConfigHash,
-                Platform = Platform.Editor,
-                Locale = "th",
+                Tick = 12345,
+                NoteKey = "ui.title",
             };
 
-            AppInfo copy = AppInfo.Parser.ParseFrom(original.ToByteArray());
+            ProtoProbe copy = ProtoProbe.Parser.ParseFrom(original.ToByteArray());
 
-            Assert.That(copy.AppVersion, Is.EqualTo(original.AppVersion));
-            Assert.That(copy.ConfigHash, Is.EqualTo(original.ConfigHash));
-            Assert.That(copy.Platform, Is.EqualTo(Platform.Editor));
-            Assert.That(copy.Locale, Is.EqualTo("th"));
+            Assert.That(copy.SchemaVersion, Is.EqualTo(original.SchemaVersion));
+            Assert.That(copy.ConfigHash, Is.EqualTo(ConfigBuildMetadata.ConfigHash));
+            Assert.That(copy.Tick, Is.EqualTo(original.Tick));
+            Assert.That(copy.NoteKey, Is.EqualTo("ui.title"));
         }
 
         [Test]

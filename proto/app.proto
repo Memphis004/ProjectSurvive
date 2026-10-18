@@ -1,12 +1,21 @@
-// Template external contract.
+// ProjectSurvive external contract (Stage 02).
 //
-// Scope: the messages a game client and any future backend/telemetry endpoint
-// must agree on. It is deliberately tiny — the prototype's own persistence is
-// MessagePack checkpoints (Stage 12); Protobuf is used only at external
-// boundaries (AGENTS rule 3).
+// Scope: the messages a game client and any future backend/telemetry endpoint must agree on. It is
+// deliberately tiny — the prototype's own persistence is MessagePack checkpoints (Stage 12);
+// Protobuf is used only at external boundaries (AGENTS rule 3).
 //
-// Generated output: lib/Runtime/Generated/Proto/App.cs (exactly one copy; see
-// tools/gen.ps1). Never hand-edit that file — edit this .proto and regenerate.
+// Two messages, and both have a job beyond "we have a proto":
+//
+//   CheckpointProbe  the serialization self-check. It is what the shell's `protobuf.roundtrip` probe
+//                    round-trips in the Editor and in the built player, so a Protobuf regression is
+//                    caught by a browser run rather than by a report nobody reads. A game deletes it
+//                    when it has a message of its own.
+//   SaveHeader       the header a save carries: which schema the payload is in, and which balance
+//                    data it was written against. Stage 12 owns the save itself; this is the part
+//                    that must be settled before a format can be frozen.
+//
+// Generated output: lib/Runtime/Generated/Proto/App.cs (exactly one copy; see tools/gen.ps1). Never
+// hand-edit that file — edit this .proto and regenerate.
 
 syntax = "proto3";
 
@@ -14,42 +23,29 @@ package projectsurvive.api.v1;
 
 option csharp_namespace = "ProjectSurvive.Core.Generated.Proto";
 
-// Where a build is running. Kept explicit so a report is unambiguous.
-enum Platform {
-  PLATFORM_UNSPECIFIED = 0;
-  PLATFORM_WEB = 1;
-  PLATFORM_EDITOR = 2;
-}
+// Identity of a build's balance data, for the round-trip self-check.
+message CheckpointProbe {
+  // Bumped whenever this message's shape changes.
+  uint32 schema_version = 1;
 
-// Identity of a running build: what it is, over which balance data.
-message AppInfo {
-  string app_version = 1;
   // SHA-256 of the generated config tables; see ConfigBuildMetadata.ConfigHash.
   string config_hash = 2;
-  Platform platform = 3;
-  string locale = 4;
+
+  // A tick count, so a field wider than the generated defaults is exercised.
+  int64 tick = 3;
+
+  // A localization key, never raw player-facing text (AGENTS rule 5), so a string field is exercised.
+  string note_key = 4;
 }
 
-// First message a client sends when it reaches a backend.
-message ClientHello {
-  AppInfo app = 1;
-}
+// The header a save carries ahead of its payload.
+//
+// A reader can refuse a save it cannot understand before parsing the payload: the schema version says
+// whether the format is one it knows, and the config hash says whether the balance data the save was
+// written against is the one being played. Both are numbers a build already knows.
+message SaveHeader {
+  uint32 schema_version = 1;
 
-// Reply to ClientHello. Accepted=false means "stop, update first".
-message ServerHello {
-  bool accepted = 1;
-  string min_app_version = 2;
-  // Localization key, never raw player-facing text (AGENTS rule 5).
-  string message_key = 3;
-}
-
-// Outcome of one run, reported after the run ends. The score is a single number
-// so the template stays neutral; a game may add its own breakdown fields.
-message RunReport {
-  string run_id = 1;
+  // SHA-256 of the generated config tables, upper-case hex.
   string config_hash = 2;
-  uint32 seed = 3;
-  int32 score = 4;
-  bool completed = 5;
-  int64 duration_ms = 6;
 }

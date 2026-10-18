@@ -11,6 +11,12 @@ using ProjectSurvive.Core.Generated.Proto;
 using ProjectSurvive.Core.Shared;
 using R3;
 
+// Both serialization stories have a probe named `CheckpointProbe` - one is the MessagePack DTO, the
+// other the generated Protobuf message. Two aliases are what keep this file readable, and using them
+// is not optional: the bare name does not compile once both namespaces are in scope.
+using ProtoProbe = ProjectSurvive.Core.Generated.Proto.CheckpointProbe;
+using MsgPackProbe = ProjectSurvive.Core.Contracts.Save.CheckpointProbe;
+
 namespace ProjectSurvive.Game.Presentation.Smoke
 {
     /// <summary>
@@ -203,9 +209,9 @@ namespace ProjectSurvive.Game.Presentation.Smoke
                     "no source-generated formatter for CheckpointProbe - the dynamic resolver is not IL2CPP-safe");
             }
 
-            CheckpointProbe sample = CheckpointProbe.Sample();
+            MsgPackProbe sample = MsgPackProbe.Sample();
             byte[] bytes = CheckpointProbeCodec.Serialize(sample);
-            CheckpointProbe copy = CheckpointProbeCodec.Deserialize(bytes);
+            MsgPackProbe copy = CheckpointProbeCodec.Deserialize(bytes);
 
             return copy.Matches(sample)
                 ? ProbeResult.Pass("messagepack.roundtrip", "generated formatter, " + bytes.Length + " bytes round-tripped")
@@ -218,25 +224,27 @@ namespace ProjectSurvive.Game.Presentation.Smoke
         /// </summary>
         private ProbeResult ProbeProtobuf()
         {
-            var original = new AppInfo
+            var original = new ProtoProbe
             {
-                AppVersion = "0.1.0-stage03",
+                SchemaVersion = 1,
                 ConfigHash = _config.ConfigHash,
-                Platform = ProjectSurvive.Core.Generated.Proto.Platform.Web,
-                Locale = "th",
+                Tick = 12345,
+                NoteKey = "ui.title",
             };
 
             byte[] bytes = original.ToByteArray();
-            AppInfo copy = AppInfo.Parser.ParseFrom(bytes);
+            ProtoProbe copy = ProtoProbe.Parser.ParseFrom(bytes);
 
-            bool ok = copy.AppVersion == original.AppVersion
-                      && copy.ConfigHash == original.ConfigHash
-                      && copy.Platform == original.Platform
-                      && copy.Locale == original.Locale;
+            // The build's own config hash travels in the message: a round trip that lost it would still
+            // compare equal on every other field, and the hash is the one a peer actually needs.
+            bool ok = copy.SchemaVersion == original.SchemaVersion
+                      && copy.ConfigHash == _config.ConfigHash
+                      && copy.Tick == original.Tick
+                      && copy.NoteKey == original.NoteKey;
 
             return ok
-                ? ProbeResult.Pass("protobuf.roundtrip", "AppInfo " + bytes.Length + " bytes round-tripped")
-                : ProbeResult.Fail("protobuf.roundtrip", "the parsed AppInfo differs from the original");
+                ? ProbeResult.Pass("protobuf.roundtrip", "CheckpointProbe " + bytes.Length + " bytes round-tripped")
+                : ProbeResult.Fail("protobuf.roundtrip", "the parsed CheckpointProbe differs from the original");
         }
 
         /// <summary>
