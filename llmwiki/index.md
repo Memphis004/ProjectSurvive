@@ -52,6 +52,7 @@ before changing the area it names.
 | A green test run may have run a stale assembly | [`gotchas/stale-test-assembly.md`](gotchas/stale-test-assembly.md) | A compile error makes `run_tests` report the previous payload's pass count |
 | A scene must publish its own name | [`gotchas/scene-must-publish-name.md`](gotchas/scene-must-publish-name.md) | `__projectSurviveScene` is the only handover a browser test can see |
 | `.unity` YAML is not hand-editable | [`gotchas/unity-yaml-not-hand-editable.md`](gotchas/unity-yaml-not-hand-editable.md) | Scenes are created through the Editor API only; re-run the builder instead of merging |
+| A generator-owned folder holds hand-written files (`.asmdef` under `Generated/`) | [`gotchas/rename-generator-folder-hand-written.md`](gotchas/rename-generator-folder-hand-written.md) | Exclude what `gen.ps1` writes (`*.cs`), not the folder: a folder-wide skip leaves an assembly at the old name |
 
 Notes live in [`gotchas/`](gotchas/). Add one when a fact costs time twice.
 

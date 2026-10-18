@@ -39,22 +39,26 @@ pwsh -NoProfile -File tools/test.ps1          # Fast (Editor open)
 
 ## Start a game from the template
 
-> **Status:** the rename tool (`tools/rename.ps1`) is the next template step and does
-> not exist yet, so today this is a manual checklist. Run it once, on a fresh copy,
-> and commit the result as the game's first commit.
-
 1. **Copy** the tree (not a fork of the branch): the game gets its own repository.
-2. **Rename the identity** — the same list the tool will cover:
-   - `lib/package.json` (`name`, `displayName`) and the asmdef `name`s under
-     `lib/Runtime/`;
-   - every `ProjectSurvive.*` namespace / assembly reference in C#, and the
-     `RootNamespace` in `lib/Tests~/**/*.csproj`;
-   - `UnityProject/ProjectSettings/ProjectSettings.asset`: `productName`,
-     `companyName`, `applicationIdentifier`;
-   - the page-global prefix `__projectSurvive` in `WebGlBridge` **and**
-     `tests/web/globals.mjs` (they are checked against each other), and the `.jslib`;
-   - the solution and project file names, `UnityProject/SETUP.md`, the menu paths in
-     `Assets/Main/Scripts/Editor/`.
+2. **Rename the identity** with the tool, which covers all six spellings at once —
+   file contents, file names and folder names (asmdefs, csproj, the `.sln`,
+   `package.json`, `manifest.json`, `luban.conf`, the `csharp_namespace` in
+   `app.proto`, `link.xml`, `InternalsVisibleTo`, `ProjectSettings`, the `.jslib`,
+   `tests/web`), and keeps each `.meta` with its file so GUIDs survive:
+
+   ```powershell
+   pwsh -NoProfile -File tools/rename.ps1 -From ProjectSurvive -To MyGameName -DryRun
+   pwsh -NoProfile -File tools/rename.ps1 -From ProjectSurvive -To MyGameName
+   pwsh -NoProfile -File tools/gen.ps1        # the generated readers carry the new namespace
+   pwsh -NoProfile -File tools/test.ps1       # Fast
+   ```
+
+   `-DryRun` lists every file, folder and replacement count without touching
+   anything, and a second real run changes nothing (it is idempotent).
+   `docs/template/ORIGIN.md` and `docs/template/examples/**` keep the old name on
+   purpose, so `git grep -i projectsurvive` in the new game finds provenance and
+   examples — nothing else. `tools/rename.ps1 -PatchFile <p>` rewrites a
+   `generic:` commit's diff instead, for the upgrade path below.
 3. **Keep the layer contract.** The asmdef/csproj matrix and the guard tests are the
    reason the rules are testable; do not relax them to make a game compile.
 4. **Keep the pipeline.** `data/` → `tools/gen.ps1` → `Generated` is the only path
@@ -96,6 +100,9 @@ can be cherry-picked into a game without dragging game work along.
 | [`t1-report.md`](t1-report.md) | T1: the cut and the rebuilt shell, with measurements |
 | [`t2-report.md`](t2-report.md) | T2: the data pipeline and its fixtures |
 | [`t3-report.md`](t3-report.md) | T3: this documentation pass |
+| [`t4-report.md`](t4-report.md) | T4: the rename tool, and the rehearsal that proves it |
+| [`rename-rehearsal.md`](rename-rehearsal.md) | T4: a real rename of a throwaway copy, with the suites that followed it |
+| [`ORIGIN.md`](ORIGIN.md) | where this tree came from, and the one file the rename leaves alone |
 | [`examples/`](examples/) | the game's ADRs, system notes, EcsLite gotcha, glossary and design brief — **examples, not rules** |
 
 A live document must never link into `examples/`; the folder is excluded from

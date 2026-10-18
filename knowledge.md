@@ -29,7 +29,7 @@ The template is extracted from a finished prototype (the game repo, tag
 | **T1** | Cut `lib/` + `data/`, rebuild the Unity shell, re-point the tools | done, green | [`docs/template/t1-report.md`](docs/template/t1-report.md) |
 | **T2** | Data pipeline, proto, validator and fixtures | done, green | [`docs/template/t2-report.md`](docs/template/t2-report.md) |
 | **T3** | Docs and knowledge: layers, ADR split, gotchas, links | done, green | [`docs/template/t3-report.md`](docs/template/t3-report.md) |
-| **T4** | Rename tool + a rehearsal on a throwaway copy | not started | — |
+| **T4** | Rename tool + a rehearsal on a throwaway copy | done, green | [`docs/template/t4-report.md`](docs/template/t4-report.md) · [`rename-rehearsal.md`](docs/template/rename-rehearsal.md) |
 | **T5** | Baseline commit and `template-v1` tag | not started | — |
 
 A game built from this template starts its own stage numbering at 01 and writes
@@ -82,6 +82,7 @@ required check failed, `2` = the tool itself could not run.
 | [`font-metrics.py`](tools/font-metrics.py) | measures a font file's glyph metrics at a fixed display size | an on-screen text-size claim about the face |
 | [`screen-text-metrics.py`](tools/screen-text-metrics.py) | measures the ink height of text inside rectangles a player published, from a screenshot | an on-screen text-size claim about the build |
 | [`check-links.mjs`](tools/check-links.mjs) | checks that every relative markdown link under `docs/` and `llmwiki/` resolves | before committing a docs change |
+| [`rename.ps1`](tools/rename.ps1) | renames the project identity (six spellings) in file contents, file names and folder names, or in a patch file | once, on a fresh copy, before the game's first commit |
 | [`reference/xoshiro128_reference.py`](tools/reference/xoshiro128_reference.py) | an independent reference implementation of the RNG | cross-checking `Xoshiro128Tests` |
 
 Two paths in `tools/` are not tools: `versions.lock.json` (the engine, toolchain and
@@ -104,10 +105,12 @@ pwsh -NoProfile -File tools/verify-generated.ps1
 pwsh -NoProfile -File tools/check-fixtures.ps1
 pwsh -NoProfile -File tools/sim.ps1 --seed 7 --trace 5
 node tools/check-links.mjs
+pwsh -NoProfile -File tools/rename.ps1 -From ProjectSurvive -To MyGame -DryRun
 ```
 
-`tools/rename.ps1` (T4) is the one tool the template still owes: renaming the
-assembly, package, scenes and `ProjectSurvive` identifiers for a new game.
+Starting a game is that rename plus a commit: [`docs/template/README.md`](docs/template/README.md)
+walks the whole first hour, and [`docs/template/rename-rehearsal.md`](docs/template/rename-rehearsal.md)
+is a real run of the tool on a throwaway copy with the suites that followed it.
 
 ---
 
@@ -149,6 +152,7 @@ docs/
   build/               payload size method
   stages/              a game's stage reports (skeleton: _TEMPLATE.md)
   template/            the extraction's own plan and reports
+    ORIGIN.md          provenance: the only file (with examples/) the rename leaves alone
     examples/          the game-era ADRs, notes and gotchas — read-only examples
 llmwiki/               index.md glossary.md stage-log.md systems/ gotchas/
 tools/                 every script in the table above, + vendor/ (not committed)
