@@ -299,7 +299,7 @@ namespace ProjectSurvive.Config
         public const string LubanVersion = "$lubanVersion";
 
         /// <summary>Schema revision of data/Defines. Bump when a field is added or renamed.</summary>
-        public const int SchemaVersion = 4;
+        public const int SchemaVersion = 5;
     }
 }
 "@

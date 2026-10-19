@@ -52,6 +52,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
         private readonly EcsSystems _systems;
         private readonly DeathSystem _deathSystem;
         private readonly FloorEndSystem _floorEndSystem;
+        private readonly SweepSystem _sweepSystem;
         private readonly FramePublishSystem _frameSystem;
         private readonly EcsPool<Position> _positions;
         private readonly EcsPool<Health> _healths;
@@ -111,6 +112,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
             _deathSystem = new DeathSystem();
             _floorEndSystem = new FloorEndSystem();
+            _sweepSystem = new SweepSystem();
             _frameSystem = new FramePublishSystem();
 
             _systems = new EcsSystems(_world, _context);
@@ -135,6 +137,12 @@ namespace ProjectSurvive.Core.Simulation.Battle
                 .Add(_frameSystem);
 
             _systems.Init();
+
+            // The sweep is not on the normal run list: a sweeping tick runs it and the frame
+            // publisher instead of the fourteen systems, so nothing fights on while the drops
+            // are pulled in (Stage 07c). Its Init is called here because the systems object
+            // only initialises what was added to it.
+            _sweepSystem.Init(_systems);
 
             _positions = _world.GetPool<Position>();
             _healths = _world.GetPool<Health>();
@@ -182,7 +190,19 @@ namespace ProjectSurvive.Core.Simulation.Battle
             _context.Input = input;
             _context.ClearTickBuffers();
             _context.Tick++;
-            _systems.Run();
+
+            if (_context.SweepActive)
+            {
+                // A won floor that is sweeping: the world is frozen except for the drops, and
+                // the frame still publishes every tick so the pickup views move and the HUD's
+                // bia climbs before the fade.
+                _sweepSystem.Run(_systems);
+                _frameSystem.Run(_systems);
+            }
+            else
+            {
+                _systems.Run();
+            }
 
             if (_context.EndRequested)
             {

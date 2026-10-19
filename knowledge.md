@@ -25,6 +25,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **06c** | **A paid re-roll refills a rented shelf** | **DONE** — see [`docs/stages/06c-report.md`](docs/stages/06c-report.md), [ADR 0026](docs/adr/0026-a-paid-reroll-refills-a-rented-slot.md) |
 | **07** | **Battle core (headless) & bot sim** | **DONE** — see [`docs/stages/07-report.md`](docs/stages/07-report.md) |
 | **07b** | **Bia from battle (drop value + clear reward)** | **DONE** — see [`docs/stages/07b-report.md`](docs/stages/07b-report.md), [ADR 0025](docs/adr/0025-bia-from-battle.md) |
+| **07c** | **End-of-floor sweep (every drop pays before the floor ends)** | **DONE** — see [`docs/stages/07c-report.md`](docs/stages/07c-report.md), [ADR 0027](docs/adr/0027-end-of-floor-sweep.md) |
 | **08** | **Battle presentation 2.5D** | **DONE** — see [`docs/stages/08-report.md`](docs/stages/08-report.md) |
 | **09** | **Camp scene & จัดย่าม UI (walkable sala, world shop)** | **DONE** — see [`docs/stages/09-report.md`](docs/stages/09-report.md), [`09b`](docs/stages/09b-report.md) (the drag diagnosis), [`09c`](docs/stages/09c-report.md) (the walkable camp) |
 | **09d** | **Thai text sharpness (font report, 22 px floor, on-screen measurements)** | **DONE** — see [`docs/stages/09d-report.md`](docs/stages/09d-report.md) |
@@ -212,6 +213,19 @@ supersedes ADR 0017 §5). Floor 1 now realizes about `4 collected × 1 + 8 = 12`
 which is a starting value for the Stage 11 balance pass, not a tuned economy.
 The HUD's top-right bia is the purse the player walked in with plus the drops collected so far; the
 clear reward appears only after settlement.
+
+**Stage 07c collects the drops a won floor used to lose.** When a floor's win condition is met — the
+timer on a normal floor, the boss dying on the boss floor — the floor does not end: `FloorEndSystem`
+opens a **sweep** that keeps `BattlePhase.Running`, and `SweepSystem` pulls every remaining pickup
+toward the player at `constant.magnet_speed` and pays it once on arrival. The sweep ends when the last
+pickup is collected or when `constant.sweep_timeout_seconds` runs out, at which point everything left
+is collected at once, so a won floor always produces a result. Nothing happens during a sweep except
+the drops and the frame: no wave, no casts, no death, no contact damage, so the ghosts still standing
+are simply still standing at the end. A loss never sweeps. The change is Simulation + `data/` only
+(SchemaVersion 5, `magnet_speed = 24`, `sweep_timeout_seconds = 2`) — the contract, the event stream
+and the Battle scene's phase-driven flow are untouched, the pickup views already exist and simply
+move, and the EditMode presentation test measures `viewsGrownDuringPlay = 0` across a real sweep
+([ADR 0027](docs/adr/0027-end-of-floor-sweep.md)).
 
 Stage 08 put that battle **on screen and in a browser**. `Assets/Main/Scenes/Battle.unity` is
 authored through the Editor API like the other scenes; `Presentation/Battle/**` reads the battle

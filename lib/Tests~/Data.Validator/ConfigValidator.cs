@@ -805,6 +805,15 @@ namespace ProjectSurvive.Data.Validator
             Check(constant.UpgradeChoiceCount is >= 2 and <= 5, findings,
                 "constant.upgrade_choice_count_invalid", "constant.upgrade_choice_count",
                 "upgrade_choice_count must be within 2..5, was " + constant.UpgradeChoiceCount);
+
+            // Stage 07c: the end-of-floor sweep. A speed of zero would leave every drop on
+            // the ground until the cap, and a non-positive cap would make the sweep unable
+            // to end — both are broken data, not a choice.
+            Check(constant.MagnetSpeed > 0f, findings, "constant.magnet_speed_not_positive",
+                "constant.magnet_speed", "magnet_speed must be > 0");
+
+            Check(constant.SweepTimeoutSeconds > 0f, findings, "constant.sweep_timeout_not_positive",
+                "constant.sweep_timeout_seconds", "sweep_timeout_seconds must be > 0");
         }
     }
 }

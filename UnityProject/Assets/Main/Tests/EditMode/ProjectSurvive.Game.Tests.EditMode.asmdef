@@ -9,6 +9,7 @@
         "ProjectSurvive.Game.ResultScene",
         "ProjectSurvive.Game.Editor",
         "ProjectSurvive.Core.Simulation",
+        "Leopotam.EcsLite",
         "ProjectSurvive.Core.Shared",
         "ProjectSurvive.Core.Domain",
         "ProjectSurvive.Core.Application",

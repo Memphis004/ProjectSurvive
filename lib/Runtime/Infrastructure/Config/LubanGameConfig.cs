@@ -310,6 +310,8 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                 FocusPerSecond = constant.FocusPerSecond,
                 MoveSpeed = constant.MoveSpeed,
                 MaxTier = constant.MaxTier,
+                MagnetSpeed = constant.MagnetSpeed,
+                SweepTimeoutSeconds = constant.SweepTimeoutSeconds,
                 UpgradeChoiceCount = constant.UpgradeChoiceCount,
             };
 

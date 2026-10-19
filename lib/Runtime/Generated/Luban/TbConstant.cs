@@ -39,6 +39,8 @@ public partial class TbConstant
      public float MoveSpeed => _data.MoveSpeed;
      public int MaxTier => _data.MaxTier;
      public int UpgradeChoiceCount => _data.UpgradeChoiceCount;
+     public float MagnetSpeed => _data.MagnetSpeed;
+     public float SweepTimeoutSeconds => _data.SweepTimeoutSeconds;
     
     public void ResolveRef(Tables tables)
     {

@@ -70,6 +70,12 @@ namespace ProjectSurvive.Core.Tests
             Assert.Equal(7, config.Constant.BoardHeight);
             Assert.Equal(3, config.Constant.MaxTier);
             Assert.Equal(3, config.Constant.UpgradeChoiceCount);
+
+            // Stage 07c: the end-of-floor sweep needs a positive speed and a positive cap;
+            // their exact values are balance numbers a later stage may move.
+            Assert.True(config.Constant.MagnetSpeed > 0f, "magnet_speed must be positive");
+            Assert.True(config.Constant.SweepTimeoutSeconds > 0f, "sweep_timeout_seconds must be positive");
+
             Assert.Equal(15, config.Economy.StartBia);
             Assert.Equal(4, config.Economy.ShopSlotCount);
         }
@@ -193,9 +199,9 @@ namespace ProjectSurvive.Core.Tests
         {
             Assert.Matches("^\\d+\\.\\d+\\.\\d+$", ProjectSurvive.Config.ConfigBuildMetadata.LubanVersion);
             Assert.StartsWith("5.1", ProjectSurvive.Config.ConfigBuildMetadata.LubanVersion, StringComparison.Ordinal);
-            // Stage 07b added enemy.drop_value and economy.clear_reward_bia, so the
-            // schema revision moved to 4 (Stage 09f had taken it to 3).
-            Assert.Equal(4, ProjectSurvive.Config.ConfigBuildMetadata.SchemaVersion);
+            // Stage 07c added constant.magnet_speed and constant.sweep_timeout_seconds, so
+            // the schema revision moved to 5 (Stage 07b had taken it to 4).
+            Assert.Equal(5, ProjectSurvive.Config.ConfigBuildMetadata.SchemaVersion);
         }
 
         [Fact]

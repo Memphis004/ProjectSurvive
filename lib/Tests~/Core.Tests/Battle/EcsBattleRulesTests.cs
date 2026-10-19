@@ -515,6 +515,254 @@ namespace ProjectSurvive.Core.Tests
         }
 
         // -----------------------------------------------------------------
+        // The end-of-floor sweep (Stage 07c)
+        // -----------------------------------------------------------------
+
+        /// <summary>
+        /// A normal floor won on its timer pays every drop that was still on the ground,
+        /// once, and reports the win only after the sweep is over.
+        /// </summary>
+        /// <remarks>
+        /// The pickups are placed by hand at a distance the pickup radius cannot reach, so the
+        /// only way they can be paid is the sweep itself. No weapon is equipped, so nothing
+        /// dies during the floor and the takings are exactly what the test put on the ground.
+        /// </remarks>
+        [Fact]
+        public void A_won_floor_pulls_every_drop_in_before_it_reports()
+        {
+            IBattleSession session = Create(Forest1, hp: 100_000, maxHp: 100_000);
+            var simulation = (EcsBattleSimulation)session;
+
+            session.Step(PlayerInputFrame.Idle);
+            Assert.Equal(0, simulation.Context.CurrencyEarned);
+
+            const int count = 5;
+            int expected = 0;
+            for (int i = 0; i < count; i++)
+            {
+                int value = i + 1;
+                expected += value;
+                float angle = BattleArena.Tau * i / count;
+                simulation.Context.Spawner.SpawnPickup(
+                    (float)Math.Cos(angle) * 30f,
+                    (float)Math.Sin(angle) * 30f,
+                    kind: 1,
+                    value: value);
+            }
+
+            Assert.Equal(count, PickupCount(simulation));
+
+            int steps = 0;
+            while (session.Phase == BattlePhase.Running && steps < 4000)
+            {
+                session.Step(PlayerInputFrame.Idle);
+                steps++;
+            }
+
+            Assert.Equal(BattlePhase.Won, session.Phase);
+            Assert.True(session.TryGetResult(out BattleResult result));
+            Assert.Equal(BattleEndReason.SurvivedAllWaves, result.EndReason);
+
+            // Every drop was paid, and each one only once: a pickup is deleted in the tick it
+            // pays, so the counter and the sum are the two halves of the same fact.
+            Assert.Equal(count, simulation.Context.PickupsCollected);
+            Assert.Equal(expected, simulation.Context.CurrencyEarned);
+            Assert.Equal(expected, result.CurrencyEarned);
+            Assert.Equal(0, PickupCount(simulation));
+
+            // The HUD reads one number, HudState.Currency, off the frame the sweep published;
+            // the settled result and the label cannot disagree.
+            Assert.Equal(expected, session.Frame.Hud.Currency);
+
+            // The floor ended after the sweep, not on the timer tick: the contract's phase is
+            // Running for the whole sweep, which is how Presentation knows to keep drawing.
+            Assert.True(
+                result.SurvivedTicks > simulation.Context.FloorDurationTicks,
+                "the floor reported before the sweep ran: " + result.SurvivedTicks
+                + " ticks for a " + simulation.Context.FloorDurationTicks + "-tick floor");
+            Assert.True(
+                result.SurvivedTicks <= simulation.Context.FloorDurationTicks
+                    + simulation.Context.SweepTimeoutTicks + 1,
+                "the sweep outlived its cap: " + result.SurvivedTicks + " ticks");
+        }
+
+        /// <summary>
+        /// The sweep is capped: a drop that cannot reach the player in
+        /// <c>constant.sweep_timeout_seconds</c> is collected at the cap instead of holding the
+        /// floor open forever.
+        /// </summary>
+        [Fact]
+        public void The_sweep_cap_collects_what_is_left_so_the_floor_always_ends()
+        {
+            IBattleSession session = Create(Forest1, hp: 100_000, maxHp: 100_000);
+            var simulation = (EcsBattleSimulation)session;
+
+            session.Step(PlayerInputFrame.Idle);
+
+            // The arena's far corner: farther than magnet_speed x sweep_timeout_seconds, so the
+            // drift alone cannot bring it home inside the cap.
+            float far = BattleArena.Radius * 0.98f;
+            simulation.Context.Spawner.SpawnPickup(far, far, kind: 1, value: 3);
+
+            int steps = 0;
+            while (session.Phase == BattlePhase.Running && steps < 4000)
+            {
+                session.Step(PlayerInputFrame.Idle);
+                steps++;
+            }
+
+            Assert.True(session.TryGetResult(out BattleResult result));
+            Assert.Equal(BattlePhase.Won, result.Outcome);
+            Assert.Equal(3, simulation.Context.CurrencyEarned);
+            Assert.Equal(1, simulation.Context.PickupsCollected);
+            Assert.Equal(0, PickupCount(simulation));
+            Assert.True(
+                result.SurvivedTicks <= simulation.Context.FloorDurationTicks
+                    + simulation.Context.SweepTimeoutTicks + 1,
+                "the cap did not end the sweep: " + result.SurvivedTicks + " ticks");
+        }
+
+        /// <summary>A floor the player lost does not sweep: nothing is collected after the death.</summary>
+        [Fact]
+        public void A_lost_floor_does_not_sweep()
+        {
+            IBattleSession session = Create(Forest1, hp: 100_000, maxHp: 100_000);
+            var simulation = (EcsBattleSimulation)session;
+
+            session.Step(PlayerInputFrame.Idle);
+            simulation.Context.Spawner.SpawnPickup(10f, 10f, kind: 1, value: 7);
+
+            Assert.Equal(CommandResult.Ok, session.Submit(BattleCommand.DevLoseNow()));
+            Assert.Equal(BattlePhase.Lost, session.Phase);
+            Assert.False(simulation.Context.SweepActive, "a loss opened a sweep");
+
+            long tick = session.Tick;
+            session.Step(PlayerInputFrame.Idle);
+            session.Step(PlayerInputFrame.Idle);
+
+            Assert.Equal(tick, session.Tick);
+            Assert.Equal(0, simulation.Context.CurrencyEarned);
+            Assert.Equal(0, simulation.Context.PickupsCollected);
+            Assert.Equal(1, PickupCount(simulation));
+            Assert.True(session.TryGetResult(out BattleResult result));
+            Assert.Equal(0, result.CurrencyEarned);
+        }
+
+        /// <summary>
+        /// A boss floor sweeps after the boss dies: the phase stays Running while the drops come
+        /// in, and the floor reports <see cref="BattleEndReason.BossDefeated"/> only then.
+        /// </summary>
+        [Fact]
+        public void A_boss_floor_sweeps_after_the_boss_dies()
+        {
+            IGameConfig config = ConfigFixture.Load();
+            IBattleSession session = Create(
+                Forest5, hp: 10_000, weapons: new[] { Weapon(config, FireBolt) }, maxHp: 10_000);
+            var simulation = (EcsBattleSimulation)session;
+
+            // A drop far enough out that only the sweep can reach it in the window the fight leaves.
+            session.Step(PlayerInputFrame.Idle);
+            simulation.Context.Spawner.SpawnPickup(BattleArena.Radius * 0.98f, 0f, kind: 1, value: 4);
+
+            int steps = 0;
+            while (!simulation.Context.SweepActive && session.Phase == BattlePhase.Running && steps < 6000)
+            {
+                session.Step(PlayerInputFrame.Idle);
+                steps++;
+            }
+
+            Assert.True(simulation.Context.SweepActive, "a dead boss did not open a sweep");
+            Assert.Equal(BattlePhase.Running, session.Phase);
+
+            int before = simulation.Context.CurrencyEarned;
+            int left = PickupValueSum(simulation);
+
+            while (session.Phase == BattlePhase.Running && steps < 6000)
+            {
+                session.Step(PlayerInputFrame.Idle);
+                steps++;
+            }
+
+            Assert.True(session.TryGetResult(out BattleResult result));
+            Assert.Equal(BattlePhase.Won, result.Outcome);
+            Assert.Equal(BattleEndReason.BossDefeated, result.EndReason);
+            Assert.Equal(before + left, simulation.Context.CurrencyEarned);
+            Assert.Equal(0, PickupCount(simulation));
+        }
+
+        /// <summary>
+        /// A sweeping tick allocates nothing after warm-up, measured inside the sweep itself.
+        /// </summary>
+        /// <remarks>
+        /// The final tick of any floor allocates its <see cref="BattleResult"/>, which is the one
+        /// allocation a battle is allowed; the window below stops before that tick, with the cap
+        /// still ahead of it.
+        /// </remarks>
+        [Fact]
+        public void A_sweeping_tick_allocates_nothing_after_warm_up()
+        {
+            IBattleSession session = Create(Forest1, hp: 100_000, maxHp: 100_000);
+            var simulation = (EcsBattleSimulation)session;
+
+            session.Step(PlayerInputFrame.Idle);
+            float far = BattleArena.Radius * 0.98f;
+            simulation.Context.Spawner.SpawnPickup(far, far, kind: 1, value: 2);
+            simulation.Context.Spawner.SpawnPickup(-far, -far, kind: 1, value: 2);
+
+            int steps = 0;
+            while (!simulation.Context.SweepActive && session.Phase == BattlePhase.Running && steps < 4000)
+            {
+                session.Step(PlayerInputFrame.Idle);
+                steps++;
+            }
+
+            Assert.True(simulation.Context.SweepActive, "the floor never began its sweep");
+            Assert.True(
+                simulation.Context.SweepTicksRemaining > 10,
+                "the sweep window is too short to measure: " + simulation.Context.SweepTicksRemaining);
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10; i++)
+            {
+                session.Step(PlayerInputFrame.Idle);
+            }
+
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.Equal(BattlePhase.Running, session.Phase);
+            Assert.True(allocated == 0L, "a sweeping tick allocated " + (allocated / 10.0) + " bytes on average");
+        }
+
+        /// <summary>
+        /// A recorded floor that sweeps replays to the same state hash — the sweep is part of the
+        /// battle, so the same seed and the same inputs pay the same drops.
+        /// </summary>
+        [Fact]
+        public void A_recorded_floor_that_sweeps_replays_to_the_same_hash()
+        {
+            IGameConfig config = ConfigFixture.Load();
+            BattleSetup setup = Setup(Forest1, hp: 100_000, maxHp: 100_000);
+            var factory = new EcsBattleSessionFactory(config);
+            var replay = new BattleReplay(setup);
+            IBattleSession original = factory.Create(setup);
+
+            // Past the timer and the sweep cap: the recording covers the whole floor.
+            int ticks = 1800 + 120;
+            for (int i = 0; i < ticks; i++)
+            {
+                PlayerInputFrame input = PlayerInputFrame.FromAxis(i % 2 == 0 ? 1f : -1f, 0.5f);
+                replay.RecordStep(input);
+                original.Step(input);
+            }
+
+            Assert.Equal(BattlePhase.Won, original.Phase);
+            uint expected = original.ComputeStateHash();
+            uint actual = replay.ReplayHash(factory);
+
+            Assert.Equal(expected, actual);
+        }
+
+        // -----------------------------------------------------------------
         // Helpers
         // -----------------------------------------------------------------
 
@@ -638,6 +886,32 @@ namespace ProjectSurvive.Core.Tests
             }
 
             return best;
+        }
+
+        /// <summary>How many uncollected drops are on the field.</summary>
+        private static int PickupCount(EcsBattleSimulation simulation)
+        {
+            EcsFilter filter = simulation.Context.World
+                .Filter<Pickup>()
+                .Inc<Position>()
+                .End(BattleArena.FilterDenseCapacity);
+            return filter.GetEntitiesCount();
+        }
+
+        /// <summary>What every drop still on the field is worth together.</summary>
+        private static int PickupValueSum(EcsBattleSimulation simulation)
+        {
+            EcsWorld world = simulation.Context.World;
+            EcsFilter filter = world.Filter<Pickup>().Inc<Position>().End(BattleArena.FilterDenseCapacity);
+            EcsPool<Pickup> pool = world.GetPool<Pickup>();
+
+            int sum = 0;
+            foreach (int entity in filter)
+            {
+                sum += pool.Get(entity).Value;
+            }
+
+            return sum;
         }
 
         private static List<BattleEvent> ReadEvents(IBattleSession session)

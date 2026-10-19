@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using Leopotam.EcsLite;
 using NUnit.Framework;
 using ProjectSurvive.Core.Application.Run;
 using ProjectSurvive.Core.Application.Text;
@@ -575,6 +576,89 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 "the rendered run created a view after warm-up");
         }
 
+        /// <summary>
+        /// The end-of-floor sweep (Stage 07c) draws through the view already there: the drop views
+        /// move and disappear, and the pool creates nothing.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This is the acceptance line "ตรวจว่าไม่มี view ใหม่ถูกสร้างระหว่างกวาด (viewsGrownDuringPlay = 0)"
+        /// measured the only way it can be: a real floor, the real view, and the pool's own counter
+        /// after the sweep. It also checks the other half — every drop still on the ground at the
+        /// timer is paid — because a view that drew a sweep which paid nothing would be a lie.
+        /// </para>
+        /// <para>
+        /// The extra drop is put at the arena's edge on purpose: the pickup radius cannot reach it,
+        /// so it can only be paid by the sweep, and the case cannot pass vacuously on drops that were
+        /// collected during the fight.
+        /// </para>
+        /// </remarks>
+        [Test]
+        public void A_sweep_creates_no_view_and_pays_every_drop_it_pulls_in()
+        {
+            IGameConfig config = ResourcesGameConfigLoader.Load();
+            Assert.That(BuildSetup(config, equipSecondWeapon: false, out BattleSetup setup, out string error),
+                Is.True, error);
+
+            var factory = new EcsBattleSessionFactory(config);
+            IBattleSession session = factory.Create(setup);
+            var simulation = (EcsBattleSimulation)session;
+            ViewFixture fixture = BuildViewFixture(config);
+
+            try
+            {
+                const int edgeDropValue = 4;
+                float far = BattleArena.Radius * 0.98f;
+                simulation.Context.Spawner.SpawnPickup(far, far, kind: 1, value: edgeDropValue);
+
+                for (int tick = 0; tick < LongRunTicks; tick++)
+                {
+                    session.Step(PlayerInputFrame.Idle);
+                    fixture.View.AcceptTick(session.Frame);
+                    fixture.View.DrainEvents(session.Events);
+                    fixture.View.Render(0.5f, 1f / 60f);
+                }
+
+                Assert.That(simulation.Context.SweepActive, Is.True, "the timer did not open a sweep");
+                Assert.That(session.Phase, Is.EqualTo(BattlePhase.Running), "the sweep left Running");
+
+                int before = simulation.Context.CurrencyEarned;
+                int left = PickupValueSum(simulation);
+                Assert.That(left, Is.GreaterThanOrEqualTo(edgeDropValue), "the edge drop was already gone");
+
+                int sweepTicks = 0;
+                while (session.Phase == BattlePhase.Running && sweepTicks < 300)
+                {
+                    session.Step(PlayerInputFrame.Idle);
+                    fixture.View.AcceptTick(session.Frame);
+                    fixture.View.DrainEvents(session.Events);
+                    fixture.View.Render(0.5f, 1f / 60f);
+                    sweepTicks++;
+                }
+
+                Assert.That(session.Phase, Is.EqualTo(BattlePhase.Won), "the swept floor did not win");
+                Assert.That(sweepTicks, Is.GreaterThan(0), "the sweep finished on its opening tick");
+                Assert.That(
+                    fixture.View.Pool.CreatedAfterWarmup,
+                    Is.Zero,
+                    "the sweep created a view after warm-up");
+                Assert.That(
+                    simulation.Context.CurrencyEarned,
+                    Is.EqualTo(before + left),
+                    "the sweep did not pay exactly the drops that were left");
+                Assert.That(PickupCount(simulation), Is.Zero, "a drop survived the sweep");
+
+                TestContext.WriteLine(
+                    "sweep: ticks=" + sweepTicks + " paid=" + (simulation.Context.CurrencyEarned - before)
+                    + " viewsGrown=" + fixture.View.Pool.CreatedAfterWarmup
+                    + " bound=" + fixture.View.BoundViews);
+            }
+            finally
+            {
+                session.Dispose();
+            }
+        }
+
         // -------------------------------------------------------------------
         // The seam: the presentation assembly, and the scene it ships
         // -------------------------------------------------------------------
@@ -827,6 +911,30 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 value: amount,
                 x: x,
                 y: y);
+
+        /// <summary>How many uncollected drops are on the real simulation's field.</summary>
+        private static int PickupCount(EcsBattleSimulation simulation) =>
+            simulation.Context.World
+                .Filter<Pickup>()
+                .Inc<Position>()
+                .End(BattleArena.FilterDenseCapacity)
+                .GetEntitiesCount();
+
+        /// <summary>What every drop still on the field is worth together.</summary>
+        private static int PickupValueSum(EcsBattleSimulation simulation)
+        {
+            EcsWorld world = simulation.Context.World;
+            EcsFilter filter = world.Filter<Pickup>().Inc<Position>().End(BattleArena.FilterDenseCapacity);
+            EcsPool<Pickup> pool = world.GetPool<Pickup>();
+
+            int sum = 0;
+            foreach (int entity in filter)
+            {
+                sum += pool.Get(entity).Value;
+            }
+
+            return sum;
+        }
 
         private static string RepositoryRoot() =>
             Path.GetFullPath(Path.Combine(Application.dataPath, "..", ".."));

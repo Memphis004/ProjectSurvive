@@ -21,8 +21,8 @@ data/
 ```
 
 `SchemaVersion` in `lib/Runtime/Generated/Luban/ConfigBuildMetadata.g.cs` is written
-by `tools/gen.ps1` and is currently **4** (Stage 07b added `enemy.drop_value` and
-`economy.clear_reward_bia`; Stage 05 and 09f took it to 3).
+by `tools/gen.ps1` and is currently **5** (Stage 07c added `constant.magnet_speed` and
+`constant.sweep_timeout_seconds`; Stage 07b had taken it to 4).
 
 ## Commands
 
@@ -61,7 +61,7 @@ not run.
 | `wave` | `id` | spawn window inside a floor |
 | `shop_pool` | `id` | one weighted shop offer over a floor range |
 | `economy` | one | starting bia, slot count, refresh cost, sell-back, heal, chest, clear reward |
-| `constant` | one | board size, min cooldown, max tier, HP/MP, move speed |
+| `constant` | one | board size, min cooldown, max tier, HP/MP, move speed, pickup radius, magnet speed + sweep cap |
 
 ### The Stage 04 prototype content
 

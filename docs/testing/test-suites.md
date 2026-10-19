@@ -19,14 +19,14 @@ need to run, and the Web build moved behind the Full suite.
 | --- | --- | --- |
 | `toolchain: .NET SDK` | Fast | an SDK ≥ 8 is present |
 | `dotnet build` | Fast | every `lib/` layer, the xUnit project and the Sim compile |
-| `dotnet test (xUnit)` | Fast | 519 tests: the rule engine, the architecture guards, the contract suites, the Sim |
+| `dotnet test (xUnit)` | Fast | 525 tests: the rule engine, the architecture guards, the contract suites, the Sim |
 | `sim: determinism` | Fast | the same seed prints the same `determinismDigest` twice, a different seed does not |
 | `sim: stream separation` | Fast | shop / battle / visual digests differ, `ticksProduced=300` |
 | `sim: bot smoke run` | Fast | the kiting bot plays 2 seeds and writes balance rows |
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 21 broken data sets rejected for the right reason |
-| `unity: EditMode` | Fast | 156 tests in `ProjectSurvive.Game.Tests.EditMode` |
+| `unity: EditMode` | Fast | 157 tests in `ProjectSurvive.Game.Tests.EditMode` |
 | `unity: PlayMode` | **Full** | 48 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
 | `web: Playwright (smoke + title + battle + camp + result)` | **Full** | 10 browser tests against that build, in Chrome (13 more are the opt-in screenshot generator, skipped unless `SCREENS=1`) |
@@ -236,12 +236,12 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `Inventory/*.cs` | Board/Backpack/BackpackEditor/Merge/Recycle/Rotation/Synergy/Loadout + the randomized bag tests |
 | `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay. **Stage 06b** added seven cases to `ShopStockTests` (`A_new_camp_refills_a_slot_rented_in_the_previous_one`, four of them through `[Theory]`, plus several purchases, the whole panel, and a pin left behind): every new sala offers four rentable shelves again, none of them still marked rented or locked, `RefreshCount` 0 |
 
-### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (155 tests) → **Fast**
+### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (157 tests) → **Fast**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
 | `ShellSmokeTests` | 12 | the 7-probe smoke suite, config hash, R3/UniTask/serialization in the Editor |
-| `BattlePresentationTests` | 15 | the battle HUD/state/presenter seam without a scene |
+| `BattlePresentationTests` | 16 | the battle HUD/state/presenter seam without a scene; since Stage 07c the sixteenth draws a real floor through a real sweep and checks `viewsGrownDuringPlay = 0` while the drops are pulled in |
 | `BattleMiniBagTests` | 18 | **Stage 08c** — the mini ย่าม's arithmetic against hand-made frames: a plate is `RemainingTicks / PeriodTicks` (four cases over the period and the remaining ticks), the three tones (counting / ready-but-MP-short / ready), the bounding box the bag's cells actually cover and the cell size that fits it into the panel, the read-only rule (no piece is moved, no rule is recomputed), and the update-on-change rule (a frame identical to the last writes nothing). **Stage 08d** added the origin and the stacking: the first box starts at the content area's top-left at both sizes, the L-shaped `bag.wicker_basket_l` hugs the corner of its own bounding box, two bags anchor to the corner of their union box, and the grid's area starts exactly one named gap under the caption on the caption's left edge |
 | `CampPresenterTests` | 22 | every camp command through the presenter, the preview/command agreement, the 0-byte drag, the drawn-link kinds, and (Stage 09g) the upgrade-choice window: dropping a matching pair opens it with nothing changed, the cards are the offer's own rows in order with their data lines, the left panel is the tooltip's own five lines, confirming raises the tier in the same cell and reaches the loadout, cancelling changes nothing and reopening offers the same cards, a pair with no choices still folds on the drop, and the board is locked while the window is up |
 | `CampTooltipPlacementTests` | 4 | the tooltip stays on screen, flips at the edges and never covers the pointer |

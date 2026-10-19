@@ -31,6 +31,9 @@ prototype asks for a number that `data/` does not carry.
    reports `CurrencyEarned`. No column in `data/` says what a kill pays: `economy` holds the camp's
    prices, `enemy` holds stats, `shop_pool` holds offers.
 6. **Magnet speed.** `constant.pickup_radius` exists; how fast a drop is pulled in does not.
+   *(Filled by [ADR 0027](0027-end-of-floor-sweep.md) in Stage 07c: the columns are
+   `constant.magnet_speed` and `constant.sweep_timeout_seconds`, and they drive the end-of-floor
+   sweep. During the fight itself a drop is still collected instantaneously inside the radius.)*
 7. **What the contract suite needs.** The shared `BattleSessionContractTests<TFactory>` drives the
    player with `PlayerInputFrame.Idle` (it never moves) and expects a battle that generates more
    events than the 4096-slot ring can hold.
@@ -102,8 +105,9 @@ and would go in `economy`.
 
 The same reasoning covers two smaller gaps: a drop is collected **instantaneously** inside
 `pickup_radius` rather than drifting toward the player, because a drifting magnet needs a speed and
-there is no column for one (a `constant.magnet_speed` is the change that turns this from a test into
-an animation), and item-local effects are still unmodelled ([ADR 0010](0010-item-local-effects-deferred.md)),
+there is no column for one (Stage 07c added `constant.magnet_speed` for the end-of-floor sweep —
+[ADR 0027](0027-end-of-floor-sweep.md) — but the radius is still the rule during the fight), and
+item-local effects are still unmodelled ([ADR 0010](0010-item-local-effects-deferred.md)),
 so `RemainingConsumables` always reports "nothing was used".
 
 **6. The arena's shape and memory bounds are structural, and live in code.**
@@ -158,9 +162,10 @@ Neither knob touches a balance number, and the battle's own balance is measured 
 - `BattleFrameBuffer` and `BattleEventRing` are shared with the fake — the same instances, the same
   classes — so a Presentation written against the fake sees identical frame and event behaviour from
   the real battle (the `IBattleFrame` single-implementation test is what keeps it that way).
-- A future `status` table and `constant.magnet_speed` are additive data changes: the components
-  already carry the def ids the events would report, and the systems read them through `IGameConfig`
-  like every other number. `enemy.drop_value` landed that way in Stage 07b ([ADR 0025](0025-bia-from-battle.md)).
+- A future `status` table is an additive data change: the components already carry the def ids the
+  events would report, and the systems read them through `IGameConfig` like every other number.
+  `enemy.drop_value` landed that way in Stage 07b ([ADR 0025](0025-bia-from-battle.md)) and
+  `constant.magnet_speed` in Stage 07c ([ADR 0027](0027-end-of-floor-sweep.md)).
 - The balance picture Stage 07's bot harness produces (200 seeds: floor 1 200/200, floor 2 198/200,
   floor 3 91/198, floor 4 71/91, floor 5 71/71) is a *symptom* of these gaps as much as of the
   floor tables — at the time a run earned no bia in a battle, so the camp could only spend

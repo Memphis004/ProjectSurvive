@@ -24,6 +24,7 @@ about a battle it learned from that page; this page is the *inside*.
 | `BattleDefIds` | string id → 1-based table position, built once per factory |
 | `EcsBattleOptions` | the load-benchmark knobs (never balance) |
 | `Systems/*` | the fourteen systems, in run order |
+| `Systems/SweepSystem` | the end-of-floor sweep: pulls the remaining drops in and ends the floor |
 
 ## 2. One tick
 
@@ -46,6 +47,30 @@ about a battle it learned from that page; this page is the *inside*.
 | 12 | `Pickup` | collects drops inside the pickup radius |
 | 13 | `FloorEnd` | the only place a win or a loss is chosen (plus the two timer warnings) |
 | 14 | `FramePublish` | writes the HUD, the render entities and the per-caster cooldown list into `BattleFrameBuffer` |
+
+## 2b. The end-of-floor sweep (Stage 07c)
+
+A **win does not end the floor immediately**. `FloorEndSystem` decides the win and the reason,
+then sets `BattleContext.SweepActive` instead of ending: the contract's phase stays `Running`
+while `SweepSystem` pulls every drop still on the ground into the player, at
+`constant.magnet_speed`, and pays it. The sweep closes when the last pickup is collected or when
+`constant.sweep_timeout_seconds` runs out; at the cap whatever is left is collected at once, so a
+won floor always produces its result. A **loss** (the player dying, or a boss floor timing out)
+never sweeps, and `DevWinNow` still finishes immediately because it stands for "skip this floor".
+
+While `SweepActive`, `Step` runs only `SweepSystem` and `FramePublishSystem` — no wave, no
+steering, no casts, no collision, no damage, no death, no new drops. The ghosts that are left
+stand still and are simply still standing when the result is produced (nothing pays them, because
+only `DeathSystem` pays a kill), and the player takes no damage. That is the simplest reading of
+"the remaining ghosts are removed without dropping anything else".
+
+Nothing about the contract changes: `BattlePhase` has no sweep value, no event type was added, and
+the phase is `Running` for the whole sweep — so the Battle scene's director waits for the phase
+change it already waits for, and the pickup views (entities the view already draws) move and vanish
+on their own. The EditMode presentation test measures `viewsGrownDuringPlay = 0` across a real
+sweep. `BattleResult.SurvivedTicks` includes the sweep ticks (a 60 s floor reports 1800 + at most
+60 ticks); the HUD clamps its clock to `00:00` and its bar to 1 because the existing presenter
+already clamps. See [ADR 0027](../../docs/adr/0027-end-of-floor-sweep.md).
 
 The order is load-bearing and commented as such: steering before the grid, the grid
 before collision, collision before the damage that can kill, and the frame last so it
@@ -153,7 +178,11 @@ invented in code:
 | Gap | What the stage did instead | Column Stage 11 adds |
 | --- | --- | --- |
 | Elemental status magnitude | re-uses the applying skill's own damage, on a 1 s cadence, refreshed (not stacked) | a `status` table |
-| Magnet speed | collects instantaneously inside `constant.pickup_radius` | `constant.magnet_speed` |
+
+`constant.magnet_speed` and `constant.sweep_timeout_seconds` landed in Stage 07c for the **end-of-floor
+sweep** only (ADR 0027); during the fight itself a drop is still collected instantaneously inside
+`constant.pickup_radius`. The sweep pays the drops a won floor used to lose, so a run's field income
+is now the whole floor's drops rather than only the ones the player happened to walk over.
 
 A run now earns bia in battle, so the bot CSV's `currency_earned` and `bia`
 columns reflect both sources. The Stage 07b 200-seed before/after picture is in

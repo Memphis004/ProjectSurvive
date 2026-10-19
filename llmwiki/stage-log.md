@@ -317,3 +317,20 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
 - **Next:** Stage 11 (Thai ghost AI, Pob boss, balance); the remaining ADR 0017 gaps are the
   elemental-status `status` table and `constant.magnet_speed`, and `DevKillAll` still queues drops
   that the next `Step` clears (pre-existing, left untouched).
+
+## Stage 07c — the end-of-floor sweep
+
+- **Did:** a win now opens a sweep instead of ending the floor: `constant.magnet_speed` (24) and
+  `constant.sweep_timeout_seconds` (2) are new `constant` columns (Schema 4 → 5), and
+  `SweepSystem` pulls every remaining pickup in at that speed and pays it once, while the tick runs
+  only the sweep and the frame publisher — the phase stays `Running`, the remaining ghosts stand
+  still and no damage lands. At the cap the rest is collected at once, so the sweep always ends; a
+  loss never sweeps and the shared contract suite is unchanged
+  ([ADR 0027](../docs/adr/0027-end-of-floor-sweep.md)).
+- **Result:** dotnet **525** passed (+6, the shared contract suites green on both factories),
+  `-Suite Fast` **PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0** (EditMode **157/157**, one new
+  presentation case proves `viewsGrownDuringPlay = 0` across a real sweep), the seeded state hash pin
+  unchanged, and the 300-ghost/500-projectile benchmark still **0 bytes/tick**.
+- **Next:** Stage 11 (Thai ghost AI, Pob boss, balance) should read the changed 200-seed picture: a
+  won floor now pays every drop, so field income rises (runs cleared 26/200 in this stage's sample)
+  — that is a balance input, not a tuning result.

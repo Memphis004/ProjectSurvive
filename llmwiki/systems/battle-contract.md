@@ -44,6 +44,11 @@ Save / Protobuf DTOs (ADR 0001, ADR 0006) — and it references no EcsLite,
 - `Submit` returns a typed `CommandResult` (`Ok`, `RejectedWrongPhase`,
   `RejectedInvalidArg`, `RejectedNotAllowed`); a rejected command changes nothing.
 - `TryGetResult` is `false` while running and `true` once ended.
+- **A win may spend some ticks still `Running`.** Since Stage 07c the winning condition opens an
+  end-of-floor sweep (the drops still on the ground are pulled in and paid) before the phase changes
+  to `Won`; a reader therefore never sees `Won` before `CurrencyEarned` includes every drop the
+  floor produced. A loss changes phase at once. See
+  [ADR 0027](../../docs/adr/0027-end-of-floor-sweep.md).
 
 ## 3. Win / loss conditions (read from `data/`, never hardcoded)
 

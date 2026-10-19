@@ -285,6 +285,14 @@
          but is smaller than this cannot fill the chooser, so the data validator
          requires every (piece, tier step) pool to be empty or at least this big. -->
     <var name="upgrade_choice_count" type="int"/>
+    <!-- Stage 07c: the end-of-floor sweep. A win enters a short sweep before the floor
+         result is produced, so the drops still on the ground are not lost: every pickup
+         drifts toward the player at magnet_speed (world units per second) and is
+         collected when it arrives. sweep_timeout_seconds caps the wait; at the cap
+         whatever is left is collected at once, so the sweep always ends. Both are
+         balance numbers, so they live here and not in code. -->
+    <var name="magnet_speed" type="float"/>
+    <var name="sweep_timeout_seconds" type="float"/>
   </bean>
 
 </module>

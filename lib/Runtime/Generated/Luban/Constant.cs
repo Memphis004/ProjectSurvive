@@ -28,6 +28,8 @@ public sealed partial class Constant : Luban.BeanBase
         MoveSpeed = _buf.ReadFloat();
         MaxTier = _buf.ReadInt();
         UpgradeChoiceCount = _buf.ReadInt();
+        MagnetSpeed = _buf.ReadFloat();
+        SweepTimeoutSeconds = _buf.ReadFloat();
     }
 
     public static Constant DeserializeConstant(ByteBuf _buf)
@@ -47,6 +49,8 @@ public sealed partial class Constant : Luban.BeanBase
     public readonly float MoveSpeed;
     public readonly int MaxTier;
     public readonly int UpgradeChoiceCount;
+    public readonly float MagnetSpeed;
+    public readonly float SweepTimeoutSeconds;
    
     public const int __ID__ = -503167036;
     public override int GetTypeId() => __ID__;
@@ -70,6 +74,8 @@ public sealed partial class Constant : Luban.BeanBase
         + "moveSpeed:" + MoveSpeed + ","
         + "maxTier:" + MaxTier + ","
         + "upgradeChoiceCount:" + UpgradeChoiceCount + ","
+        + "magnetSpeed:" + MagnetSpeed + ","
+        + "sweepTimeoutSeconds:" + SweepTimeoutSeconds + ","
         + "}";
     }
 }

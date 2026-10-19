@@ -345,6 +345,20 @@ namespace ProjectSurvive.Core.Domain.Config
         public int MaxTier { get; set; }
 
         /// <summary>
+        /// Speed at which a drop still on the ground drifts toward the player during the
+        /// end-of-floor sweep, in world units per second (Stage 07c). Never used while the
+        /// floor is being fought: an ordinary pickup is collected instantaneously inside
+        /// <see cref="PickupRadius"/>.
+        /// </summary>
+        public float MagnetSpeed { get; set; }
+
+        /// <summary>
+        /// Longest the end-of-floor sweep may run, in seconds (Stage 07c). At the cap the
+        /// drops that are left are collected at once, so a win always ends.
+        /// </summary>
+        public float SweepTimeoutSeconds { get; set; }
+
+        /// <summary>
         /// How many upgrade choices a merge offers ("เลือก 1 จาก 3", Stage 09f). Read by
         /// the offer builder as the size cap and by the data validator as the minimum a
         /// non-empty pool must have: a pool of one or two could not fill the chooser.

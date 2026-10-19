@@ -94,6 +94,10 @@ namespace ProjectSurvive.Core.Simulation.Battle
             MoveSpeed = setup.Loadout.Stats.MoveSpeed > 0f
                 ? setup.Loadout.Stats.MoveSpeed
                 : config.Constant.MoveSpeed;
+            MagnetSpeed = config.Constant.MagnetSpeed > 0f ? config.Constant.MagnetSpeed : 0f;
+            SweepTimeoutTicks = config.Constant.SweepTimeoutSeconds > 0f
+                ? Math.Max(1, (int)Math.Round(config.Constant.SweepTimeoutSeconds * BattleConstants.TickRate))
+                : 0;
 
             FloorDurationTicks = floor.DurationSeconds > 0f
                 ? (int)Math.Round(floor.DurationSeconds * BattleConstants.TickRate)
@@ -140,6 +144,18 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
         /// <summary>The player's movement speed for this floor, from the loadout.</summary>
         public float MoveSpeed { get; }
+
+        /// <summary>
+        /// Speed at which a drop drifts toward the player during the end-of-floor sweep,
+        /// in world units per second (<c>constant.magnet_speed</c>, Stage 07c).
+        /// </summary>
+        public float MagnetSpeed { get; }
+
+        /// <summary>
+        /// Longest the end-of-floor sweep may run, in ticks (<c>constant.sweep_timeout_seconds</c>).
+        /// At the cap the drops that are left are collected at once, so the sweep always ends.
+        /// </summary>
+        public int SweepTimeoutTicks { get; }
 
         /// <summary>How close a pickup must be to be pulled in, from the loadout.</summary>
         public float PickupRadius { get; }
@@ -206,6 +222,17 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
         /// <summary>True while <c>DevGodMode</c> is on.</summary>
         public bool GodMode { get; set; }
+
+        /// <summary>
+        /// True while the end-of-floor sweep is running (Stage 07c). The floor is already won
+        /// (<see cref="EndPhase"/>/<see cref="EndReason"/> say why) but the result waits until
+        /// every drop on the ground has been pulled in or the cap is reached. The phase the
+        /// contract publishes stays <c>Running</c> for the whole sweep.
+        /// </summary>
+        public bool SweepActive { get; set; }
+
+        /// <summary>Sweep ticks left before the cap collects everything that is left.</summary>
+        public int SweepTicksRemaining { get; set; }
 
         /// <summary>True once a system decided the floor is over.</summary>
         public bool EndRequested { get; set; }
