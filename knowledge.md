@@ -21,6 +21,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **04** | **Prototype data (14 pieces, 5 combos, 5 floors)** | **DONE** — see [`docs/stages/04-report.md`](docs/stages/04-report.md) |
 | **05** | **Inventory domain (bag rules, combos, loadout)** | **DONE** — see [`docs/stages/05-report.md`](docs/stages/05-report.md) |
 | **06** | **Shop, economy, run, scene flow** | **DONE** — see [`docs/stages/06-report.md`](docs/stages/06-report.md) |
+| **06b** | **A sala's stock does not follow the run (bug fix)** | **DONE** — see [`docs/stages/06b-report.md`](docs/stages/06b-report.md) |
 | **07** | **Battle core (headless) & bot sim** | **DONE** — see [`docs/stages/07-report.md`](docs/stages/07-report.md) |
 | **08** | **Battle presentation 2.5D** | **DONE** — see [`docs/stages/08-report.md`](docs/stages/08-report.md) |
 | **09** | **Camp scene & จัดย่าม UI (walkable sala, world shop)** | **DONE** — see [`docs/stages/09-report.md`](docs/stages/09-report.md), [`09b`](docs/stages/09b-report.md) (the drag diagnosis), [`09c`](docs/stages/09c-report.md) (the walkable camp) |

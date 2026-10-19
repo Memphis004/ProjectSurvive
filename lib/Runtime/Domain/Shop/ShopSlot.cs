@@ -79,6 +79,19 @@ namespace ProjectSurvive.Core.Domain.Shop
 
         internal void SetLocked(bool locked) => IsLocked = locked;
 
+        /// <summary>
+        /// Puts the slot back to "nothing offered, nothing rented, not pinned" for a camp
+        /// the run has just entered. "ทุกการเข้าศาลาสร้าง stock ใหม่": a rental belongs to
+        /// the sala it happened in, so <see cref="IsPurchased"/> must not survive into the
+        /// next one (the defect this fixes), and neither may a pin.
+        /// </summary>
+        internal void ResetForCamp()
+        {
+            Clear();
+            IsPurchased = false;
+            IsLocked = false;
+        }
+
         /// <summary>Empties the slot. Only a re-roll does this, and only for a slot that can be re-rolled.</summary>
         internal void Clear()
         {

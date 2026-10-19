@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ProjectSurvive.Core.Application.Run;
+using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Domain.Run;
@@ -229,6 +230,83 @@ namespace ProjectSurvive.Core.Tests.Run
             Assert.Equal(run.Stock.SlotCount - 1, refresh.Value.Filled);
         }
 
+        [Theory]
+        [InlineData(0)]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
+        public void A_new_camp_refills_a_slot_rented_in_the_previous_one(int slot)
+        {
+            // Stage 06b: "ทุกการเข้าศาลาสร้าง stock ใหม่ 4 ช่อง; ช่องที่เช่าแล้วไม่เติม
+            // ฟรีเฉพาะภายในศาลาเดียวกัน". Renting a slot must not follow the run into
+            // the next sala, which is the defect the player reported as one empty shelf
+            // that never refills for the rest of the run.
+            IGameConfig config = RunFixture.Config();
+            RunSession run = RunFixture.StartedRun(config);
+
+            Assert.True(run.Purchase(slot).IsSuccess, "slot " + slot + " could not be rented");
+            Assert.True(run.Stock[slot].IsPurchased);
+
+            Assert.True(run.StartFloor().IsSuccess);
+            Result<FloorSettlement> settled = run.ApplyBattleResult(Won(run));
+            Assert.True(settled.IsSuccess, settled.Error.ToString());
+            Assert.Equal(RunFlowState.Camp, run.FlowState);
+            Assert.Equal(2, run.FloorIndex);
+
+            AssertNewCampPanel(run, "after renting slot " + slot);
+        }
+
+        [Fact]
+        public void A_new_camp_refills_every_slot_after_several_purchases()
+        {
+            IGameConfig config = RunFixture.Config();
+            RunSession run = RunFixture.StartedRun(config);
+            run.Wallet.Credit(200);
+
+            Assert.True(run.Purchase(0).IsSuccess);
+            Assert.True(run.Purchase(2).IsSuccess);
+
+            Assert.True(run.StartFloor().IsSuccess);
+            Assert.True(run.ApplyBattleResult(Won(run)).IsSuccess);
+
+            AssertNewCampPanel(run, "after renting slots 0 and 2");
+        }
+
+        [Fact]
+        public void A_new_camp_refills_every_slot_after_the_whole_panel_was_rented()
+        {
+            IGameConfig config = RunFixture.Config();
+            RunSession run = RunFixture.StartedRun(config);
+            run.Wallet.Credit(200);
+
+            for (int slot = 0; slot < run.Stock.SlotCount; slot++)
+            {
+                Assert.True(run.Purchase(slot).IsSuccess, "slot " + slot);
+            }
+
+            Assert.True(run.Stock.IsSoldOut);
+
+            Assert.True(run.StartFloor().IsSuccess);
+            Assert.True(run.ApplyBattleResult(Won(run)).IsSuccess);
+
+            AssertNewCampPanel(run, "after renting the whole panel");
+        }
+
+        [Fact]
+        public void A_new_camp_does_not_inherit_a_lock_from_the_previous_one()
+        {
+            IGameConfig config = RunFixture.Config();
+            RunSession run = RunFixture.StartedRun(config);
+
+            Assert.True(run.SetSlotLocked(2, true).IsSuccess);
+            Assert.True(run.Stock[2].IsLocked);
+
+            Assert.True(run.StartFloor().IsSuccess);
+            Assert.True(run.ApplyBattleResult(Won(run)).IsSuccess);
+
+            AssertNewCampPanel(run, "after departing with slot 2 pinned");
+        }
+
         [Fact]
         public void An_offer_that_resolves_to_nothing_leaves_its_slot_empty()
         {
@@ -322,6 +400,36 @@ namespace ProjectSurvive.Core.Tests.Run
             Assert.Equal(ShopError.UnknownSlot, negative.Error.Code);
             Assert.Equal(ShopError.UnknownSlot, lockTooHigh.Error.Code);
         }
+
+        /// <summary>
+        /// A camp the run has just entered: four rentable offers, nothing carried over
+        /// from the previous sala (no rent, no pin), and a fresh re-roll counter.
+        /// </summary>
+        private static void AssertNewCampPanel(RunSession run, string context)
+        {
+            Assert.Equal(4, run.Stock.SlotCount);
+            Assert.Equal(0, run.Stock.RefreshCount);
+            Assert.Equal(run.Stock.SlotCount, run.Stock.AvailableCount);
+
+            var seen = new HashSet<string>();
+            for (int i = 0; i < run.Stock.SlotCount; i++)
+            {
+                ShopSlot slot = run.Stock[i];
+                Assert.False(slot.IsEmpty, context + ": slot " + i + " was left empty");
+                Assert.False(slot.IsPurchased, context + ": slot " + i + " is still marked rented");
+                Assert.False(slot.IsLocked, context + ": slot " + i + " is still marked locked");
+                Assert.True(slot.Price > 0, context + ": slot " + i + " has no price");
+                Assert.True(seen.Add(slot.OfferedId), context + ": the same piece was offered twice: " + slot.OfferedId);
+            }
+        }
+
+        private static BattleResult Won(RunSession run) => new BattleResult
+        {
+            Outcome = BattlePhase.Won,
+            EndReason = BattleEndReason.SurvivedAllWaves,
+            FinalHp = run.MaxHp,
+            RemainingConsumables = new List<int>(),
+        };
 
         [Fact]
         public void ShopStock_requires_its_inputs()

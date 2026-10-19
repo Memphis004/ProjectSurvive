@@ -134,15 +134,22 @@ namespace ProjectSurvive.Core.Domain.Shop
         }
 
         /// <summary>
-        /// Starts a new camp visit: every slot is emptied and the re-roll counter is
-        /// reset (\"รีเซ็ตเมื่อเข้าศาลาใหม่\"). The caller re-rolls immediately after.
+        /// Starts a new camp visit: every slot is emptied **and cleared of both flags**
+        /// — a rent and a pin belong to the sala they happened in — and the re-roll
+        /// counter is reset (\"\u0e23\u0e35\u0e40\u0e0b\u0e47\u0e15\u0e40\u0e21\u0e37\u0e48\u0e2d\u0e40\u0e02\u0e49\u0e32\u0e28\u0e32\u0e25\u0e32\u0e43\u0e2b\u0e21\u0e48\", \"\u0e17\u0e38\u0e01\u0e01\u0e32\u0e23\u0e40\u0e02\u0e49\u0e32\u0e28\u0e32\u0e25\u0e32\u0e2a\u0e23\u0e49\u0e32\u0e07 stock \u0e43\u0e2b\u0e21\u0e48\").
+        /// The caller re-rolls immediately after.
         /// </summary>
+        /// <remarks>
+        /// It is <see cref="ShopSlot.ResetForCamp"/> rather than <see cref="ShopSlot.Clear"/>
+        /// that runs here: <c>Clear</c> keeps <c>IsPurchased</c> on purpose (that is what
+        /// <c>MarkPurchased</c> needs), and calling it for a new sala left a rented shelf
+        /// empty for the rest of the run — the Stage 06b defect.
+        /// </remarks>
         public void BeginCamp()
         {
             for (int i = 0; i < _slots.Length; i++)
             {
-                _slots[i].Clear();
-                _slots[i].SetLocked(false);
+                _slots[i].ResetForCamp();
             }
 
             RefreshCount = 0;

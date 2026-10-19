@@ -19,7 +19,7 @@ need to run, and the Web build moved behind the Full suite.
 | --- | --- | --- |
 | `toolchain: .NET SDK` | Fast | an SDK ≥ 8 is present |
 | `dotnet build` | Fast | every `lib/` layer, the xUnit project and the Sim compile |
-| `dotnet test (xUnit)` | Fast | 481 tests: the rule engine, the architecture guards, the contract suites, the Sim |
+| `dotnet test (xUnit)` | Fast | 504 tests: the rule engine, the architecture guards, the contract suites, the Sim |
 | `sim: determinism` | Fast | the same seed prints the same `determinismDigest` twice, a different seed does not |
 | `sim: stream separation` | Fast | shop / battle / visual digests differ, `ticksProduced=300` |
 | `sim: bot smoke run` | Fast | the kiting bot plays 2 seeds and writes balance rows |
@@ -69,6 +69,23 @@ and Playwright stayed **10**. Its `-Suite Fast` run is `artifacts/stage08d/fast.
 **PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**, 86.6 s (the final green run; an earlier attempt hit the
 environment-sensitive Result-report case recorded in the stage report §6). WebGL and Playwright were
 not run, by the brief.
+
+Stage 06b (2026-10-19) is a **bug fix** and moved one count: `dotnet test` **497 → 504** (seven cases
+in `ShopStockTests` for "a new sala fills its shelves again"), while EditMode stayed **155** and
+PlayMode **47** (the camp-2 condition was added to an existing case, `ResultScenePlayModeTests`'
+victory loop, rather than to a new one). Its `-Suite Fast` runs are `artifacts/stage06b/fast.log` and
+the closing `artifacts/stage06b/fast-final.log` — **PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**, 153.1 s and
+178.5 s, `dotnet test` **504 passed** and EditMode **155/155** in both. The Sim's own digest is
+**unchanged** by the fix, measured both ways (`determinismDigest=0x841b4e46` at seed 20261013). The new PlayMode condition was run per class (`ResultScenePlayModeTests` **3/3**,
+`artifacts/stage06b/playmode-resultscene-after-fix.json`) and was **red-checked** by reverting the fix
+and re-running the same class — it failed with *sala 2: only 3 of 4 shelves are rentable*
+(`artifacts/stage06b/playmode-resultscene-red-check.json`) — so the condition is not vacuous. 06b's own
+closing Full run (`artifacts/stage06b/full-editor-open.log`, Editor open) is **PASS 10 | FAIL 1 |
+NOT RUN 2**: the one FAIL is the bulk PlayMode flake of §7 — **22/47** reported, its 25 non-passes the
+same 12 `IndexOutOfRangeException` + 8 `Cached unprocessed value` ambient messages, with the extended
+`ResultScenePlayModeTests` case **Passed inside that same payload** — and both web steps are NOT RUN
+because the Editor held the project lock. WebGL and Playwright were not run: 06b is not a gate stage
+and nothing in Presentation changed.
 
 Stage 08c (2026-10-17) moved two counts and left the rest: EditMode **130 → 144** (`BattleMiniBagTests`
 14, and `BattlePresentationTests` 15) and PlayMode **45 → 46** (the battle class 4 → 5), while
@@ -196,7 +213,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `ProbeSerializationTests.cs`, `EcsLiteSmokeTests.cs` | MessagePack/protobuf round trips, the vendored ECS |
 | `Battle/*.cs` | the battle contract suite over the fake and the real ECS session, the frame buffer, the event ring. Includes `Dev_lose_now_reports_the_death_it_stands_for` (both factories, 2026-10-17): the cheat spends the player's HP before it finishes, so a forced loss is `PlayerDied` with `FinalHp` 0 rather than a defeat at full health. **Stage 08b** added four cases to the shared suite, so each runs against **both** factories — `The_frames_cooldowns_are_the_loadout_entries_with_the_board_pieces_they_came_from`, `A_cooldown_runs_down_one_tick_at_a_time_and_resets_to_its_full_period`, `A_ready_caster_the_player_cannot_afford_is_flagged_mana_short` and `Step_with_a_caster_loadout_does_not_allocate_after_warm_up` — plus `The_state_hash_of_a_seeded_floor_with_casters_is_unchanged` in each derived class, a literal recorded on the pre-change build in a clean `git worktree` of `HEAD`, `A_cooldown_list_is_not_visible_until_publish_ran` and `The_cooldown_list_stops_at_the_loadout_cap` in `BattleFrameBufferTests`, and `Every_caster_entry_names_the_board_piece_it_was_resolved_from` in `LoadoutResolverTests` (the board id's only producer) |
 | `Inventory/*.cs` | Board/Backpack/BackpackEditor/Merge/Recycle/Rotation/Synergy/Loadout + the randomized bag tests |
-| `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay |
+| `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay. **Stage 06b** added seven cases to `ShopStockTests` (`A_new_camp_refills_a_slot_rented_in_the_previous_one`, four of them through `[Theory]`, plus several purchases, the whole panel, and a pin left behind): every new sala offers four rentable shelves again, none of them still marked rented or locked, `RefreshCount` 0 |
 
 ### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (155 tests) → **Fast**
 
@@ -227,7 +244,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `CampMergeChooserPlayModeTests` | 4 | **Stage 09g** — the upgrade-choice window through real pointer/keyboard events: drag onto the twin opens it (measured geometry: the dim covers the canvas, the cards do not overlap), a tap on the second card upgrades in the same cell with that card's variant id, `Escape` and the back control close it with the run's hash byte-identical and the same cards offered again, the board behind it stays locked and no tooltip is drawn, and `2` picks the second card |
 | `CampWorldPlayModeTests` | 8 | WASD walking, the walk clamp, `E` at a shelf, clicking without walking |
 | `SceneFlowPlayModeTests` | 5 | **Stage 10a** — the whole loop through the real scenes: the purse, bag and HP that went into the arena come back out of it (same `RunSession` object, same seed), a settled floor writes `BattleResult.FinalHp` back into the run and heals only what the run's own settlement heals, leaving the arena disposes its `IBattleSession`, arriving at the title leaves no run scope and no scene scope behind, the loader refuses a second transition and a scene that is not built, and **20 camp/battle round trips** leave exactly one scene scope and one run scope each time and grow the managed heap by ≤ 3 MiB (measured: 0.70 MiB; [`artifacts/stage10/loop-memory.md`](../../artifacts/stage10/loop-memory.md)) |
-| `ResultScenePlayModeTests` | 3 | **Stage 10b** — a lost floor lands on the summary screen and **Restart** starts a new run at floor 1 with the starting purse and an empty bag, a run can be won floor by floor and ends on the victory summary, and leaving the summary for the title leaves no run behind |
+| `ResultScenePlayModeTests` | 3 | **Stage 10b** — a lost floor lands on the summary screen and **Restart** starts a new run at floor 1 with the starting purse and an empty bag, a run can be won floor by floor and ends on the victory summary, and leaving the summary for the title leaves no run behind. **Stage 06b** extended the victory loop (the one case that really crosses camp → battle → camp in one run): shelf 0 is rented and shelf 1 pinned in the first sala, and the second sala's panel must be full, rent-free, unpinned and re-roll counter 0 |
 | `TitleScenePlayModeTests` | 5 | **Stage 10d** — the loop's first screen through the real scenes: Boot hands over and **stops** there (the scene marker, the absent run and the screen's own report are read after the handover the boot scene performed by itself), pressing เริ่มเล่น with the mouse starts a run and walks into the camp as **one** run and one scene scope on floor 1, `Enter` and `Space` reach the same control (the focus is asserted first, because "the key did nothing" and "the button was never focused" are different defects), a second press while the move is in flight is refused by the presenter and by the loader with its typed reason, and playing a run to its summary, going back to the title and pressing again starts a run that is **new** (floor 1, starting purse, the starting bag as a `RunSession` built from scratch on the same seed) |
 | `ShellPlayModeTests` | 5 | scene loading, the title, the Thai spike's two stacks, UniTask cancellation in play mode. **Note:** the assembly's bulk payload reports four of these five — `Thai_spike_scene_measures_both_stacks_without_missing_glyphs` was absent from the payload of every run since Stage 10 while the file still declares it (see §7) |
 

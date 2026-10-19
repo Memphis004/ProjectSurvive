@@ -261,9 +261,29 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             int totalFloors = run.TotalFloors;
             Assert.That(totalFloors, Is.GreaterThan(1), "the shipped floor table has one row: nothing to loop");
 
+            IGameConfig config = SceneFlowHarness.Find<CampSceneScope>().Container.Resolve<IGameConfig>();
+
             for (int floor = 1; floor <= totalFloors; floor++)
             {
                 var departing = SceneFlowHarness.Find<CampSceneDirector>();
+
+                if (floor == 1)
+                {
+                    // Stage 06b, in the scene rather than in the rule engine: rent a shelf and pin
+                    // another before leaving, so the next sala has state that *could* be carried
+                    // over. The player's report was one shelf that stayed empty for the rest of the
+                    // run, which is what the panel check below would catch.
+                    Assert.That(
+                        run.Wallet.Bia, Is.GreaterThanOrEqualTo(run.Stock[0].Price),
+                        "the starting purse cannot rent the first shelf: the fixture proves nothing");
+
+                    departing.Presenter.Rent(0);
+                    departing.Presenter.ToggleSlotLock(1);
+
+                    Assert.That(run.Stock[0].IsPurchased, Is.True, "the first shelf was not rented");
+                    Assert.That(run.Stock[1].IsLocked, Is.True, "the second shelf was not pinned");
+                }
+
                 departing.Presenter.Depart();
                 Assert.That(
                     departing.Presenter.Departed, Is.True,
@@ -288,6 +308,11 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                     yield return SceneFlowHarness.WaitForSceneAndIdle(SceneFlowHarness.CampSceneName);
                     Assert.That(run.FlowState, Is.EqualTo(RunFlowState.Camp));
                     Assert.That(run.FloorIndex, Is.EqualTo(floor + 1), "the run did not advance a floor");
+
+                    if (floor == 1)
+                    {
+                        AssertFreshCampPanel(run, config, "sala 2");
+                    }
                 }
             }
 
@@ -363,6 +388,33 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             /// <summary>How many controls the document names, or 0 when it names none.</summary>
             public int buttonCount() => buttons is null ? 0 : buttons.Length;
+        }
+
+        /// <summary>
+        /// Stage 06b: every sala the run walks into shows a full panel again, and nothing the
+        /// previous one carried — a rent, a pin — follows it in ("ทุกการเข้าศาลาสร้าง stock ใหม่ 4
+        /// ช่อง; ช่องที่เช่าแล้วไม่เติมฟรีเฉพาะภายในศาลาเดียวกัน").
+        /// </summary>
+        private static void AssertFreshCampPanel(RunSession run, IGameConfig config, string context)
+        {
+            Assert.That(
+                run.Stock.SlotCount, Is.EqualTo(config.Economy.ShopSlotCount),
+                context + ": the panel is not the data's slot count");
+            Assert.That(run.Stock.RefreshCount, Is.EqualTo(0), context + ": the re-roll counter was kept");
+            Assert.That(
+                run.Stock.AvailableCount, Is.EqualTo(run.Stock.SlotCount),
+                context + ": only " + run.Stock.AvailableCount + " of " + run.Stock.SlotCount + " shelves are rentable");
+
+            var seen = new System.Collections.Generic.HashSet<string>();
+            for (int i = 0; i < run.Stock.SlotCount; i++)
+            {
+                Assert.That(run.Stock[i].IsEmpty, Is.False, context + ": shelf " + i + " is empty");
+                Assert.That(run.Stock[i].IsPurchased, Is.False, context + ": shelf " + i + " is still rented");
+                Assert.That(run.Stock[i].IsLocked, Is.False, context + ": shelf " + i + " is still pinned");
+                Assert.That(
+                    seen.Add(run.Stock[i].OfferedId), Is.True,
+                    context + ": the same piece is offered twice: " + run.Stock[i].OfferedId);
+            }
         }
 
         private static IEnumerator WaitForFloorToStart(BattleSceneDirector battle)

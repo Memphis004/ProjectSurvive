@@ -57,9 +57,18 @@ without ever computing one.
 
 `ShopStock` is created **once**, in the run's constructor, and lives for the whole run. What
 changes per camp entry is its contents, not the object: `RunSession.EnterCamp()` calls
-`ShopStock.BeginCamp()` (empty every slot, clear every pin, reset `RefreshCount` to 0) and
-then immediately rolls. `OpenShop()` is a **read**: re-opening the shop in the same camp
-returns the same `ShopStock` instance and consumes no randomness ("เปิดร้านซ้ำสินค้าเดิม").
+`ShopStock.BeginCamp()` — which asks every slot to `ResetForCamp()` (empty the offer, clear
+**both** flags, so a rent and a pin belong to the sala they happened in) and sets
+`RefreshCount` back to 0 — and then immediately rolls. `OpenShop()` is a **read**: re-opening
+the shop in the same camp returns the same `ShopStock` instance and consumes no randomness
+("เปิดร้านซ้ำสินค้าเดิม").
+
+> **Stage 06b.** `BeginCamp()` used to call `ShopSlot.Clear()`, which by design leaves
+> `IsPurchased` alone (`MarkPurchased()` sets the flag and then clears the offer). The rent
+> therefore survived into every later sala of the run and `Roll` skipped the slot forever —
+> the player's *"ซื้อแล้วช่องนั้นว่างตลอดในศาลาถัด ๆ ไป"*. The two intents are now separate
+> methods: `ResetForCamp()` (a new sala: offer + both flags) and `Clear()` (the offer only,
+> what a re-roll and a purchase do).
 
 ### 3.1 Rolling — `ShopRoller`
 
@@ -89,7 +98,7 @@ reachable with shipped data, which never produces it.
 | --- | --- |
 | `OfferedId` / `Kind` / `Price` | what is on offer, and at which table price |
 | `IsEmpty` | holds nothing to rent |
-| `IsPurchased` | was rented; the money is spent and the slot never refills for free |
+| `IsPurchased` | was rented **in this camp**; the money is spent and the slot never refills for free — `ResetForCamp()` clears it on the next camp entry |
 | `IsLocked` | pinned so a re-roll keeps it ("ล็อกสินค้าที่อยากเก็บไว้ก่อนสุ่มได้") |
 | `CanBeRerolled` | `!IsLocked && !IsPurchased` — the single rule `Roll` asks |
 
