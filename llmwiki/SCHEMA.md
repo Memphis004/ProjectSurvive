@@ -78,3 +78,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/gen-wiki.ps1          
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-wiki.ps1         # lint (exit 0/1/2)
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-wiki.ps1 -Fixtures  # prove lint can fail
 ```
+
+Exit codes are part of the contract. `gen-wiki.ps1` exits **0** on success, **2** when `-DataDir`
+does not exist and **1** for a generation error (for example a table missing from `data/tables`).
+`verify-wiki.ps1` exits **0** green, **1** on any FAIL finding and **2** when it cannot find the
+wiki or data directory. A **2** is an environment problem, not a wiki defect: fix the path before
+reading findings. The lint writes no file in the repository unless `-WriteReport` is passed.
+
+---
+
+Source: [10e-report](../docs/stages/10e-report.md) — Stage 10e introduced this schema, the
+generated content layer and the lint; the report carries the evidence (broken-wiki fixtures,
+timings, the five content questions answered from `content/` alone).

@@ -39,7 +39,9 @@ truth (see [`SCHEMA.md`](SCHEMA.md)).
 
 `tools/verify-wiki.ps1` fails when a content page drifts from `data/`, when a link
 or anchor is broken, when a data id has no section, or when a note below is not
-linked from this page. It is the Fast step `wiki: content reproducible`.
+linked from this page. It is the Fast step `wiki: content reproducible`. A
+hand-written page that **restates** a skill's numbers raises a `balance_numbers`
+**WARN** (never a failure): numbers belong to `content/`, generated from `data/`.
 
 ---
 

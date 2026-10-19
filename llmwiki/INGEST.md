@@ -28,6 +28,13 @@ report per run. Do the steps in order.
    `Source: [10d-report](../docs/stages/10d-report.md)`. The wiki must be
    traceable to what justified it.
 
+   Links are linted, including their depth. A note under `systems/` or `gotchas/`
+   reaches a report with `../../docs/stages/…`; a page at the wiki root uses
+   `../docs/…`; and no link may climb above the repo root — from `stage-log.md`
+   an artifact is `../artifacts/…`, not `../../artifacts/…`. Stage 10e's lint
+   caught exactly that one-level-too-deep path, so run the lint before assuming a
+   link is fine.
+
 5. **Retire what the report supersedes.** If a sentence in an older page is now
    false, fix it in place; if it is still useful history, mark it
    `superseded by <page>` or `superseded by <10d-report>`. Never leave an
