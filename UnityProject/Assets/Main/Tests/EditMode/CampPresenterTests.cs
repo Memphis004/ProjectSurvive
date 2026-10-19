@@ -310,6 +310,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 ui.State.TooltipTitle.Value,
                 ui.State.TooltipTier.Value,
                 ui.State.TooltipStatus.Value,
+                ui.State.TooltipUpgrades.Value,
                 ui.State.TooltipDescription.Value,
                 ui.State.TooltipCombos.Value,
             };
@@ -319,7 +320,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(
                 ui.Presenter.MergeChooser.SourceLines,
                 Is.EqualTo(expected),
-                "แผงซ้ายแสดงค่าปัจจุบันของไอเทม, in the tooltip's own five lines");
+                "แผงซ้ายแสดงค่าปัจจุบันของไอเทม, in the tooltip's own six lines");
             Assert.That(
                 ui.State.TooltipVisible.Value,
                 Is.False,
@@ -453,6 +454,16 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(ui.Presenter.Counters.Merged, Is.EqualTo(1), "the drop folded the pair, as it always did");
             Assert.That(TierOf(run, one.Value), Is.EqualTo(2), "and the survivor went up a tier");
             Assert.That(run.Backpack.Items.Count, Is.EqualTo(2), "one charm was consumed");
+
+            // Stage 09h: the step really happened, and it has no variant to name — so the tooltip
+            // shows the new tier and no upgrade line, instead of inventing an effect for the fold.
+            ui.Presenter.Hover(one.Value);
+
+            Assert.That(
+                ui.State.TooltipTier.Value,
+                Is.EqualTo(Format("camp.tooltip.tier.format", 2, _config.Constant.MaxTier)),
+                "the tier line is the new one");
+            Assert.That(ui.State.TooltipUpgrades.Value, Is.Empty, "and there is no variant line to draw");
         }
 
         /// <summary>
@@ -953,9 +964,9 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(_config.TryGetItem(RunDefaults.InitialWeaponId, out ItemConfig weaponConfig), Is.True);
             Assert.That(_config.TryGetSkill(weaponConfig.SkillId, out SkillConfig skill), Is.True, "the starting weapon has a skill");
 
-            // Stage 09e item 2: five separate lines — ชื่อ, ระดับ, สถานะ, คำอธิบาย, คอมโบที่ทำงานอยู่ — so
-            // the screen owns one label each. One combined string would be the shape this stage
-            // replaced, and the two halves are asserted apart here.
+            // Stage 09e item 2: one label per line — ชื่อ, ระดับ, ค่าที่ใช้จริง, รุ่นย่อยที่เลือก,
+            // คำอธิบาย, คอมโบที่ทำงานอยู่ — so the screen owns one label each. One combined string
+            // would be the shape that stage replaced, and the halves are asserted apart here.
             string tier = ui.State.TooltipTier.Value;
             Assert.That(tier, Does.Not.Contain("camp.tooltip"), "every key resolved");
             Assert.That(
@@ -963,13 +974,37 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 Is.EqualTo(Format("camp.tooltip.tier.format", run.Backpack.Items[0].Tier, _config.Constant.MaxTier)),
                 "the tier line is built from the surface's own format");
 
+            // Stage 09h: the numbers are the run's resolved ones, with the table's row beside them —
+            // never the skill row on its own (that is what made 3/3 read like 1/1).
+            PieceReadout readout = Explain(run, weapon);
+            string resolvedLine = Format(
+                "camp.tooltip.stat.format",
+                readout.Resolved.Damage,
+                readout.Resolved.CooldownSeconds,
+                readout.Resolved.MpCost);
+            string baseLine = Format(
+                "camp.tooltip.base.format",
+                Format(
+                    "camp.tooltip.stat.format",
+                    skill.Damage,
+                    skill.CooldownSeconds,
+                    skill.MpCost));
+
             string status = ui.State.TooltipStatus.Value;
             Assert.That(status, Does.Not.Contain("camp.tooltip"), "every key resolved");
             Assert.That(
                 status,
-                Is.EqualTo(Format("camp.tooltip.stat.format", skill.Damage, skill.CooldownSeconds, skill.MpCost)),
-                "the weapon's skill numbers are the table's, formatted by the presenter");
+                Is.EqualTo(resolvedLine + "\n" + baseLine),
+                "the tooltip prints the resolved row and the table's row under it");
             Assert.That(status, Does.Not.Contain(tier), "ระดับ is its own line, not a prefix of สถานะ");
+            Assert.That(
+                readout.Resolved.CooldownSeconds,
+                Is.EqualTo(skill.CooldownSeconds).Within(0.0001f),
+                "a tier-1 piece with no cooldown variant resolves to its base cooldown");
+            Assert.That(
+                ui.State.TooltipUpgrades.Value,
+                Is.Empty,
+                "with no merge behind it there is no variant line at all");
 
             Assert.That(
                 ui.State.TooltipDescription.Value,
@@ -996,6 +1031,98 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
             Assert.That(ui.State.TooltipVisible.Value, Is.False);
             Assert.That(ui.State.Bag.Value.Highlight.Length, Is.Zero, "the highlight goes away with the pointer");
+        }
+
+        /// <summary>
+        /// Stage 09h: after a card is confirmed the tooltip prints the numbers the loadout resolved,
+        /// the step that produced them, and nothing stale; undo puts the old numbers back.
+        /// </summary>
+        /// <remarks>
+        /// The card is chosen to be one that moves damage, cooldown or focus (a range-only variant
+        /// would change the build without changing this line), and the expected strings are built
+        /// from the run's read model and the snapshot it comes from — never from a literal.
+        /// </remarks>
+        [Test]
+        public void The_tooltip_shows_the_resolved_numbers_of_the_variant_that_was_picked()
+        {
+            Screen ui = AtACampWithAMergeablePair(out PieceRef survivor, out PieceRef twin);
+            RunSession run = ui.Run;
+
+            ui.Presenter.Hover(survivor);
+            string before = ui.State.TooltipStatus.Value;
+            Assert.That(ui.State.TooltipUpgrades.Value, Is.Empty, "a tier-1 piece has no step to describe");
+
+            DropOnto(ui.Presenter, run, twin, survivor);
+            Assert.That(ui.Presenter.IsMergeChooserOpen, Is.True, "the pair asks which upgrade to keep");
+
+            int card = FirstCardTouchingTheShownStats(ui.Presenter);
+            Assert.That(card, Is.GreaterThanOrEqualTo(0), "the offer has a card that moves damage, cooldown or focus");
+            CampMergeChoiceModel choice = ui.Presenter.MergeChooser.Choices[card];
+
+            Assert.That(ui.Presenter.ConfirmMergeChoice(card), Is.True, "the card is confirmed");
+            Assert.That(ui.State.TooltipVisible.Value, Is.True, "the pointer is still on the piece");
+
+            // The tooltip's numbers are the snapshot's numbers, field for field.
+            PieceReadout readout = Explain(run, survivor);
+            WeaponLoadout snapshot = Loadout(run).Weapons[0];
+
+            Assert.That(readout.Tier, Is.EqualTo(2), "one merge step");
+            Assert.That(readout.Resolved.Damage, Is.EqualTo(snapshot.Damage));
+            Assert.That(readout.Resolved.CooldownSeconds, Is.EqualTo(snapshot.CooldownSeconds).Within(0.0001f));
+            Assert.That(readout.Resolved.MpCost, Is.EqualTo(snapshot.MpCost));
+
+            string expected = Format(
+                "camp.tooltip.stat.format",
+                snapshot.Damage,
+                snapshot.CooldownSeconds,
+                snapshot.MpCost);
+
+            Assert.That(ui.State.TooltipStatus.Value, Does.Contain(expected), "the resolved row is what is on screen");
+            Assert.That(ui.State.TooltipStatus.Value, Is.Not.EqualTo(before), "the picked card moved the tooltip");
+
+            // The step names its variant and each stat it changed, the way the card wrote it.
+            string upgrades = ui.State.TooltipUpgrades.Value;
+            Assert.That(upgrades, Is.Not.Empty, "a confirmed variant has its line");
+            Assert.That(
+                upgrades,
+                Does.Contain(Text(VariantOf(choice.VariantId).NameKey)),
+                "the line names the variant that was picked");
+
+            for (int i = 0; i < choice.Changes.Length; i++)
+            {
+                Assert.That(upgrades, Does.Contain(choice.Changes[i]), "and repeats the card's own change line");
+            }
+
+            // Undo is the way back: the readout is a function of the run, not a frozen string.
+            ui.Presenter.UndoEdit();
+
+            Assert.That(ui.State.TooltipStatus.Value, Is.EqualTo(before), "undo shows the numbers from before the merge");
+            Assert.That(ui.State.TooltipUpgrades.Value, Is.Empty, "and the step line is gone with the step");
+        }
+
+        /// <summary>
+        /// The first card whose variant changes a stat the tooltip prints. Damage, cooldown and focus
+        /// are what the สถานะ line carries; a range-only upgrade changes the build without changing it.
+        /// </summary>
+        private int FirstCardTouchingTheShownStats(CampPresenter presenter)
+        {
+            CampMergeChooserModel chooser = presenter.MergeChooser;
+
+            for (int i = 0; i < chooser.ChoiceCount; i++)
+            {
+                IReadOnlyList<UpgradeModifierConfig> modifiers = VariantOf(chooser.Choices[i].VariantId).Modifiers;
+
+                for (int m = 0; m < modifiers.Count; m++)
+                {
+                    UpgradeStat stat = modifiers[m].Stat;
+                    if (stat == UpgradeStat.Damage || stat == UpgradeStat.Cooldown || stat == UpgradeStat.MpCost)
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            return -1;
         }
 
         /// <summary>
@@ -1645,6 +1772,14 @@ namespace ProjectSurvive.Game.Tests.EditMode
         /// <summary>The battle loadout of a run, resolved by the same resolver the run itself uses.</summary>
         private CombatLoadoutSnapshot Loadout(RunSession run) =>
             new LoadoutResolver(_config, new SynergyEvaluator(_config)).Resolve(run.Backpack);
+
+        /// <summary>The run's resolved explanation of a piece — the tooltip's only source (Stage 09h).</summary>
+        private static PieceReadout Explain(RunSession run, PieceRef piece)
+        {
+            Result<PieceReadout> readout = run.ExplainPiece(piece);
+            Assert.That(readout.IsSuccess, Is.True, "the run must be able to explain its own piece: " + readout.Error);
+            return readout.Value;
+        }
 
         /// <summary>
         /// The numbers of a one-weapon loadout as one comparable line. Used to prove that two runs

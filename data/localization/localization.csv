@@ -120,7 +120,7 @@
 ,camp.category.unknown,ไม่ทราบชนิด,Unknown
 ,camp.tooltip.slots.format,ช่องใช้งาน {0} ช่อง,{0} usable slots
 ,camp.tooltip.tier.format,ระดับ {0}/{1},Tier {0}/{1}
-,camp.tooltip.stat.format,ดาเมจ {0} · คูลดาวน์ {1:0.#} วิ · ใช้สมาธิ {2},Damage {0} · cooldown {1:0.#}s · focus {2}
+,camp.tooltip.stat.format,ดาเมจ {0} · คูลดาวน์ {1:0.##} วิ · ใช้สมาธิ {2},Damage {0} · cooldown {1:0.##}s · focus {2}
 ,camp.tooltip.combo.format,คอมโบทำงาน {0} · ดาเมจ x{1:0.##} · คูลดาวน์ x{2:0.##},{0} active combos · damage x{1:0.##} · cooldown x{2:0.##}
 ,camp.tooltip.combo.none,ยังไม่มีคอมโบที่ทำงาน,No combo is active yet
 ,camp.tooltip.rules.format,คอมโบ: {0},Combos: {0}
@@ -191,3 +191,6 @@
 ,result.hp.format,HP คงเหลือ {0}/{1},HP left {0}/{1}
 ,result.restart,เริ่มรอบใหม่,Restart
 ,result.title,กลับหน้าแรก,Back to title
+,camp.tooltip.base.format,ค่าพื้นฐาน {0},Base {0}
+,camp.tooltip.minimum.format,คูลดาวน์ถึงขีดต่ำสุดแล้ว ({0:0.##} วิ),Cooldown is at its floor ({0:0.##}s)
+,camp.tooltip.upgrade.format,ระดับ {0} · {1}: {2},Tier {0} · {1}: {2}

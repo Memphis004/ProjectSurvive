@@ -126,20 +126,33 @@ namespace ProjectSurvive.Game.Presentation.Camp
         public ReactiveProperty<string> Instruction4 { get; } = new ReactiveProperty<string>(string.Empty);
 
         /// <summary>
-        /// The tooltip, one field per <b>line</b>: ชื่อ, ระดับ, สถานะ, คำอธิบาย, คอมโบที่ทำงานอยู่.
+        /// The tooltip, one field per <b>line</b>: ชื่อ, ระดับ, ค่าที่ใช้จริง, รุ่นย่อยที่เลือก,
+        /// คำอธิบาย, คอมโบที่ทำงานอยู่.
         /// </summary>
         /// <remarks>
-        /// Five fields rather than one string with newlines, because each line is a separate label
-        /// the tooltip hides when it is empty (a bag has no คำอธิบาย) and because a label whose text
-        /// was assembled by the view would be the view formatting, which AGENTS rule 10 forbids.
+        /// One field per line rather than one string with newlines, because each line is a separate
+        /// label the tooltip hides when it is empty (a bag has no คำอธิบาย, a charm has no upgrade
+        /// variant) and because a label whose text was assembled by the view would be the view
+        /// formatting, which AGENTS rule 10 forbids. A line may itself wrap onto several rows
+        /// (ค่าที่ใช้จริง prints the resolved row over the base row), which is the presenter's
+        /// decision and not the view's.
         /// </remarks>
         public ReactiveProperty<string> TooltipTitle { get; } = new ReactiveProperty<string>(string.Empty);
 
         /// <summary>ระดับ <c>t/max</c> of the hovered piece.</summary>
         public ReactiveProperty<string> TooltipTier { get; } = new ReactiveProperty<string>(string.Empty);
 
-        /// <summary>ดาเมจ · คูลดาวน์ · สมาธิ of the hovered piece, or its usable slots when it is a bag.</summary>
+        /// <summary>
+        /// The hovered piece's <b>resolved</b> ดาเมจ · คูลดาวน์ · สมาธิ over its table's base row, the
+        /// cooldown floor when it decided the value, or a bag's usable slots.
+        /// </summary>
         public ReactiveProperty<string> TooltipStatus { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>
+        /// รุ่นย่อยที่เลือก: one line per completed merge step that kept a variant, or empty for a
+        /// piece that has none (Stage 09h).
+        /// </summary>
+        public ReactiveProperty<string> TooltipUpgrades { get; } = new ReactiveProperty<string>(string.Empty);
 
         /// <summary>The item's own description text; empty for a piece whose table has none.</summary>
         public ReactiveProperty<string> TooltipDescription { get; } = new ReactiveProperty<string>(string.Empty);
@@ -275,6 +288,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             TooltipTitle.Dispose();
             TooltipTier.Dispose();
             TooltipStatus.Dispose();
+            TooltipUpgrades.Dispose();
             TooltipDescription.Dispose();
             TooltipCombos.Dispose();
             CanDepart.Dispose();

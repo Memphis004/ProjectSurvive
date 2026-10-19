@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using ProjectSurvive.Core.Application.Run;
@@ -11,6 +12,7 @@ using ProjectSurvive.Game.Presentation;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.Camp;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -374,6 +376,23 @@ namespace ProjectSurvive.Game.Editor
         private static void CaptureChooserFromMenu()
         {
             ChooserCaptureRun.Start();
+        }
+
+        /// <summary>
+        /// Shoots the camp tooltip before and after an upgrade, in Play Mode, where its labels carry
+        /// their real text (Stage 09h).
+        /// </summary>
+        /// <remarks>
+        /// The edit-mode capture cannot show this: every label in <c>Camp.unity</c> is empty until the
+        /// runtime writes it. This run starts a real camp, merges the starting weapon twice (choosing
+        /// a cooldown variant when the offer has one), and shoots the tooltip at tier 1 and tier 3 at
+        /// the Game View's own size — 1920×1080 here — with the strings it drew written into
+        /// <c>ui-report-tooltip.md</c> so the picture and the numbers can be read together.
+        /// </remarks>
+        [MenuItem("ProjectSurvive/Tools/4. Capture the tooltip before and after an upgrade (Play Mode)", priority = 133)]
+        private static void CaptureTooltipFromMenu()
+        {
+            TooltipCaptureRun.Start();
         }
 
         // ------------------------------------------------------------------
@@ -2265,6 +2284,801 @@ namespace ProjectSurvive.Game.Editor
                     _report, _clock.ElapsedMilliseconds, "-playmode",
                     "`ProjectSurvive/Tools/3. Capture the merge chooser in Play Mode (Camp)`",
                     title);
+            }
+        }
+
+        /// <summary>
+        /// The tooltip's numbers before and after an upgrade, shot in Play Mode — the one state the
+        /// edit-mode capture cannot show, because its labels are empty until the runtime fills them.
+        /// </summary>
+        private sealed class TooltipCaptureRun
+        {
+            private const int FrameBudget = 900;
+            private const int SettleFrames = 3;
+
+            /// <summary>
+            /// Session marker for "a capture is waiting for Play Mode". Entering Play Mode reloads the
+            /// script domain in this project (verified: <c>EditorSettings.enterPlayModeOptions</c> is
+            /// <c>None</c>), which drops both the static run and its <c>EditorApplication.update</c>
+            /// handler — so the run is re-created from this flag after the reload instead of dying with
+            /// the domain it started in.
+            /// </summary>
+            private const string PendingKey = "ProjectSurvive.TooltipCapture.Pending";
+
+            private static TooltipCaptureRun sRunning;
+
+            private readonly CaptureReport _report = new CaptureReport();
+            private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+            private readonly string _startedIn = SceneManager.GetActiveScene().path;
+
+            private Step _step;
+            private int _frames;
+            private int _waited;
+
+            private CampSceneDirector _director;
+            private CampBagScreenView _bag;
+            private CampTooltipView _tooltip;
+            private PieceRef _weapon;
+
+            private Vector2Int _size;
+            private Rect _rect;
+            private Texture2D _before;
+            private Texture2D _withoutTooltip;
+            private Texture2D _after;
+            private string[] _beforeTexts = new string[0];
+            private string[] _afterTexts = new string[0];
+
+            private enum Step
+            {
+                Prepare,
+                StartCamp,
+                OpenPanel,
+                Hover,
+                SettleBefore,
+                ShootBefore,
+                HideTooltip,
+                ShootHidden,
+                Upgrade,
+                HoverAgain,
+                SettleAfter,
+                ShootAfter,
+                Judge,
+                Done,
+            }
+
+            private TooltipCaptureRun(Step start)
+            {
+                _step = start;
+            }
+
+            /// <summary>Starts the run when one is not already in flight.</summary>
+            internal static void Start()
+            {
+                if (sRunning != null)
+                {
+                    Debug.LogWarning("[ProjectSurvive] the tooltip capture is already running.");
+                    return;
+                }
+
+                if (EditorApplication.isPlaying)
+                {
+                    Debug.LogWarning(
+                        "[ProjectSurvive] the tooltip capture starts from edit mode: leave play mode, then "
+                        + "run the menu item again.");
+                    return;
+                }
+
+                sRunning = new TooltipCaptureRun(Step.Prepare);
+                SessionState.SetBool(PendingKey, true);
+                EditorApplication.update += sRunning.Tick;
+            }
+
+            /// <summary>
+            /// Picks the run back up after the domain reload that entering Play Mode causes. A no-op
+            /// when no capture was waiting.
+            /// </summary>
+            [InitializeOnLoadMethod]
+            private static void ResumeAfterReload()
+            {
+                if (!SessionState.GetBool(PendingKey, false) || sRunning != null)
+                {
+                    return;
+                }
+
+                sRunning = new TooltipCaptureRun(Step.StartCamp);
+                EditorApplication.update += sRunning.Tick;
+            }
+
+            private void Tick()
+            {
+                _frames++;
+                _waited++;
+
+                if (_frames > FrameBudget)
+                {
+                    Fail("the run did not finish within " + FrameBudget + " frames");
+                    Finish();
+                }
+
+                try
+                {
+                    switch (_step)
+                    {
+                        case Step.Prepare:
+                            if (!EnsureOpen(CampScenePath, _report))
+                            {
+                                _report.Notes.Add("the camp scene could not be opened, so nothing was shot");
+                                Finish();
+                                return;
+                            }
+
+                            EditorApplication.isPlaying = true;
+                            Advance(Step.StartCamp);
+                            return;
+
+                        case Step.StartCamp:
+                        {
+                            if (!EditorApplication.isPlaying || EditorApplication.isCompiling)
+                            {
+                                return;
+                            }
+
+                            if (SceneManager.GetActiveScene().name != CampSceneName)
+                            {
+                                return;
+                            }
+
+                            _director = Object.FindFirstObjectByType<CampSceneDirector>();
+                            if (_director == null)
+                            {
+                                return;
+                            }
+
+                            if (!_director.TryStart())
+                            {
+                                Fail("the camp did not start: " + _director.StartError);
+                                Finish();
+                                return;
+                            }
+
+                            Advance(Step.OpenPanel);
+                            return;
+                        }
+
+                        case Step.OpenPanel:
+                        {
+                            _bag = Object.FindFirstObjectByType<CampBagScreenView>(FindObjectsInactive.Include);
+                            _tooltip = Object.FindFirstObjectByType<CampTooltipView>(FindObjectsInactive.Include);
+
+                            if (_bag == null || _tooltip == null)
+                            {
+                                Fail(
+                                    "the Camp scene is missing "
+                                    + (_bag == null ? "CampBagScreenView " : string.Empty)
+                                    + (_tooltip == null ? "CampTooltipView" : string.Empty));
+                                Finish();
+                                return;
+                            }
+
+                            _bag.ShowPanel(true);
+                            Canvas.ForceUpdateCanvases();
+                            Advance(Step.Hover);
+                            return;
+                        }
+
+                        case Step.Hover:
+                        {
+                            RunSession run = _director.Run;
+                            if (run == null || run.Backpack.Items.Count == 0)
+                            {
+                                Fail("the camp's run holds no item to hover");
+                                Finish();
+                                return;
+                            }
+
+                            _weapon = run.Backpack.Items[0].Ref;
+                            _director.Presenter.Hover(_weapon);
+                            Canvas.ForceUpdateCanvases();
+                            Advance(Step.SettleBefore);
+                            return;
+                        }
+
+                        case Step.SettleBefore:
+                        {
+                            if (_waited < SettleFrames)
+                            {
+                                return;
+                            }
+
+                            if (!_tooltip.Visible)
+                            {
+                                Fail("hovering the piece did not put the tooltip on screen");
+                                Finish();
+                                return;
+                            }
+
+                            if (!_tooltip.TryGetScreenRect(out _rect))
+                            {
+                                Fail("the tooltip did not report a rectangle, so nothing can be measured");
+                                Finish();
+                                return;
+                            }
+
+                            // The acceptance size is the tool's own, not the window's: the shot is
+                            // rendered into a 1920x1080 target below, so the report names the size it
+                            // really has even when the Editor is not that size.
+                            _size = CapturedSizes[0];
+                            _beforeTexts = Texts();
+                            Advance(Step.ShootBefore);
+                            return;
+                        }
+
+                        case Step.ShootBefore:
+                        {
+                            if (!Shoot(ref _before))
+                            {
+                                Finish();
+                                return;
+                            }
+
+                            // Take the tooltip away for one shot, so "it is drawn where it says" is a
+                            // measurement of the pixels rather than a claim about the rect.
+                            TooltipRoot().SetActive(false);
+                            Canvas.ForceUpdateCanvases();
+                            Advance(Step.HideTooltip);
+                            return;
+                        }
+
+                        case Step.HideTooltip:
+                        {
+                            if (_waited < SettleFrames)
+                            {
+                                return;
+                            }
+
+                            Advance(Step.ShootHidden);
+                            return;
+                        }
+
+                        case Step.ShootHidden:
+                        {
+                            if (!Shoot(ref _withoutTooltip))
+                            {
+                                Finish();
+                                return;
+                            }
+
+                            Advance(Step.Upgrade);
+                            return;
+                        }
+
+                        case Step.Upgrade:
+                        {
+                            RunSession run = _director.Run;
+
+                            if (!TryUpgrade(run, _weapon, out string failure))
+                            {
+                                Fail(failure);
+                                Finish();
+                                return;
+                            }
+
+                            // The tooltip must be republished from the run's new state: refresh the
+                            // screen, then take the pointer off and back on the same piece.
+                            _director.Presenter.Refresh();
+                            _director.Presenter.ClearHover();
+                            _director.Presenter.Hover(_weapon);
+                            Canvas.ForceUpdateCanvases();
+                            Advance(Step.HoverAgain);
+                            return;
+                        }
+
+                        case Step.HoverAgain:
+                        {
+                            if (!_tooltip.Visible)
+                            {
+                                Fail("the tooltip did not come back after the upgrade");
+                                Finish();
+                                return;
+                            }
+
+                            Advance(Step.SettleAfter);
+                            return;
+                        }
+
+                        case Step.SettleAfter:
+                        {
+                            if (_waited < SettleFrames)
+                            {
+                                return;
+                            }
+
+                            if (!_tooltip.TryGetScreenRect(out _rect))
+                            {
+                                Fail("the tooltip did not report a rectangle after the upgrade");
+                                Finish();
+                                return;
+                            }
+
+                            _afterTexts = Texts();
+                            Advance(Step.ShootAfter);
+                            return;
+                        }
+
+                        case Step.ShootAfter:
+                        {
+                            if (!Shoot(ref _after))
+                            {
+                                Finish();
+                                return;
+                            }
+
+                            Advance(Step.Judge);
+                            return;
+                        }
+
+                        case Step.Judge:
+                            Judge();
+                            Finish();
+                            return;
+
+                        case Step.Done:
+                            if (EditorApplication.isPlaying || _waited < SettleFrames)
+                            {
+                                return;
+                            }
+
+                            Complete();
+                            return;
+
+                        default:
+                            return;
+                    }
+                }
+                catch (Exception error)
+                {
+                    Fail(error.GetType().Name + ": " + error.Message);
+                    Finish();
+                }
+            }
+
+            private void Advance(Step next)
+            {
+                _step = next;
+                _waited = 0;
+            }
+
+            private void Finish()
+            {
+                EditorApplication.isPlaying = false;
+                _step = Step.Done;
+                _waited = 0;
+            }
+
+            private void Fail(string reason) => _report.Failures.Add("tooltip: " + reason);
+
+            /// <summary>The panel the tooltip draws on, for the "taken away" shot.</summary>
+            private GameObject TooltipRoot()
+            {
+                var fields = new SerializedObject(_tooltip);
+                return fields.FindProperty("_root")?.objectReferenceValue as GameObject;
+            }
+
+            private TextMeshProUGUI LabelNamed(string field)
+            {
+                var fields = new SerializedObject(_tooltip);
+                var property = fields.FindProperty(field);
+                return property?.objectReferenceValue as TextMeshProUGUI;
+            }
+
+            /// <summary>The six strings the tooltip is drawing, in the screen's own order.</summary>
+            private string[] Texts()
+            {
+                string[] fields =
+                {
+                    "_titleLabel", "_tierLabel", "_statusLabel", "_upgradesLabel",
+                    "_descriptionLabel", "_combosLabel",
+                };
+
+                var texts = new List<string>(fields.Length);
+
+                for (int i = 0; i < fields.Length; i++)
+                {
+                    TextMeshProUGUI label = LabelNamed(fields[i]);
+                    texts.Add(
+                        fields[i] + (label == null
+                            ? "=<missing label>"
+                            : label.gameObject.activeSelf ? "=\"" + label.text.Replace("\n", " | ") + "\"" : "=(hidden)"));
+                }
+
+                return texts.ToArray();
+            }
+
+            /// <summary>
+            /// Two merges through the run's own commands, preferring a cooldown variant at each step so
+            /// the after-shot shows a number that moved for a stated reason.
+            /// </summary>
+            private static bool TryUpgrade(RunSession run, PieceRef weapon, out string failure)
+            {
+                failure = string.Empty;
+
+                if (!run.Backpack.TryGetPiece(weapon, out PieceInstance? piece) || piece is not ItemInstance item)
+                {
+                    failure = "the hovered piece is not an item";
+                    return false;
+                }
+
+                string itemId = item.ItemId;
+
+                if (!MergeOne(run, weapon, itemId, out failure))
+                {
+                    return false;
+                }
+
+                // A tier-2 partner for the last step: two fresh copies folded together.
+                var a = run.Backpack.AddItem(itemId);
+                if (a.IsFailure)
+                {
+                    failure = "a copy of " + itemId + " could not be added: " + a.Error;
+                    return false;
+                }
+
+                if (!MergeOne(run, a.Value, itemId, out failure))
+                {
+                    return false;
+                }
+
+                return MergeOne(run, weapon, itemId, out failure, a.Value);
+            }
+
+            private static bool MergeOne(
+                RunSession run, PieceRef target, string itemId, out string failure, PieceRef? source = null)
+            {
+                failure = string.Empty;
+
+                PieceRef twin = source ?? default;
+                if (source is null)
+                {
+                    var added = run.Backpack.AddItem(itemId);
+                    if (added.IsFailure)
+                    {
+                        failure = "a copy of " + itemId + " could not be added: " + added.Error;
+                        return false;
+                    }
+
+                    twin = added.Value;
+                }
+
+                var offered = run.OfferMerge(twin, target);
+                if (offered.IsFailure)
+                {
+                    failure = "the merge offer was refused: " + offered.Error;
+                    return false;
+                }
+
+                string chosen = offered.Value.Options[0].Id;
+                for (int i = 0; i < offered.Value.Options.Count; i++)
+                {
+                    if (!TouchesCooldown(offered.Value.Options[i]))
+                    {
+                        continue;
+                    }
+
+                    chosen = offered.Value.Options[i].Id;
+                    break;
+                }
+
+                var merged = run.ConfirmMerge(twin, target, chosen);
+                if (merged.IsFailure)
+                {
+                    failure = "the merge was refused: " + merged.Error;
+                    return false;
+                }
+
+                return true;
+            }
+
+            private static bool TouchesCooldown(UpgradeVariantConfig variant)
+            {
+                for (int i = 0; i < variant.Modifiers.Count; i++)
+                {
+                    if (variant.Modifiers[i].Stat == UpgradeStat.Cooldown)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            /// <summary>
+            /// Renders one frame into a <see cref="_size"/>-sized target and reads it back.
+            /// </summary>
+            /// <remarks>
+            /// <para>
+            /// <c>ScreenCapture.CaptureScreenshotAsTexture</c> is deliberately not used: from an
+            /// unfocused Editor it comes back all black (measured in this stage: both shots were
+            /// 1920x1080 and one flat colour), which is also why the "is it drawn there" check
+            /// failed rather than passed. The rest of this tool already solves that by borrowing the
+            /// scene's camera: the root overlay canvases are switched to camera mode for the shot,
+            /// pointed at that camera, whose <c>targetTexture</c> is a render texture of exactly the
+            /// size being measured. The tooltip and the camp are then drawn by the same camera that
+            /// draws the game, in one pass, in the Editor and regardless of window focus.
+            /// </para>
+            /// <para>
+            /// The tooltip's rectangle is re-measured in the target's pixels while the canvases are
+            /// in that mode, so the pixels the painted check samples and the rectangle the report
+            /// prints are of the same frame.
+            /// </para>
+            /// </remarks>
+            private bool Shoot(ref Texture2D into)
+            {
+                Canvas.ForceUpdateCanvases();
+
+                Camera camera = Camera.main;
+                if (camera == null)
+                {
+                    Fail("the Camp scene has no MainCamera to render the shot with");
+                    return false;
+                }
+
+                var borrowed = new List<(Canvas Canvas, RenderMode Mode, Camera Camera, float Plane)>();
+                RenderTexture target = RenderTexture.GetTemporary(
+                    _size.x, _size.y, 24, RenderTextureFormat.ARGB32);
+                RenderTexture previousTarget = camera.targetTexture;
+                Texture2D shot = null;
+
+                try
+                {
+                    Canvas[] canvases = Object.FindObjectsByType<Canvas>(
+                        FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+                    for (int i = 0; i < canvases.Length; i++)
+                    {
+                        Canvas canvas = canvases[i];
+                        if (canvas.rootCanvas != canvas
+                            || canvas.renderMode != RenderMode.ScreenSpaceOverlay
+                            || !canvas.gameObject.activeInHierarchy)
+                        {
+                            continue;
+                        }
+
+                        borrowed.Add((canvas, canvas.renderMode, canvas.worldCamera, canvas.planeDistance));
+                        canvas.renderMode = RenderMode.ScreenSpaceCamera;
+                        canvas.worldCamera = camera;
+                        canvas.planeDistance = camera.nearClipPlane + 1f;
+                    }
+
+                    camera.targetTexture = target;
+                    Canvas.ForceUpdateCanvases();
+
+                    RectTransform panel = TooltipRoot()?.transform as RectTransform;
+                    Rect measured = ScreenRectOf(panel, camera);
+                    if (measured.width > 0f && measured.height > 0f)
+                    {
+                        _rect = measured;
+                    }
+
+                    camera.Render();
+
+                    shot = new Texture2D(_size.x, _size.y, TextureFormat.RGBA32, false);
+                    RenderTexture previous = RenderTexture.active;
+                    RenderTexture.active = target;
+                    shot.ReadPixels(new Rect(0f, 0f, _size.x, _size.y), 0, 0);
+                    shot.Apply();
+                    RenderTexture.active = previous;
+                }
+                catch (Exception error)
+                {
+                    Fail("the frame could not be rendered (" + error.GetType().Name + ": " + error.Message + ")");
+                    return false;
+                }
+                finally
+                {
+                    camera.targetTexture = previousTarget;
+
+                    for (int i = 0; i < borrowed.Count; i++)
+                    {
+                        borrowed[i].Canvas.renderMode = borrowed[i].Mode;
+                        borrowed[i].Canvas.worldCamera = borrowed[i].Camera;
+                        borrowed[i].Canvas.planeDistance = borrowed[i].Plane;
+                    }
+
+                    RenderTexture.ReleaseTemporary(target);
+                    Canvas.ForceUpdateCanvases();
+                }
+
+                if (shot == null)
+                {
+                    Fail("the frame produced no texture");
+                    return false;
+                }
+
+                into = shot;
+                return true;
+            }
+
+            /// <summary>
+            /// The stage's verdict: the tooltip stays on screen, the two shots differ, the after-shot
+            /// names a variant and prints the resolved cooldown the read model reports, and the pixels
+            /// inside the tooltip's rectangle change when it is taken away.
+            /// </summary>
+            private void Judge()
+            {
+                var regions = new List<UiRegion> { new UiRegion(UiLayoutCheck.Tooltip, _rect, UiRegionKind.Overlay) };
+                CheckInside(regions, _size, "tooltip", _report);
+
+                _report.Notes.Add("drawing before the upgrade: " + string.Join(" | ", _beforeTexts));
+                _report.Notes.Add("drawing after the upgrade:  " + string.Join(" | ", _afterTexts));
+
+                string before = string.Join("\n", _beforeTexts);
+                string after = string.Join("\n", _afterTexts);
+
+                if (before == after)
+                {
+                    Fail("the tooltip says the same thing before and after the upgrade");
+                }
+
+                RunSession run = _director.Run;
+                var readout = run.ExplainPiece(_weapon);
+                if (readout.IsFailure)
+                {
+                    Fail("the run cannot explain the hovered piece: " + readout.Error);
+                    return;
+                }
+
+                PieceReadout explained = readout.Value;
+                _report.Notes.Add(
+                    "resolved after the upgrade: tier " + explained.Tier
+                    + ", damage " + explained.Resolved.Damage + " (base " + explained.Base.Damage + ")"
+                    + ", cooldown " + explained.Resolved.CooldownSeconds.ToString("0.###")
+                    + " (base " + explained.Base.CooldownSeconds.ToString("0.###") + ")"
+                    + ", focus " + explained.Resolved.MpCost + " (base " + explained.Base.MpCost + ")"
+                    + ", steps " + explained.Steps.Count
+                    + ", combos " + explained.ComboRuleIds.Count
+                    + ", min_cooldown " + explained.MinCooldownSeconds.ToString("0.###")
+                    + " (at minimum: " + explained.CooldownAtMinimum + ")");
+
+                if (explained.Steps.Count == 0)
+                {
+                    Fail("the piece has no upgrade step after two merges");
+                }
+
+                TextMeshProUGUI statusLabel = LabelNamed("_statusLabel");
+                TextMeshProUGUI upgradesLabel = LabelNamed("_upgradesLabel");
+                string cooldown = explained.Resolved.CooldownSeconds.ToString("0.##", CultureInfo.InvariantCulture);
+
+                if (statusLabel == null || !statusLabel.text.Contains(cooldown, StringComparison.Ordinal))
+                {
+                    Fail(
+                        "the สถานะ line does not print the resolved cooldown " + cooldown + ": "
+                        + (statusLabel == null ? "<no label>" : statusLabel.text));
+                }
+
+                if (upgradesLabel == null || !upgradesLabel.gameObject.activeSelf
+                    || string.IsNullOrEmpty(upgradesLabel.text))
+                {
+                    Fail("the รุ่นย่อย line is not drawn after the upgrade");
+                }
+
+                try
+                {
+                    _report.Notes.Add("painted: " + PaintedProof());
+                }
+                catch (Exception error)
+                {
+                    _report.Notes.Add(
+                        "the shots' pixels could not be read (" + error.GetType().Name + ": "
+                        + error.Message + "), so the pixel proof is missing");
+                }
+
+                string size = _size.x + "x" + _size.y;
+                byte[] png = Save(_before, "stage09h-tooltip-before-" + size + ".png");
+                if (png == null)
+                {
+                    return;
+                }
+
+                Save(_after, "stage09h-tooltip-after-" + size + ".png");
+
+                _report.Shots.Add(new Shot(
+                    SceneKind.Camp, "tooltip", "stage09h-tooltip-after-" + size + ".png",
+                    _size.x, _size.y, png.Length, _clock.ElapsedMilliseconds, regions, new List<string>()));
+            }
+
+            /// <summary>
+            /// Five points inside the tooltip's own rectangle have to change when it is taken away —
+            /// "drawn there" rather than "measured there".
+            /// </summary>
+            private string PaintedProof()
+            {
+                if (_before == null || _withoutTooltip == null)
+                {
+                    return "not measured (a shot is missing)";
+                }
+
+                var points = new Vector2[5];
+                points[0] = _rect.center;
+                points[1] = new Vector2(Mathf.Lerp(_rect.xMin, _rect.xMax, 0.25f), Mathf.Lerp(_rect.yMin, _rect.yMax, 0.25f));
+                points[2] = new Vector2(Mathf.Lerp(_rect.xMin, _rect.xMax, 0.75f), Mathf.Lerp(_rect.yMin, _rect.yMax, 0.25f));
+                points[3] = new Vector2(Mathf.Lerp(_rect.xMin, _rect.xMax, 0.25f), Mathf.Lerp(_rect.yMin, _rect.yMax, 0.75f));
+                points[4] = new Vector2(Mathf.Lerp(_rect.xMin, _rect.xMax, 0.75f), Mathf.Lerp(_rect.yMin, _rect.yMax, 0.75f));
+
+                int moved = 0;
+                for (int i = 0; i < points.Length; i++)
+                {
+                    Color shown = _before.GetPixel(
+                        Mathf.Clamp(Mathf.RoundToInt(points[i].x), 0, _before.width - 1),
+                        Mathf.Clamp(Mathf.RoundToInt(points[i].y), 0, _before.height - 1));
+                    Color behind = _withoutTooltip.GetPixel(
+                        Mathf.Clamp(Mathf.RoundToInt(points[i].x), 0, _withoutTooltip.width - 1),
+                        Mathf.Clamp(Mathf.RoundToInt(points[i].y), 0, _withoutTooltip.height - 1));
+
+                    if (Distance(shown, behind) > OverlayPixelProofFloor)
+                    {
+                        moved++;
+                    }
+                }
+
+                if (moved == 0)
+                {
+                    Fail(
+                        "none of the " + points.Length + " sample points inside the tooltip changed when it was "
+                        + "taken away, so it is not drawn where it says");
+                }
+
+                return moved + " of " + points.Length + " sample points inside the tooltip changed when it was "
+                    + "taken away (floor " + OverlayPixelProofFloor.ToString("0.###") + ")";
+            }
+
+            private byte[] Save(Texture2D texture, string fileName)
+            {
+                if (texture == null)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    byte[] png = texture.EncodeToPNG();
+                    File.WriteAllBytes(Path.Combine(OutputDirectory, fileName), png);
+                    return png;
+                }
+                catch (Exception error)
+                {
+                    Fail("could not write " + fileName + ": " + error.Message);
+                    return null;
+                }
+            }
+
+            private void Complete()
+            {
+                EditorApplication.update -= Tick;
+                sRunning = null;
+
+                if (_before != null)
+                {
+                    Object.DestroyImmediate(_before);
+                }
+
+                if (_withoutTooltip != null)
+                {
+                    Object.DestroyImmediate(_withoutTooltip);
+                }
+
+                if (_after != null)
+                {
+                    Object.DestroyImmediate(_after);
+                }
+
+                RestoreScene(_startedIn, _report);
+
+                SessionState.EraseBool(PendingKey);
+
+                WriteReports(
+                    _report, _clock.ElapsedMilliseconds, "-tooltip",
+                    "`ProjectSurvive/Tools/4. Capture the tooltip before and after an upgrade (Play Mode)`",
+                    "the tooltip's resolved numbers, in Play Mode" + (_size.x > 0 ? " (" + _size.x + "x" + _size.y + ")" : string.Empty));
             }
         }
 

@@ -19,15 +19,15 @@ need to run, and the Web build moved behind the Full suite.
 | --- | --- | --- |
 | `toolchain: .NET SDK` | Fast | an SDK ≥ 8 is present |
 | `dotnet build` | Fast | every `lib/` layer, the xUnit project and the Sim compile |
-| `dotnet test (xUnit)` | Fast | 510 tests: the rule engine, the architecture guards, the contract suites, the Sim |
+| `dotnet test (xUnit)` | Fast | 519 tests: the rule engine, the architecture guards, the contract suites, the Sim |
 | `sim: determinism` | Fast | the same seed prints the same `determinismDigest` twice, a different seed does not |
 | `sim: stream separation` | Fast | shop / battle / visual digests differ, `ticksProduced=300` |
 | `sim: bot smoke run` | Fast | the kiting bot plays 2 seeds and writes balance rows |
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 21 broken data sets rejected for the right reason |
-| `unity: EditMode` | Fast | 155 tests in `ProjectSurvive.Game.Tests.EditMode` |
-| `unity: PlayMode` | **Full** | 47 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
+| `unity: EditMode` | Fast | 156 tests in `ProjectSurvive.Game.Tests.EditMode` |
+| `unity: PlayMode` | **Full** | 48 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
 | `web: Playwright (smoke + title + battle + camp + result)` | **Full** | 10 browser tests against that build, in Chrome (13 more are the opt-in screenshot generator, skipped unless `SCREENS=1`) |
 
@@ -124,6 +124,18 @@ Its PlayMode evidence is per class again, for the reason in §7: the bulk payloa
 ambient-log failures both before and after the change, and the eight classes are **46/46** on their own
 (`artifacts/stage10t/playmode-<Class>.json`). The pre-change bulk run matters here: a refactor that
 claims "no behaviour change" is only as good as the failure set it inherited.
+
+Stage 09h (2026-10-19) moved three counts: `dotnet test` **510 → 519** (`PieceReadoutTests` 8 +
+one case in `ConfigLoadTests` for the three new localization rows), EditMode **155 → 156** (the
+tooltip's resolved-row test in `CampPresenterTests`) and PlayMode **47 → 48** (the resolved-numbers
+case in `CampBagDragPlayModeTests`), while Playwright stayed **10**. Its `-Suite Fast` run is
+`artifacts/stage09h/fast.log` — **PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**, 107.9 s, `dotnet test`
+**519 passed** and EditMode **156/156** — and its Editor-open Full run
+(`artifacts/stage09h/full.log`) is **PASS 10 | FAIL 1 | NOT RUN 2**: the one FAIL is the bulk PlayMode
+flake of §7 (**22/48**), and the two fixtures this stage can affect were run on their own and are green
+— `CampBagDragPlayModeTests` **12/12** (`artifacts/stage09h/playmode-camp.json`) and
+`CampMergeChooserPlayModeTests` **4/4** (`artifacts/stage09h/playmode-chooser.json`). WebGL and
+Playwright are NOT RUN (Editor lock; 09h is not a gate stage).
 
 Stage 10's own gate is Full, and it is **two runs**: Full with the Editor **open**
 (`artifacts/stage10/full-suite-editor-open.log`) reports EditMode and PlayMode and NOT RUNs both web

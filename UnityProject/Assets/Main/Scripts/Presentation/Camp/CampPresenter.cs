@@ -44,6 +44,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private readonly CampUiState _state;
         private readonly StringBuilder _builder = new StringBuilder(192);
 
+        /// <summary>Second builder for a line inside a line (a step's comma-separated changes).</summary>
+        private readonly StringBuilder _detail = new StringBuilder(96);
+
         private readonly List<CampPieceModel> _pieces = new List<CampPieceModel>(32);
         private readonly List<CellOffset> _highlight = new List<CellOffset>(48);
         private readonly CampShopSlotModel[] _shop;
@@ -69,11 +72,11 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private static readonly CampLink[] NoLinks = new CampLink[0];
 
         /// <summary>
-        /// The merge chooser's scratch: the five source lines of the piece being upgraded, the cards
+        /// The merge chooser's scratch: the source lines of the piece being upgraded, the cards
         /// built for the offer, and each card's stat lines. Reused, because opening the chooser must
         /// not allocate a fresh list per open (Stage 09g).
         /// </summary>
-        private readonly List<string> _sourceScratch = new List<string>(5);
+        private readonly List<string> _sourceScratch = new List<string>(6);
         private readonly List<CampMergeChoiceModel> _choiceScratch = new List<CampMergeChoiceModel>(4);
         private readonly List<string> _changeScratch = new List<string>(4);
         private readonly List<bool> _improveScratch = new List<bool>(4);
@@ -758,17 +761,20 @@ namespace ProjectSurvive.Game.Presentation.Camp
         }
 
         /// <summary>
-        /// The five lines the tooltip shows for a piece, in order: ชื่อ, ระดับ, สถานะ, คำอธิบาย,
-        /// คอมโบที่ทำงานอยู่. One producer for both the tooltip and the chooser's left panel, which is
-        /// what "เนื้อหาเดียวกับ tooltip" means in practice.
+        /// The six lines the tooltip shows for a piece, in order: ชื่อ, ระดับ, ค่าที่ใช้จริง,
+        /// รุ่นย่อยที่เลือก, คำอธิบาย, คอมโบที่ทำงานอยู่. One producer for both the tooltip and the
+        /// chooser's left panel, which is what "เนื้อหาเดียวกับ tooltip" means in practice.
         /// </summary>
         private void CollectSourceLines(CampPieceModel model, List<string> lines)
         {
+            PieceReadout readout = ReadoutOf(model.Piece);
+
             lines.Add(model.Name);
             lines.Add(TierLine(model));
-            lines.Add(StatusLine(model));
+            lines.Add(StatusLine(model, readout));
+            lines.Add(UpgradesLine(readout));
             lines.Add(DescriptionLine(model));
-            lines.Add(ComboLine(model));
+            lines.Add(ComboLine(readout));
         }
 
         /// <summary>The model of a piece the screen already built, or a default when it is unknown.</summary>
@@ -1361,15 +1367,32 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
-            // One field per line: ชื่อ, ระดับ, สถานะ, คำอธิบาย, คอมโบที่ทำงานอยู่. The view puts each in
-            // its own label and hides the ones that are empty, so nothing composes a second string
-            // from these.
+            // One field per line: ชื่อ, ระดับ, ค่าที่ใช้จริง, รุ่นย่อยที่เลือก, คำอธิบาย, คอมโบที่
+            // ทำงานอยู่. Every number comes from the run's resolved read model (Stage 09h); the
+            // presenter formats, and the view assigns. Nothing here reads a skill row.
+            PieceReadout readout = ReadoutOf(model.Piece);
+
             CampUiState.Set(_state.TooltipTitle, model.Name);
             CampUiState.Set(_state.TooltipTier, TierLine(model));
-            CampUiState.Set(_state.TooltipStatus, StatusLine(model));
+            CampUiState.Set(_state.TooltipStatus, StatusLine(model, readout));
+            CampUiState.Set(_state.TooltipUpgrades, UpgradesLine(readout));
             CampUiState.Set(_state.TooltipDescription, DescriptionLine(model));
-            CampUiState.Set(_state.TooltipCombos, ComboLine(model));
+            CampUiState.Set(_state.TooltipCombos, ComboLine(readout));
             CampUiState.Set(_state.TooltipVisible, true);
+        }
+
+        /// <summary>
+        /// The run's resolved explanation of a piece, or null when the run does not hold it.
+        /// </summary>
+        /// <remarks>
+        /// The one source for every number the tooltip and the chooser's left panel print. The
+        /// loadout behind it is cached per bag revision, so a hover costs one evaluation and no
+        /// recompute of the snapshot.
+        /// </remarks>
+        private PieceReadout ReadoutOf(PieceRef piece)
+        {
+            Result<PieceReadout> readout = _run.ExplainPiece(piece);
+            return readout.IsSuccess ? readout.Value : null;
         }
 
         /// <summary>ระดับ <c>t/max</c> — the piece's own tier, which a merge raised, not the table's.</summary>
@@ -1377,10 +1400,16 @@ namespace ProjectSurvive.Game.Presentation.Camp
             Format("camp.tooltip.tier.format", model.Tier, _config.Constant.MaxTier);
 
         /// <summary>
-        /// สถานะ: ดาเมจ · คูลดาวน์ · สมาธิ for a piece that casts, its usable slots for a bag, and the
-        /// category name for a piece that does neither.
+        /// สถานะ: the numbers the battle will use, the table's own numbers beside them, and (when it
+        /// decided) the cooldown floor — for a piece that casts. A bag shows its usable slots and a
+        /// piece that casts nothing shows its category.
         /// </summary>
-        private string StatusLine(CampPieceModel model)
+        /// <remarks>
+        /// These are the <b>resolved</b> numbers: tier upgrades and active combos applied. Before
+        /// Stage 09h this line read the <c>skill</c> row, which is why a piece at 3/3 showed its 1/1
+        /// damage and a −15 % cooldown variant changed nothing on screen.
+        /// </remarks>
+        private string StatusLine(CampPieceModel model, PieceReadout readout)
         {
             if (model.IsBag)
             {
@@ -1394,12 +1423,105 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return string.Empty;
             }
 
-            if (!string.IsNullOrEmpty(item.SkillId) && _config.TryGetSkill(item.SkillId, out SkillConfig skill))
+            if (readout == null || !readout.Casts)
             {
-                return Format("camp.tooltip.stat.format", skill.Damage, skill.CooldownSeconds, skill.MpCost);
+                return Lookup(CategoryKey(item.Category));
             }
 
-            return Lookup(CategoryKey(item.Category));
+            _builder.Clear();
+            _builder.Append(Format(
+                "camp.tooltip.stat.format",
+                readout.Resolved.Damage,
+                readout.Resolved.CooldownSeconds,
+                readout.Resolved.MpCost));
+
+            // The base row is drawn beside it so a tier-3 piece says what it changed from rather
+            // than making the player remember 1/1.
+            _builder.Append('\n');
+            _builder.Append(Format(
+                "camp.tooltip.base.format",
+                Format(
+                    "camp.tooltip.stat.format",
+                    readout.Base.Damage,
+                    readout.Base.CooldownSeconds,
+                    readout.Base.MpCost)));
+
+            if (readout.CooldownAtMinimum)
+            {
+                _builder.Append('\n');
+                _builder.Append(Format("camp.tooltip.minimum.format", readout.MinCooldownSeconds));
+            }
+
+            return _builder.ToString();
+        }
+
+        /// <summary>
+        /// รุ่นย่อยที่เลือก: one line per merge step that kept a variant — the step's new tier, the
+        /// variant's name and the stats it changed.
+        /// </summary>
+        /// <remarks>
+        /// A step with <b>no</b> variant (a charm's immediate fold) contributes no line at all: the
+        /// tier line already says the piece went up, and inventing an effect for a step that has none
+        /// is what this stage exists to stop.
+        /// </remarks>
+        private string UpgradesLine(PieceReadout readout)
+        {
+            if (readout == null || readout.Steps.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            _builder.Clear();
+
+            for (int i = 0; i < readout.Steps.Count; i++)
+            {
+                PieceUpgradeStep step = readout.Steps[i];
+                if (!step.HasVariant)
+                {
+                    continue;
+                }
+
+                if (_builder.Length > 0)
+                {
+                    _builder.Append('\n');
+                }
+
+                _builder.Append(Format(
+                    "camp.tooltip.upgrade.format",
+                    step.ToTier,
+                    Lookup(step.NameKey),
+                    StepsOf(step.Modifiers)));
+            }
+
+            return _builder.ToString();
+        }
+
+        /// <summary>
+        /// One step's changes, written by the same two helpers the upgrade card uses
+        /// (<see cref="StatKey"/> and <see cref="ModifierValue"/> through
+        /// <c>camp.merge.change.format</c>), so a step cannot read one way on a card and another in
+        /// the tooltip.
+        /// </summary>
+        private string StepsOf(IReadOnlyList<UpgradeModifierConfig> modifiers)
+        {
+            _detail.Clear();
+
+            for (int i = 0; i < modifiers.Count; i++)
+            {
+                UpgradeModifierConfig modifier = modifiers[i];
+
+                if (_detail.Length > 0)
+                {
+                    _detail.Append(" · ");
+                }
+
+                _detail.Append(Format(
+                    "camp.merge.change.format",
+                    Lookup(StatKey(modifier.Stat)),
+                    ModifierValue(modifier)));
+            }
+
+            return _detail.ToString();
         }
 
         /// <summary>
@@ -1418,40 +1540,34 @@ namespace ProjectSurvive.Game.Presentation.Camp
             return Lookup(item.DescriptionKey);
         }
 
-        private string ComboLine(CampPieceModel model)
+        /// <summary>คอมโบที่ทำงานอยู่: the totals and the rule names, both from the read model.</summary>
+        private string ComboLine(PieceReadout readout)
         {
-            SynergyEvaluation layout = CachedLayout();
-            ItemModifiers modifiers = layout.For(model.Piece.InstanceId);
+            if (readout == null)
+            {
+                return Lookup("camp.tooltip.combo.none");
+            }
 
             _builder.Clear();
 
-            if (modifiers.ActiveSynergyCount > 0)
+            if (readout.ActiveSynergyCount > 0)
             {
                 _builder.Append(Format(
                     "camp.tooltip.combo.format",
-                    modifiers.ActiveSynergyCount,
-                    modifiers.DamageMultiplier,
-                    modifiers.CooldownMultiplier));
+                    readout.ActiveSynergyCount,
+                    readout.DamageMultiplier,
+                    readout.CooldownMultiplier));
             }
 
-            IReadOnlyList<ActiveSynergy> active = layout.Active;
-            for (int i = 0; i < active.Count; i++)
+            IReadOnlyList<string> rules = readout.ComboRuleIds;
+            for (int i = 0; i < rules.Count; i++)
             {
-                ActiveSynergy synergy = active[i];
-                bool involved = synergy.TargetInstanceId == model.Piece.InstanceId
-                    || synergy.SourceInstanceId == model.Piece.InstanceId;
-
-                if (!involved)
-                {
-                    continue;
-                }
-
                 if (_builder.Length > 0)
                 {
                     _builder.Append(" · ");
                 }
 
-                _builder.Append(RuleName(synergy.RuleId));
+                _builder.Append(RuleName(rules[i]));
             }
 
             if (_builder.Length == 0)

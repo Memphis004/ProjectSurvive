@@ -34,13 +34,20 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **10** | **Full loop (vertical slice)** | **DONE** — see [`docs/stages/10-report.md`](docs/stages/10-report.md); the systems note is [`llmwiki/systems/loop-and-scopes.md`](llmwiki/systems/loop-and-scopes.md) |
 | **10d** | **Title screen and its start control** | **DONE** — see [`docs/stages/10d-report.md`](docs/stages/10d-report.md), [ADR 0022](docs/adr/0022-the-title-starts-a-run.md) |
 | **10t** | **Shared generic buffers and per-scene builders (template groundwork)** | **DONE** — see [`docs/stages/10t-report.md`](docs/stages/10t-report.md), [ADR 0024](docs/adr/0024-shared-generic-buffers.md) |
+| **09h** | **The tooltip's numbers follow the upgrade** | **DONE** — see [`docs/stages/09h-report.md`](docs/stages/09h-report.md) |
 | 11 | Thai ghost AI, Pob boss, balance | not started |
 | 12 | Save, resume, settings | not started |
 | 13 | Content complete & UX | not started |
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
-**Current state:** Stages 00–10, plus **09d** (a measurement pass over 09's Thai text: the font every
+**Current state:** Stages 00–10, plus **09h** (the camp tooltip no longer reads a `skill` row: it quotes
+an Application read model, `RunSession.ExplainPiece` → `LoadoutResolver.TryExplain` → `PieceReadout`,
+which copies the resolved numbers out of the very `WeaponLoadout` the next floor receives — so a 3/3
+piece prints 15 damage / 0.77 s cooldown beside its base 10 / 0.9, one line per confirmed upgrade
+variant, the combos acting on it, and a note when `constant.min_cooldown_seconds` is what held the
+number; the upgrade window's left column is built by the same producer, so the two cannot disagree),
+and **09d** (a measurement pass over 09's Thai text: the font every
 canvas uses is `Sarabun-Regular SDF`, the ≥ 22 px floor is a **1080p-base** statement — at 1280×720
 every canvas label is drawn at two-thirds of it, measured — and the world-space shelf labels are
 12 px tall at best, which is a different rule and still open), **09e** (the จัดย่าม layout and
@@ -91,14 +98,16 @@ and correct-looking capture shots all missed it, because the capture tool finds 
 builds it itself), and the layout work is judged by the existing overlap rule rather than by an eye:
 `UiLayoutCheck` gained the battle HUD's six surfaces and the controls inside them, and the capture
 command reports **0 overlaps over 36 battle regions per state per size** at 1920 × 1080 and 1280 × 720.
-**497 xUnit tests pass** (57 Stage 01, 73
+**519 xUnit tests pass** (57 Stage 01, 73
 Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05,
 44 Stage 06, 28 Stage 07, 11 Stage 09, the 8 the carried-item rule added in Stage 09f, the 33
 the upgrade choice added — 31 for the engine and the chooser's own rules, 2 for the stat-direction
 rule the window colours a card line from — and the 11 the cooldown frame added in Stage 08b: a shared
 suite of 4 cases that runs twice, one case per factory, and the three that check the list's lifetime and
 bound at the buffer and the board id at its only producer, and the 16 Stage 10t added with the Shared
-ring and double buffer — 9 and 7, including a zero-allocation measurement per write and per read). The bag rules, the combo rules, the economy, the run/scene flow
+ring and double buffer — 9 and 7, including a zero-allocation measurement per write and per read — plus
+the 8 Stage 09h added for the tooltip's read model, and the one `ConfigLoadTests` row count its three
+new localization strings moved). The bag rules, the combo rules, the economy, the run/scene flow
 and the **battle simulation** are real code now: `Domain/Combat/Battle` and `Application`
 hold the battle **contract** (v1) — which the fake implements as a contract exercise — and
 `lib/Runtime/Simulation` holds the real EcsLite battle that implements it, reached only

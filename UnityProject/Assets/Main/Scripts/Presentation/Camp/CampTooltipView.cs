@@ -11,8 +11,8 @@ using VContainer.Unity;
 namespace ProjectSurvive.Game.Presentation.Camp
 {
     /// <summary>
-    /// The piece tooltip: ชื่อ, ระดับ, สถานะ, คำอธิบาย, คอมโบที่ทำงานอยู่ — one label per line, on its
-    /// own canvas that draws above the whole camp screen.
+    /// The piece tooltip: ชื่อ, ระดับ, ค่าที่ใช้จริง, รุ่นย่อยที่เลือก, คำอธิบาย, คอมโบที่ทำงานอยู่ —
+    /// one label per line, on its own canvas that draws above the whole camp screen.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -28,10 +28,11 @@ namespace ProjectSurvive.Game.Presentation.Camp
     /// it carries no <c>GraphicRaycaster</c> and every graphic in it has <c>raycastTarget</c> off.
     /// </para>
     /// <para>
-    /// <b>Five fields, five lines.</b> Each string is composed by <see cref="CampPresenter"/> from
-    /// localization and from numbers the run already resolved; the view assigns them and hides the
-    /// lines that are empty (a bag has no คำอธิบาย). A view that joined them or formatted them would
-    /// be a second formatting path, which AGENTS rule 10 forbids.
+    /// <b>One field per line.</b> Each string is composed by <see cref="CampPresenter"/> from
+    /// localization and from the run's resolved read model (Stage 09h); the view assigns them and
+    /// hides the lines that are empty (a bag has no คำอธิบาย, a charm has no upgrade variant). A view
+    /// that joined them or formatted them would be a second formatting path, which AGENTS rule 10
+    /// forbids.
     /// </para>
     /// <para>
     /// The pointer is read only while the tooltip is on screen, and the placement is
@@ -47,6 +48,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
         [SerializeField] private TMP_Text _titleLabel;
         [SerializeField] private TMP_Text _tierLabel;
         [SerializeField] private TMP_Text _statusLabel;
+        [SerializeField] private TMP_Text _upgradesLabel;
         [SerializeField] private TMP_Text _descriptionLabel;
         [SerializeField] private TMP_Text _combosLabel;
 
@@ -103,6 +105,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             Subscribe(_state.TooltipTitle, _titleLabel);
             Subscribe(_state.TooltipTier, _tierLabel);
             Subscribe(_state.TooltipStatus, _statusLabel);
+            Subscribe(_state.TooltipUpgrades, _upgradesLabel);
             Subscribe(_state.TooltipDescription, _descriptionLabel);
             Subscribe(_state.TooltipCombos, _combosLabel);
         }

@@ -437,22 +437,27 @@ namespace ProjectSurvive.Game.Editor
             // writes this rect's anchoredPosition in the same units, so what a test measures is what
             // the view set. The initial position is the margin, which is where an unhovered tooltip
             // would sit if anything showed it.
+            // Stage 09h widened and heightened the panel: the ค่าที่ใช้จริง block carries the resolved
+            // row, the base row and (when it decided the number) the cooldown floor, and the upgrade
+            // block carries one line per merge step.
             RectTransform panel = ProjectSetup.CreateUiRect(
                 canvasRect, "TooltipPanel", Vector2.zero, Vector2.zero,
                 new Vector2(CampTooltipPlacement.Margin, CampTooltipPlacement.Margin),
-                new Vector2(440f, 330f));
+                new Vector2(460f, 500f));
 
             var background = panel.gameObject.AddComponent<Image>();
             background.color = new Color(0.04f, 0.05f, 0.07f, 0.95f);
             background.raycastTarget = false;
 
-            TMP_Text title = ProjectSetup.CreateUiText(panel, "TooltipTitle", new Vector2(14f, -10f), new Vector2(412f, 34f), ProjectSetup.UiFontSize + 4f, font);
+            TMP_Text title = ProjectSetup.CreateUiText(panel, "TooltipTitle", new Vector2(14f, -10f), new Vector2(432f, 34f), ProjectSetup.UiFontSize + 4f, font);
             title.color = new Color(1f, 0.85f, 0.45f, 1f);
-            TMP_Text tier = ProjectSetup.CreateUiText(panel, "TooltipTier", new Vector2(14f, -46f), new Vector2(412f, 28f), ProjectSetup.UiFontSize, font);
-            TMP_Text status = ProjectSetup.CreateUiText(panel, "TooltipStatus", new Vector2(14f, -78f), new Vector2(412f, 30f), ProjectSetup.UiFontSize, font);
-            TMP_Text description = ProjectSetup.CreateUiText(panel, "TooltipDescription", new Vector2(14f, -114f), new Vector2(412f, 96f), ProjectSetup.UiFontSize, font);
+            TMP_Text tier = ProjectSetup.CreateUiText(panel, "TooltipTier", new Vector2(14f, -46f), new Vector2(432f, 28f), ProjectSetup.UiFontSize, font);
+            TMP_Text status = ProjectSetup.CreateUiText(panel, "TooltipStatus", new Vector2(14f, -78f), new Vector2(432f, 84f), ProjectSetup.UiFontSize, font);
+            TMP_Text upgrades = ProjectSetup.CreateUiText(panel, "TooltipUpgrades", new Vector2(14f, -166f), new Vector2(432f, 84f), ProjectSetup.UiFontSize, font);
+            upgrades.color = new Color(0.75f, 0.9f, 0.75f, 1f);
+            TMP_Text description = ProjectSetup.CreateUiText(panel, "TooltipDescription", new Vector2(14f, -254f), new Vector2(432f, 92f), ProjectSetup.UiFontSize, font);
             description.color = new Color(0.85f, 0.88f, 0.92f, 1f);
-            TMP_Text combos = ProjectSetup.CreateUiText(panel, "TooltipCombos", new Vector2(14f, -214f), new Vector2(412f, 106f), ProjectSetup.UiFontSize, font);
+            TMP_Text combos = ProjectSetup.CreateUiText(panel, "TooltipCombos", new Vector2(14f, -352f), new Vector2(432f, 130f), ProjectSetup.UiFontSize, font);
             combos.color = new Color(0.95f, 0.82f, 0.35f, 1f);
 
             CampTooltipView view = panel.gameObject.AddComponent<CampTooltipView>();
@@ -461,6 +466,7 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(view, "_titleLabel", title);
             ProjectSetup.SetObjectReference(view, "_tierLabel", tier);
             ProjectSetup.SetObjectReference(view, "_statusLabel", status);
+            ProjectSetup.SetObjectReference(view, "_upgradesLabel", upgrades);
             ProjectSetup.SetObjectReference(view, "_descriptionLabel", description);
             ProjectSetup.SetObjectReference(view, "_combosLabel", combos);
 

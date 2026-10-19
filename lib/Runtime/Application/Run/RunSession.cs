@@ -1034,6 +1034,26 @@ namespace ProjectSurvive.Core.Application.Run
         /// </remarks>
         public SynergyEvaluation EvaluateLayout() => _synergies.Evaluate(Backpack);
 
+        /// <summary>
+        /// Explains one piece in the numbers the battle will use — base, resolved, the upgrade steps
+        /// it kept and the combos acting on it (Stage 09h).
+        /// </summary>
+        /// <remarks>
+        /// The read model is produced by <see cref="LoadoutResolver"/>, so the camp tooltip and the
+        /// next floor read one source: a screen must not reach into a <c>skill</c> row and format its
+        /// own idea of "ดาเมจ 10" for a piece that is at 3/3 (AGENTS rule 10). Read-only, and it
+        /// changes no revision; the loadout snapshot behind it is still cached per bag revision.
+        /// </remarks>
+        public Result<PieceReadout> ExplainPiece(PieceRef piece)
+        {
+            if (!_loadouts.TryExplain(Backpack, piece, out PieceReadout readout))
+            {
+                return Result.Fail<PieceReadout>(InventoryError.UnknownPiece, ErrorKind.NotFound);
+            }
+
+            return Result.Ok(readout);
+        }
+
         /// <summary>Weight carried on the board; a chest piece weighs nothing.</summary>
         public float BagWeight => Backpack.BoardWeight;
 

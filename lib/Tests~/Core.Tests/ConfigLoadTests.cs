@@ -57,7 +57,7 @@ namespace ProjectSurvive.Core.Tests
             // The count is pinned so a table that silently loses rows fails here - which is how this pin
             // was corrected once before: it said 144 while data/ held 145, because the 81 rows Stage 09
             // added to data/localization/localization.csv had not been regenerated yet.
-            Assert.Equal(192, config.Localization.Count);
+            Assert.Equal(195, config.Localization.Count);
         }
 
         [Fact]

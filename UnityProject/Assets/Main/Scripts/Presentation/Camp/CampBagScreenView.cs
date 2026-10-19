@@ -188,7 +188,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private readonly List<MergeCardView> _chooserCards = new List<MergeCardView>(ChooserCardCapacity);
 
         /// <summary>The five lines of the left panel, one label each, so an empty one is hidden.</summary>
-        private readonly TMP_Text[] _chooserSourceLines = new TMP_Text[5];
+        private readonly TMP_Text[] _chooserSourceLines = new TMP_Text[6];
 
         private RectTransform _chooserRoot;
         private RectTransform _chooserDimRect;
@@ -1979,16 +1979,25 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 _chooserPanelRect, "Title", new Vector2(28f, -18f), new Vector2(900f, 40f), 30f,
                 TextAlignmentOptions.TopLeft, _font);
 
-            // The left column: the item as the tooltip describes it — ชื่อ, ระดับ, สถานะ, คำอธิบาย,
-            // คอมโบที่ทำงานอยู่ — one label per line, so an empty line is hidden rather than drawn blank.
-            // The item's own name is the column's heading; the modal's heading above it says what the
-            // screen is for.
+            // The left column: the item as the tooltip describes it — ชื่อ, ระดับ, ค่าที่ใช้จริง,
+            // รุ่นย่อยที่เลือก, คำอธิบาย, คอมโบที่ทำงานอยู่ — one label per line, so an empty line is
+            // hidden rather than drawn blank. The item's own name is the column's heading; the
+            // modal's heading above it says what the screen is for.
+            //
+            // The two middle lines wrap (the resolved numbers sit above the table's, and a step's
+            // changes can run past one row), so each label's height is the room its content needs;
+            // the pitch is the heights themselves, not a constant.
+            float y = -78f;
             for (int i = 0; i < _chooserSourceLines.Length; i++)
             {
+                float height = i == 2 ? 84f : i == 3 ? 60f : 40f;
+
                 _chooserSourceLines[i] = CreateChooserLabel(
-                    _chooserPanelRect, "Source" + i, new Vector2(28f, -78f - (i * 34f)),
-                    new Vector2(420f, 32f), 22f, TextAlignmentOptions.TopLeft, _font);
+                    _chooserPanelRect, "Source" + i, new Vector2(28f, y),
+                    new Vector2(420f, height), 22f, TextAlignmentOptions.TopLeft, _font);
                 _chooserSourceLines[i].gameObject.SetActive(false);
+
+                y -= height + 4f;
             }
 
             // Three cards in one row, centred in the space to the right of the left column.

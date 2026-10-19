@@ -470,9 +470,14 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(_tooltip.Visible, Is.True, "hovering a piece did not show the tooltip");
 
             // The content is one line per fact, in the stage's order, and a line with nothing to say
-            // is hidden rather than drawn empty: the tooltip's shape then says which of the five lines
-            // this piece actually has (an item with no คำอธิบาย in its own table has four).
-            string[] lines = { "TooltipTitle", "TooltipTier", "TooltipStatus", "TooltipDescription", "TooltipCombos" };
+            // is hidden rather than drawn empty: the tooltip's shape then says which of the six lines
+            // this piece actually has (an item with no คำอธิบาย in its own table has five, and a
+            // piece with no merge behind it has no variant line either).
+            string[] lines =
+            {
+                "TooltipTitle", "TooltipTier", "TooltipStatus", "TooltipUpgrades",
+                "TooltipDescription", "TooltipCombos",
+            };
             var labels = new TMP_Text[lines.Length];
 
             for (int i = 0; i < lines.Length; i++)

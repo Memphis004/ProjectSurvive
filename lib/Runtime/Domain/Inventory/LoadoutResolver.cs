@@ -115,6 +115,198 @@ namespace ProjectSurvive.Core.Domain.Inventory
             return snapshot;
         }
 
+        /// <summary>
+        /// Explains one piece: the base numbers, the numbers the battle will use, the upgrade steps
+        /// it kept and the combos acting on it (Stage 09h).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>One source with <see cref="Resolve"/>.</b> A piece on the board is read straight out
+        /// of this resolver's own <see cref="CombatLoadoutSnapshot"/> — the tooltip cannot disagree
+        /// with the battle because it is quoting the same entry. A piece in the chest is resolved
+        /// with the same helpers (<see cref="UpgradeAccumulator"/> and
+        /// <see cref="ResolveCooldown"/>) but with no combos, which is what the chest means
+        /// ("ของในหีบไม่ให้โบนัสและไม่โจมตี").
+        /// </para>
+        /// <para>
+        /// Returns false only when the run holds no such piece; a bag is a valid answer (it has a
+        /// tier and no stats).
+        /// </para>
+        /// </remarks>
+        public bool TryExplain(Backpack backpack, PieceRef piece, out PieceReadout readout)
+        {
+            if (backpack is null)
+            {
+                throw new ArgumentNullException(nameof(backpack));
+            }
+
+            readout = null!;
+
+            if (!backpack.TryGetPiece(piece, out PieceInstance? instance) || instance is null)
+            {
+                return false;
+            }
+
+            var result = new PieceReadout
+            {
+                Piece = piece,
+                DefId = instance.DefId,
+                Tier = instance.Tier,
+                IsBag = instance is BagPieceInstance,
+                MinCooldownSeconds = _config.Constant.MinCooldownSeconds,
+            };
+
+            if (!(instance is ItemInstance item))
+            {
+                readout = result;
+                return true;
+            }
+
+            SynergyEvaluation evaluation = _evaluator.Evaluate(backpack);
+            ItemModifiers modifiers = evaluation.For(item.InstanceId);
+
+            result.ActiveSynergyCount = modifiers.ActiveSynergyCount;
+            result.DamageMultiplier = modifiers.DamageMultiplier;
+            result.CooldownMultiplier = modifiers.CooldownMultiplier;
+            result.ComboRuleIds = ComboRules(evaluation, item.InstanceId);
+            result.Steps = Steps(item);
+
+            if (_config.TryGetItem(item.ItemId, out ItemConfig definition)
+                && !string.IsNullOrEmpty(definition.SkillId)
+                && _config.TryGetSkill(definition.SkillId, out SkillConfig skill))
+            {
+                result.SkillId = skill.Id;
+                result.Casts = true;
+                result.Base = new PieceStatValues(skill.Damage, skill.CooldownSeconds, skill.MpCost);
+
+                if (TryFindResolved(backpack, item, out PieceStatValues resolved))
+                {
+                    result.InLoadout = true;
+                    result.Resolved = resolved;
+                }
+                else
+                {
+                    result.Resolved = ResolveStandalone(skill, item, modifiers);
+                }
+
+                // The floor is the difference between "the combo did nothing" and "the combo was
+                // capped", so it is answered from the value before the clamp (same accumulation
+                // rule: every percent sums, every factor multiplies).
+                float intended = _upgrades.Resolve(
+                    skill.CooldownSeconds, _config, item.VariantIds, UpgradeStat.Cooldown)
+                    * modifiers.CooldownMultiplier;
+
+                result.CooldownAtMinimum =
+                    intended < _config.Constant.MinCooldownSeconds
+                    && result.Resolved.CooldownSeconds <= _config.Constant.MinCooldownSeconds;
+            }
+
+            readout = result;
+            return true;
+        }
+
+        /// <summary>The synergy rules this piece takes part in (provided or received).</summary>
+        private static IReadOnlyList<string> ComboRules(SynergyEvaluation evaluation, int instanceId)
+        {
+            IReadOnlyList<ActiveSynergy> active = evaluation.Active;
+            var rules = new List<string>(2);
+
+            for (int i = 0; i < active.Count; i++)
+            {
+                ActiveSynergy synergy = active[i];
+                if (synergy.SourceInstanceId != instanceId && synergy.TargetInstanceId != instanceId)
+                {
+                    continue;
+                }
+
+                rules.Add(synergy.RuleId);
+            }
+
+            return rules.Count == 0 ? Array.Empty<string>() : rules.ToArray();
+        }
+
+        /// <summary>One entry per merge step the piece went through, variant rows included.</summary>
+        private IReadOnlyList<PieceUpgradeStep> Steps(ItemInstance item)
+        {
+            IReadOnlyList<string> ids = item.VariantIds;
+            if (ids.Count == 0)
+            {
+                return Array.Empty<PieceUpgradeStep>();
+            }
+
+            var steps = new PieceUpgradeStep[ids.Count];
+            for (int step = 0; step < ids.Count; step++)
+            {
+                string id = ids[step];
+                if (!string.IsNullOrEmpty(id) && _config.TryGetUpgradeVariant(id, out UpgradeVariantConfig variant))
+                {
+                    steps[step] = new PieceUpgradeStep(
+                        step + 1, variant.FromTier, variant.ToTier, id, variant.NameKey, variant.Modifiers);
+                    continue;
+                }
+
+                // No chooser on that step: the merge folded the pair and kept no variant. The step
+                // still happened, and the tooltip draws no variant line for it.
+                steps[step] = new PieceUpgradeStep(
+                    step + 1, step + 1, step + 2, string.Empty, string.Empty, Array.Empty<UpgradeModifierConfig>());
+            }
+
+            return steps;
+        }
+
+        /// <summary>
+        /// The numbers this piece receives in the battle, copied out of the snapshot this resolver
+        /// hands to the floor. False when the piece is not in it (it is in the chest).
+        /// </summary>
+        private bool TryFindResolved(Backpack backpack, ItemInstance item, out PieceStatValues resolved)
+        {
+            CombatLoadoutSnapshot snapshot = Resolve(backpack);
+
+            IReadOnlyList<WeaponLoadout> weapons = snapshot.Weapons;
+            for (int i = 0; i < weapons.Count; i++)
+            {
+                if (weapons[i].InstanceId != item.InstanceId)
+                {
+                    continue;
+                }
+
+                resolved = new PieceStatValues(
+                    weapons[i].Damage, weapons[i].CooldownSeconds, weapons[i].MpCost);
+                return true;
+            }
+
+            IReadOnlyList<SummonLoadout> summons = snapshot.Summons;
+            for (int i = 0; i < summons.Count; i++)
+            {
+                if (summons[i].InstanceId != item.InstanceId)
+                {
+                    continue;
+                }
+
+                resolved = new PieceStatValues(
+                    summons[i].Damage, summons[i].CooldownSeconds, summons[i].MpCost);
+                return true;
+            }
+
+            resolved = default;
+            return false;
+        }
+
+        /// <summary>A chest piece's own numbers: its upgrades apply, no combo does.</summary>
+        private PieceStatValues ResolveStandalone(
+            SkillConfig skill, ItemInstance item, ItemModifiers modifiers)
+        {
+            IReadOnlyList<string> upgrades = item.VariantIds;
+
+            return new PieceStatValues(
+                AtLeast(
+                    _upgrades.Resolve(
+                        Scale(skill.Damage, modifiers.DamageMultiplier), _config, upgrades, UpgradeStat.Damage), 0),
+                ResolveCooldown(
+                    _upgrades.Resolve(skill.CooldownSeconds, _config, upgrades, UpgradeStat.Cooldown), modifiers),
+                AtLeast(_upgrades.Resolve(skill.MpCost, _config, upgrades, UpgradeStat.MpCost), 0));
+        }
+
         private CombatLoadoutSnapshot Compute(Backpack backpack)
         {
             ConstantConfig constant = _config.Constant;
