@@ -183,7 +183,7 @@ namespace ProjectSurvive.Game.Editor
         {
             ("FloorLabel", "_floorLabel"),
             ("FloorIndexLabel", "_floorIndexLabel"),
-            ("BagCaption", "_bagCaption"),
+            (UiLayoutCheck.BagCaption, "_bagCaption"),
             ("StatusCaption", "_statusCaption"),
             ("HpCaption", "_hpCaption"),
             ("HpValue", "_hpValue"),
@@ -1058,6 +1058,15 @@ namespace ProjectSurvive.Game.Editor
                     {
                         report.Failures.Add(state + " " + size.x + "x" + size.y + ": " + opacity[i]);
                         violations.Add(opacity[i]);
+                    }
+
+                    // Stage 08d: a grid disjoint from its caption but floating in the middle of the
+                    // panel is not an overlap, so the battle HUD's stacking rule is asked separately.
+                    var stacked = UiLayoutCheck.FindMiniBagStackViolations(measured);
+                    for (int i = 0; i < stacked.Count; i++)
+                    {
+                        report.Failures.Add(state + " " + size.x + "x" + size.y + ": " + stacked[i]);
+                        violations.Add(stacked[i]);
                     }
                 }
 

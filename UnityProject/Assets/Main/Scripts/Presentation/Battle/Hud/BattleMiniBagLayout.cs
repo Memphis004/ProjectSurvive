@@ -152,17 +152,15 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
     {
         /// <summary>Nothing on the board: an empty panel.</summary>
         public static readonly MiniBagLayout Empty = new MiniBagLayout(
-            0, 0, 0f, 0f, 0f, new MiniBagPiece[0], new bool[0]);
+            0, 0, 0f, new MiniBagPiece[0], new bool[0]);
 
         private MiniBagLayout(
-            int columns, int rows, float cellSize, float offsetX, float offsetY,
+            int columns, int rows, float cellSize,
             IReadOnlyList<MiniBagPiece> pieces, IReadOnlyList<bool> bagCells)
         {
             Columns = columns;
             Rows = rows;
             CellSize = cellSize;
-            OffsetX = offsetX;
-            OffsetY = offsetY;
             Pieces = pieces;
             _bagCells = bagCells;
         }
@@ -175,14 +173,16 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         /// <summary>Rows of the bag's own bounding box.</summary>
         public int Rows { get; }
 
-        /// <summary>Side of one cell, in pixels.</summary>
+        /// <summary>
+        /// Side of one cell, in pixels.
+        /// </summary>
+        /// <remarks>
+        /// The grid's own origin is the content area's <b>top-left corner</b> (Stage 08d): cell
+        /// ((column, row)) is drawn at <c>(column * CellSize, -(row * CellSize))</c> from it. The
+        /// layout therefore needs no separate offset — a centred grid was what put the ย่าม in the
+        /// middle of the panel instead of under its caption.
+        /// </remarks>
         public float CellSize { get; }
-
-        /// <summary>Left edge of the grid inside the content area, in pixels.</summary>
-        public float OffsetX { get; }
-
-        /// <summary>Top edge of the grid inside the content area, in pixels (downwards, as UI y is).</summary>
-        public float OffsetY { get; }
 
         /// <summary>Every piece on the bag, bags included.</summary>
         public IReadOnlyList<MiniBagPiece> Pieces { get; }
@@ -241,9 +241,9 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
 
         /// <summary>Creates a layout directly (used by the builder and by tests).</summary>
         internal static MiniBagLayout Of(
-            int columns, int rows, float cellSize, float offsetX, float offsetY,
+            int columns, int rows, float cellSize,
             IReadOnlyList<MiniBagPiece> pieces, IReadOnlyList<bool> bagCells) =>
-            new MiniBagLayout(columns, rows, cellSize, offsetX, offsetY, pieces, bagCells);
+            new MiniBagLayout(columns, rows, cellSize, pieces, bagCells);
     }
 
     /// <summary>
@@ -350,12 +350,12 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
 
             Sort(pieces);
 
-            // Centred horizontally and anchored to the top: a wide bag does not creep towards one
-            // edge of the panel, and a bag with two rows leaves its empty space below the grid.
-            float offsetX = Mathf.Max(0f, (contentWidth - (columns * cellSize)) * 0.5f);
-            float offsetY = Mathf.Max(0f, (contentHeight - (rows * cellSize)) * 0.5f);
-
-            return MiniBagLayout.Of(columns, rows, cellSize, offsetX, offsetY, pieces, bagCells);
+            // The grid hugs the content area's top-left corner (Stage 08d), so the first box sits
+            // exactly under the caption's left edge. Whatever room the bag does not use is left on
+            // the right and at the bottom; a smaller bag never drifts towards the middle of a panel
+            // that is a quarter of the screen wide. Cell size is still the fit computed above, so a
+            // resize re-fits the bag rather than clipping it.
+            return MiniBagLayout.Of(columns, rows, cellSize, pieces, bagCells);
         }
 
         /// <summary>

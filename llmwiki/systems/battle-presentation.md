@@ -166,6 +166,17 @@ covers — never the whole 9 × 7 board. Geometry comes from the `BagSnapshot` a
 `CombatLoadoutSnapshot` the run already handed the battle (`BattleViewScene.Build`);
 `BattleMiniBagLayout` fits the cell size to the panel and decides nothing a rule owns.
 
+**Stage 08d: the grid hangs from the caption's corner, not the panel's middle.** The grid's area
+(`MiniBagContent`) is anchored to the panel's top-left, one named `CaptionGap` (8 UI px) under the
+caption's own line box, with the caption's `LeftInset`; the cell size still fits the area it was
+handed, and the panel is still a quarter of the canvas wide. Inside that area the layout's origin is
+the **top-left corner** — the earlier version centred the bounding box, which put a 3 × 3 bag 110 px
+right and 151 px down at 1080p (27.6 / 45.8 screen px at 720p) from where it belonged. The rule is
+checked three ways: `BattleMiniBagTests` (both sizes, plus the L-shaped `bag.wicker_basket_l`),
+`UiLayoutCheck.FindMiniBagStackViolations` (below the caption, same left edge, no overlap — a rule
+an overlap check cannot express, because a centred grid is *disjoint* from the caption), and the
+battle PlayMode case that measures the real scene's rectangles.
+
 A piece that can cast wears a plate from `IBattleFrame.Cooldowns` (08b), read out of the snapshot
 the runner copied **in the same frame** — never from a clock of the view's own:
 
@@ -211,8 +222,8 @@ player sees is the hitbox the simulation uses.
 ProjectSurvive/Stage 08/4. Measure camera projection (ADR 0018)
 
 # Unity tests (Editor must be open; MCP or Test Runner)
-Editor:  ProjectSurvive.Game.Tests.EditMode    # BattlePresentationTests 15, BattleMiniBagTests 14
-PlayMode: ProjectSurvive.Game.Tests.PlayMode   # 5 battle scene tests
+Editor:  ProjectSurvive.Game.Tests.EditMode    # BattlePresentationTests 15, BattleMiniBagTests 18
+PlayMode: ProjectSurvive.Game.Tests.PlayMode   # 6 battle scene tests
 
 # The real player, in a real browser
 pwsh -NoProfile -File tools/build-web.ps1 -Configuration Release

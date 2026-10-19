@@ -254,6 +254,86 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 + " tracked=" + tracked + " " + before.ToString("0.00") + "->" + after.ToString("0.00"));
         }
 
+        /// <summary>
+        /// Stage 08d in PlayMode: the mini ย่าม the scene really wires starts under its caption and
+        /// shares its left edge, and neither the bag's own pools nor the entity pool grow while the
+        /// floor runs.
+        /// </summary>
+        /// <remarks>
+        /// The EditMode cases prove the arithmetic on hand-built rects; this case proves the
+        /// <b>scene's</b> authored geometry — the rectangles the player actually sees. It is the same
+        /// distinction Stage 08c's own defect taught: a component that is correct in a harness and
+        /// unwired in the scene passes every EditMode assertion.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator The_mini_bag_starts_under_its_caption_and_never_grows()
+        {
+            yield return LoadScene(BattleSceneName);
+            yield return WaitForFloorToStart();
+
+            BattleSimulationRunner runner = Find<BattleSimulationRunner>();
+            BattleHudView hud = Find<BattleHudView>();
+            BattleMiniBagView miniBag = runner.View.MiniBag;
+
+            Assert.That(miniBag, Is.Not.Null, "the scene wired no mini bag");
+            Assert.That(miniBag.IsBuilt, Is.True, "the mini bag was never built from the run's bag");
+            Assert.That(miniBag.Panel, Is.Not.Null, "the mini bag has no panel");
+            Assert.That(miniBag.Content, Is.Not.Null, "the mini bag has no content area");
+            Assert.That(hud.BagCaption, Is.Not.Null, "the scene has no ย่าม caption");
+
+            Canvas.ForceUpdateCanvases();
+
+            Rect panel = WorldRect(miniBag.Panel);
+            Rect content = WorldRect(miniBag.Content);
+            Rect caption = WorldRect((RectTransform)hud.BagCaption.transform);
+            MiniBagLayout layout = miniBag.Layout;
+
+            Assert.That(layout.HasBag, Is.True, "there is no bag to draw");
+
+            // The grid's own rectangle: the content area's top-left corner and the bag's own box.
+            var grid = new Rect(content.xMin, content.yMax - layout.Height, layout.Width, layout.Height);
+
+            Assert.That(
+                content.xMin >= panel.xMin - 0.5f && content.xMax <= panel.xMax + 0.5f
+                    && content.yMin >= panel.yMin - 0.5f && content.yMax <= panel.yMax + 0.5f,
+                Is.True,
+                "the grid's area escaped the mini bag panel");
+            Assert.That(
+                grid.yMax,
+                Is.LessThanOrEqualTo(caption.yMin + 0.5f),
+                "the mini ย่าม is not below the ย่าม caption");
+            Assert.That(
+                grid.xMin,
+                Is.EqualTo(caption.xMin).Within(0.5f),
+                "the mini ย่าม does not share the caption's left edge");
+            Assert.That(
+                grid.xMin < caption.xMax && caption.xMin < grid.xMax
+                    && grid.yMin < caption.yMax && caption.yMin < grid.yMax,
+                Is.False,
+                "the mini ย่าม overlaps the caption");
+
+            Assert.That(miniBag.TryGetPieceTopLeft(0, out Vector2 topLeft), Is.True);
+            Assert.That(topLeft, Is.EqualTo(Vector2.zero), "the first box is not at the content's top-left");
+
+            Assert.That(miniBag.CreatedAfterBuild, Is.Zero, "the mini bag created a view during its build");
+            Assert.That(
+                runner.View.Pool.CreatedAfterWarmup,
+                Is.Zero,
+                "viewsGrownDuringPlay is not zero at the start of the floor");
+
+            yield return WaitForTicks(runner, runner.StepsRun + BattleConstants.TickRate);
+
+            Assert.That(miniBag.CreatedAfterBuild, Is.Zero, "the mini bag created a view while the floor ran");
+            Assert.That(
+                runner.View.Pool.CreatedAfterWarmup,
+                Is.Zero,
+                "viewsGrownDuringPlay is not zero after a second of ticks");
+
+            TestContext.WriteLine(
+                "mini bag rect: panel=" + panel + " content=" + content + " caption=" + caption
+                + " grid=" + grid + " cell=" + layout.CellSize);
+        }
+
         [UnityTest]
         public IEnumerator Leaving_the_battle_scene_disposes_the_world_and_the_subscriptions()
         {
@@ -382,6 +462,19 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         private static T Find<T>()
             where T : UnityEngine.Object =>
             UnityEngine.Object.FindFirstObjectByType<T>();
+
+        private static readonly Vector3[] WorldCornersBuffer = new Vector3[4];
+
+        /// <summary>A rect transform's rectangle in the canvas' own space (bottom-left origin).</summary>
+        private static Rect WorldRect(RectTransform rect)
+        {
+            rect.GetWorldCorners(WorldCornersBuffer);
+            return new Rect(
+                WorldCornersBuffer[0].x,
+                WorldCornersBuffer[0].y,
+                WorldCornersBuffer[2].x - WorldCornersBuffer[0].x,
+                WorldCornersBuffer[2].y - WorldCornersBuffer[0].y);
+        }
 
         private static string LabelText(string objectName)
         {

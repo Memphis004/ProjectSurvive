@@ -47,6 +47,14 @@ namespace ProjectSurvive.Game.Editor
         /// </remarks>
         private const float UiMargin = 24f;
 
+        /// <summary>
+        /// Width of the mini ย่าม's caption's line box, in UI pixels ("ย่าม"). Wider than the word
+        /// needs today, so a translation of it does not clip; the grid's own left inset is
+        /// <see cref="BattleMiniBagView.LeftInset"/>, the same number, which is why the two left edges
+        /// line up.
+        /// </summary>
+        private const float MiniBagCaptionWidth = 240f;
+
         /// <summary>The panel background the battle HUD's four bordered panels share.</summary>
         private static readonly Color PanelBackdrop = new Color(0.07f, 0.08f, 0.11f, 0.92f);
 
@@ -284,15 +292,22 @@ namespace ProjectSurvive.Game.Editor
                 new Vector2(UiMargin, UiMargin), new Vector2(-UiMargin, -UiMargin));
             ProjectSetup.AddPanelBackground(miniBagPanel, MiniBagPalette.Backdrop);
 
+            // The caption and the grid share one left inset, and the grid starts one caption line box
+            // plus `CaptionGap` below the caption's top (Stage 08d). The numbers are the view's named
+            // constants rather than literals here, so the scene, the layout and the layout test read
+            // the same definition of "under the caption".
             TMP_Text bagCaption = ProjectSetup.CreateUiText(
-                miniBagPanel, "BagCaption", new Vector2(10f, -6f), new Vector2(240f, 30f), ProjectSetup.UiFontSize, font);
+                miniBagPanel, "BagCaption",
+                new Vector2(BattleMiniBagView.LeftInset, -BattleMiniBagView.CaptionTop),
+                new Vector2(MiniBagCaptionWidth, BattleMiniBagView.CaptionHeight),
+                ProjectSetup.UiFontSize, font);
 
-            // The grid's own area: below the caption, inside the panel's edges. The view measures
-            // this rect and sizes its cells to it, so a canvas resize re-fits the bag rather than
-            // clipping it.
+            // The grid's own area: anchored at the panel's top-left corner, below the caption, and
+            // stretched to the panel's right and bottom edges. The view measures this rect and sizes
+            // its cells to it, so a canvas resize re-fits the bag rather than clipping it.
             RectTransform miniBagContent = ProjectSetup.StretchUiRect(
-                miniBagPanel, "MiniBagContent", Vector2.zero, Vector2.one,
-                new Vector2(10f, 10f), new Vector2(-10f, -42f));
+                miniBagPanel, "MiniBagContent", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            BattleMiniBagView.AnchorContent(miniBagContent);
 
             miniBag = miniBagPanel.gameObject.AddComponent<BattleMiniBagView>();
             ProjectSetup.SetObjectReference(miniBag, "_panel", miniBagPanel);

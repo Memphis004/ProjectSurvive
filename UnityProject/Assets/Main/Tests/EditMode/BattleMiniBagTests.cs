@@ -8,6 +8,7 @@ using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Infrastructure.Save;
 using ProjectSurvive.Core.Shared;
 using ProjectSurvive.Game.Battle;
+using ProjectSurvive.Game.Editor;
 using ProjectSurvive.Game.Infrastructure;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
@@ -178,13 +179,16 @@ namespace ProjectSurvive.Game.Tests.EditMode
         {
             RunSession run = Depart(out BattleSetup setup);
 
-            // The two panels the scene authors: a quarter of the canvas minus the margins, and the
-            // content box below the caption (Stage 08c's own numbers — the same ones
-            // `ProjectSurvive/Tools/4. Capture the Battle HUD` re-measures on the real screen).
+            // The content box the scene authors (Stage 08d): the panel is a quarter of the canvas
+            // minus the margins — 432 x 546 at the 1920 x 1080 reference — and the grid's area runs
+            // from `LeftInset` on the left, `BottomInset` at the bottom, to `ContentTop` (6 + 30 + 8)
+            // under the panel's top edge. That is 412 x 492 in the canvas' own pixels. The canvas
+            // scalar draws the same rect 2/3 the size at 1280 x 720, which is why the second entry is
+            // the same layout measured in screen pixels rather than a different layout.
             var sizes = new[]
             {
-                new Vector2(432f, 500f), // 1920x1080: (0.25 * 1920) - 48 wide, and a tall box
-                new Vector2(272f, 300f), // 1280x720:  (0.25 * 1280) - 48 wide
+                new Vector2(412f, 492f),     // 1920x1080, UI reference pixels
+                new Vector2(274.667f, 328f), // 1280x720, the same rect in screen pixels
             };
 
             for (int i = 0; i < sizes.Length; i++)
@@ -207,13 +211,185 @@ namespace ProjectSurvive.Game.Tests.EditMode
                     layout.Height,
                     Is.LessThanOrEqualTo(sizes[i].y + 0.001f),
                     "the grid must fit the height it was handed");
-                Assert.That(layout.OffsetX, Is.GreaterThanOrEqualTo(0f));
+
+                // Stage 08d did not touch the fit, so the cell a player sees is the one measured on
+                // the pre-change build (64 px for this run's 3 x 3 bag at both sizes).
+                Assert.That(layout.CellSize, Is.EqualTo(64f), "the cell size changed with the origin");
             }
 
             // A cell never grows past the ceiling: a one-cell bag is not drawn a quarter of a screen wide.
             Assert.That(
                 MiniBagLayoutBuilder.Fit(400f, 300f, 1, 1),
                 Is.EqualTo(MiniBagLayoutBuilder.MaximumCellSize));
+        }
+
+        [Test]
+        public void The_first_box_hugs_the_content_top_left_at_both_panel_sizes()
+        {
+            RunSession run = Depart(out BattleSetup setup);
+
+            var contents = new[]
+            {
+                new Vector2(412f, 492f),     // 1920x1080
+                new Vector2(274.667f, 328f), // 1280x720 (the same rect, 2/3 the pixels)
+            };
+
+            for (int i = 0; i < contents.Length; i++)
+            {
+                MiniBagLayout layout = MiniBagLayout.Build(
+                    run.Backpack, setup.Loadout, _config, contents[i].x, contents[i].y);
+
+                Assert.That(layout.HasBag, Is.True);
+
+                // The bag's own bounding box was normalised to its minimum cell, so the first piece
+                // (the bag, which sorts before the items at the same row) starts at (0, 0) — the
+                // content area's top-left corner — at either size.
+                MiniBagPiece first = layout.Pieces[0];
+                Assert.That(first.Kind, Is.EqualTo(PieceKind.Bag), "the bag box is drawn first");
+                Assert.That(first.Column, Is.Zero, "the first box is not at the left edge");
+                Assert.That(first.Row, Is.Zero, "the first box is not at the top edge");
+
+                // The view writes that origin to the box's own rect: nothing is centred any more.
+                BattleMiniBagView view = NewView(run.Backpack, setup.Loadout);
+                view.Build(layout);
+
+                Assert.That(view.TryGetPieceTopLeft(0, out Vector2 topLeft), Is.True);
+                Assert.That(
+                    topLeft,
+                    Is.EqualTo(Vector2.zero),
+                    "the first box is not at the content area's top-left corner");
+            }
+        }
+
+        [Test]
+        public void An_l_shaped_bag_hugs_the_top_left_of_its_own_bounding_box()
+        {
+            // bag.wicker_basket_l is the shipped "X.|X.|XX" piece: two columns wide, three tall, and
+            // missing its top-right cell. Its bounding box is still what the mini bag draws, and that
+            // box must start at the content area's corner rather than being centred because a corner
+            // of it is empty.
+            var backpack = new Backpack(_config);
+            var editor = new BackpackEditor(backpack, _config, new MessagePackBackpackSnapshotCodec());
+
+            Result<PieceRef> added = backpack.AddBag("bag.wicker_basket_l");
+            Assert.That(added.IsSuccess, Is.True);
+            Assert.That(
+                editor.Move(added.Value, new CellOffset(2, 1), Rotation.Degrees0).IsSuccess,
+                Is.True,
+                "the L bag must fit the board for this case to mean anything");
+
+            MiniBagLayout layout = MiniBagLayout.Build(backpack, null, _config, 412f, 492f);
+
+            Assert.That(layout.Columns, Is.EqualTo(2));
+            Assert.That(layout.Rows, Is.EqualTo(3));
+            Assert.That(layout.IsBagCell(0, 0), Is.True);
+            Assert.That(layout.IsBagCell(1, 0), Is.False, "the L's missing cell was filled in");
+            Assert.That(layout.Pieces[0].Column, Is.Zero, "the L's box is not at the left edge");
+            Assert.That(layout.Pieces[0].Row, Is.Zero, "the L's box is not at the top edge");
+
+            BattleMiniBagView view = NewView(backpack, null);
+            view.Build(layout);
+
+            Assert.That(view.TryGetPieceTopLeft(0, out Vector2 topLeft), Is.True);
+            Assert.That(topLeft, Is.EqualTo(Vector2.zero));
+        }
+
+        [Test]
+        public void Two_bags_anchor_to_the_top_left_of_their_shared_bounding_box()
+        {
+            // The box is the union of every bag's cells, so a second bag only makes it bigger. Its
+            // origin is still the top-left of that union — not the middle of the panel.
+            var backpack = new Backpack(_config);
+            var editor = new BackpackEditor(backpack, _config, new MessagePackBackpackSnapshotCodec());
+
+            Result<PieceRef> cotton = backpack.AddBag("bag.raw_cotton_bag");
+            Assert.That(cotton.IsSuccess, Is.True);
+            Assert.That(editor.Move(cotton.Value, new CellOffset(0, 0), Rotation.Degrees0).IsSuccess, Is.True);
+
+            Result<PieceRef> pouch = backpack.AddBag("bag.yant_cloth_pouch");
+            Assert.That(pouch.IsSuccess, Is.True);
+            Assert.That(editor.Move(pouch.Value, new CellOffset(4, 2), Rotation.Degrees0).IsSuccess, Is.True);
+
+            MiniBagLayout layout = MiniBagLayout.Build(backpack, null, _config, 412f, 492f);
+
+            Assert.That(layout.Columns, Is.EqualTo(5), "the union of a 3-wide and a 1-wide bag");
+            Assert.That(layout.Rows, Is.EqualTo(5), "the union of a 3-tall and a 3-tall bag, offset by 2");
+            Assert.That(layout.Pieces[0].Column, Is.Zero);
+            Assert.That(layout.Pieces[0].Row, Is.Zero);
+
+            BattleMiniBagView view = NewView(backpack, null);
+            view.Build(layout);
+
+            Assert.That(view.TryGetPieceTopLeft(0, out Vector2 topLeft), Is.True);
+            Assert.That(topLeft, Is.EqualTo(Vector2.zero));
+        }
+
+        [Test]
+        public void The_grid_starts_one_caption_gap_below_the_caption_and_on_its_left_edge()
+        {
+            // The scene's own arrangement: a panel a quarter of the canvas wide, the caption at the
+            // panel's top-left, and the grid's area anchored through the view's own helper. What is
+            // asserted is the arithmetic between the named constants, so changing one without the
+            // others (the original defect) fails here rather than on a screenshot.
+            var canvasObject = new GameObject("MiniBagCanvas", typeof(RectTransform), typeof(Canvas));
+            _temporary.Add(canvasObject);
+            Canvas canvas = canvasObject.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+            var panelObject = new GameObject("MiniBagPanel", typeof(RectTransform));
+            var panel = (RectTransform)panelObject.transform;
+            panel.SetParent(canvasObject.transform, worldPositionStays: false);
+            panel.anchorMin = new Vector2(0f, 0.45f);
+            panel.anchorMax = new Vector2(0.25f, 1f);
+            panel.pivot = new Vector2(0.5f, 0.5f);
+            panel.offsetMin = new Vector2(24f, 24f);
+            panel.offsetMax = new Vector2(-24f, -24f);
+
+            // The caption's line box only — the words are the presenter's business and this case is
+            // about geometry. `CreateUiRect` is the same helper `CreateUiText` builds the box with.
+            RectTransform captionBox = ProjectSetup.CreateUiRect(
+                panel, UiLayoutCheck.BagCaption, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(BattleMiniBagView.LeftInset, -BattleMiniBagView.CaptionTop),
+                new Vector2(240f, BattleMiniBagView.CaptionHeight));
+
+            var contentObject = new GameObject(UiLayoutCheck.MiniBagContent, typeof(RectTransform));
+            var content = (RectTransform)contentObject.transform;
+            content.SetParent(panel, worldPositionStays: false);
+            BattleMiniBagView.AnchorContent(content);
+
+            Canvas.ForceUpdateCanvases();
+
+            Rect panelRect = panel.rect;
+            Rect contentRect = content.rect;
+            Rect captionRect = captionBox.rect;
+            Vector2 contentOffset = content.offsetMin;
+            Vector2 contentTop = content.offsetMax;
+
+            // Both boxes are measured from the panel's top-left corner: the caption's own top stops
+            // `CaptionTop` below it, and the grid's area starts a caption's line box plus one gap
+            // below that.
+            Assert.That(captionRect.height, Is.EqualTo(BattleMiniBagView.CaptionHeight).Within(0.001f));
+            Assert.That(
+                BattleMiniBagView.ContentTop,
+                Is.EqualTo(BattleMiniBagView.CaptionTop + BattleMiniBagView.CaptionHeight + BattleMiniBagView.CaptionGap)
+                    .Within(0.001f));
+            Assert.That(
+                BattleMiniBagView.CaptionGap,
+                Is.InRange(8f, 12f),
+                "the brief asks for 8-12 px between the caption and the bag at 1080p");
+
+            // offsetMin.x and offsetMax.y are the two insets from the panel's left and top edges.
+            Assert.That(contentOffset.x, Is.EqualTo(BattleMiniBagView.LeftInset).Within(0.001f));
+            Assert.That(contentTop.y, Is.EqualTo(-BattleMiniBagView.ContentTop).Within(0.001f));
+            Assert.That(
+                -contentTop.y - BattleMiniBagView.CaptionTop - BattleMiniBagView.CaptionHeight,
+                Is.EqualTo(BattleMiniBagView.CaptionGap).Within(0.001f),
+                "the grid's area does not start one gap below the caption's line box");
+
+            // The content's left edge is the caption's left edge, and its area is inside the panel.
+            Assert.That(contentOffset.x, Is.EqualTo(BattleMiniBagView.LeftInset).Within(0.001f));
+            Assert.That(contentRect.width, Is.EqualTo(panelRect.width - BattleMiniBagView.LeftInset - BattleMiniBagView.RightInset).Within(0.01f));
+            Assert.That(contentRect.height, Is.EqualTo(panelRect.height - BattleMiniBagView.ContentTop - BattleMiniBagView.BottomInset).Within(0.01f));
         }
 
         [Test]
@@ -394,7 +570,11 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         /// <summary>A view on a canvas of its own, wired and built the way the Battle scene does it.</summary>
-        private BattleMiniBagView NewView(RunSession run, BattleSetup setup)
+        private BattleMiniBagView NewView(RunSession run, BattleSetup setup) =>
+            NewView(run.Backpack, setup.Loadout);
+
+        /// <summary>The same view over any bag (the L-shaped case has no departed run to read one from).</summary>
+        private BattleMiniBagView NewView(Backpack bag, CombatLoadoutSnapshot loadout)
         {
             var canvasObject = new GameObject("MiniBagCanvas", typeof(RectTransform), typeof(Canvas));
             _temporary.Add(canvasObject);
@@ -411,13 +591,11 @@ namespace ProjectSurvive.Game.Tests.EditMode
             panel.offsetMin = new Vector2(24f, 24f);
             panel.offsetMax = new Vector2(-24f, -24f);
 
-            var contentObject = new GameObject("MiniBagContent", typeof(RectTransform));
+            // The same anchoring the scene builder applies (Stage 08d), from the same helper.
+            var contentObject = new GameObject(UiLayoutCheck.MiniBagContent, typeof(RectTransform));
             var content = (RectTransform)contentObject.transform;
             content.SetParent(panel, worldPositionStays: false);
-            content.anchorMin = Vector2.zero;
-            content.anchorMax = Vector2.one;
-            content.offsetMin = new Vector2(10f, 10f);
-            content.offsetMax = new Vector2(-10f, -42f);
+            BattleMiniBagView.AnchorContent(content);
 
             var view = panelObject.AddComponent<BattleMiniBagView>();
 
@@ -425,7 +603,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
             SetReference(view, "_panel", panel);
             SetReference(view, "_content", content);
 
-            view.Build(run.Backpack, setup.Loadout, _config);
+            view.Build(bag, loadout, _config);
             return view;
         }
 

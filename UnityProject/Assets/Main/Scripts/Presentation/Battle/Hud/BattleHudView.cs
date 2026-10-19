@@ -104,6 +104,13 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         public int TimelineMarkerCount => _timeline is null ? 0 : _timeline.MarkerCount;
 
         /// <summary>
+        /// The "ย่าม" caption above the mini bag. Read by the layout check (the grid must start below
+        /// it and share its left edge, Stage 08d), so the rule and the scene agree on which line box
+        /// the bag's area is measured against.
+        /// </summary>
+        public TMP_Text BagCaption => _bagCaption;
+
+        /// <summary>
         /// Resolves the HUD's services from the scene scope and starts mirroring. Public and
         /// idempotent so the scene's driver (and a test) can call it without waiting for a
         /// particular <c>Start</c> order.

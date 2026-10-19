@@ -171,6 +171,22 @@ namespace ProjectSurvive.Game.Editor
         public const string MiniBagContent = "MiniBagContent";
 
         /// <summary>
+        /// The "ย่าม" caption at the top-left of <see cref="MiniBag"/>. The grid must start below it
+        /// and share its left edge (Stage 08d) — a rule no overlap check can express, because the two
+        /// boxes being disjoint is exactly what a grid floating in the middle of the panel also is.
+        /// </summary>
+        public const string BagCaption = "BagCaption";
+
+        /// <summary>How far two edges may differ and still be called the same edge, in pixels.</summary>
+        /// <remarks>
+        /// The canvas scalar rounds each size's rectangles independently: at 1280×720 the panel's
+        /// inset is 6.667 px and the content's is the same number written as a float, but a measured
+        /// corner can come back a thousandth out. A half pixel is below what a player can see and
+        /// above what the scalar's rounding produces.
+        /// </remarks>
+        public const float EdgeTolerance = 0.5f;
+
+        /// <summary>
         /// The merge chooser's own frame — the modal panel the cards are drawn in (Stage 09g).
         /// </summary>
         /// <remarks>
@@ -363,6 +379,88 @@ namespace ProjectSurvive.Game.Editor
                         name + " has alpha " + regions[i].Alpha.ToString("0.###") + ", below the "
                         + OpaqueFloor.ToString("0.###") + " floor: the world reads through it");
                 }
+            }
+
+            return violations;
+        }
+
+        /// <summary>
+        /// The mini ย่าม's own stacking rule (Stage 08d): the grid's area must sit <b>below</b> the
+        /// caption, share the caption's left edge, and stay inside the panel — and the two must not
+        /// overlap.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Why a rule of its own. <see cref="FindViolations"/> answers "may these two share pixels",
+        /// and a grid centred in a large panel answers <i>yes, they are disjoint</i> while being the
+        /// defect this stage is about: the ย่าม floats in the middle of the panel instead of starting
+        /// under its caption. The stacked pair is the thing to measure, so it is measured directly.
+        /// </para>
+        /// <para>
+        /// A run whose rectangles do not include all three names gets an empty list: the missing
+        /// region is the caller's failure to measure, and inventing a violation here would double
+        /// report it (the same convention as <see cref="FindModalEscapees"/>).
+        /// </para>
+        /// </remarks>
+        public static List<string> FindMiniBagStackViolations(IReadOnlyList<UiRegion> regions)
+        {
+            var violations = new List<string>();
+
+            Rect panel = default;
+            Rect content = default;
+            Rect caption = default;
+            bool hasPanel = false;
+            bool hasContent = false;
+            bool hasCaption = false;
+
+            for (int i = 0; i < regions.Count; i++)
+            {
+                if (string.Equals(regions[i].Name, MiniBag, System.StringComparison.Ordinal))
+                {
+                    panel = regions[i].Rect;
+                    hasPanel = true;
+                }
+                else if (string.Equals(regions[i].Name, MiniBagContent, System.StringComparison.Ordinal))
+                {
+                    content = regions[i].Rect;
+                    hasContent = true;
+                }
+                else if (string.Equals(regions[i].Name, BagCaption, System.StringComparison.Ordinal))
+                {
+                    caption = regions[i].Rect;
+                    hasCaption = true;
+                }
+            }
+
+            if (!hasPanel || !hasContent || !hasCaption)
+            {
+                return violations;
+            }
+
+            if (!Contains(panel, content))
+            {
+                violations.Add(
+                    MiniBagContent + " " + content + " is not inside " + MiniBag + " " + panel);
+            }
+
+            if (Overlaps(content, caption))
+            {
+                violations.Add(
+                    MiniBagContent + " " + content + " overlaps " + BagCaption + " " + caption);
+            }
+
+            if (content.yMax > caption.yMin + EdgeTolerance)
+            {
+                violations.Add(
+                    MiniBagContent + " " + content + " is not below " + BagCaption + " " + caption
+                    + ": its top edge is above the caption's bottom edge");
+            }
+
+            if (Mathf.Abs(content.xMin - caption.xMin) > EdgeTolerance)
+            {
+                violations.Add(
+                    MiniBagContent + " " + content + " does not share " + BagCaption + "'s left edge "
+                    + caption + ": the grid would not start under the caption");
             }
 
             return violations;

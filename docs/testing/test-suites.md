@@ -26,8 +26,8 @@ need to run, and the Web build moved behind the Full suite.
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 20 broken data sets rejected for the right reason |
-| `unity: EditMode` | Fast | 144 tests in `ProjectSurvive.Game.Tests.EditMode` |
-| `unity: PlayMode` | **Full** | 46 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the battle HUD's mini ย่าม and its cooldown plates, the three scopes and the 20-round-trip loop) |
+| `unity: EditMode` | Fast | 155 tests in `ProjectSurvive.Game.Tests.EditMode` |
+| `unity: PlayMode` | **Full** | 47 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
 | `web: Playwright (smoke + title + battle + camp + result)` | **Full** | 10 browser tests against that build, in Chrome (13 more are the opt-in screenshot generator, skipped unless `SCREENS=1`) |
 
@@ -59,6 +59,14 @@ cooldown/frame cases, four of them run twice because the shared suite binds both
 **130/130** unchanged (the stage touched the contract and the simulation, not the shell) and its
 `-Suite Fast` run is `artifacts/stage08b/fast-suite.log` — **PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**,
 218.8 s.
+
+Stage 08d (2026-10-19) moved two counts and no dotnet one: EditMode **147 → 155**
+(`BattleMiniBagTests` **14 → 18** — the top-left origin, the L-shaped bag, two bags sharing a box, and
+ the caption gap — and
+`UiLayoutCheckTests` **20 → 24** — the mini bag's own stacking rule) and PlayMode **46 → 47** (the
+battle class 5 → 6, the scene's own grid-under-caption geometry), while `dotnet test` stayed **497**
+and Playwright stayed **10**. Its `-Suite Fast` run is `artifacts/stage08d/fast.log` —
+**PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**, 250.2 s. WebGL and Playwright were not run, by the brief.
 
 Stage 08c (2026-10-17) moved two counts and left the rest: EditMode **130 → 144** (`BattleMiniBagTests`
 14, and `BattlePresentationTests` 15) and PlayMode **45 → 46** (the battle class 4 → 5), while
@@ -188,19 +196,19 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `Inventory/*.cs` | Board/Backpack/BackpackEditor/Merge/Recycle/Rotation/Synergy/Loadout + the randomized bag tests |
 | `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay |
 
-### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (144 tests) → **Fast**
+### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (155 tests) → **Fast**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
 | `ShellSmokeTests` | 12 | the 7-probe smoke suite, config hash, R3/UniTask/serialization in the Editor |
 | `BattlePresentationTests` | 15 | the battle HUD/state/presenter seam without a scene |
-| `BattleMiniBagTests` | 14 | **Stage 08c** — the mini ย่าม's arithmetic against hand-made frames: a plate is `RemainingTicks / PeriodTicks` (four cases over the period and the remaining ticks), the three tones (counting / ready-but-MP-short / ready), the bounding box the bag's cells actually cover and the cell size that fits it into the panel, the read-only rule (no piece is moved, no rule is recomputed), and the update-on-change rule (a frame identical to the last writes nothing) |
+| `BattleMiniBagTests` | 18 | **Stage 08c** — the mini ย่าม's arithmetic against hand-made frames: a plate is `RemainingTicks / PeriodTicks` (four cases over the period and the remaining ticks), the three tones (counting / ready-but-MP-short / ready), the bounding box the bag's cells actually cover and the cell size that fits it into the panel, the read-only rule (no piece is moved, no rule is recomputed), and the update-on-change rule (a frame identical to the last writes nothing). **Stage 08d** added the origin and the stacking: the first box starts at the content area's top-left at both sizes, the L-shaped `bag.wicker_basket_l` hugs the corner of its own bounding box, two bags anchor to the corner of their union box, and the grid's area starts exactly one named gap under the caption on the caption's left edge |
 | `CampPresenterTests` | 22 | every camp command through the presenter, the preview/command agreement, the 0-byte drag, the drawn-link kinds, and (Stage 09g) the upgrade-choice window: dropping a matching pair opens it with nothing changed, the cards are the offer's own rows in order with their data lines, the left panel is the tooltip's own five lines, confirming raises the tier in the same cell and reaches the loadout, cancelling changes nothing and reopening offers the same cards, a pair with no choices still folds on the drop, and the board is locked while the window is up |
 | `CampTooltipPlacementTests` | 4 | the tooltip stays on screen, flips at the edges and never covers the pointer |
 | `RunFlowEditModeTests` | 4 | the run flow against the shipped `Resources` tables |
 | `WebSizeProfilesTests` | 8 | the size profiles and their recorded configuration |
 | `BackpackRulesTests` | 10 | the bag rules as the Editor sees them |
-| `UiLayoutCheckTests` | 20 | the overlap rule the UI capture command applies, the overlay exemption, the opacity floor and (Stage 09g) the modal rules: a window may cover the panel it is asking about, two cards sharing pixels are still reported, a card inside its window passes and one outside it does not; includes the deliberate-overlap case and the summary column's own floor case (the Result screen's column is held to the same 0.9 as the camp's panels) |
+| `UiLayoutCheckTests` | 24 | the overlap rule the UI capture command applies, the overlay exemption, the opacity floor and (Stage 09g) the modal rules: a window may cover the panel it is asking about, two cards sharing pixels are still reported, a card inside its window passes and one outside it does not; includes the deliberate-overlap case and the summary column's own floor case (the Result screen's column is held to the same 0.9 as the camp's panels). **Stage 08d** added the mini bag's stacking rule: a grid below the caption on its left edge passes, one lifted over the caption is reported (twice: overlap and stack), one inset from the caption's left edge is reported, and a screen with no mini bag invents nothing |
 | `DevCheatTests` | 8 | **Stage 10c** — `DevCheats.Allowed` is false until the root decides it and false in a release player, `Reset` puts it back; every dev command through the real ECS session: a floor with cheats off refuses each one with `RejectedNotAllowed` and changes nothing (HP, bia, entity count, phase), `DevGodMode` only takes 0/1, `DevAddBia` only takes a positive amount, and a refused command leaves the menu's own toggle telling the truth |
 | `ResultScreenTests` | 7 | **Stage 10b** — the summary a cleared run and a lost one produce (headline, floor reached, ghosts, bia, HP), a run that has not ended, the strings coming through the localization table, one way out at a time, `ReturnToTitle` being the run's own transition, and every `result.*` row existing in both languages |
 | `RunScopeLifetimeTests` | 3 | **Stage 10a** — the run is created once and replaced only by its owner's disposal, a run after a disposal is a new one and not the old object, and a scene scope inherits the App scope's run instead of building its own |
@@ -208,11 +216,11 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `TitleScreenTests` | 5 | **Stage 10d** — the screen's one action through the presenter and the shipped tables: the start caption and the heading come from the localization table (and every key exists in both languages), the control starts the run **once** and refuses a second press while the first move is in flight, a run that is already live is taken to the camp rather than started again (`RunSession.StartRun` refuses `WrongState`), and after a disposal the same control builds a **new** run |
 | `TitleScreenLayoutTests` | 4 | **Stage 10d** — `Title.unity` read from disk and judged with `UiLayoutCheck`: the heading, the build line and the control are pairwise disjoint and inside the canvas, every label is ≥ 22 px in a ≥ 32 px line box, the control is ≥ 44 px tall with a raycastable target, and the reading order (heading → build line → control) holds |
 
-### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (46 tests) → **Full**
+### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (47 tests) → **Full**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
-| `BattlePlayModeTests` | 5 | the battle scene starts, ticks, re-enters and disposes; **Stage 08c** added the scene's own wiring of the mini ย่าม (it is built, it matches the loadout's casters, and it creates nothing after its build) and the two claims a run can only make through the real scene — every plate equals the frame's own `RemainingTicks / PeriodTicks` with the tone its flags ask for, and those plates move as the floor runs |
+| `BattlePlayModeTests` | 6 | the battle scene starts, ticks, re-enters and disposes; **Stage 08c** added the scene's own wiring of the mini ย่าม (it is built, it matches the loadout's casters, and it creates nothing after its build) and the two claims a run can only make through the real scene — every plate equals the frame's own `RemainingTicks / PeriodTicks` with the tone its flags ask for, and those plates move as the floor runs. **Stage 08d** added the scene's own geometry: the grid's rectangle is below the caption and shares its left edge, the first box is at the content's top-left, and `CreatedAfterBuild` / `viewsGrownDuringPlay` stay 0 over a second of ticks |
 | `CampBagDragPlayModeTests` | 12 | the จัดย่าม screen driven by real pointer events, plus the tooltip's draw order, the two-name rule and the line/badge kinds |
 | `CampMergeChooserPlayModeTests` | 4 | **Stage 09g** — the upgrade-choice window through real pointer/keyboard events: drag onto the twin opens it (measured geometry: the dim covers the canvas, the cards do not overlap), a tap on the second card upgrades in the same cell with that card's variant id, `Escape` and the back control close it with the run's hash byte-identical and the same cards offered again, the board behind it stays locked and no tooltip is drawn, and `2` picks the second card |
 | `CampWorldPlayModeTests` | 8 | WASD walking, the walk clamp, `E` at a shelf, clicking without walking |

@@ -260,3 +260,19 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   input module.
 - **Next:** Stage 11's Thai ghost AI and balance; the bulk PlayMode flake and the camp specs' 15 s polls
   are still the two things that make a Full run red for reasons nobody owns yet.
+
+## Stage 08d — the mini ย่าม hangs from its caption
+
+- **Did:** anchored `MiniBagContent` to the panel's top-left (same left inset as the caption, a named
+  8 px gap under it) and made `MiniBagLayoutBuilder`'s origin that corner instead of the centre of a
+  412 × 494 area; added `UiLayoutCheck.FindMiniBagStackViolations` (below the caption, same left edge,
+  no overlap — a centred grid is disjoint, so the overlap rule could not see the defect); +4 EditMode
+  mini-bag cases, +4 layout-check cases, +1 battle PlayMode case; regenerated `Battle.unity` through
+  the Stage 08 menu.
+- **Result:** the first drawn pixel moved **110 px left / 149 px up at 1080p** and **73 / 100 at 720p**,
+  cell size unchanged at 64; `BattleMiniBagTests` 18/18, `UiLayoutCheckTests` 24/24, `BattlePlayModeTests`
+  6/6, EditMode **155/155**, `-Suite Fast` **PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**. WebGL and
+  Playwright NOT RUN by the brief.
+- **Next:** Stage 11's Thai ghost AI and balance; the panel `Image`'s hand-disabled state is reported
+  (not a code intent) — if "no backdrop" is wanted it has to be expressed in `BattleSceneBuilder`,
+  because a hand edit does not survive regeneration.

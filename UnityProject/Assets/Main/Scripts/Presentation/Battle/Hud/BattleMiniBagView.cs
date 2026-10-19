@@ -49,6 +49,40 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
     [DisallowMultipleComponent]
     public sealed class BattleMiniBagView : MonoBehaviour
     {
+        // ------------------------------------------------------------------
+        // The panel's own geometry (Stage 08d). Named constants, because these are the two
+        // numbers the layout reads back: the caption's line box and the gap under it decide where
+        // the grid starts, and the grid shares the caption's left edge. They are UI reference
+        // pixels (the canvas is 1920x1080 reference at both the sizes the GDD names), and they are
+        // applied through the panel's own anchors rather than as a position on the canvas.
+        // ------------------------------------------------------------------
+
+        /// <summary>Left inset shared by the caption and by the grid, in UI pixels.</summary>
+        public const float LeftInset = 10f;
+
+        /// <summary>Right inset of the grid inside the panel, in UI pixels.</summary>
+        public const float RightInset = 10f;
+
+        /// <summary>Bottom inset of the grid inside the panel, in UI pixels.</summary>
+        public const float BottomInset = 10f;
+
+        /// <summary>Top inset of the caption from the panel's top edge, in UI pixels.</summary>
+        public const float CaptionTop = 6f;
+
+        /// <summary>Height of the caption's line box, in UI pixels.</summary>
+        public const float CaptionHeight = 30f;
+
+        /// <summary>
+        /// Gap between the caption's bottom edge and the top of the grid's area, in UI pixels —
+        /// 8 px at 1080p, and the same 8 reference px at 720p (the canvas scalar draws them 2/3
+        /// the size). The brief for Stage 08d asks for 8–12 px; this is the low end, so the mini
+        /// ย่าม reads as belonging to the caption without touching it.
+        /// </summary>
+        public const float CaptionGap = 8f;
+
+        /// <summary>Top inset of the grid's area: the caption's whole line box plus the gap.</summary>
+        public const float ContentTop = CaptionTop + CaptionHeight + CaptionGap;
+
         [Tooltip("The panel the whole mini bag is drawn inside (its own background).")]
         [SerializeField] private RectTransform _panel;
 
@@ -159,6 +193,26 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
 
         /// <summary>Forces the canvas to lay out, so <see cref="ContentSize"/> is the size the screen will really have.</summary>
         public void Prepare() => Canvas.ForceUpdateCanvases();
+
+        /// <summary>
+        /// Anchors the grid's area to the panel's own top-left corner, below the caption and with the
+        /// caption's left inset (Stage 08d).
+        /// </summary>
+        /// <remarks>
+        /// The rect still stretches to the panel's right and bottom edges, so its size follows the
+        /// panel at any screen size; only its <b>top-left</b> is pinned, and the pivot is that corner.
+        /// The scene builder calls this through the Editor API when it authors the panel, and the
+        /// layout tests call it again on a rect of their own — one implementation, so a test cannot
+        /// disagree with the scene about where "under the caption" is.
+        /// </remarks>
+        public static void AnchorContent(RectTransform content)
+        {
+            content.anchorMin = Vector2.zero;
+            content.anchorMax = Vector2.one;
+            content.pivot = new Vector2(0f, 1f);
+            content.offsetMin = new Vector2(LeftInset, BottomInset);
+            content.offsetMax = new Vector2(-RightInset, -ContentTop);
+        }
 
         /// <summary>
         /// Builds the bag the floor started from: the panel, its cells, one box per piece and the
@@ -317,6 +371,23 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             return false;
         }
 
+        /// <summary>
+        /// The top-left corner of the <paramref name="index"/>-th drawn box, in the content area's
+        /// own pixels (x rightwards, y downwards). The first box of a bag at the origin is
+        /// <c>(0, 0)</c> — the layout test's "hugs the top-left corner".
+        /// </summary>
+        public bool TryGetPieceTopLeft(int index, out Vector2 topLeft)
+        {
+            if (index >= 0 && index < _pieceCount)
+            {
+                topLeft = _boxes[index].rectTransform.anchoredPosition;
+                return true;
+            }
+
+            topLeft = default;
+            return false;
+        }
+
         private void BuildCells(int used)
         {
             _cellCount = used;
@@ -338,8 +409,8 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
 
                 var rect = (RectTransform)cell.transform;
                 rect.anchoredPosition = new Vector2(
-                    _layout.OffsetX + (column * _layout.CellSize),
-                    -(_layout.OffsetY + (row * _layout.CellSize)));
+                    column * _layout.CellSize,
+                    -(row * _layout.CellSize));
                 rect.sizeDelta = new Vector2(size, size);
 
                 cell.color = _layout.IsBagCell(column, row)
@@ -377,8 +448,8 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
 
                 var rect = (RectTransform)box.transform;
                 rect.anchoredPosition = new Vector2(
-                    _layout.OffsetX + (piece.Column * _layout.CellSize),
-                    -(_layout.OffsetY + (piece.Row * _layout.CellSize)));
+                    piece.Column * _layout.CellSize,
+                    -(piece.Row * _layout.CellSize));
                 rect.sizeDelta = new Vector2(
                     (piece.Columns * _layout.CellSize) - _cellGap,
                     (piece.Rows * _layout.CellSize) - _cellGap);
