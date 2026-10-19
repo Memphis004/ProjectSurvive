@@ -255,6 +255,43 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         }
 
         /// <summary>
+        /// Stage 06c: a shelf that was rented is refilled by the paid เซียมซี cast — the shelf the
+        /// player emptied on screen shows a fresh offer the moment the drum is clicked.
+        /// </summary>
+        /// <remarks>
+        /// The drum is clicked at a point that is inside its own rectangle and inside no shelf's, so
+        /// the camp's click order (shelf first, drum second) cannot turn this into a rent.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator Clicking_the_drum_refills_a_shelf_that_was_just_rented()
+        {
+            yield return LoadCamp();
+
+            RunSession run = _director.Run;
+
+            // A purse that can pay for both the rent and the cast, whatever the shelf cost: the
+            // rule under test is the refill, not what 15 bia affords.
+            run.Wallet.Credit(100);
+
+            Assert.That(_world.TryGetShelfScreenRect(0, out Rect shelf), Is.True, "shelf 0 is not on screen");
+            yield return Click(shelf.center);
+
+            Assert.That(run.Stock[0].IsPurchased, Is.True, "clicking the shelf did not rent it");
+            Assert.That(run.Stock[0].IsEmpty, Is.True, "the rented shelf still holds an offer");
+
+            Assert.That(TryFindClearDrumPoint(out Vector2 drumPoint), Is.True, "the drum has no point clear of the shelves");
+            yield return Click(drumPoint);
+
+            Assert.That(_player.ResetRequests, Is.EqualTo(1), "the click did not reach the เซียมซี cylinder");
+            Assert.That(_director.Presenter.Counters.Refreshes, Is.EqualTo(1), "the cast did not re-roll the stock");
+
+            // Stage 06c: the paid cast refilled the shelf that was rented a moment ago.
+            Assert.That(run.Stock[0].IsPurchased, Is.False, "the cast left the shelf marked rented");
+            Assert.That(run.Stock[0].IsEmpty, Is.False, "the cast left the rented shelf empty");
+            Assert.That(run.Stock[0].Price, Is.GreaterThan(0), "the fresh offer has no price");
+        }
+
+        /// <summary>
         /// Stage 09c work item 5: the จัดย่าม button opens the panel, and while it is open the figure
         /// stands still.
         /// </summary>
@@ -287,6 +324,44 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             yield return Hold(0.5f, up: true);
             Assert.That(_player.Position.z, Is.GreaterThan(walked.z + 0.2f), "the player did not walk again after closing the panel");
+        }
+
+        /// <summary>
+        /// A point inside the เซียมซี cylinder's screen rectangle that no shelf also covers.
+        /// </summary>
+        /// <remarks>
+        /// The 2.5D sala draws its silhouettes over one another by design, and the camp's click order
+        /// asks the shelves first — so a click meant for the drum has to be aimed at a pixel only the
+        /// drum owns, exactly like a player aiming at the part of the cylinder that is not behind a
+        /// rack.
+        /// </remarks>
+        private bool TryFindClearDrumPoint(out Vector2 point)
+        {
+            point = default;
+
+            if (!_world.TryGetResetScreenRect(out Rect drum))
+            {
+                return false;
+            }
+
+            for (float fx = 0.15f; fx <= 0.85f; fx += 0.1f)
+            {
+                for (float fy = 0.15f; fy <= 0.85f; fy += 0.1f)
+                {
+                    var candidate = new Vector2(
+                        Mathf.Lerp(drum.xMin, drum.xMax, fx),
+                        Mathf.Lerp(drum.yMin, drum.yMax, fy));
+
+                    if (_world.IsResetAtScreenPoint(candidate)
+                        && _world.ShelfAtScreenPoint(candidate, out _) < 0)
+                    {
+                        point = candidate;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         // ------------------------------------------------------------------

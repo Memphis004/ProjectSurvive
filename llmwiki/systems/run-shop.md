@@ -75,13 +75,16 @@ the shop in the same camp returns the same `ShopStock` instance and consumes no 
 `Eligible(floorIndex)` is the pool filter: a `shop_pool` row counts when `weight > 0` and
 `floor_min <= floorIndex <= floor_max`. `Roll(stock, floorIndex, rng)` then:
 
-1. walks the panel's slots, and skips any slot where `CanBeRerolled` is false — a **pinned**
-   (`IsLocked`) or **already rented** (`IsPurchased`) slot is never drawn over;
-2. draws one candidate by weight **without replacement**, so one roll never offers the same
+1. walks the panel's slots and skips any slot where `CanBeRerolled` is false — after
+   [ADR 0026](../../docs/adr/0026-a-paid-reroll-refills-a-rented-slot.md) that is the **pinned**
+   (`IsLocked`) slot alone; every other slot, a **rented** one included, is drawn over;
+2. calls `ShopSlot.BeginReroll()` on it first — the offer *and* the rent flag go, so a shelf with no
+   candidate left to draw is simply empty, never empty-and-rented;
+3. draws one candidate by weight **without replacement**, so one roll never offers the same
    piece twice;
-3. resolves the row to an id and a price through `TryResolve` — the `bag` table first, then
+4. resolves the row to an id and a price through `TryResolve` — the `bag` table first, then
    the `item` table — and writes both onto the slot;
-4. returns how many slots it filled (`RefreshOutcome.Filled`).
+5. returns how many slots it filled (`RefreshOutcome.Filled`).
 
 Two edges are deliberate. If the remaining candidates run out before the panel is full, the
 leftover slots are **left empty**, never duplicated. And the price is copied onto the slot at
@@ -98,14 +101,22 @@ reachable with shipped data, which never produces it.
 | --- | --- |
 | `OfferedId` / `Kind` / `Price` | what is on offer, and at which table price |
 | `IsEmpty` | holds nothing to rent |
-| `IsPurchased` | was rented **in this camp**; the money is spent and the slot never refills for free — `ResetForCamp()` clears it on the next camp entry |
+| `IsPurchased` | was rented **in this camp**; the money is spent and a second rent is refused — cleared by a paid re-roll (`BeginReroll()`) or by the next camp entry (`ResetForCamp()`) |
 | `IsLocked` | pinned so a re-roll keeps it ("ล็อกสินค้าที่อยากเก็บไว้ก่อนสุ่มได้") |
-| `CanBeRerolled` | `!IsLocked && !IsPurchased` — the single rule `Roll` asks |
+| `CanBeRerolled` | `!IsLocked` — the single rule `Roll` asks ([ADR 0026](../../docs/adr/0026-a-paid-reroll-refills-a-rented-slot.md)) |
 
 **Renting empties the slot.** `MarkPurchased()` sets `IsPurchased` *and* clears the offer, so
 a rented slot shows as rented and holds nothing more. What was bought is carried by the
 `PurchaseOutcome` and by the run's inventory, not by the panel. `ShopSlotState` is the plain
 copy of a slot (index, id, kind, price, both flags) that the state hash and a checkpoint read.
+
+> **Stage 06c.** ADR 0016 §2 made `CanBeRerolled` `!IsLocked && !IsPurchased`, so a paid re-roll
+> skipped a rented shelf and the sala kept a hole in it for the rest of the visit. "ไม่เติมสินค้าให้
+> ฟรี" is about the **rent** (the piece is taken for the price paid); the re-roll is itself a paid
+> command, so it now refills the shelf and clears the flag. A shelf that has not been re-rolled is
+> unchanged: rented, empty, and a second rent refused. The re-roll price, the shop stream and the
+> atomicity of `RefreshShop` are untouched
+> ([ADR 0026](../../docs/adr/0026-a-paid-reroll-refills-a-rented-slot.md)).
 
 ### 3.3 The re-roll price ("เสี่ยงเซียมซี")
 
@@ -131,8 +142,8 @@ never recomputes a price, a heal or a combo.
 | `OpenShop()` | Camp | Read-only; returns the same stock every time in this camp |
 | `Purchase(slotIndex)` | Camp | Rent one offer into the **chest** |
 | `Sell(piece)` | Camp | `Editor.Recycle` for `economy.sell_back_percent` of the base price, then credits the purse |
-| `RefreshShop()` | Camp | Charge the re-roll price, then re-roll the re-rollable slots |
-| `SetSlotLocked(slotIndex, locked)` | Camp | Pin/unpin one slot; a rented slot is refused |
+| `RefreshShop()` | Camp | Charge the re-roll price, then re-roll every non-pinned slot — a rented one included |
+| `SetSlotLocked(slotIndex, locked)` | Camp | Pin/unpin one slot; a rented slot is refused (`shop.slot_purchased`) and an empty one too (`shop.slot_empty`) — there is nothing to pin |
 | `StartFloor()` | Camp | The departure gate; returns the `BattleSetup` |
 | `ApplyBattleResult(result)` | Battle | Settle the floor once |
 | `MovePiece` / `RotatePiece` / `TransferToChest` / `MergeItems` / `Undo` / `Reset` | Camp | Delegated to `BackpackEditor` (Stage 05), then recorded |
@@ -296,7 +307,8 @@ browsers or CPUs (AGENTS rule 6).
   cursor) and `unknown_floor` (a degenerate floor table) are named **preconditions** and say so
   in `RunError` rather than pretending to be player-facing outcomes
 - `wallet.` — `insufficient_bia`
-- `shop.` — `unknown_slot`, `slot_empty`, `slot_purchased`, `unknown_piece`
+- `shop.` — `unknown_slot`, `slot_empty` (empty when rented, or after a paid re-roll found no
+  candidate for it), `slot_purchased`, `unknown_piece`
 - plus `inventory.chest_full` and `inventory.not_enough_pieces` reused from Stage 05.
 
 All of them are API: player-facing text is localization keyed `error.<code>`, and renaming a

@@ -22,6 +22,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **05** | **Inventory domain (bag rules, combos, loadout)** | **DONE** — see [`docs/stages/05-report.md`](docs/stages/05-report.md) |
 | **06** | **Shop, economy, run, scene flow** | **DONE** — see [`docs/stages/06-report.md`](docs/stages/06-report.md) |
 | **06b** | **A sala's stock does not follow the run (bug fix)** | **DONE** — see [`docs/stages/06b-report.md`](docs/stages/06b-report.md) |
+| **06c** | **A paid re-roll refills a rented shelf** | **DONE** — see [`docs/stages/06c-report.md`](docs/stages/06c-report.md), [ADR 0026](docs/adr/0026-a-paid-reroll-refills-a-rented-slot.md) |
 | **07** | **Battle core (headless) & bot sim** | **DONE** — see [`docs/stages/07-report.md`](docs/stages/07-report.md) |
 | **07b** | **Bia from battle (drop value + clear reward)** | **DONE** — see [`docs/stages/07b-report.md`](docs/stages/07b-report.md), [ADR 0025](docs/adr/0025-bia-from-battle.md) |
 | **08** | **Battle presentation 2.5D** | **DONE** — see [`docs/stages/08-report.md`](docs/stages/08-report.md) |

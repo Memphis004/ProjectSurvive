@@ -39,7 +39,12 @@ namespace ProjectSurvive.Core.Domain.Shop
         /// <summary>Standard price in bia, straight from the item or bag table.</summary>
         public int Price { get; private set; }
 
-        /// <summary>True once the slot was rented; such a slot never refills for free.</summary>
+        /// <summary>
+        /// True once the slot was rented in this camp. It stays set — and the slot stays
+        /// empty and refuses a second rent — until a <b>paid</b> re-roll fills it again, or
+        /// until the run enters a new sala. A re-roll refills it because the re-roll was
+        /// paid for; nothing about the rent itself is ever free.
+        /// </summary>
         public bool IsPurchased { get; private set; }
 
         /// <summary>True while the player has pinned the offer across a re-roll (\"ล็อกสินค้าที่อยากเก็บไว้ก่อนสุ่มได้\").</summary>
@@ -49,10 +54,11 @@ namespace ProjectSurvive.Core.Domain.Shop
         public bool IsEmpty => OfferedId.Length == 0;
 
         /// <summary>
-        /// True when a re-roll may replace this slot: it must be neither pinned nor
-        /// already rented.
+        /// True when a re-roll may replace this slot. Only a pinned slot is left alone:
+        /// a rented slot is re-rolled too, because the re-roll itself was paid for
+        /// (Stage 06c, [ADR 0026](../../../../docs/adr/0026-a-paid-reroll-refills-a-rented-slot.md)).
         /// </summary>
-        public bool CanBeRerolled => !IsLocked && !IsPurchased;
+        public bool CanBeRerolled => !IsLocked;
 
         /// <summary>A plain, copyable picture of this slot (state hash, checkpoint).</summary>
         public ShopSlotState Capture() =>
@@ -74,6 +80,18 @@ namespace ProjectSurvive.Core.Domain.Shop
         internal void MarkPurchased()
         {
             IsPurchased = true;
+            Clear();
+        }
+
+        /// <summary>
+        /// Starts a <b>paid</b> re-roll on this slot: the rent flag and the offer go, and the
+        /// roller then either fills a new offer or — when the pool has run out — leaves the
+        /// slot empty without a rent flag. This is the one path that clears
+        /// <see cref="IsPurchased"/> besides entering a new camp.
+        /// </summary>
+        internal void BeginReroll()
+        {
+            IsPurchased = false;
             Clear();
         }
 

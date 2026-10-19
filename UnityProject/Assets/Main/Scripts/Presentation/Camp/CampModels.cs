@@ -183,7 +183,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>Holds nothing to rent.</summary>
         public bool IsEmpty { get; }
 
-        /// <summary>Already rented; such a slot never refills.</summary>
+        /// <summary>Already rented; the rent holds until a paid re-roll or the next sala refills it.</summary>
         public bool IsPurchased { get; }
 
         /// <summary>Pinned across a re-roll.</summary>

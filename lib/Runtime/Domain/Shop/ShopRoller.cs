@@ -35,9 +35,10 @@ namespace ProjectSurvive.Core.Domain.Shop
         }
 
         /// <summary>
-        /// Fills every slot that is neither rented nor pinned, and returns how many
-        /// it filled. Slots already holding a kept offer are left exactly as they
-        /// are (\"ล็อกสินค้าที่อยากเก็บไว้ก่อนสุ่มได้\").
+        /// Re-rolls every slot that is not pinned, and returns how many it filled. A
+        /// rented slot is re-rolled too — the re-roll was paid for — and loses its rent
+        /// flag; a pinned slot keeps its offer exactly as it is
+        /// (\"ล็อกสินค้าที่อยากเก็บไว้ก่อนสุ่มได้\").
         /// </summary>
         /// <param name="stock">The stock to fill.</param>
         /// <param name="floorIndex">1-based run order of the floor being entered, matched against the pool's floor band.</param>
@@ -47,9 +48,9 @@ namespace ProjectSurvive.Core.Domain.Shop
             Roll(stock, Eligible(floorIndex), rng);
 
         /// <summary>
-        /// Fills every slot that is neither rented nor pinned from an explicit pool, and
-        /// returns how many it filled. The overload exists so a caller (or a test) can
-        /// draw from a subset — and so the "fewer offers than slots" rule is reachable.
+        /// Re-rolls every slot that is not pinned from an explicit pool, and returns how
+        /// many it filled. The overload exists so a caller (or a test) can draw from a
+        /// subset — and so the "fewer offers than slots" rule is reachable.
         /// </summary>
         /// <param name="stock">The stock to fill.</param>
         /// <param name="pool">The candidate rows, in draw order.</param>
@@ -83,12 +84,16 @@ namespace ProjectSurvive.Core.Domain.Shop
                     continue;
                 }
 
+                // A re-roll replaces what the slot held, rent flag included. Clearing
+                // before the pool check is what leaves a slot with no candidate simply
+                // empty rather than empty-and-rented.
+                slot.BeginReroll();
+
                 if (remaining.Count == 0)
                 {
                     // Fewer eligible offers than slots (shipped data has 10+ on every
                     // floor). Leaving the slot empty is honest; inventing a duplicate
                     // would break "หนึ่งชิ้นต่อช่อง".
-                    slot.Clear();
                     continue;
                 }
 
@@ -97,7 +102,6 @@ namespace ProjectSurvive.Core.Domain.Shop
 
                 if (!TryResolve(picked.OfferedId, out PieceKind kind, out int price))
                 {
-                    slot.Clear();
                     continue;
                 }
 

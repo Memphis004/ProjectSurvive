@@ -64,6 +64,15 @@ namespace ProjectSurvive.Core.Tests.Run
 
             // No re-roll has been paid for in this camp, so the next one costs the base.
             Assert.Equal(config.Economy.RefreshBaseCost, first.Stock.RefreshCost(config.Economy));
+
+            // Stage 06c: the same rent + paid re-roll also lands on the same panel, so the
+            // new rule does not introduce a hidden source of randomness.
+            Assert.True(first.Purchase(0).IsSuccess);
+            Assert.True(second.Purchase(0).IsSuccess);
+            Assert.True(first.RefreshShop().IsSuccess);
+            Assert.True(second.RefreshShop().IsSuccess);
+            Assert.Equal(RunFixture.StockIds(first), RunFixture.StockIds(second));
+            Assert.Equal(first.ComputeStateHash(), second.ComputeStateHash());
         }
 
         [Fact]
@@ -189,12 +198,23 @@ namespace ProjectSurvive.Core.Tests.Run
             // The next re-roll costs 9 and the purse is 3: refused, and the purse does
             // not move when it is (\"เงินไม่พอ ... ไม่เปลี่ยน state\").
             int purse = run.Wallet.Bia;
+            int[] prices = new int[run.Stock.SlotCount];
+            var ids = RunFixture.StockIds(run);
+            for (int i = 0; i < prices.Length; i++)
+            {
+                prices[i] = run.Stock[i].Price;
+            }
+
+            uint hash = run.ComputeStateHash();
             Result<RefreshOutcome> third = run.RefreshShop();
 
             Assert.True(third.IsFailure);
             Assert.Equal(WalletError.InsufficientBia, third.Error.Code);
             Assert.Equal(purse, run.Wallet.Bia);
             Assert.Equal(2, run.Stock.RefreshCount);
+            Assert.Equal(ids, RunFixture.StockIds(run));
+            Assert.Equal(prices, SnapshotPrices(run));
+            Assert.Equal(hash, run.ComputeStateHash());
         }
 
         [Fact]
@@ -213,20 +233,58 @@ namespace ProjectSurvive.Core.Tests.Run
         }
 
         [Fact]
-        public void A_refresh_never_refills_slots_that_were_rented()
+        public void A_paid_reroll_refills_a_rented_slot_and_clears_its_rent()
         {
+            // Stage 06c: "refresh สุ่มสินค้าใหม่ให้ทุกช่องที่ไม่ล็อก รวมช่องที่เช่าแล้ว".
+            // The rent emptied the slot for free; what is paid for is the re-roll that
+            // puts a fresh offer on it (ADR 0026 supersedes ADR 0016 §2's skip).
             IGameConfig config = RunFixture.Config();
             RunSession run = RunFixture.StartedRun(config);
-            int slot = RunFixture.CheapestAvailableSlot(run);
+            run.Wallet.Credit(100);
 
-            Assert.True(run.Purchase(slot).IsSuccess);
-            Assert.True(run.Stock[slot].IsPurchased);
+            Assert.True(run.Purchase(0).IsSuccess, "slot 0 could not be rented");
+            Assert.True(run.Stock[0].IsPurchased, "the shelf is not marked rented");
+            Assert.True(run.Stock[0].IsEmpty, "a rented shelf holds nothing to rent again");
 
             Result<RefreshOutcome> refresh = run.RefreshShop();
 
             Assert.True(refresh.IsSuccess, refresh.Error.ToString());
-            Assert.True(run.Stock[slot].IsPurchased, "a rented slot must stay rented");
-            Assert.True(run.Stock[slot].IsEmpty, "a rented slot must not refill for free");
+            Assert.False(run.Stock[0].IsPurchased, "a paid re-roll left the shelf marked rented");
+            Assert.False(run.Stock[0].IsEmpty, "a paid re-roll left the shelf empty");
+            Assert.True(run.Stock[0].Price > 0, "the fresh offer has no price");
+            Assert.Equal(run.Stock.SlotCount, refresh.Value.Filled);
+
+            // One roll never offers the same piece twice, refilled shelves included.
+            var seen = new HashSet<string>();
+            for (int i = 0; i < run.Stock.SlotCount; i++)
+            {
+                Assert.False(run.Stock[i].IsPurchased, "shelf " + i + " is still rented");
+                Assert.True(seen.Add(run.Stock[i].OfferedId),
+                    "the same piece was offered twice: " + run.Stock[i].OfferedId);
+            }
+        }
+
+        [Fact]
+        public void A_paid_reroll_refills_rented_shelves_but_keeps_a_pinned_one_exactly_as_it_was()
+        {
+            IGameConfig config = RunFixture.Config();
+            RunSession run = RunFixture.StartedRun(config);
+            run.Wallet.Credit(100);
+
+            Assert.True(run.Purchase(0).IsSuccess, "slot 0 could not be rented");
+            Assert.True(run.SetSlotLocked(1, true).IsSuccess);
+            string pinned = run.Stock[1].OfferedId;
+            int pinnedPrice = run.Stock[1].Price;
+
+            Result<RefreshOutcome> refresh = run.RefreshShop();
+
+            Assert.True(refresh.IsSuccess, refresh.Error.ToString());
+            Assert.False(run.Stock[0].IsPurchased, "the rented shelf was not re-rolled");
+            Assert.False(run.Stock[0].IsEmpty, "the rented shelf was left empty");
+
+            Assert.True(run.Stock[1].IsLocked, "the pin was lost across the re-roll");
+            Assert.Equal(pinned, run.Stock[1].OfferedId);
+            Assert.Equal(pinnedPrice, run.Stock[1].Price);
             Assert.Equal(run.Stock.SlotCount - 1, refresh.Value.Filled);
         }
 
@@ -344,7 +402,7 @@ namespace ProjectSurvive.Core.Tests.Run
         }
 
         [Fact]
-        public void Renting_every_slot_sells_the_panel_out()
+        public void Renting_the_whole_panel_and_paying_for_a_reroll_brings_back_four_offers()
         {
             IGameConfig config = RunFixture.Config();
             RunSession run = RunFixture.StartedRun(config);
@@ -365,12 +423,22 @@ namespace ProjectSurvive.Core.Tests.Run
             Assert.True(run.Stock.IsSoldOut);
             Assert.Equal(0, run.Stock.AvailableCount);
 
-            // The re-roll is still paid for, but a sold-out panel stays sold out: there is
-            // nothing left that a re-roll may replace.
+            // Stage 06c: a sold-out panel is not stuck sold out. The paid re-roll fills all
+            // four shelves again — every one of them was non-pinned, rented included.
             Result<RefreshOutcome> refresh = run.RefreshShop();
             Assert.True(refresh.IsSuccess, refresh.Error.ToString());
-            Assert.Equal(0, refresh.Value.Filled);
-            Assert.True(run.Stock.IsSoldOut);
+            Assert.Equal(run.Stock.SlotCount, refresh.Value.Filled);
+            Assert.False(run.Stock.IsSoldOut);
+            Assert.Equal(run.Stock.SlotCount, run.Stock.AvailableCount);
+
+            var seen = new HashSet<string>();
+            for (int slot = 0; slot < run.Stock.SlotCount; slot++)
+            {
+                Assert.False(run.Stock[slot].IsPurchased, "shelf " + slot + " is still rented");
+                Assert.False(run.Stock[slot].IsEmpty, "shelf " + slot + " was left empty");
+                Assert.True(seen.Add(run.Stock[slot].OfferedId),
+                    "the same piece was offered twice: " + run.Stock[slot].OfferedId);
+            }
         }
 
         [Fact]
@@ -421,6 +489,18 @@ namespace ProjectSurvive.Core.Tests.Run
                 Assert.True(slot.Price > 0, context + ": slot " + i + " has no price");
                 Assert.True(seen.Add(slot.OfferedId), context + ": the same piece was offered twice: " + slot.OfferedId);
             }
+        }
+
+        /// <summary>The price of every shelf in panel order.</summary>
+        private static int[] SnapshotPrices(RunSession run)
+        {
+            var prices = new int[run.Stock.SlotCount];
+            for (int i = 0; i < prices.Length; i++)
+            {
+                prices[i] = run.Stock[i].Price;
+            }
+
+            return prices;
         }
 
         private static BattleResult Won(RunSession run) => new BattleResult

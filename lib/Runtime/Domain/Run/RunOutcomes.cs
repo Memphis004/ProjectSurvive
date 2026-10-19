@@ -57,7 +57,7 @@ namespace ProjectSurvive.Core.Domain.Run
         /// <summary>What this re-roll cost (<c>refresh_base_cost + increment * (count - 1)</c>).</summary>
         public int Cost { get; }
 
-        /// <summary>How many slots were replaced. Pinned and rented slots are left alone.</summary>
+        /// <summary>How many slots were replaced. A pinned slot is the only one left alone.</summary>
         public int Filled { get; }
 
         /// <summary>The wallet balance after paying.</summary>

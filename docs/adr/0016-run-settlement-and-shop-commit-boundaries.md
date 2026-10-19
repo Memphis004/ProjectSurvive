@@ -44,9 +44,15 @@ Stage 09's localization and to the next reader.
 
 `ShopSlot.MarkPurchased()` sets `IsPurchased` **and** clears kind, id and price, so
 `IsEmpty` means exactly "holds nothing to rent" and the panel shows a rented slot as rented.
-A `Roll` skips it through `CanBeRerolled` (`!IsLocked && !IsPurchased`), so a re-roll can
-never fill it. What was rented is carried by `PurchaseOutcome` (and by the piece that landed
-in the chest), captured **before** the commit, so the event and the outcome still name it.
+What was rented is carried by `PurchaseOutcome` (and by the piece that landed in the chest),
+captured **before** the commit, so the event and the outcome still name it.
+
+> **Amended by [ADR 0026](0026-a-paid-reroll-refills-a-rented-slot.md) (Stage 06c).** The second
+> half of this decision — that a `Roll` skips a rented slot through
+> `CanBeRerolled` (`!IsLocked && !IsPurchased`), so a re-roll can never fill it — is **superseded**.
+> `CanBeRerolled` is now `!IsLocked`, and a paid re-roll clears the rent and puts a fresh offer on
+> the shelf. Renting still empties the slot, the rent still costs nothing to keep, and a rented shelf
+> still refuses a second rent until that paid re-roll reaches it.
 
 **3. The composition root still binds no battle session.**
 
@@ -85,6 +91,10 @@ checked with `Editor.CanConsume` before the removal.
   the rule engine is allowed to spare. The cost is that "what was rented here" is only in the
   purchase outcome, and a Stage 09 panel that wants it must keep that outcome (or show
   "เช่าแล้ว" with no name, which is what the GDD's own wording describes).
+- **A paid re-roll refills a rented slot** — this was **not** adopted here and is what Stage 06c
+  later decided instead ([ADR 0026](0026-a-paid-reroll-refills-a-rented-slot.md)). It is recorded
+  because the reasoning above only weighed the free refill: a re-roll is a paid command, so
+  refilling through it is not the "เติมฟรี" the GDD forbids.
 - **Clamp a mismatched `RemainingConsumables`** (`for i in min(counts)`) — rejected: the
   settlement moves HP, bia and the clear heal, and the only thing that keeps those three
   consistent with the bag is that they are applied together or not at all. A clamped result
@@ -103,10 +113,10 @@ checked with `Editor.CanConsume` before the removal.
 - **The settlement id stays useful without being load-bearing.** `LastSettlementId` is part of
   `RunState` (so a replay proves it moved) and of `FloorSettlement` (so the summary screen can
   label the floor it just paid). It is monotonic per run, and a settlement is exactly one
-  floor's payout.
-- **The shop's state is fully described by `ShopSlotState`.** Because a rented slot is empty,
-  the hash over (id, kind, price, `IsPurchased`, `IsLocked`) cannot hide a rented slot behind
-  a stale offer.
+  floor's payout.- **The shop's state is fully described by `ShopSlotState`.** Because a rented slot is empty,
+  the hash over (id, kind, price, `IsPurchased`, `IsLocked`) cannot hide a rented slot behind a
+  stale offer. (After [ADR 0026](0026-a-paid-reroll-refills-a-rented-slot.md) the same five fields
+  still describe the panel — only the moment the rent flag is cleared changed.)
 - **No registration can hide a battle implementation.** The only way to get a session is to
   ask the factory you were given, which an architecture test enforces at the source level
   (nothing outside `Application/Battle/Fake/` may name the fake).

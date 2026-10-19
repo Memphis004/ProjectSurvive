@@ -180,7 +180,7 @@ tag, is in [`systems/data-schema.md`](systems/data-schema.md#tag-vocabulary).
 | ฉากของแต่ละระยะ | `SceneId` / `SceneFlowMap` | Enum + map | Phase → scene, one explicit function |
 | ตัวขับลูปฉาก | `SceneFlow` | Application | Camp ↔ Battle; the only place a battle session is created |
 | แผงวัตถุมงคลยายจันทร์ | `ShopStock` | Domain | 4 slots; one stock per camp entry (`BeginCamp` re-rolls) |
-| ช่องสินค้า | `ShopSlot` | Domain | Offer + two flags; a rented slot is emptied, never refilled |
+| ช่องสินค้า | `ShopSlot` | Domain | Offer + two flags; a rented slot is emptied by the rent and refilled only by a paid re-roll or a new sala |
 | สุ่มแผงสินค้า / เสี่ยงเซียมซี | `ShopRoller` | Domain | Weighted draw without replacement; resolves the table price |
 | ล็อกสินค้าที่อยากเก็บไว้ | `SetSlotLocked` | Command | A pinned slot survives a re-roll |
 | ราคาเสี่ยงเซียมซี | `ShopStock.RefreshCost` | Rule | `refresh_base_cost + increment × refreshes this camp` |

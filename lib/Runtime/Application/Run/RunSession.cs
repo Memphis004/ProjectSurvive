@@ -614,7 +614,10 @@ namespace ProjectSurvive.Core.Application.Run
         /// <summary>
         /// Re-rolls the shop (เสี่ยงเซียมซี): costs
         /// <c>refresh_base_cost + increment × refreshes already paid</c>, and replaces
-        /// only the slots that are neither pinned nor already rented.
+        /// every slot that is not pinned — a rented slot included, because the re-roll
+        /// itself is what was paid for. A rented slot only loses its rent flag once this
+        /// paid re-roll actually reaches it; until then it stays empty and refuses a
+        /// second rent.
         /// </summary>
         public Result<RefreshOutcome> RefreshShop()
         {
@@ -640,7 +643,10 @@ namespace ProjectSurvive.Core.Application.Run
             return Result.Ok(new RefreshOutcome(Stock.RefreshCount, cost, filled, Wallet.Bia));
         }
 
-        /// <summary>Pins or unpins one shop slot so a re-roll keeps it.</summary>
+        /// <summary>
+        /// Pins or unpins one shop slot so a re-roll keeps it. A slot with nothing on it —
+        /// rented or left empty by a short pool — is refused: there is nothing to pin.
+        /// </summary>
         public Result<ShopSlot> SetSlotLocked(int slotIndex, bool locked)
         {
             if (FlowState != RunFlowState.Camp)
@@ -657,6 +663,11 @@ namespace ProjectSurvive.Core.Application.Run
             if (slot.IsPurchased)
             {
                 return Result.Fail<ShopSlot>(ShopError.SlotPurchased, ErrorKind.Conflict);
+            }
+
+            if (slot.IsEmpty)
+            {
+                return Result.Fail<ShopSlot>(ShopError.SlotEmpty, ErrorKind.Insufficient);
             }
 
             if (slot.IsLocked == locked)

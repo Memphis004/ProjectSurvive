@@ -265,6 +265,25 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
 - **Next:** Stage 11's Thai ghost AI and balance; the bulk PlayMode flake and the camp specs' 15 s polls
   are still the two things that make a Full run red for reasons nobody owns yet.
 
+## Stage 06c — a paid re-roll refills a rented shelf
+
+- **Did:** `ShopSlot.CanBeRerolled` is now `!IsLocked` (was `!IsLocked && !IsPurchased`) and
+  `ShopRoller` calls a new `ShopSlot.BeginReroll()` — rent flag *and* offer go — on every slot it is
+  about to fill, so a paid เสี่ยงเซียมซี refills the shelves that were rented in this sala and a shelf
+  with no candidate is left empty **and unrented**; `RunSession.SetSlotLocked` now refuses an empty
+  slot too (`shop.slot_empty`), and nothing else moved — same price ladder, same shop stream, same
+  atomic "charge, then roll" ([ADR 0026](../docs/adr/0026-a-paid-reroll-refills-a-rented-slot.md)
+  supersedes the roller-skip half of [ADR 0016](../docs/adr/0016-run-settlement-and-shop-commit-boundaries.md) §2).
+  No `data/` change at all.
+- **Result:** dotnet **511** (1 new case, the two old assertions rewritten into refill cases), EditMode
+  **155/155** (the rented-slot case re-asserted as "a paid re-roll clears the rent"), `-Suite Fast`
+  **PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0** (82.4 s), PlayMode per class — CampWorld **9/9** (the new
+  rent-then-click-the-drum case), CampBagDrag **12/12**, CampMergeChooser **4/4**, ResultScene **3/3**.
+  Replay, seed-determinism and the "money short changes nothing" hash assertions all still hold.
+- **Next:** Stage 11 (Thai ghost AI, Pob boss, balance). WebGL build and Playwright were **NOT RUN**
+  (Stage 06c is not a browser gate and no browser spec casts the sticks after a rent); the new
+  `shop.slot_empty` pin refusal has no directly reachable test with shipped data.
+
 ## Stage 08d — the mini ย่าม hangs from its caption
 
 - **Did:** anchored `MiniBagContent` to the panel's top-left (same left inset as the caption, a named

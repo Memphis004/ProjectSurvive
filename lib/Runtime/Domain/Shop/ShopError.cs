@@ -15,7 +15,10 @@ namespace ProjectSurvive.Core.Domain.Shop
         /// <summary>The slot index is outside the stock (\"4 ช่อง\" per camp entry).</summary>
         public const string UnknownSlot = "shop.unknown_slot";
 
-        /// <summary>The slot holds nothing — it was already rented and never refills for free.</summary>
+        /// <summary>
+        /// The slot holds nothing: it was already rented (a paid re-roll or a new sala refills it), or
+        /// a re-roll found no candidate for it. There is nothing to rent or to pin.
+        /// </summary>
         public const string SlotEmpty = "shop.slot_empty";
 
         /// <summary>The slot was already rented (\"ซื้อช่องเดิมซ้ำไม่ได้\").</summary>

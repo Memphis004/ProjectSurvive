@@ -102,7 +102,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         [Test]
-        public void A_rented_slot_takes_the_money_once_and_never_refills_for_free()
+        public void A_paid_reroll_refills_the_rented_slot_while_a_second_rent_is_refused()
         {
             RunSession run = StartedRun();
             int slot = CheapestSlot(run);
@@ -123,11 +123,14 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(again.Error.Code, Is.EqualTo(ShopError.SlotPurchased));
             Assert.That(run.Wallet.Bia, Is.EqualTo(purse), "a refused rent must not move the purse");
 
+            // Stage 06c: the re-roll is paid for, so it refills the rented shelf too and
+            // clears the rent flag; what stays rent-free is the rent, not the re-roll.
             Result<RefreshOutcome> refresh = run.RefreshShop();
             Assert.That(refresh.IsSuccess, Is.True, refresh.Error.ToString());
-            Assert.That(run.Stock[slot].IsPurchased, Is.True);
-            Assert.That(run.Stock[slot].IsEmpty, Is.True, "a re-roll must not refill a rented slot");
-            Assert.That(refresh.Value.Filled, Is.EqualTo(run.Stock.SlotCount - 1));
+            Assert.That(run.Stock[slot].IsPurchased, Is.False, "a paid re-roll clears the rent");
+            Assert.That(run.Stock[slot].IsEmpty, Is.False, "a paid re-roll puts a fresh offer back");
+            Assert.That(run.Stock[slot].Price, Is.GreaterThan(0), "the fresh offer has a price");
+            Assert.That(refresh.Value.Filled, Is.EqualTo(run.Stock.SlotCount));
             Assert.That(refresh.Value.Cost, Is.EqualTo(_config.Economy.RefreshBaseCost));
         }
 
