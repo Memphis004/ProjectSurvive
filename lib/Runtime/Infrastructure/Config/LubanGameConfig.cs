@@ -247,6 +247,7 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                     IsElite = row.IsElite,
                     IsBoss = row.IsBoss,
                     BossPhase2HpPercent = row.BossPhase2HpPercent,
+                    DropValue = row.DropValue,
                 };
                 _enemies.Add(enemy.Id, enemy);
                 _enemyList.Add(enemy);
@@ -322,6 +323,7 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                 SellBackPercent = economy.SellBackPercent,
                 HealPercentOnClear = economy.HealPercentOnClear,
                 ChestSlots = economy.ChestSlots,
+                ClearRewardBia = economy.ClearRewardBia,
             };
         }
 

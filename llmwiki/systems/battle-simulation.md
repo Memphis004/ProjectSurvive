@@ -136,20 +136,28 @@ an id that is not in the table resolves to `0` rather than to a guess. The map i
 once per factory and never persisted, so inserting a row anywhere but the end of a table
 renumbers ids — safe, because a def id lives only inside one battle's event stream.
 
-## 10. What `data/` does not have yet (ADR 0017)
+## 10. What a kill pays, and what `data/` still does not carry
 
-Three numbers the prototype asks for and the tables do not carry. None of them was
-invented in code; each is a documented gap with a named column:
+**A kill pays `enemy.drop_value`** (Stage 07b, [ADR 0025](../../docs/adr/0025-bia-from-battle.md)).
+The value is copied onto `EnemyTag` / `WaveSlot` at spawn, `DeathSystem` queues it,
+`DropSystem` spawns the pickup with it, and `PickupSystem` adds it to
+`BattleContext.CurrencyEarned` and deletes the pickup in the same tick. `BattleResult.CurrencyEarned`
+is therefore the sum of collected drops; the flat clear reward is separate
+(`economy.clear_reward_bia`, paid by the run's settlement on a win only). The first
+values are filler/fast 1, elite 3, boss 10 and clear 8 — starting values for the
+Stage 11 balance pass, not a claim.
+
+Two numbers the prototype still wants and the tables still do not carry; neither was
+invented in code:
 
 | Gap | What the stage did instead | Column Stage 11 adds |
 | --- | --- | --- |
 | Elemental status magnitude | re-uses the applying skill's own damage, on a 1 s cadence, refreshed (not stacked) | a `status` table |
-| What a kill pays | spawns, magnetises, collects and announces the pickup with value `0`; `CurrencyEarned` stays `0` | `enemy.drop_value` |
 | Magnet speed | collects instantaneously inside `constant.pickup_radius` | `constant.magnet_speed` |
 
-Consequence worth knowing when reading balance data: **a run earns no bia inside a
-battle**, so a camp can only ever spend `economy.start_bia`. That is why the Stage 07
-200-seed balance run shows builds that barely change (`artifacts/balance.csv`).
+A run now earns bia in battle, so the bot CSV's `currency_earned` and `bia`
+columns reflect both sources. The Stage 07b 200-seed before/after picture is in
+`docs/stages/07b-report.md`; it is input to Stage 11, not a tuned result.
 
 ## 11. Running it
 

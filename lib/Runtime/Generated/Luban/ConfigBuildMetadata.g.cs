@@ -11,12 +11,12 @@ namespace ProjectSurvive.Config
     public static class ConfigBuildMetadata
     {
         /// <summary>SHA-256 (upper-case hex) over the generated table bytes, in name order.</summary>
-        public const string ConfigHash = "3C8AF6761CC1D3BC82EDCC537408F18C53C795906F9BDFD420DBC19661DC017D";
+        public const string ConfigHash = "2FB5F510749E80E97FCB278166D6A7AF26BEF9FB2916352E8A6F011CDCB9D7EB";
 
         /// <summary>Luban CLI version that produced the generated readers.</summary>
         public const string LubanVersion = "5.1.0";
 
         /// <summary>Schema revision of data/Defines. Bump when a field is added or renamed.</summary>
-        public const int SchemaVersion = 3;
+        public const int SchemaVersion = 4;
     }
 }

@@ -46,6 +46,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
         private readonly float[] _dropX;
         private readonly float[] _dropY;
         private readonly int[] _dropDefId;
+        private readonly int[] _dropValue;
 
         /// <summary>Builds the shared state for one session.</summary>
         /// <exception cref="ArgumentNullException">A required argument is null.</exception>
@@ -80,6 +81,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
             _dropX = new float[BattleArena.MaxDropsPerTick];
             _dropY = new float[BattleArena.MaxDropsPerTick];
             _dropDefId = new int[BattleArena.MaxDropsPerTick];
+            _dropValue = new int[BattleArena.MaxDropsPerTick];
 
             MaxHp = setup.Loadout.Stats.MaxHp > 0 ? setup.Loadout.Stats.MaxHp : config.Constant.MaxHp;
             MaxMp = setup.Loadout.Stats.MaxMp > 0 ? setup.Loadout.Stats.MaxMp : config.Constant.MaxMp;
@@ -260,7 +262,11 @@ namespace ProjectSurvive.Core.Simulation.Battle
         public int HitDefIdAt(int index) => _hitDefId[index];
 
         /// <summary>Queues one drop, ignoring it when the queue is full.</summary>
-        public void AddDrop(float x, float y, int defId)
+        /// <param name="x">World X where the ghost fell.</param>
+        /// <param name="y">World Y where the ghost fell.</param>
+        /// <param name="defId">The dead enemy's def id, for events and presentation.</param>
+        /// <param name="value">Bia the pickup pays, already read from the enemy row.</param>
+        public void AddDrop(float x, float y, int defId, int value)
         {
             if (DropCount >= _dropX.Length)
             {
@@ -270,6 +276,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
             _dropX[DropCount] = x;
             _dropY[DropCount] = y;
             _dropDefId[DropCount] = defId;
+            _dropValue[DropCount] = value > 0 ? value : 0;
             DropCount++;
         }
 
@@ -281,6 +288,9 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
         /// <summary>A queued drop's enemy def id.</summary>
         public int DropDefIdAt(int index) => _dropDefId[index];
+
+        /// <summary>A queued drop's bia value.</summary>
+        public int DropValueAt(int index) => _dropValue[index];
 
         /// <summary>Empties the per-tick queues. Called once, before the systems run.</summary>
         public void ClearTickBuffers()
@@ -400,6 +410,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
                     slot.MovePattern = (int)enemy.MovePattern;
                     slot.IsBoss = enemy.IsBoss;
                     slot.IsElite = enemy.IsElite || wave.IsElite;
+                    slot.DropValue = enemy.DropValue > 0 ? enemy.DropValue : 0;
                 }
                 else
                 {

@@ -198,6 +198,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
             tag.MoveSpeed = template.MoveSpeed;
             tag.IsBoss = template.IsBoss;
             tag.IsElite = template.IsElite;
+            tag.DropValue = template.DropValue;
 
             ref ContactAttack contact = ref _contacts.Add(entity);
             contact.Damage = template.ContactDamage;
@@ -279,7 +280,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
         /// <param name="x">World X.</param>
         /// <param name="y">World Y.</param>
         /// <param name="kind">Pickup kind, for events.</param>
-        /// <param name="value">What it is worth; 0 while no drop table exists (ADR 0017).</param>
+        /// <param name="value">What it is worth, from <c>enemy.drop_value</c>.</param>
         /// <returns>The new entity.</returns>
         public int SpawnPickup(float x, float y, int kind, int value)
         {

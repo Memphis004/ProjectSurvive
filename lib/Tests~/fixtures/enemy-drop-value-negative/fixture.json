@@ -1,0 +1,8 @@
+{
+  "name": "enemy-drop-value-negative",
+  "stage": "semantic",
+  "why": "a ghost pays -1 bia, so killing it would take money away",
+  "expectedCodes": [
+    "enemy.drop_value_negative"
+  ]
+}

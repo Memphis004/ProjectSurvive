@@ -23,6 +23,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **06** | **Shop, economy, run, scene flow** | **DONE** — see [`docs/stages/06-report.md`](docs/stages/06-report.md) |
 | **06b** | **A sala's stock does not follow the run (bug fix)** | **DONE** — see [`docs/stages/06b-report.md`](docs/stages/06b-report.md) |
 | **07** | **Battle core (headless) & bot sim** | **DONE** — see [`docs/stages/07-report.md`](docs/stages/07-report.md) |
+| **07b** | **Bia from battle (drop value + clear reward)** | **DONE** — see [`docs/stages/07b-report.md`](docs/stages/07b-report.md), [ADR 0025](docs/adr/0025-bia-from-battle.md) |
 | **08** | **Battle presentation 2.5D** | **DONE** — see [`docs/stages/08-report.md`](docs/stages/08-report.md) |
 | **09** | **Camp scene & จัดย่าม UI (walkable sala, world shop)** | **DONE** — see [`docs/stages/09-report.md`](docs/stages/09-report.md), [`09b`](docs/stages/09b-report.md) (the drag diagnosis), [`09c`](docs/stages/09c-report.md) (the walkable camp) |
 | **09d** | **Thai text sharpness (font report, 22 px floor, on-screen measurements)** | **DONE** — see [`docs/stages/09d-report.md`](docs/stages/09d-report.md) |
@@ -186,11 +187,21 @@ a **bot harness** — `tools/sim.ps1 --seeds 200` plays the kiting bot and a gre
 all five floors into `artifacts/balance.csv` (floor 1 200/200, floor 2 198/200, floor 3 91/198, floor 4
 71/91, floor 5 **71/71**); and an **acceptance benchmark** of 300 ghosts + 500 projectiles measuring
 **0 bytes allocated per tick** (avg `0.114 ms`, p95 `0.126 ms` per tick, Release, .NET 9, machine named
-in the report). Three numbers the prototype wants are **not in `data/`** — elemental status magnitude, a
-kill's `enemy.drop_value`, `constant.magnet_speed` — so none was invented in code: the status re-uses
-the applying skill's own damage, a pickup collects instantly and pays `0` (which is why a run earns no
-bia in battle and no build can grow after the first camp), and each gap names the column Stage 11 adds
-([ADR 0017](docs/adr/0017-ecslite-battle-simulation.md)).
+in the report). Two numbers the prototype wants are **not in `data/`** — elemental status magnitude and
+`constant.magnet_speed` — so neither was invented in code: the status re-uses the applying skill's own
+damage and a pickup collects instantly inside the one radius column that exists; each gap names the
+column Stage 11 adds ([ADR 0017](docs/adr/0017-ecslite-battle-simulation.md)). Stage 07 originally also
+left a kill paying `0`.
+
+**Stage 07b closed that gap.** `enemy.drop_value` is what one kill pays (filler/fast 1, elite 3, boss
+10), copied onto the entity at spawn, carried by its pickup and credited to `CurrencyEarned` once when
+collected; `economy.clear_reward_bia` (8) is paid by `RunSession.ApplyBattleResult` **on a win only**,
+in the same once-per-floor settlement that credits the field takings ([ADR 0025](docs/adr/0025-bia-from-battle.md)
+supersedes ADR 0017 §5). Floor 1 now realizes about `4 collected × 1 + 8 = 12` bia in the bot run
+(one or two shop pieces at the 8–11 bia prices; a player who walks over every drop would get ~24),
+which is a starting value for the Stage 11 balance pass, not a tuned economy.
+The HUD's top-right bia is the purse the player walked in with plus the drops collected so far; the
+clear reward appears only after settlement.
 
 Stage 08 put that battle **on screen and in a browser**. `Assets/Main/Scenes/Battle.unity` is
 authored through the Editor API like the other scenes; `Presentation/Battle/**` reads the battle

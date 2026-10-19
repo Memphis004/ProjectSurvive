@@ -212,8 +212,9 @@ never do is relax a case.
 
 - No level-up / blessing / XP / choice gate (GDD v0.3; `BattlePhase` value 1 is
   reserved but unused).
-- No economy: the battle reports `CurrencyEarned`, Run owns the wallet. (It reports
-  `0` today: no `data/` column says what a kill pays — ADR 0017.)
+- No economy: the battle reports `CurrencyEarned` (the sum of collected
+  `enemy.drop_value` pickups), Run owns the wallet and the win-only clear reward
+  (`economy.clear_reward_bia`) — [ADR 0025](../../docs/adr/0025-bia-from-battle.md).
 - No bag / Board / combo logic: the battle receives a resolved
   `CombatLoadoutSnapshot` and never recomputes a combo.
 - The fake does not fight — it exists to satisfy and exercise the contract, not to

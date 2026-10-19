@@ -82,10 +82,11 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         /// </summary>
         /// <param name="setup">The floor about to run (its loadout is the real resolved one).</param>
         /// <param name="startingBia">
-        /// The run's purse entering the floor. The battle reports what it <i>earned</i>
-        /// (<see cref="HudState.Currency"/>, still 0 today — ADR 0017), so the HUD shows the
-        /// two added: the same arithmetic <c>RunSession.ApplyBattleResult</c> performs, and
-        /// Stage 10 will hand the run scope in so the HUD stops mirroring it.
+        /// The run's purse entering the floor. The battle reports what its pickups
+        /// <i>paid this floor</i> (<see cref="HudState.Currency"/>, the sum of
+        /// <c>enemy.drop_value</c> over collected drops), so the HUD shows the two added.
+        /// The clear reward is not part of it: that belongs to the run's settlement, not
+        /// to the battle, and a loss pays none.
         /// </param>
         public void Begin(BattleSetup setup, int startingBia)
         {

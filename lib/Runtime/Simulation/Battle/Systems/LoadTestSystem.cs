@@ -74,6 +74,7 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
                     MovePattern = (int)enemy.MovePattern,
                     IsBoss = false,
                     IsElite = false,
+                    DropValue = enemy.DropValue > 0 ? enemy.DropValue : 0,
                 };
             }
 

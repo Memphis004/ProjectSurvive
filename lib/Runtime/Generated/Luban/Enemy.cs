@@ -28,6 +28,7 @@ public sealed partial class Enemy : Luban.BeanBase
         IsElite = _buf.ReadBool();
         IsBoss = _buf.ReadBool();
         BossPhase2HpPercent = _buf.ReadFloat();
+        DropValue = _buf.ReadInt();
     }
 
     public static Enemy DeserializeEnemy(ByteBuf _buf)
@@ -47,6 +48,7 @@ public sealed partial class Enemy : Luban.BeanBase
     public readonly bool IsElite;
     public readonly bool IsBoss;
     public readonly float BossPhase2HpPercent;
+    public readonly int DropValue;
    
     public const int __ID__ = 67100520;
     public override int GetTypeId() => __ID__;
@@ -70,6 +72,7 @@ public sealed partial class Enemy : Luban.BeanBase
         + "isElite:" + IsElite + ","
         + "isBoss:" + IsBoss + ","
         + "bossPhase2HpPercent:" + BossPhase2HpPercent + ","
+        + "dropValue:" + DropValue + ","
         + "}";
     }
 }

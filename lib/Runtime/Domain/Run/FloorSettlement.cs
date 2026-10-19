@@ -48,7 +48,11 @@ namespace ProjectSurvive.Core.Domain.Run
         /// <summary>Why the battle ended.</summary>
         public BattleEndReason EndReason { get; }
 
-        /// <summary>Bia credited from the battle (the fake pays nothing; Run owns the economy).</summary>
+        /// <summary>
+        /// Bia credited by this settlement: the battle's collected pickups
+        /// (<c>BattleResult.CurrencyEarned</c>) plus, on a win only,
+        /// <c>economy.clear_reward_bia</c>.
+        /// </summary>
         public int RewardBia { get; }
 
         /// <summary>HP restored by the clear heal; 0 on a defeat.</summary>

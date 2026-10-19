@@ -1,2 +1,2 @@
-##,start_bia,shop_slot_count,refresh_base_cost,refresh_cost_increment,sell_back_percent,heal_percent_on_clear,chest_slots
-,15,4,5,2,50,15,10
+##,start_bia,shop_slot_count,refresh_base_cost,refresh_cost_increment,sell_back_percent,heal_percent_on_clear,chest_slots,clear_reward_bia
+,15,4,5,2,50,15,10,8

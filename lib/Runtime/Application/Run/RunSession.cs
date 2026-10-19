@@ -372,8 +372,9 @@ namespace ProjectSurvive.Core.Application.Run
 
         /// <summary>
         /// Settles a finished floor battle into the run — the \"CompleteFloor\" step:
-        /// HP, bia and used consumables are updated, a cleared floor heals
-        /// <c>economy.heal_percent_on_clear</c> percent of max HP (capped at max), and
+        /// HP, bia and used consumables are updated, a cleared floor pays
+        /// <c>economy.clear_reward_bia</c> and heals <c>economy.heal_percent_on_clear</c>
+        /// percent of max HP (capped at max), and
         /// the run either returns to Camp or ends at <see cref="RunFlowState.Result"/>.
         /// </summary>
         /// <remarks>
@@ -408,7 +409,17 @@ namespace ProjectSurvive.Core.Application.Run
                 return Result.Fail<FloorSettlement>(consumables.Error);
             }
 
-            int reward = result.CurrencyEarned > 0 ? result.CurrencyEarned : 0;
+            // Two sources, one payout: what the floor's pickups paid
+            // (BattleResult.CurrencyEarned, already summed inside the battle) plus the flat
+            // clear reward from economy. A defeat earns only the first — the clear reward
+            // is the run's, not the battle's, and it is paid at most once because the
+            // phase/pending-setup guard below admits exactly one settlement per floor.
+            bool won = result.IsWin;
+            int battleBia = result.CurrencyEarned > 0 ? result.CurrencyEarned : 0;
+            int clearBia = won && _config.Economy.ClearRewardBia > 0
+                ? _config.Economy.ClearRewardBia
+                : 0;
+            int reward = battleBia + clearBia;
             Wallet.Credit(reward);
 
             // The run's own kill count, added before the flow moves: the floor it came from is
@@ -422,7 +433,6 @@ namespace ProjectSurvive.Core.Application.Run
             ApplyConsumables(loadout, result);
 
             int healed = 0;
-            bool won = result.IsWin;
             if (won)
             {
                 FloorsCleared++;

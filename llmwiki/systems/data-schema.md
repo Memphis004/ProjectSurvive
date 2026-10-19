@@ -21,7 +21,8 @@ data/
 ```
 
 `SchemaVersion` in `lib/Runtime/Generated/Luban/ConfigBuildMetadata.g.cs` is written
-by `tools/gen.ps1` and is currently **2** (Stage 04 added `item.footprint`).
+by `tools/gen.ps1` and is currently **4** (Stage 07b added `enemy.drop_value` and
+`economy.clear_reward_bia`; Stage 05 and 09f took it to 3).
 
 ## Commands
 
@@ -55,11 +56,11 @@ not run.
 | `skill` | `id` | cast behaviour shared by weapons and familiars |
 | `synergy` | `id` | a combo rule, matched by item **tag** |
 | `merge_recipe` | `id` | one merge step: same id + tier+1 (max tier from `constant`) |
-| `enemy` | `id` | ghost / elite / boss stats |
+| `enemy` | `id` | ghost / elite / boss stats; `drop_value` is what one kill pays |
 | `floor` | `id` | `index` is the 1-based run order; `is_boss` + `boss_enemy_id` |
 | `wave` | `id` | spawn window inside a floor |
 | `shop_pool` | `id` | one weighted shop offer over a floor range |
-| `economy` | one | starting bia, slot count, refresh cost, sell-back, heal, chest |
+| `economy` | one | starting bia, slot count, refresh cost, sell-back, heal, chest, clear reward |
 | `constant` | one | board size, min cooldown, max tier, HP/MP, move speed |
 
 ### The Stage 04 prototype content
@@ -148,11 +149,18 @@ an empty cell is a legitimate value and Luban cannot express "if set, then…":
   (`shop_pool.piece_unreachable`).
 - `price >= 1`, `weight >= 0`, `max_hp >= 1`, a boss's phase-2 threshold strictly
   inside 0..100, `role == Boss` iff `is_boss`.
+- **`enemy.drop_value >= 0`** and **`economy.clear_reward_bia >= 0`** (Stage 07b). Zero is
+  legal — a ghost that pays nothing — and every enemy row must name its value. A negative
+  value is rejected as `enemy.drop_value_negative` / `economy.clear_reward_negative`, with
+  the `enemy-drop-value-negative` fixture as the end-to-end proof. The clear reward is paid
+  by the run's settlement **on a win only**; a kill's value is carried by its pickup and
+  collected once ([ADR 0025](../../docs/adr/0025-bia-from-battle.md)).
 - a localization row must have both languages.
 
 Add a rule by editing `ConfigValidator.cs` and adding a case to
 `ConfigRulesTests.cs` plus, if it can be expressed in data, a fixture under
-`lib/Tests~/fixtures/` (see its README).
+`lib/Tests~/fixtures/` (see its README). The shipped set is **21 fixtures**, the
+newest being `enemy-drop-value-negative` (Stage 07b).
 
 ## Adding or changing a table
 

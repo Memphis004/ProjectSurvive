@@ -210,6 +210,10 @@
     <var name="is_elite" type="bool"/>
     <var name="is_boss" type="bool"/>
     <var name="boss_phase2_hp_percent" type="float"/>
+    <!-- Bia one kill of this enemy pays, carried by the pickup it drops. Zero is a
+         legal value (a ghost that pays nothing); a negative one is not. Stage 07b:
+         every row must name its own value so a boss and a filler can differ. -->
+    <var name="drop_value" type="int"/>
   </bean>
 
   <!-- `index` is the 1-based run order of the floor. The shop pool bands and the
@@ -256,6 +260,10 @@
     <var name="sell_back_percent" type="int"/>
     <var name="heal_percent_on_clear" type="int"/>
     <var name="chest_slots" type="int"/>
+    <!-- Flat bia paid once for clearing a floor (Stage 07b). It belongs to the run's
+         settlement, not to the battle: a loss pays nothing, and the field pickups are
+         separate (enemy.drop_value). -->
+    <var name="clear_reward_bia" type="int"/>
   </bean>
 
   <bean name="Constant">

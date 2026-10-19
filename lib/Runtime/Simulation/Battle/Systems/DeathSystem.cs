@@ -88,7 +88,7 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
                     Flags(tag),
                     x,
                     y);
-                context.AddDrop(x, y, tag.DefId);
+                context.AddDrop(x, y, tag.DefId, tag.DropValue);
 
                 if (tag.IsBoss)
                 {

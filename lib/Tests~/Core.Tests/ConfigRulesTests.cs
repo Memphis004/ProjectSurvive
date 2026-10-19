@@ -522,6 +522,35 @@ namespace ProjectSurvive.Core.Tests
             Assert.Contains("enemy.max_hp_not_positive", Codes(ConfigValidator.Validate(config)));
         }
 
+        [Fact]
+        public void An_enemy_with_a_negative_drop_value_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Enemy(config, "enemy.krasue").DropValue = -1;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("enemy.drop_value_negative", Codes(findings));
+            Assert.Contains("enemy['enemy.krasue'].drop_value", Targets(findings));
+        }
+
+        [Fact]
+        public void The_shipped_enemies_all_carry_a_drop_value()
+        {
+            IGameConfig config = ConfigFixture.Load();
+
+            foreach (EnemyConfig enemy in config.Enemies)
+            {
+                Assert.True(
+                    enemy.DropValue >= 0,
+                    "enemy '" + enemy.Id + "' has no usable drop_value");
+            }
+
+            Assert.True(
+                config.Enemies.Count > 0 && config.Enemies.Any(e => e.DropValue > 0),
+                "no enemy pays bia, so a battle still cannot earn anything");
+        }
+
         // -- synergies ----------------------------------------------------------
 
         [Fact]
@@ -585,6 +614,18 @@ namespace ProjectSurvive.Core.Tests
             config.Economy.SellBackPercent = 150;
 
             Assert.Contains("economy.sell_back_percent_invalid", Codes(ConfigValidator.Validate(config)));
+        }
+
+        [Fact]
+        public void A_negative_clear_reward_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            config.Economy.ClearRewardBia = -1;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("economy.clear_reward_negative", Codes(findings));
+            Assert.Contains("economy.clear_reward_bia", Targets(findings));
         }
 
         [Fact]

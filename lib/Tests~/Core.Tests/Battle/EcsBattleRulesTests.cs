@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Leopotam.EcsLite;
 using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Simulation.Battle;
@@ -238,6 +239,7 @@ namespace ProjectSurvive.Core.Tests
             int killEvents = 0;
             int drops = 0;
             int announced = 0;
+            int collected = 0;
 
             foreach (BattleEvent e in events)
             {
@@ -251,6 +253,10 @@ namespace ProjectSurvive.Core.Tests
 
                     case BattleEventType.PickupSpawned:
                         drops++;
+                        break;
+
+                    case BattleEventType.PickupCollected:
+                        collected++;
                         break;
                 }
             }
@@ -268,9 +274,105 @@ namespace ProjectSurvive.Core.Tests
             // One drop per death, and none for a ghost that was only hit.
             Assert.Equal(killEvents, drops);
 
-            // No column in data/ says what a kill pays, so a pickup is worth 0 and the
-            // report says so instead of inventing a number (ADR 0017).
-            Assert.Equal(0, simulation.Context.CurrencyEarned);
+            // Every collected pickup is one of those ghosts and floor 1 spawns only
+            // wandering spirits, so the takings are exactly "collections x drop_value".
+            int dropValue = ConfigFixture.Enemy(config, "enemy.wandering_spirit").DropValue;
+            Assert.True(dropValue > 0, "the filler ghost must pay something for this rule to mean anything");
+            Assert.Equal(collected * dropValue, simulation.Context.CurrencyEarned);
+        }
+
+        [Fact]
+        public void Killing_a_ghost_and_collecting_its_drop_pays_the_enemys_drop_value()
+        {
+            IGameConfig config = ConfigFixture.Load();
+            int dropValue = ConfigFixture.Enemy(config, "enemy.wandering_spirit").DropValue;
+            Assert.True(dropValue > 0, "the filler ghost must pay something for this rule to mean anything");
+
+            IBattleSession session = Create(Forest1, hp: 1_000, weapons: new[] { Weapon(config, FireBolt) });
+            var simulation = (EcsBattleSimulation)session;
+
+            // Fire until at least one ghost has died and left its drop behind.
+            for (int i = 0; i < 900; i++)
+            {
+                session.Step(PlayerInputFrame.Idle);
+            }
+
+            Assert.True(simulation.Context.Kills > 0, "no ghost died in 30 seconds of fire");
+
+            // Stop casting: otherwise a kill during the walk below could add a drop the
+            // test did not account for.
+            EcsFilter casters = simulation.Context.World.Filter<Caster>().End(BattleArena.FilterDenseCapacity);
+            EcsPool<Caster> casterPool = simulation.Context.World.GetPool<Caster>();
+            foreach (int caster in casters)
+            {
+                ref Caster c = ref casterPool.Get(caster);
+                c.CooldownTicks = int.MaxValue / 2;
+            }
+
+            EcsFilter pickupFilter = simulation.Context.World
+                .Filter<Pickup>()
+                .Inc<Position>()
+                .End(BattleArena.FilterDenseCapacity);
+            EcsPool<Pickup> pickupPool = simulation.Context.World.GetPool<Pickup>();
+            EcsPool<Position> positions = simulation.Context.World.GetPool<Position>();
+
+            var drops = new List<(float X, float Y, int Value)>();
+            foreach (int entity in pickupFilter)
+            {
+                Position position = positions.Get(entity);
+                drops.Add((position.X, position.Y, pickupPool.Get(entity).Value));
+            }
+
+            Assert.True(drops.Count > 0, "a kill left no drop on the floor");
+            int expected = simulation.Context.CurrencyEarned;
+            for (int i = 0; i < drops.Count; i++)
+            {
+                Assert.Equal(dropValue, drops[i].Value);
+                expected += drops[i].Value;
+            }
+
+            // Walk the player onto each drop, which is what the magnet would collect.
+            for (int i = 0; i < drops.Count; i++)
+            {
+                ref Position player = ref positions.Get(simulation.Context.PlayerEntity);
+                player.X = drops[i].X;
+                player.Y = drops[i].Y;
+                session.Step(PlayerInputFrame.Idle);
+            }
+
+            Assert.Equal(expected, simulation.Context.CurrencyEarned);
+
+            // A collected pickup was deleted in the tick it paid, so it cannot pay again.
+            session.Step(PlayerInputFrame.Idle);
+            Assert.Equal(expected, simulation.Context.CurrencyEarned);
+        }
+
+        [Fact]
+        public void Collecting_pickups_credits_the_sum_of_their_drop_values_once()
+        {
+            IGameConfig config = ConfigFixture.Load();
+            int dropValue = ConfigFixture.Enemy(config, "enemy.wandering_spirit").DropValue;
+            Assert.True(dropValue > 0, "the filler ghost must pay something for this rule to mean anything");
+
+            IBattleSession session = Create(Forest1, hp: 1_000);
+            var simulation = (EcsBattleSimulation)session;
+            session.Step(PlayerInputFrame.Idle);
+
+            Position player = PlayerPosition(simulation);
+            const int count = 3;
+            for (int i = 0; i < count; i++)
+            {
+                simulation.Context.Spawner.SpawnPickup(player.X, player.Y, kind: 1, value: dropValue);
+            }
+
+            session.Step(PlayerInputFrame.Idle);
+            Assert.Equal(count * dropValue, simulation.Context.CurrencyEarned);
+            Assert.Equal(count, simulation.Context.PickupsCollected);
+
+            // A collected pickup is gone in the same tick, so more ticks cannot pay it again.
+            session.Step(PlayerInputFrame.Idle);
+            Assert.Equal(count * dropValue, simulation.Context.CurrencyEarned);
+            Assert.Equal(count, simulation.Context.PickupsCollected);
         }
 
         [Fact]

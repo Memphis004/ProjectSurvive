@@ -23,6 +23,7 @@ public sealed partial class Economy : Luban.BeanBase
         SellBackPercent = _buf.ReadInt();
         HealPercentOnClear = _buf.ReadInt();
         ChestSlots = _buf.ReadInt();
+        ClearRewardBia = _buf.ReadInt();
     }
 
     public static Economy DeserializeEconomy(ByteBuf _buf)
@@ -37,6 +38,7 @@ public sealed partial class Economy : Luban.BeanBase
     public readonly int SellBackPercent;
     public readonly int HealPercentOnClear;
     public readonly int ChestSlots;
+    public readonly int ClearRewardBia;
    
     public const int __ID__ = -246571490;
     public override int GetTypeId() => __ID__;
@@ -55,6 +57,7 @@ public sealed partial class Economy : Luban.BeanBase
         + "sellBackPercent:" + SellBackPercent + ","
         + "healPercentOnClear:" + HealPercentOnClear + ","
         + "chestSlots:" + ChestSlots + ","
+        + "clearRewardBia:" + ClearRewardBia + ","
         + "}";
     }
 }

@@ -285,7 +285,7 @@ namespace ProjectSurvive.Core.Tests.Run
         }
 
         [Fact]
-        public void A_settlement_pays_the_battle_currency_exactly_once()
+        public void A_settlement_pays_the_battle_currency_and_the_clear_reward_exactly_once()
         {
             IGameConfig config = RunFixture.Config();
             RunSession run = RunFixture.StartedRun(config);
@@ -306,11 +306,14 @@ namespace ProjectSurvive.Core.Tests.Run
                 RemainingConsumables = new List<int>(),
             };
 
+            int clearReward = config.Economy.ClearRewardBia;
+            Assert.True(clearReward > 0, "the shipped clear reward must be paid to test it");
+
             Result<FloorSettlement> first = run.ApplyBattleResult(result);
 
             Assert.True(first.IsSuccess, first.Error.ToString());
-            Assert.Equal(40, first.Value.RewardBia);
-            Assert.Equal(config.Economy.StartBia + 40, run.Wallet.Bia);
+            Assert.Equal(40 + clearReward, first.Value.RewardBia);
+            Assert.Equal(config.Economy.StartBia + 40 + clearReward, run.Wallet.Bia);
 
             int purse = run.Wallet.Bia;
             int hp = run.Hp;
@@ -323,6 +326,34 @@ namespace ProjectSurvive.Core.Tests.Run
             Assert.Equal(purse, run.Wallet.Bia);
             Assert.Equal(hp, run.Hp);
             Assert.Equal(settlementId, run.LastSettlementId);
+        }
+
+        [Fact]
+        public void A_lost_floor_pays_the_battle_currency_but_not_the_clear_reward()
+        {
+            IGameConfig config = RunFixture.Config();
+            RunSession run = RunFixture.StartedRun(config);
+            var flow = new SceneFlow(run, new ScriptedBattleSessionFactory(config));
+
+            Assert.True(flow.EnterBattle().IsSuccess);
+
+            var result = new BattleResult
+            {
+                Outcome = BattlePhase.Lost,
+                EndReason = BattleEndReason.PlayerDied,
+                SurvivedTicks = 30 * BattleConstants.TickRate,
+                FinalHp = 0,
+                CurrencyEarned = 12,
+                Kills = 4,
+                RemainingConsumables = new List<int>(),
+            };
+
+            Result<FloorSettlement> settled = run.ApplyBattleResult(result);
+
+            Assert.True(settled.IsSuccess, settled.Error.ToString());
+            Assert.Equal(12, settled.Value.RewardBia);
+            Assert.Equal(config.Economy.StartBia + 12, run.Wallet.Bia);
+            Assert.True(settled.Value.RunCompleted);
         }
 
         [Fact]

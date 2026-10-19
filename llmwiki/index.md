@@ -25,9 +25,9 @@ architecture docs.
 | WebGL payload size (profiles, measurement, per-assembly attribution) | [`../docs/build/size-baseline.md`](../docs/build/size-baseline.md) | 03b | done |
 | Bag / Board placement, editing commands, undo/lock, the carried-item rule | [`systems/backpack.md`](systems/backpack.md) | 05, carried rule 09f | done |
 | Combo (synergy) evaluation + bag → battle loadout | [`systems/backpack.md#6-combos--synergyevaluator`](systems/backpack.md#6-combos--synergyevaluator) | 05 | done |
-| Shop / economy (wallet, `shop_pool`, stock per camp, re-roll ladder) | [`systems/run-shop.md`](systems/run-shop.md) | 06 | done |
+| Shop / economy (wallet, `shop_pool`, stock per camp, re-roll ladder, clear reward) | [`systems/run-shop.md`](systems/run-shop.md) | 06, 07b | done |
 | Run & scene flow (phase machine, commands, settlement, `ReplayLog`) | [`systems/run-shop.md`](systems/run-shop.md) | 06 | done |
-| Battle simulation (EcsLite) | [`systems/battle-simulation.md`](systems/battle-simulation.md) | 07 | done |
+| Battle simulation (EcsLite), bia from kills | [`systems/battle-simulation.md`](systems/battle-simulation.md) | 07, 07b | done |
 | 2.5D battle presentation (scene, clocks, pools, HUD, camera, the mini ย่าม and its cooldown plates) | [`systems/battle-presentation.md`](systems/battle-presentation.md) | 08, 08c | done |
 | Camp screen (ศาลาพัก: the sala, walkable, shelves as the shop, the จัดย่าม drag, the two published reports) | [`systems/camp.md`](systems/camp.md) | 09 | done |
 | The full loop: three scopes (App / Run / Scene), `SceneLoader`, the floor loop, the title's start control, the summary screen, dev cheats | [`systems/loop-and-scopes.md`](systems/loop-and-scopes.md) | 10, 10d | done |
@@ -71,7 +71,7 @@ lands.
 | A published battle frame only survives until the next tick | [ADR 0012](../docs/adr/0012-prev-cur-frame-double-buffer.md) | `Entities` / `PreviousEntities` are two slots reused in place; copy before the next `Step`, and `Prev` is one tick deep, not history |
 | `BattleContext.WaveCount` must be assigned from `Waves` | [`systems/battle-simulation.md`](systems/battle-simulation.md#12-facts-that-cost-time-to-learn) | It is the systems' contract; left at `0` the floor spawns nothing and silently times out as a win |
 | A battle def id is a **table position**, not a hash or a string | [ADR 0017](../docs/adr/0017-ecslite-battle-simulation.md) | Inserting a row anywhere but the end renumbers ids; safe only because an id lives inside one battle's event stream |
-| The prototype earns no bia inside a battle | [ADR 0017](../docs/adr/0017-ecslite-battle-simulation.md) | No `data/` column says what a kill pays, so `CurrencyEarned` is 0 and a camp can only spend `economy.start_bia` — this dominates any balance reading of the bot CSV |
+| A battle's bia has two owners | [ADR 0025](../docs/adr/0025-bia-from-battle.md) | Collected pickups are the battle's (`enemy.drop_value` → `BattleResult.CurrencyEarned`); the flat clear reward is the run's (`economy.clear_reward_bia`, paid in `ApplyBattleResult` on a win only). The HUD's bia is `startingBia + Currency`, so the clear reward appears only after settlement |
 | Elemental status re-uses the applying skill's damage | [ADR 0017](../docs/adr/0017-ecslite-battle-simulation.md) | It is an interim rule, not balance: the `status` table Stage 11 adds is what replaces it |
 | The shared contract suite assumes an idle player can survive | [ADR 0017](../docs/adr/0017-ecslite-battle-simulation.md) | `RunToEnd` never moves, so the EcsLite derived class supplies HP + a churning load through the benchmark knobs; do not "fix" a failing contract case by relaxing it |
 | There is only one `IBattleFrame` implementation | [ADR 0012](../docs/adr/0012-prev-cur-frame-double-buffer.md) | The fake and the EcsLite session must share `BattleFrameBuffer`, or the presentation validated against the fake stops predicting the real battle |

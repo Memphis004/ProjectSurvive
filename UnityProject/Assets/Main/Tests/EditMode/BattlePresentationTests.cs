@@ -348,6 +348,28 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(state.FloorName.Value, Is.EqualTo(text.Get("floor.forest_1.name")));
             Assert.That(state.BiaValue.Value, Is.EqualTo("15"), "the HUD shows the purse the player walked in with");
 
+            // Stage 07b: pickups really pay now, and the HUD is the purse plus what the floor's
+            // drops paid so far — never a number the presenter invents.
+            var buffer = new BattleFrameBuffer();
+            buffer.BeginFrame(1);
+            buffer.SetHud(new HudState
+            {
+                Hp = 10,
+                MaxHp = 10,
+                FloorDurationTicks = 1800,
+                Currency = 7,
+            });
+            buffer.Publish();
+
+            var snapshot = new BattleFrameSnapshot();
+            snapshot.CopyFrom(buffer);
+            presenter.Present(snapshot);
+
+            Assert.That(
+                state.BiaValue.Value,
+                Is.EqualTo("22"),
+                "the HUD did not add the bia the floor actually collected (15 + 7)");
+
             // The floor's number is the setup's own, formatted with the table's format row — the HUD
             // never counts floors of its own (Stage 08c moved it under the floor's name at the top).
             Assert.That(setup.FloorIndex, Is.GreaterThan(0));

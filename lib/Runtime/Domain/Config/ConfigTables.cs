@@ -229,6 +229,9 @@ namespace ProjectSurvive.Core.Domain.Config
 
         /// <summary>Boss second-phase HP threshold in percent; 0 when not a boss.</summary>
         public float BossPhase2HpPercent { get; set; }
+
+        /// <summary>Bia one kill of this enemy pays (Stage 07b). Never negative.</summary>
+        public int DropValue { get; set; }
     }
 
     public sealed class FloorConfig
@@ -307,6 +310,9 @@ namespace ProjectSurvive.Core.Domain.Config
         public int HealPercentOnClear { get; set; }
 
         public int ChestSlots { get; set; }
+
+        /// <summary>Flat bia a cleared floor pays, on a win only (Stage 07b).</summary>
+        public int ClearRewardBia { get; set; }
     }
 
     /// <summary>Singleton row of the <c>constant</c> table.</summary>

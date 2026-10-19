@@ -89,6 +89,10 @@ that would become the status row's own id (`BattleComponents.Status.DefId`).
 
 **5. A kill pays nothing today, and says so, because no column says what it pays.**
 
+> **Superseded by [ADR 0025](0025-bia-from-battle.md) (Stage 07b).** The column named below,
+> `enemy.drop_value`, now exists, and `economy.clear_reward_bia` pays a cleared floor. This
+> paragraph is kept as the Stage 07 record of the gap.
+
 The pipeline is real end to end — a death queues a drop, `DropSystem` spawns the pickup at the spot,
 `PickupSystem` collects it inside `constant.pickup_radius` and raises `PickupCollected` — but the
 pickup's value is `0`, so `BattleResult.CurrencyEarned` stays `0`, exactly as the Stage 02b fake
@@ -154,10 +158,11 @@ Neither knob touches a balance number, and the battle's own balance is measured 
 - `BattleFrameBuffer` and `BattleEventRing` are shared with the fake — the same instances, the same
   classes — so a Presentation written against the fake sees identical frame and event behaviour from
   the real battle (the `IBattleFrame` single-implementation test is what keeps it that way).
-- A future `status` table, `enemy.drop_value` and `constant.magnet_speed` are additive data changes:
-  the components already carry the def ids the events would report, and the systems read them
-  through `IGameConfig` like every other number.
+- A future `status` table and `constant.magnet_speed` are additive data changes: the components
+  already carry the def ids the events would report, and the systems read them through `IGameConfig`
+  like every other number. `enemy.drop_value` landed that way in Stage 07b ([ADR 0025](0025-bia-from-battle.md)).
 - The balance picture Stage 07's bot harness produces (200 seeds: floor 1 200/200, floor 2 198/200,
   floor 3 91/198, floor 4 71/91, floor 5 71/71) is a *symptom* of these gaps as much as of the
-  floor tables — a run earns no bia in a battle, so the camp can only spend `economy.start_bia`. That
-  is the input Stage 11 needs, and it is recorded in `docs/stages/07-report.md`.
+  floor tables — at the time a run earned no bia in a battle, so the camp could only spend
+  `economy.start_bia` (Stage 07b closed that half; [ADR 0025](0025-bia-from-battle.md)). That is the
+  input Stage 11 needs, and it is recorded in `docs/stages/07-report.md`.

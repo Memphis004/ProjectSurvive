@@ -19,13 +19,13 @@ need to run, and the Web build moved behind the Full suite.
 | --- | --- | --- |
 | `toolchain: .NET SDK` | Fast | an SDK ≥ 8 is present |
 | `dotnet build` | Fast | every `lib/` layer, the xUnit project and the Sim compile |
-| `dotnet test (xUnit)` | Fast | 504 tests: the rule engine, the architecture guards, the contract suites, the Sim |
+| `dotnet test (xUnit)` | Fast | 510 tests: the rule engine, the architecture guards, the contract suites, the Sim |
 | `sim: determinism` | Fast | the same seed prints the same `determinismDigest` twice, a different seed does not |
 | `sim: stream separation` | Fast | shop / battle / visual digests differ, `ticksProduced=300` |
 | `sim: bot smoke run` | Fast | the kiting bot plays 2 seeds and writes balance rows |
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
-| `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 20 broken data sets rejected for the right reason |
+| `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 21 broken data sets rejected for the right reason |
 | `unity: EditMode` | Fast | 155 tests in `ProjectSurvive.Game.Tests.EditMode` |
 | `unity: PlayMode` | **Full** | 47 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
@@ -69,6 +69,15 @@ and Playwright stayed **10**. Its `-Suite Fast` run is `artifacts/stage08d/fast.
 **PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**, 86.6 s (the final green run; an earlier attempt hit the
 environment-sensitive Result-report case recorded in the stage report §6). WebGL and Playwright were
 not run, by the brief.
+
+Stage 07b (2026-10-19) moved two counts: `dotnet test` **504 → 510** (the kill→drop→collect value,
+sum-and-once pickup, lost-floor clear reward and three data rules) and the broken-fixture set
+**20 → 21** (`enemy-drop-value-negative`); EditMode stayed **155** because the HUD assertion was
+added to an existing case. Its `-Suite Fast` is `artifacts/stage07b/fast.log` — **PASS 10 | FAIL 0 |
+NOT RUN 3 | WARN 0**, `dotnet test` **510 passed** and EditMode **155/155**. The Full run made with
+the Editor open is red only on the documented bulk PlayMode ambient-log flake (22/47); the classes
+this stage can affect pass alone (`BattlePlayModeTests` 6/6, `SceneFlowPlayModeTests` 5/5,
+`ResultScenePlayModeTests` 3/3), and WebGL/Playwright are NOT RUN (not a gate stage, Editor lock).
 
 Stage 06b (2026-10-19) is a **bug fix** and moved one count: `dotnet test` **497 → 504** (seven cases
 in `ShopStockTests` for "a new sala fills its shelves again"), while EditMode stayed **155** and

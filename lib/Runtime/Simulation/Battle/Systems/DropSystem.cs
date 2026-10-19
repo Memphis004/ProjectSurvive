@@ -12,13 +12,11 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
     /// happened and never for a ghost that was merely hit.
     /// </para>
     /// <para>
-    /// <b>What a drop is worth is not implemented, deliberately.</b> There is no column in
-    /// <c>data/</c> that says what a kill pays — <c>economy</c> carries the camp's prices and
-    /// the clear heal, <c>enemy</c> carries stats and no reward — and AGENTS rule 5 forbids
-    /// inventing the number here. So the pickup is spawned, magnetised, collected and
-    /// announced for real, with a value of 0, and <c>BattleResult.CurrencyEarned</c> stays 0
-    /// exactly as the Stage 02b fake reported. [ADR 0017] names the column
-    /// (<c>enemy.drop_value</c>) that Stage 11 has to add, and why this stage does not.
+    /// <b>What a drop is worth is <c>enemy.drop_value</c>.</b> The death system copies the
+    /// row's value onto the drop it queues (Stage 07b), so this system never looks a def up
+    /// on a hot path and a boss, an elite and a filler can pay differently. A value of 0 is
+    /// legal — a ghost that pays nothing — but a negative one is rejected by the data
+    /// validator.
     /// </para>
     /// <para>
     /// The pickup's <i>kind</i> is the def id of the ghost that dropped it, so presentation
@@ -60,8 +58,9 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
                 float x = context.DropXAt(i);
                 float y = context.DropYAt(i);
                 int kind = context.DropDefIdAt(i);
+                int value = context.DropValueAt(i);
 
-                int entity = context.Spawner.SpawnPickup(x, y, kind, 0);
+                int entity = context.Spawner.SpawnPickup(x, y, kind, value);
                 context.Emit(
                     BattleEventType.PickupSpawned,
                     context.Ref(entity),

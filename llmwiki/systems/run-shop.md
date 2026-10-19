@@ -188,7 +188,8 @@ The order, with nothing paid until the whole change is known to be applicable:
    `inventory.not_enough_pieces`. An empty list means the floor reported nothing and is
    accepted. When the length matches, each entry is checked with `Editor.CanConsume`
    (the difference between the loadout count and the clamped remaining count is what was used).
-2. Credit `CurrencyEarned`.
+2. Credit the floor's takings: `CurrencyEarned` (the collected pickups' `enemy.drop_value` sum)
+   on any outcome, plus `economy.clear_reward_bia` **on a win only** ([ADR 0025](../../docs/adr/0025-bia-from-battle.md)).
 3. `Hp = clamp(result.FinalHp, 0, MaxHp)`; remove the used offerings (`Editor.Consume`).
 4. On a win: `FloorsCleared++`, then heal `(MaxHp × economy.heal_percent_on_clear) / 100`,
    **capped at the remaining headroom** (`MaxHp - Hp`), and add it.

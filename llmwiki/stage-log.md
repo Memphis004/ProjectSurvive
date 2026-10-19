@@ -144,10 +144,12 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   the Stage 02b contract suite unchanged (413 dotnet cases in total), runs with no scene, and measures
   **0 bytes allocated per tick** at ~300 ghosts + ~500 projectiles on .NET (avg 0.114 ms, p95 0.126 ms per
   30 Hz tick, Release, machine quoted in the report). Three prototype gaps surfaced as *data* gaps rather than code decisions —
-  no `status` table, no `enemy.drop_value`, no `constant.magnet_speed` — and because a run earns no bia
+  no `status` table, no `enemy.drop_value`, no `constant.magnet_speed` — and because a run earned no bia
   inside a battle, the 200-seed balance run (floor 1 200/200, floor 2 198/200, floor 3 91/198, floor 4
   71/91, floor 5 71/71) describes the tables *with no way to buy anything after the first camp*, which
   is the first thing Stage 11 has to fix ([ADR 0017](../docs/adr/0017-ecslite-battle-simulation.md)).
+  **Stage 07b closed the drop-value half**: `enemy.drop_value` and `economy.clear_reward_bia` now pay a
+  run ([ADR 0025](../docs/adr/0025-bia-from-battle.md)).
 - Determinism is guaranteed within one runtime only (see the scope gotcha).
 - `lib/` is now compiled twice: by `dotnet` (lib/Tests~) and by Unity as the local
   package `com.projectsurvive.core`. A change to a rule-engine file must keep both
@@ -278,3 +280,20 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
 - **Next:** Stage 11's Thai ghost AI and balance; the panel `Image`'s hand-disabled state is reported
   (not a code intent) — if "no backdrop" is wanted it has to be expressed in `BattleSceneBuilder`,
   because a hand edit does not survive regeneration.
+
+## Stage 07b — bia from battle
+
+- **Did:** added `enemy.drop_value` (filler/fast 1, elite 3, boss 10) and `economy.clear_reward_bia`
+  (8); the value is copied onto the entity at spawn, carried by its pickup and credited to
+  `CurrencyEarned` exactly once when collected, while the run's `ApplyBattleResult` credits the
+  collected drops on any outcome plus the clear reward **on a win only** in the existing
+  once-per-floor settlement ([ADR 0025](../docs/adr/0025-bia-from-battle.md) supersedes ADR 0017 §5).
+  Schema 3 → 4, validator + `enemy-drop-value-negative` fixture, and the HUD assertion that its
+  bia is `startingBia + collected`.
+- **Result:** dotnet **510** passed (+6), `-Suite Fast` **PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**
+  (EditMode **155/155**), 200-seed sim before/after: floor 1 200/200, floor 2 198→197/200, floor 3
+  88→75/197, floor 4 69→53/75, floor 5 69→52/53; realized bia per floor 0 → about 4 collected + 8
+  clear. The 200-seed win rates are **not tuned** (Stage 11 owns that).
+- **Next:** Stage 11 (Thai ghost AI, Pob boss, balance); the remaining ADR 0017 gaps are the
+  elemental-status `status` table and `constant.magnet_speed`, and `DevKillAll` still queues drops
+  that the next `Step` clears (pre-existing, left untouched).

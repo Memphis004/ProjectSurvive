@@ -83,6 +83,9 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
         /// <summary>True when this ghost is an elite.</summary>
         public bool IsElite;
+
+        /// <summary>Bia its pickup pays when collected, copied from <c>enemy.drop_value</c>.</summary>
+        public int DropValue;
     }
 
     /// <summary>The player's MP pool and the fractional focus carried between ticks.</summary>
@@ -221,10 +224,9 @@ namespace ProjectSurvive.Core.Simulation.Battle
         public int Kind;
 
         /// <summary>
-        /// What collecting it is worth. Read from the drop table, which today carries no
-        /// per-kill value (there is no column for one), so every pickup is worth 0 and
-        /// the battle still reports <c>CurrencyEarned = 0</c> — see
-        /// <c>docs/adr/0017-ecslite-battle-simulation.md</c>.
+        /// What collecting it is worth, copied from the dead enemy's <c>enemy.drop_value</c>
+        /// (Stage 07b). <see cref="Systems.PickupSystem"/> adds it to
+        /// <c>BattleContext.CurrencyEarned</c> exactly once, in the tick it is collected.
         /// </summary>
         public int Value;
     }
@@ -287,5 +289,8 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
         /// <summary>True when the wave spawns an elite.</summary>
         public bool IsElite;
+
+        /// <summary>Bia one kill of this enemy pays, copied from <c>enemy.drop_value</c>.</summary>
+        public int DropValue;
     }
 }

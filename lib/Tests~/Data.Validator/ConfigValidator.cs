@@ -484,6 +484,9 @@ namespace ProjectSurvive.Data.Validator
                 Check(enemy.AttackCooldownSeconds > 0f, findings, "enemy.attack_cooldown_not_positive",
                     row + ".attack_cooldown_seconds", "attack_cooldown must be > 0");
 
+                Check(enemy.DropValue >= 0, findings, "enemy.drop_value_negative",
+                    row + ".drop_value", "drop_value must not be negative, was " + enemy.DropValue);
+
                 if (enemy.IsBoss)
                 {
                     Check(enemy.BossPhase2HpPercent > 0f && enemy.BossPhase2HpPercent < 100f, findings,
@@ -755,6 +758,9 @@ namespace ProjectSurvive.Data.Validator
 
             Check(economy.ChestSlots >= 0, findings, "economy.chest_slots_invalid",
                 "economy.chest_slots", "chest_slots must not be negative");
+
+            Check(economy.ClearRewardBia >= 0, findings, "economy.clear_reward_negative",
+                "economy.clear_reward_bia", "clear_reward_bia must not be negative");
         }
 
         private static void ValidateConstant(IGameConfig config, List<Finding> findings)

@@ -1,0 +1,5 @@
+##,id,name_key,role,max_hp,move_speed,contact_damage,attack_cooldown_seconds,move_pattern,is_elite,is_boss,boss_phase2_hp_percent,drop_value
+,enemy.wandering_spirit,enemy.wandering_spirit.name,Filler,20,1.6,5,1.0,Chase,false,false,0,1
+,enemy.krasue,enemy.krasue.name,Fast,26,3.2,7,1.2,Charge,false,false,0,-1
+,enemy.nang_tani,enemy.nang_tani.name,Elite,90,0.8,10,2.0,Stationary,true,false,0,3
+,enemy.pob,enemy.pob.name,Boss,320,1.2,12,1.5,Chase,false,true,50,10

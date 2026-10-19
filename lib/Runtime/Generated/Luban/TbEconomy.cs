@@ -34,6 +34,7 @@ public partial class TbEconomy
      public int SellBackPercent => _data.SellBackPercent;
      public int HealPercentOnClear => _data.HealPercentOnClear;
      public int ChestSlots => _data.ChestSlots;
+     public int ClearRewardBia => _data.ClearRewardBia;
     
     public void ResolveRef(Tables tables)
     {
