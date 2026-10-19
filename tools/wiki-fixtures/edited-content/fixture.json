@@ -1,0 +1,7 @@
+{
+  "name": "edited-content",
+  "why": "a generated page was edited by hand: the economy page now says start_bia 99 while data says 15",
+  "expectedCodes": [
+    "content_differs"
+  ]
+}

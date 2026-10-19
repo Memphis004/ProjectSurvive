@@ -11,8 +11,9 @@ Google.Protobuf, Input System, Unity Test Framework, xUnit, Playwright
 3. docs/gdd/prototype-v0.3.md
 4. docs/architecture/overview.md และ dependencies.md
 5. llmwiki/index.md
-6. รายงาน Stage ก่อนหน้า (docs/stages/)
-7. prompt ของ Stage ปัจจุบัน
+6. llmwiki/SCHEMA.md (วิธีใช้ wiki, ingest และ lint)
+7. รายงาน Stage ก่อนหน้า (docs/stages/)
+8. prompt ของ Stage ปัจจุบัน
 
 กติกาถาวร:
 1. ทำเฉพาะ Stage ที่ได้รับมอบหมาย ตรวจสภาพ repo จริงก่อนแก้ ห้ามลบหรือเขียนทับงานที่ไม่เกี่ยวข้อง
@@ -53,6 +54,7 @@ Definition of Done ของทุก Stage:
 - ไม่มี error หรือ warning ใหม่ที่ปล่อยทิ้งโดยไม่อธิบาย
 - อัปเดตเอกสารและคำสั่งทดสอบ บันทึกผลที่ docs/stages/NN-report.md
 - commit ด้วยข้อความ stage-NN: <สรุป>
+- Stage ที่เปลี่ยน data/ ต้องรัน tools/gen-wiki.ps1 แล้ว commit llmwiki/content/ ด้วย (ตัวเลขในวิกิมาจากสคริปต์เท่านั้น)
 - ระหว่างทำงานรัน `tools/test.ps1 -Suite Fast` เท่านั้น; รัน `-Suite Full` ตอนปิด Stage หรือก่อน commit ของ Stage
   (รายละเอียดชุดและเวลาจริงของแต่ละขั้นอยู่ที่ docs/testing/test-suites.md)
 - รัน WebGL build และ Playwright เฉพาะ Stage ที่ระบุ gate (10, 12, 14, 15) หรือเมื่อ `-Suite Full`; ระหว่างทางใช้ Editor Play Mode และ PlayMode tests

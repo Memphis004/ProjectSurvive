@@ -26,6 +26,7 @@ need to run, and the Web build moved behind the Full suite.
 | `data: generated tables validate` | Fast | `tools/validate-data.ps1` over the real tables |
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 21 broken data sets rejected for the right reason |
+| `wiki: content reproducible` | Fast | `tools/verify-wiki.ps1` — `llmwiki/content/` regenerates byte-identically from `data/`, every relative link and anchor resolves, every data id has a section, no `systems/`/`gotchas/` orphan, and a WARN-only heuristic for hand-written pages that restate skill numbers |
 | `unity: EditMode` | Fast | 157 tests in `ProjectSurvive.Game.Tests.EditMode` |
 | `unity: PlayMode` | **Full** | 48 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
@@ -137,6 +138,19 @@ flake of §7 (**22/48**), and the two fixtures this stage can affect were run on
 `CampMergeChooserPlayModeTests` **4/4** (`artifacts/stage09h/playmode-chooser.json`). WebGL and
 Playwright are NOT RUN (Editor lock; 09h is not a gate stage).
 
+Stage 10e (2026-10-19) is documentation and tools only: it adds the
+`wiki: content reproducible` step, so Fast is now **11 steps** (`PASS 11 | FAIL 0 | NOT RUN 3 | WARN 0`,
+237.4 s, a cold run — the step itself is steady) while every other count is unchanged — `dotnet test` **525**, EditMode **157/157**, PlayMode
+**48** and Playwright **10**. The new step's own row reports **1.4 s** and the tool itself **1.15 s**
+against the ~5 s warm budget; the three-fixture self-check runs separately
+(`tools/verify-wiki.ps1 -Fixtures`, **5.69 s**, 3/3 rejected) and is deliberately not in Fast. With the Editor open its Full run is **PASS 11 | FAIL 1 | NOT RUN 2**, 221.7 s: the one FAIL is the
+bulk PlayMode ambient-log flake of §7 (**22/48**, and the stage changed no Unity code), and both web
+steps are NOT RUN because the Editor holds the project lock. With the Editor **closed** it is
+**PASS 12 | FAIL 0 | NOT RUN 2**, 225.8 s — WebGL Development build **17.5 s**, Playwright **10/10**
+in Chrome **130.6 s** — leaving only the two Unity steps NOT RUN. Evidence:
+`artifacts/stage10e/fast-final.log`, `artifacts/stage10e/wiki-fixtures.log`,
+`artifacts/stage10e/full-editor-open.log`, `artifacts/stage10e/full-editor-closed.log`.
+
 Stage 10's own gate is Full, and it is **two runs**: Full with the Editor **open**
 (`artifacts/stage10/full-suite-editor-open.log`) reports EditMode and PlayMode and NOT RUNs both web
 steps, and Full with the Editor **closed** (`artifacts/stage10/full-suite-editor-closed.log`) reports
@@ -176,6 +190,10 @@ Warmth is not something the harness controls: a fourth run in the same session
 **241.2 s** — the cold profile again (`dotnet build` 8.4 s, `sim: determinism` 38.1 s,
 `data: generated tables validate` 65.3 s). An Editor restart and a busy machine were enough to lose the
 caches, so budget Fast at **1–4 minutes** rather than at the warm number.
+
+Stage 10e measured its new step on the same machine: **1.4 s** in the harness row and **1.15 s** inside
+`verify-wiki.ps1` (8 pages regenerated and diffed, 498 links checked), against a **~5 s** budget. The
+`-Fixtures` proof is a separate, slower command (**5.69 s**).
 
 **Fast with `-Release`** (2026-10-15, warm machine, `artifacts/timings/proc10-release/fast-release.log`)
 — this run is what verifies the flag does what §1 says it does: the summary header reads

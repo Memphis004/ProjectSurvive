@@ -5,11 +5,41 @@ not have to rediscover them. It complements, and never replaces, the GDD and the
 architecture docs.
 
 - Start here: [`../knowledge.md`](../knowledge.md)
+- How to query, ingest and lint this wiki (agent-facing): [`SCHEMA.md`](SCHEMA.md)
+- Turning a stage report into a note: [`INGEST.md`](INGEST.md) · [ingest log](log.md)
 - Running log of landed stages: [`stage-log.md`](stage-log.md)
 - Thai ↔ code names: [`glossary.md`](glossary.md)
 - Rules engine: [`../docs/architecture/overview.md`](../docs/architecture/overview.md)
 - Dependency risk: [`../docs/architecture/dependencies.md`](../docs/architecture/dependencies.md)
 - Which tests run when (Fast/Full, timings, test → suite): [`../docs/testing/test-suites.md`](../docs/testing/test-suites.md)
+
+---
+
+## Content (generated from `data/`)
+
+[`content/index.md`](content/index.md) is the **synthesised content layer**: pages
+written by `tools/gen-wiki.ps1` from `data/`, never by hand. It answers content
+questions (`มีไอเทมอะไรบ้าง`, `ชั้น 3 มีผีอะไร`, `คอมโบนี้ทำงานเมื่อไหร่`) without
+re-deriving the tables. Numbers there are copies; `data/` remains the source of
+truth (see [`SCHEMA.md`](SCHEMA.md)).
+
+| Question | Page |
+| --- | --- |
+| Items, bags, prices, weights, footprints, which combos/upgrades a piece joins | [`content/items.md`](content/items.md) |
+| A skill's behaviour, cooldown, MP, damage, range, pierce, projectiles | [`content/skills.md`](content/skills.md) |
+| The five combo rules and the real pieces on each side | [`content/synergies.md`](content/synergies.md) |
+| Upgrade variants per tier and their eligible pieces | [`content/upgrades.md`](content/upgrades.md) |
+| Enemies and the floors they appear on | [`content/enemies.md`](content/enemies.md) |
+| Floor durations, bosses and wave timelines | [`content/floors.md`](content/floors.md) |
+| Purse, shop, sell-back, heal, constants | [`content/economy.md`](content/economy.md) |
+| Why a system was designed this way | [`../docs/adr/`](../docs/adr/) + [`systems/`](systems/) |
+| A build/test/Unity trap | [`gotchas/`](gotchas/) |
+| Thai term ↔ code name | [`glossary.md`](glossary.md) |
+| The latest number with certainty | read `data/` directly |
+
+`tools/verify-wiki.ps1` fails when a content page drifts from `data/`, when a link
+or anchor is broken, when a data id has no section, or when a note below is not
+linked from this page. It is the Fast step `wiki: content reproducible`.
 
 ---
 
@@ -35,7 +65,8 @@ architecture docs.
 | Save / resume | *(pending)* | 12 | not started |
 
 Notes live in [`systems/`](systems/). Create one file per system as its stage
-lands.
+lands; [`INGEST.md`](INGEST.md) is the procedure for updating one from a stage
+report.
 
 ## Gotchas
 

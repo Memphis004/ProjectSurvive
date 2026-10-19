@@ -205,3 +205,6 @@ Three rules carry it, and each is [ADR 0022](../../docs/adr/0022-the-title-start
 What it publishes is coordinates, never a permission (the same reasoning as `DevMenuReport`): the
 browser spec clicks the point and asserts the game's own answer — the scene marker becoming `Camp` and
 the camp's report carrying a floor-1 run with a purse it can depart from.
+
+Source: [`10d-report`](../../docs/stages/10d-report.md) (the title screen, its start control, and the
+browser check that found the two geometry defects).

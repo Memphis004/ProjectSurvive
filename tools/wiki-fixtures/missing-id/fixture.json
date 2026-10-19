@@ -1,0 +1,7 @@
+{
+  "name": "missing-id",
+  "why": "item.kuman_thong is still in data/tables/item.csv but its section was deleted from items.md",
+  "expectedCodes": [
+    "id_missing"
+  ]
+}

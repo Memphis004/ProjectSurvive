@@ -14,7 +14,7 @@
       3. `dotnet test` (xUnit, 425 tests) with a .trx in artifacts/dotnet/
       4. the Sim, at process level: the same seed repeats a fingerprint, a different seed does not,
          the three streams stay separate, and the bot plays two floors
-      5. the static data gates: validate-data, verify-generated, check-fixtures
+      5. the static data gates: validate-data, verify-generated, check-fixtures, verify-wiki
       6. Unity EditMode tests, through the Editor that is already open
 
     Full (before a Stage's commit, or at a Stage gate) = Fast, then:
@@ -423,6 +423,19 @@ Invoke-Step 'data: broken fixtures rejected' 'Fast' {
     if ($r.Missing) { return @{ Status = 'FAIL'; Detail = 'tools/check-fixtures.ps1 is missing' } }
     if ($r.Ok) { return @{ Status = 'PASS'; Detail = ("{0} fixture(s) rejected" -f $count) } }
     return @{ Status = 'FAIL'; Detail = ("exit {0}; see artifacts/dotnet/check-fixtures.log" -f $r.Code) }
+} | Out-Null
+
+Invoke-Step 'wiki: content reproducible' 'Fast' {
+    $r = Invoke-Tool 'verify-wiki.ps1'
+    Write-Artifact $script:DotnetDir 'verify-wiki.log' $r.Output
+    if ($r.Missing) { return @{ Status = 'FAIL'; Detail = 'tools/verify-wiki.ps1 is missing' } }
+    if ($r.Ok) {
+        $line = ($r.Output -split "`r?`n" | Where-Object { $_ -match 'elapsed:\s*[0-9.]+' } | Select-Object -First 1)
+        $seconds = if ($line -and $line -match 'elapsed:\s*([0-9.]+)') { [double]$Matches[1] } else { 0.0 }
+        $budget = if ($seconds -gt 5) { ' (over the ~5 s warm budget)' } else { '' }
+        return @{ Status = 'PASS'; Detail = ("content matches data/; links, ids, notes clean; {0:0.00} s{1}" -f $seconds, $budget) }
+    }
+    return @{ Status = 'FAIL'; Detail = ("exit {0}; see artifacts/dotnet/verify-wiki.log" -f $r.Code) }
 } | Out-Null
 
 # ---------------------------------------------------------------------------

@@ -36,6 +36,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **10d** | **Title screen and its start control** | **DONE** — see [`docs/stages/10d-report.md`](docs/stages/10d-report.md), [ADR 0022](docs/adr/0022-the-title-starts-a-run.md) |
 | **10t** | **Shared generic buffers and per-scene builders (template groundwork)** | **DONE** — see [`docs/stages/10t-report.md`](docs/stages/10t-report.md), [ADR 0024](docs/adr/0024-shared-generic-buffers.md) |
 | **09h** | **The tooltip's numbers follow the upgrade** | **DONE** — see [`docs/stages/09h-report.md`](docs/stages/09h-report.md) |
+| **10e** | **LLM wiki (Karpathy-style): generated content, SCHEMA, INGEST, link/id lint** | **DONE** — see [`docs/stages/10e-report.md`](docs/stages/10e-report.md), [`llmwiki/SCHEMA.md`](llmwiki/SCHEMA.md) |
 | 11 | Thai ghost AI, Pob boss, balance | not started |
 | 12 | Save, resume, settings | not started |
 | 13 | Content complete & UX | not started |

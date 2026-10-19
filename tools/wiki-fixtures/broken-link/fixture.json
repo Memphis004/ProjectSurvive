@@ -1,0 +1,7 @@
+{
+  "name": "broken-link",
+  "why": "content/index.md links to does-not-exist.md, which is not in the repository",
+  "expectedCodes": [
+    "link_missing"
+  ]
+}
