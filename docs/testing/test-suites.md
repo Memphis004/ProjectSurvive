@@ -66,7 +66,9 @@ Stage 08d (2026-10-19) moved two counts and no dotnet one: EditMode **147 → 15
 `UiLayoutCheckTests` **20 → 24** — the mini bag's own stacking rule) and PlayMode **46 → 47** (the
 battle class 5 → 6, the scene's own grid-under-caption geometry), while `dotnet test` stayed **497**
 and Playwright stayed **10**. Its `-Suite Fast` run is `artifacts/stage08d/fast.log` —
-**PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**, 250.2 s. WebGL and Playwright were not run, by the brief.
+**PASS 10 | FAIL 0 | NOT RUN 3 | WARN 0**, 86.6 s (the final green run; an earlier attempt hit the
+environment-sensitive Result-report case recorded in the stage report §6). WebGL and Playwright were
+not run, by the brief.
 
 Stage 08c (2026-10-17) moved two counts and left the rest: EditMode **130 → 144** (`BattleMiniBagTests`
 14, and `BattlePresentationTests` 15) and PlayMode **45 → 46** (the battle class 4 → 5), while
