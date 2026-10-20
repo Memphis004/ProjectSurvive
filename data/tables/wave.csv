@@ -8,3 +8,4 @@
 ,wave.forest_4.b,floor.forest_4,enemy.krasue,20,45,14,1.8,false
 ,wave.forest_4.c,floor.forest_4,enemy.nang_tani,45,60,2,10.0,true
 ,wave.forest_5.boss,floor.forest_5,enemy.pob,0,90,1,90.0,true
+,wave.forest_5.spirits,floor.forest_5,enemy.wandering_spirit,0,90,26,3.0,false

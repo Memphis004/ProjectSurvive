@@ -611,7 +611,67 @@ namespace ProjectSurvive.Data.Validator
                     row, "role Boss and is_boss must agree");
 
                 ValidateEnemyAttack(enemy, row, findings);
+
+                ValidateBossBehaviour(enemy, row, findings);
             }
+        }
+
+        /// <summary>
+        /// The Stage 11c boss block: eating corpses and possessing the player.
+        /// </summary>
+        /// <remarks>
+        /// The same shape the attack block uses — a behaviour is a package, so a row that says
+        /// it does the thing must fill in every number the thing needs, and a row that does not
+        /// must leave them at zero. A boss that could eat a corpse must say how close the corpse
+        /// has to fall and how much it regains; a boss that possesses must warn first (otherwise
+        /// a reversed stick is indistinguishable from a bug), say how long the reversal lasts and
+        /// how far away it reaches.
+        /// </remarks>
+        private static void ValidateBossBehaviour(EnemyConfig enemy, string row, List<Finding> findings)
+        {
+            bool eatsCorpses = enemy.BossCorpseRange > 0f || enemy.BossCorpseHeal > 0;
+            bool possesses = enemy.BossPossessTelegraphSeconds > 0f
+                || enemy.BossPossessSeconds > 0f
+                || enemy.BossPossessIntervalSeconds > 0f
+                || enemy.BossPossessRange > 0f;
+
+            if (!enemy.IsBoss)
+            {
+                Check(!eatsCorpses && !possesses, findings, "enemy.boss_behaviour_on_a_ghost",
+                    row, "only a boss eats corpses or possesses the player; every boss column must be 0");
+                return;
+            }
+
+            Check(
+                enemy.BossCorpseRange >= 0f && enemy.BossCorpseHeal >= 0, findings,
+                "enemy.boss_corpse_negative", row + ".boss_corpse_heal",
+                "a corpse can neither be eaten from a negative distance nor take HP away");
+
+            Check(
+                (enemy.BossCorpseRange > 0f) == (enemy.BossCorpseHeal > 0), findings,
+                "enemy.boss_corpse_incomplete", row + ".boss_corpse_range",
+                "eating a corpse needs both a range to notice it and an amount to regain");
+
+            Check(
+                enemy.BossPossessSeconds >= 0f && enemy.BossPossessIntervalSeconds >= 0f
+                && enemy.BossPossessTelegraphSeconds >= 0f && enemy.BossPossessRange >= 0f,
+                findings, "enemy.boss_possess_negative", row + ".boss_possess_seconds",
+                "no possession column may be negative");
+
+            if (!possesses)
+            {
+                return;
+            }
+
+            Check(enemy.BossPossessTelegraphSeconds > 0f, findings,
+                "enemy.boss_possess_telegraph_missing", row + ".boss_possess_telegraph_seconds",
+                "a possession must warn before the controls turn around");
+
+            Check(enemy.BossPossessSeconds > 0f, findings, "enemy.boss_possess_not_positive",
+                row + ".boss_possess_seconds", "a possession that lasts no ticks is not a possession");
+
+            Check(enemy.BossPossessRange > 0f, findings, "enemy.boss_possess_range_missing",
+                row + ".boss_possess_range", "a possession needs a reach, or it would fire across the arena");
         }
 
         /// <summary>

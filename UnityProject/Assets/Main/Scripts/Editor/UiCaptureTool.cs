@@ -187,6 +187,7 @@ namespace ProjectSurvive.Game.Editor
             ("FloorIndexLabel", "_floorIndexLabel"),
             (UiLayoutCheck.BagCaption, "_bagCaption"),
             ("StatusCaption", "_statusCaption"),
+            ("PossessionLabel", "_possessionLabel"),
             ("HpCaption", "_hpCaption"),
             ("HpValue", "_hpValue"),
             ("ManaCaption", "_manaCaption"),

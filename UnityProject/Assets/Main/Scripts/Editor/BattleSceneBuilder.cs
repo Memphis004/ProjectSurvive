@@ -408,6 +408,15 @@ namespace ProjectSurvive.Game.Editor
                 statusPanel, "ManaBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
                 new Vector2(92f, -140f), new Vector2(-10f, -126f), new Color(0.42f, 0.72f, 0.95f, 1f));
 
+            // Stage 11c: the one line the status panel gains — a boss's possession has the movement
+            // input reversed, and the player has to be told in words. It is authored empty rather than
+            // inactive so its rectangle is laid out and measured like every other label; the presenter
+            // writes the localized line into it only while the frame says the controls are reversed
+            // (hud.possession). It sits in the band under the two bars, which nothing else uses.
+            TMP_Text possessionLabel = ProjectSetup.CreateUiText(
+                statusPanel, "PossessionLabel", new Vector2(10f, -170f), new Vector2(400f, 56f), 24f, font);
+            possessionLabel.color = new Color(1f, 0.55f, 0.45f, 1f);
+
             // ---- bottom centre: the floor's timeline ----
             RectTransform timelinePanel = ProjectSetup.StretchUiRect(
                 canvasRect, UiLayoutCheck.TimelinePanel, new Vector2(0.25f, 0f), new Vector2(0.75f, 0.20f),
@@ -462,6 +471,7 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(hud, "_killsValue", killsValue);
             ProjectSetup.SetObjectReference(hud, "_bagCaption", bagCaption);
             ProjectSetup.SetObjectReference(hud, "_statusCaption", statusCaption);
+            ProjectSetup.SetObjectReference(hud, "_possessionLabel", possessionLabel);
             ProjectSetup.SetObjectReference(hud, "_timelineCaption", timelineCaption);
             ProjectSetup.SetObjectReference(hud, "_bossCaption", bossCaption);
             ProjectSetup.SetObjectReference(hud, "_statusLabel", statusLabel);

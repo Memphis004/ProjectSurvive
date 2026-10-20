@@ -7,8 +7,10 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
     /// A mutable value type owned by the session and handed out by copy, so a HUD
     /// read allocates nothing. Names follow the Luban columns (<c>hp</c>,
     /// <c>mp</c>, <c>currency</c>) rather than inventing a second vocabulary.
-    /// There is no level / XP / input-inversion field: the prototype has no
-    /// level-up or blessing (GDD v0.3).
+    /// There is no level / XP field: the prototype has no level-up or blessing
+    /// (GDD v0.3). <see cref="ControlFlipTicks"/> is the one input state that
+    /// <i>is</i> published — a boss's possession reverses the player's movement,
+    /// and the HUD has to say so without the view guessing (Stage 11c, ADR 0030).
     /// </remarks>
     public struct HudState
     {
@@ -47,6 +49,18 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
 
         /// <summary>True when this floor has a boss.</summary>
         public bool HasBoss;
+
+        /// <summary>
+        /// Ticks the player's movement input is still reversed by a boss's possession, or
+        /// <c>0</c> when the controls are normal (Stage 11c).
+        /// </summary>
+        /// <remarks>
+        /// Published from the player's own <c>Possessed</c> component in the tick the movement
+        /// rule reads it, so this is a fact about the simulation rather than a hint a view
+        /// reconstructs from an event's start and end. A HUD asks "is this above zero" to draw
+        /// its warning and divides by <see cref="ProjectSurvive.Core.Domain.Combat.Battle.BattleConstants.TickRate"/> for seconds.
+        /// </remarks>
+        public int ControlFlipTicks;
 
         /// <summary>Seconds remaining on the floor timer, for a HUD clock.</summary>
         public float RemainingSeconds(int tickRate) =>

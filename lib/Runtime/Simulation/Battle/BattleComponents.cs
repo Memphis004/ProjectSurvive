@@ -308,6 +308,67 @@ namespace ProjectSurvive.Core.Simulation.Battle
         public float AimY;
     }
 
+    /// <summary>
+    /// The boss's own numbers and clock: which phase it is in, the corpses it can eat
+    /// and the possession it can start (Stage 11c).
+    /// </summary>
+    /// <remarks>
+    /// Copied whole from the enemy row at spawn, like <see cref="EnemyAttack"/>, so no
+    /// system looks a def up while the clock runs. Phase, state and the two clocks are
+    /// part of the deterministic state and are hashed: where a boss is in its cycle is
+    /// as much a fact of the fight as its HP.
+    /// </remarks>
+    public struct BossMind
+    {
+        /// <summary>1 until the row's threshold is crossed, 2 after.</summary>
+        public int Phase;
+
+        /// <summary>Absolute HP at or below which phase 2 begins; 0 when the row sets none.</summary>
+        public int Phase2HpThreshold;
+
+        /// <summary>How close a dying ghost must be to be eaten, in world units; 0 for none.</summary>
+        public float CorpseRange;
+
+        /// <summary>HP one corpse gives back, never above the boss's max.</summary>
+        public int CorpseHeal;
+
+        /// <summary>Ticks of warning before a possession lands; 0 means the row does not possess.</summary>
+        public int PossessTelegraphTicks;
+
+        /// <summary>Ticks the player's movement input stays reversed.</summary>
+        public int PossessTicks;
+
+        /// <summary>Shortest gap between the end of one possession and the start of the next, in ticks.</summary>
+        public int PossessIntervalTicks;
+
+        /// <summary>How close the player must be for a possession to start, in world units.</summary>
+        public float PossessRange;
+
+        /// <summary>Current possession stage, from <see cref="Systems.BossPossessionState"/>.</summary>
+        public int State;
+
+        /// <summary>Ticks left in the warning stage.</summary>
+        public int StateTicks;
+
+        /// <summary>Ticks until the next possession may start.</summary>
+        public int CooldownTicks;
+    }
+
+    /// <summary>
+    /// Present on the player while a boss's possession reverses their movement input
+    /// (Stage 11c).
+    /// </summary>
+    /// <remarks>
+    /// The clock lives on the player, not on the boss, because it is the <i>player's</i>
+    /// control that is reversed and the HUD publishes it from the player's own entity;
+    /// <see cref="Systems.BossSystem"/> owns the clock and clears it when the boss dies.
+    /// </remarks>
+    public struct Possessed
+    {
+        /// <summary>Ticks the reversal still lasts; 0 means not possessed.</summary>
+        public int RemainingTicks;
+    }
+
     /// <summary>A drop on the floor, waiting to be pulled in.</summary>
     public struct Pickup
     {
@@ -386,5 +447,8 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
         /// <summary>The row's telegraphed attack, copied whole (Stage 11b).</summary>
         public EnemyAttack Attack;
+
+        /// <summary>The row's boss block, copied whole (Stage 11c).</summary>
+        public BossBehaviour Boss;
     }
 }

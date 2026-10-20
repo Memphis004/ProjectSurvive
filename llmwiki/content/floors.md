@@ -2,7 +2,7 @@
 
 # Floors and wave timelines
 
-All 5 rows of `data/tables/floor.csv` and the 9 `wave` rows, in file order. A floor ends when its wave timeline is survived, or (boss floors) when the boss dies.
+All 5 rows of `data/tables/floor.csv` and the 10 `wave` rows, in file order. A floor ends when its wave timeline is survived, or (boss floors) when the boss dies.
 
 | Floor | index | duration (s) | boss | waves | total spawns |
 | --- | --- | --- | --- | --- | --- |
@@ -10,7 +10,7 @@ All 5 rows of `data/tables/floor.csv` and the 9 `wave` rows, in file order. A fl
 | [ป่าช้าวัดร้าง ชั้น 2](floors.md#floor.forest_2) | 2 | 60 | no | 2 | 30 |
 | [ป่าช้าวัดร้าง ชั้น 3](floors.md#floor.forest_3) | 3 | 60 | no | 2 | 19 |
 | [ป่าช้าวัดร้าง ชั้น 4](floors.md#floor.forest_4) | 4 | 60 | no | 3 | 36 |
-| [ป่าช้าวัดร้าง ชั้น 5](floors.md#floor.forest_5) | 5 | 90 | yes (`enemy.pob`) | 1 | 1 |
+| [ป่าช้าวัดร้าง ชั้น 5](floors.md#floor.forest_5) | 5 | 90 | yes (`enemy.pob`) | 2 | 27 |
 
 <a id="floor.forest_1"></a>
 ### floor.forest_1 - ป่าช้าวัดร้าง ชั้น 1 (Graveyard Forest F1)
@@ -80,7 +80,8 @@ Total spawns in the data: 36. The interval is the gap between spawns inside that
 | Wave | Enemy | start (s) | end (s) | spawn_count | interval (s) | elite |
 | --- | --- | --- | --- | --- | --- | --- |
 | `wave.forest_5.boss` | [ปอบ](enemies.md#enemy.pob) | 0 | 90 | 1 | 90.0 | true |
+| `wave.forest_5.spirits` | [วิญญาณเร่ร่อน](enemies.md#enemy.wandering_spirit) | 0 | 90 | 26 | 3.0 | false |
 
-Total spawns in the data: 1. The interval is the gap between spawns inside that wave's window.
+Total spawns in the data: 27. The interval is the gap between spawns inside that wave's window.
 
 See also: [items](items.md) | [skills](skills.md) | [synergies](synergies.md) | [upgrades](upgrades.md) | [enemies](enemies.md) | [economy](economy.md) | [content index](index.md)

@@ -136,13 +136,20 @@ namespace ProjectSurvive.Core.Tests
         /// The number is a fingerprint of one runtime build, not a save format and not a claim that
         /// two machines agree (AGENTS rule 6): it is only ever compared against itself.
         /// </para>
+        /// <para>
+        /// <b>Bumped once, on purpose, by Stage 11c.</b> The player entity gained a
+        /// <c>Possessed</c> clock and the boss its <c>BossMind</c>, and both are hashed because both
+        /// decide what the fight does; a component the hash ignores could let two runs that ended
+        /// differently report the same fingerprint. The value below was re-recorded from this build
+        /// after that change, and it did not move again during the rest of the stage.
+        /// </para>
         /// </remarks>
         [Fact]
         public void The_state_hash_of_a_seeded_floor_with_casters_is_unchanged()
         {
             uint hash = HashAfter300Ticks(CreateFactory(), CreateCasterSetup());
 
-            Assert.Equal(3218847520u, hash);
+            Assert.Equal(2558501440u, hash);
         }
     }
 }

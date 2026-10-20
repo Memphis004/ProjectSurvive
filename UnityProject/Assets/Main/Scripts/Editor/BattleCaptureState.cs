@@ -5,7 +5,9 @@ using ProjectSurvive.Core.Application.Run;
 using ProjectSurvive.Core.Application.Text;
 using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Config;
+using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Infrastructure.Save;
+using ProjectSurvive.Core.Shared;
 using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Infrastructure;
 using ProjectSurvive.Game.Presentation.Battle;
@@ -30,6 +32,18 @@ namespace ProjectSurvive.Game.Editor
         /// <c>LoadoutCooldownFlags.ManaShort</c>, which is what the faint blue plate means.
         /// </summary>
         ManaShort = 2,
+
+        /// <summary>
+        /// The last frame before Pob possesses the player: phase 2, the boss in reach, the controls
+        /// still normal (Stage 11c).
+        /// </summary>
+        BossBeforePossession = 3,
+
+        /// <summary>
+        /// The frame a possession landed on: the status panel says the controls are reversed
+        /// (Stage 11c).
+        /// </summary>
+        BossPossessed = 4,
     }
 
     /// <summary>
@@ -91,6 +105,12 @@ namespace ProjectSurvive.Game.Editor
         private const int LevelsWanted = 3;
 
         /// <summary>
+        /// Ticks the boss capture may play before it gives up: the boss floor is 90 s, and the boss has
+        /// to walk in and be hurt down to its phase-2 threshold inside that.
+        /// </summary>
+        private const int BossCeiling = 2700;
+
+        /// <summary>
         /// Where each string the HUD shows lands in the scene: the field <c>BattleHudView</c>
         /// serializes, and the state property the presenter wrote it into.
         /// </summary>
@@ -114,6 +134,7 @@ namespace ProjectSurvive.Game.Editor
             ("_statusCaption", state => state.StatusCaption.Value),
             ("_timelineCaption", state => state.TimelineCaption.Value),
             ("_bossCaption", state => state.BossCaption.Value),
+            ("_possessionLabel", state => state.PossessionText.Value),
             ("_speedLabel", state => state.SpeedLabel.Value),
         };
 
@@ -122,6 +143,7 @@ namespace ProjectSurvive.Game.Editor
         private readonly RectTransform _hpBar;
         private readonly RectTransform _manaBar;
         private readonly GameObject _bossRoot;
+        private readonly RectTransform _possessionLabel;
         private readonly Image _portrait;
         private readonly SerializedObject _view;
 
@@ -129,6 +151,7 @@ namespace ProjectSurvive.Game.Editor
         private readonly RunSession _run;
         private readonly BattleSetup _setup;
         private readonly IBattleSession _session;
+        private readonly BattleFrameSnapshot _beforePossession = new BattleFrameSnapshot();
         private readonly LocalizationService _text;
         private readonly BattleSpeed _speed = new BattleSpeed();
         private readonly BattleHudState _state = new BattleHudState();
@@ -148,7 +171,8 @@ namespace ProjectSurvive.Game.Editor
             IGameConfig config,
             RunSession run,
             BattleSetup setup,
-            int startingBia)
+            int startingBia,
+            IBattleSessionFactory factory)
         {
             _view = new SerializedObject(hud);
             _config = config;
@@ -162,9 +186,11 @@ namespace ProjectSurvive.Game.Editor
             _manaBar = _view.FindProperty("_manaBar")?.objectReferenceValue as RectTransform;
             _portrait = _view.FindProperty("_portrait")?.objectReferenceValue as Image;
             _bossRoot = _view.FindProperty("_bossRoot")?.objectReferenceValue as GameObject;
+            var possessionText = _view.FindProperty("_possessionLabel")?.objectReferenceValue as Component;
+            _possessionLabel = possessionText == null ? null : possessionText.transform as RectTransform;
 
             _presenter = new BattleHudPresenter(_state, _text, config, _speed);
-            _session = DevBattleSessionBinding.CreateFactory(config).Create(setup);
+            _session = factory.Create(setup);
 
             // The floor's static half first (floor name, timeline, captions), then its first frame —
             // the order BattleViewScene.Begin uses. That frame is kept aside: it is the floor-start
@@ -210,12 +236,126 @@ namespace ProjectSurvive.Game.Editor
                 return false;
             }
 
-            state = new BattleCaptureState(hud, miniBag, config, run, setup, startingBia);
+            state = new BattleCaptureState(
+                hud, miniBag, config, run, setup, startingBia, DevBattleSessionBinding.CreateFactory(config));
             return true;
+        }
+
+        /// <summary>
+        /// Builds the same capture state over <b>floor 5</b>, played by the shipped simulation
+        /// (Stage 11c).
+        /// </summary>
+        /// <remarks>
+        /// The dev session cannot stand in for this one: a boss's phases, its corpse eating and its
+        /// possession are rules of the real EcsLite battle, and a picture of them has to come from
+        /// it. The run reaches floor 5 the way a player does — four cleared floors, each settled
+        /// through <see cref="RunSession.ApplyBattleResult"/> with a win — so the bag, the loadout and
+        /// the floor are the run's own rather than a scenario's.
+        /// </remarks>
+        public static bool TryBuildBoss(
+            BattleHudView hud, BattleMiniBagView miniBag, out BattleCaptureState state, out string error)
+        {
+            state = null;
+            error = string.Empty;
+
+            if (hud is null || miniBag is null)
+            {
+                error = "the Battle scene is missing its HUD or its mini bag";
+                return false;
+            }
+
+            IGameConfig config = ResourcesGameConfigLoader.Load();
+
+            // The Editor is the Editor: this is exactly the decision the App scope makes at startup
+            // ("dev cheats belong to a development build and to the Editor"), made here because a
+            // capture runs in Edit Mode, where nothing has configured it yet. Without it the boss
+            // floor kills the idle player before the fight reaches phase 2, and no possession can be
+            // photographed.
+            DevCheats.Configure(isDevelopmentBuild: false, isEditor: true);
+
+            var run = new RunSession(config, new MessagePackBackpackSnapshotCodec(), Seed);
+
+            Result started = run.StartRun();
+            if (started.IsFailure)
+            {
+                error = "the run refused to start: " + started.Error;
+                return false;
+            }
+
+            BattleSetup setup = null;
+
+            for (int floor = 0; floor < 5; floor++)
+            {
+                Result<BattleSetup> departed = run.StartFloor();
+                if (departed.IsFailure)
+                {
+                    error = "floor " + (floor + 1) + " refused to depart: " + departed.Error;
+                    return false;
+                }
+
+                setup = departed.Value;
+                if (floor == 4)
+                {
+                    break;
+                }
+
+                // A win is the only way past a floor, and the settlement is what moves the run on.
+                Result<FloorSettlement> settled = run.ApplyBattleResult(Win(setup));
+                if (settled.IsFailure)
+                {
+                    error = "floor " + (floor + 1) + " refused its settlement: " + settled.Error;
+                    return false;
+                }
+            }
+
+            if (setup is null || !setup.IsBossFloor)
+            {
+                error = "the run did not reach a boss floor";
+                return false;
+            }
+
+            state = new BattleCaptureState(
+                hud, miniBag, config, run, setup, run.Wallet.Bia, BattleFactoryBinding.Create(config));
+            return true;
+        }
+
+        /// <summary>An untouched-floor win, shaped so the settlement can validate it.</summary>
+        private static BattleResult Win(BattleSetup setup)
+        {
+            return new BattleResult
+            {
+                Outcome = BattlePhase.Won,
+                EndReason = setup.IsBossFloor
+                    ? BattleEndReason.BossDefeated
+                    : BattleEndReason.SurvivedAllWaves,
+                SurvivedTicks = 1,
+                FinalHp = setup.CurrentHp,
+                CurrencyEarned = 0,
+                Kills = 0,
+                RemainingConsumables = new int[setup.Loadout.Consumables.Count],
+            };
         }
 
         /// <summary>The tick the mid-fight shot was taken at.</summary>
         public int MidFightTick { get; private set; }
+
+        /// <summary>The floor this state is playing.</summary>
+        public string StageId => _setup.StageId;
+
+        /// <summary>The tick a possession landed on, or -1 when the floor never reached one (Stage 11c).</summary>
+        public int BossPossessionTick { get; private set; } = -1;
+
+        /// <summary>Ticks the last frame says the controls are still reversed (Stage 11c).</summary>
+        public int ControlFlipTicks => _current.HasFrame ? _current.Hud.ControlFlipTicks : 0;
+
+        /// <summary>The status panel's possession line, for a capture that measures what it drew.</summary>
+        public RectTransform PossessionLabel => _possessionLabel;
+
+        /// <summary>The boss's HP on the frame the possession landed on (Stage 11c).</summary>
+        public int BossHp => _current.HasFrame ? _current.Hud.BossHp : 0;
+
+        /// <summary>The boss's max HP, for the report's "x / y" line.</summary>
+        public int BossMaxHp => _current.HasFrame ? _current.Hud.BossMaxHp : 0;
 
         /// <summary>How many casters the loadout resolved (the pieces with a plate).</summary>
         public int CasterCount => _current.CooldownCount;
@@ -276,6 +416,128 @@ namespace ProjectSurvive.Game.Editor
         }
 
         /// <summary>
+        /// Plays the boss floor until Pob's possession lands (Stage 11c).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Nothing is staged: the floor is floor 5 as the run departs it, the boss walks in on its own,
+        /// the player's weapon is the one the run's bag resolved, and the possession is the rule's. The
+        /// tool only does two things a player would: it walks toward the boss (read from the frame's own
+        /// <c>RenderEntityFlags.Boss</c>), and it turns <c>DevGodMode</c> on so the photograph is not a
+        /// race between the shutter and the player's death — a dev command the Editor build allows, and
+        /// it changes nothing about the boss's states.
+        /// </para>
+        /// <para>
+        /// The frame before the reversal is kept, so the pair of pictures differs by the possession
+        /// itself rather than by a second run.
+        /// </para>
+        /// </remarks>
+        public void StepToBossPossession()
+        {
+            BossPossessionTick = -1;
+            GodModeResult = _session.Submit(new BattleCommand(BattleCommandKind.DevGodMode, 1));
+            GodModeAccepted = GodModeResult == CommandResult.Ok;
+            _current.CopyFrom(_session.Frame);
+            _beforePossession.CopyFrom(_session.Frame);
+
+            while (_steppedTo < BossCeiling && _session.Phase == BattlePhase.Running)
+            {
+                _beforePossession.CopyFrom(_session.Frame);
+                _session.Step(SteerToBoss());
+                _steppedTo = (int)_session.Tick;
+                _current.CopyFrom(_session.Frame);
+
+                if (_current.Hud.ControlFlipTicks > 0)
+                {
+                    BossPossessionTick = _steppedTo;
+                    BossDistance = DistanceToBoss();
+                    return;
+                }
+            }
+
+            Debug.Log(
+                "[Stage 11c] boss capture stopped at tick " + _steppedTo + " (phase " + _session.Phase
+                + ", floor " + _setup.FloorIndex + "): boss " + _current.Hud.BossHp + "/"
+                + _current.Hud.BossMaxHp + ", player " + _current.Hud.Hp + "/" + _current.Hud.MaxHp
+                + ", god mode " + GodModeResult + ", kills " + _current.Hud.Kills);
+        }
+
+        /// <summary>
+        /// How far the boss stood from the player on the frame the possession landed, in world
+        /// units — the proof that both are in the same camera shot.
+        /// </summary>
+        public float BossDistance { get; private set; } = -1f;
+
+        /// <summary>Distance between the player and the boss in the last frame, or -1.</summary>
+        private float DistanceToBoss()
+        {
+            if (!FindPlayerAndBoss(out float playerX, out float playerY, out float bossX, out float bossY))
+            {
+                return -1f;
+            }
+
+            float dx = bossX - playerX;
+            float dy = bossY - playerY;
+            return (float)Math.Sqrt((dx * dx) + (dy * dy));
+        }
+
+        /// <summary>The last frame's player and boss positions, when it showed both.</summary>
+        private bool FindPlayerAndBoss(out float playerX, out float playerY, out float bossX, out float bossY)
+        {
+            playerX = 0f;
+            playerY = 0f;
+            bossX = 0f;
+            bossY = 0f;
+
+            if (!_current.HasFrame)
+            {
+                return false;
+            }
+
+            bool sawPlayer = false;
+            bool sawBoss = false;
+
+            ReadOnlySpan<RenderEntity> entities = _current.Current;
+            for (int i = 0; i < entities.Length; i++)
+            {
+                RenderEntity entity = entities[i];
+                if (entity.Kind == RenderEntityKind.Player)
+                {
+                    playerX = entity.X;
+                    playerY = entity.Y;
+                    sawPlayer = true;
+                }
+                else if ((entity.Flags & RenderEntityFlags.Boss) != 0)
+                {
+                    bossX = entity.X;
+                    bossY = entity.Y;
+                    sawBoss = true;
+                }
+            }
+
+            return sawPlayer && sawBoss;
+        }
+
+        /// <summary>What the floor said to <c>DevGodMode</c>, for the capture's own report.</summary>
+        public CommandResult GodModeResult { get; private set; }
+
+        /// <summary>True when the floor accepted <c>DevGodMode</c>.</summary>
+        public bool GodModeAccepted { get; private set; }
+
+        /// <summary>
+        /// The input for one tick: straight at the boss when the frame shows one, still otherwise.
+        /// </summary>
+        private PlayerInputFrame SteerToBoss()
+        {
+            if (!FindPlayerAndBoss(out float playerX, out float playerY, out float bossX, out float bossY))
+            {
+                return PlayerInputFrame.Idle;
+            }
+
+            return PlayerInputFrame.FromAxis(bossX - playerX, bossY - playerY);
+        }
+
+        /// <summary>
         /// Puts the chosen state on the screen: the frame's cooldowns on the mini bag, its numbers in
         /// the labels and the bars, and the floor's own progress on the timeline.
         /// </summary>
@@ -289,7 +551,7 @@ namespace ProjectSurvive.Game.Editor
             // The floor-start shot is the frame the runner renders before it steps anything; the other
             // two are the frame the mid-fight search landed on. Both sizes of one shot read the same
             // snapshot, so the two pictures differ only by what the state itself changes.
-            BattleFrameSnapshot frame = shot == BattleShot.FloorStart ? _first : _current;
+            BattleFrameSnapshot frame = FrameOf(shot);
 
             if (shot == BattleShot.ManaShort)
             {
@@ -318,6 +580,10 @@ namespace ProjectSurvive.Game.Editor
                 // capture command measures.
                 _bossRoot.SetActive(_state.HasBoss.Value);
             }
+
+            // The possession line (Stage 11c) is one of the labels WriteLabels writes: the presenter
+            // makes it the localized sentence while the frame says the controls are reversed and empty
+            // otherwise, exactly as BattleHudView would mirror it.
 
             WriteLabels();
         }
@@ -357,7 +623,7 @@ namespace ProjectSurvive.Game.Editor
         /// </remarks>
         public string Describe(BattleShot shot)
         {
-            BattleFrameSnapshot frame = shot == BattleShot.FloorStart ? _first : _current;
+            BattleFrameSnapshot frame = FrameOf(shot);
             HudState hud = frame.Hud;
 
             var text = new System.Text.StringBuilder(96);
@@ -390,6 +656,14 @@ namespace ProjectSurvive.Game.Editor
             }
 
             text.Append(']');
+
+            if (hud.HasBoss)
+            {
+                text.Append(", boss ").Append(hud.BossHp).Append('/').Append(hud.BossMaxHp)
+                    .Append(", controls ").Append(hud.ControlFlipTicks > 0 ? "reversed" : "normal")
+                    .Append(" (").Append(hud.ControlFlipTicks).Append(" tick(s) left)");
+            }
+
             return text.ToString();
         }
 
@@ -429,6 +703,20 @@ namespace ProjectSurvive.Game.Editor
                 }
 
                 label.text = Labels[i].Value(_state);
+            }
+        }
+
+        /// <summary>The snapshot a shot shows.</summary>
+        private BattleFrameSnapshot FrameOf(BattleShot shot)
+        {
+            switch (shot)
+            {
+                case BattleShot.FloorStart:
+                    return _first;
+                case BattleShot.BossBeforePossession:
+                    return _beforePossession;
+                default:
+                    return _current;
             }
         }
 

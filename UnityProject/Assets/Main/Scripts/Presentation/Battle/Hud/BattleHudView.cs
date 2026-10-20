@@ -60,6 +60,9 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         [Tooltip("The status panel's caption, over the figure and the two bars.")]
         [SerializeField] private TMP_Text _statusCaption;
 
+        [Tooltip("The status panel's last line: set only while a boss's possession has the stick turned around (Stage 11c).")]
+        [SerializeField] private TMP_Text _possessionLabel;
+
         [SerializeField] private TMP_Text _timelineCaption;
         [SerializeField] private TMP_Text _bossCaption;
         [SerializeField] private TMP_Text _statusLabel;
@@ -150,6 +153,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             Subscribe(_state.KillsValue, _killsValue);
             Subscribe(_state.BagCaption, _bagCaption);
             Subscribe(_state.StatusCaption, _statusCaption);
+            Subscribe(_state.PossessionText, _possessionLabel);
             Subscribe(_state.TimelineCaption, _timelineCaption);
             Subscribe(_state.BossCaption, _bossCaption);
             Subscribe(_state.StatusLine, _statusLabel);

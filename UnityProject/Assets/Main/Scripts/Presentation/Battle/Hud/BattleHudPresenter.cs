@@ -49,6 +49,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         private readonly List<IDisposable> _subscriptions = new List<IDisposable>(4);
 
         private int _startingBia;
+        private string _possessionLine = string.Empty;
         private int _lastHp = int.MinValue;
         private int _lastMaxHp = int.MinValue;
         private int _lastMp = int.MinValue;
@@ -124,6 +125,8 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             BattleHudState.Set(_state.KillsCaption, Lookup("hud.kills"));
             BattleHudState.Set(_state.BagCaption, Lookup("hud.bag"));
             BattleHudState.Set(_state.StatusCaption, Lookup("hud.status"));
+            _possessionLine = Lookup("hud.possession");
+            BattleHudState.Set(_state.PossessionText, string.Empty);
             BattleHudState.Set(_state.TimelineCaption, Lookup("hud.timeline"));
             BattleHudState.Set(_state.BiaValue, startingBia.ToString(CultureInfo.InvariantCulture));
         }
@@ -184,6 +187,11 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             BattleHudState.Set(_state.FloorProgress, Progress(hud));
             BattleHudState.Set(_state.HasBoss, hud.HasBoss);
             BattleHudState.Set(_state.BossHealthPercent, Percent(hud.BossHp, hud.BossMaxHp));
+
+            // Stage 11c: the frame carries the reversal itself, so the HUD never has to remember
+            // that a possession started or guess when it ended. One comparison, one line.
+            BattleHudState.Set(
+                _state.PossessionText, hud.ControlFlipTicks > 0 ? _possessionLine : string.Empty);
         }
 
         /// <summary>Writes the end banner once the session has a result.</summary>

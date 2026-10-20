@@ -97,8 +97,8 @@ simulation state. A reader owns its own `cursor`; an event type's payload is
 | `PickupCollected` | – | pickup kind | |
 | `TelegraphStarted` | enemy def | `(int)TelegraphShape` | the warning's footprint is on `Radius`/`Length`/`Angle` (Stage 11b, §5.1) |
 | `TelegraphEnded` | enemy def | `(int)TelegraphShape` | emitted in the tick the stage ends |
-| `CorpseConsumed` | enemy def (the eater) | HP the eater regained | Pob (Stage 11) |
-| `BossPhaseChanged` | – | new phase number | |
+| `CorpseConsumed` | enemy def (the eater) | HP the eater regained, capped at its max | Pob eats a ghost that died inside `boss_corpse_range` (Stage 11c) |
+| `BossPhaseChanged` | enemy def (the boss) | new phase number | once, when HP reaches `boss_phase2_hp_percent` (Stage 11c) |
 | `TimeWarning` | – | seconds remaining | |
 | `BattleEnded` | – | `(int)BattleEndReason` | last event of a session |
 
@@ -123,6 +123,10 @@ fact. A `TelegraphStarted` is emitted in the tick its warning begins and the mat
 outlive its hazard. `DefId` names the attacker because the aim a warning depicts is the ghost's, and
 a reader that wants the numbers reads the `enemy` row.
 
+A **boss's possession** (Stage 11c) uses the same pair with `TelegraphShape.Circle`,
+`Radius` = `boss_possess_range` and `BattleEventFlags.Boss`; a player who leaves the circle before
+the warning ends is not possessed.
+
 `BattleEventRing` is the shared implementation: fixed capacity
 (`BattleConstants.EventRingCapacity = 4096`), strictly increasing `Seq`, multiple
 independent readers, **zero allocation** on write and read. It is a thin adapter over
@@ -137,7 +141,10 @@ through `Read(..., out int dropped)` — the loss is reported, never hidden.
 and `Cooldowns` (Stage 08b). Both entity spans are `ReadOnlySpan<RenderEntity>` and
 are **valid only until the next `Step` or `Submit`** — copy anything you need to keep.
 `HudState` names its fields after the Luban columns (`hp`, `mp`, `currency`) and has
-no Level/XP/input-inversion field.
+no Level/XP field. Its one input field is `ControlFlipTicks` (Stage 11c): ticks the player's
+movement is still reversed by a boss's possession, `0` when the controls are normal. A HUD asks
+`> 0` and divides by `BattleConstants.TickRate`; it never reconstructs the state from a start and
+an end event ([ADR 0030](../../docs/adr/0030-boss-possession-hud-channel.md)).
 
 ### The cooldown list (Stage 08b)
 

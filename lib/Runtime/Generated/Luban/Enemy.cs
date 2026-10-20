@@ -44,6 +44,12 @@ public sealed partial class Enemy : Luban.BeanBase
         FollowUpTickSeconds = _buf.ReadFloat();
         RetreatSeconds = _buf.ReadFloat();
         RetreatSpeed = _buf.ReadFloat();
+        BossPossessTelegraphSeconds = _buf.ReadFloat();
+        BossPossessSeconds = _buf.ReadFloat();
+        BossPossessIntervalSeconds = _buf.ReadFloat();
+        BossPossessRange = _buf.ReadFloat();
+        BossCorpseRange = _buf.ReadFloat();
+        BossCorpseHeal = _buf.ReadInt();
     }
 
     public static Enemy DeserializeEnemy(ByteBuf _buf)
@@ -79,6 +85,12 @@ public sealed partial class Enemy : Luban.BeanBase
     public readonly float FollowUpTickSeconds;
     public readonly float RetreatSeconds;
     public readonly float RetreatSpeed;
+    public readonly float BossPossessTelegraphSeconds;
+    public readonly float BossPossessSeconds;
+    public readonly float BossPossessIntervalSeconds;
+    public readonly float BossPossessRange;
+    public readonly float BossCorpseRange;
+    public readonly int BossCorpseHeal;
    
     public const int __ID__ = 67100520;
     public override int GetTypeId() => __ID__;
@@ -118,6 +130,12 @@ public sealed partial class Enemy : Luban.BeanBase
         + "followUpTickSeconds:" + FollowUpTickSeconds + ","
         + "retreatSeconds:" + RetreatSeconds + ","
         + "retreatSpeed:" + RetreatSpeed + ","
+        + "bossPossessTelegraphSeconds:" + BossPossessTelegraphSeconds + ","
+        + "bossPossessSeconds:" + BossPossessSeconds + ","
+        + "bossPossessIntervalSeconds:" + BossPossessIntervalSeconds + ","
+        + "bossPossessRange:" + BossPossessRange + ","
+        + "bossCorpseRange:" + BossCorpseRange + ","
+        + "bossCorpseHeal:" + BossCorpseHeal + ","
         + "}";
     }
 }

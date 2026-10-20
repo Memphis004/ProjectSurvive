@@ -31,7 +31,9 @@ namespace ProjectSurvive.Core.Tests
             Assert.Equal(28, config.MergeRecipes.Count);
             Assert.Equal(4, config.Enemies.Count);
             Assert.Equal(5, config.Floors.Count);
-            Assert.Equal(9, config.Waves.Count);
+            // 10 wave windows: floor 5 gained a filler band in Stage 11c so the boss has corpses
+            // to eat on a real run, not only in a test.
+            Assert.Equal(10, config.Waves.Count);
             Assert.Equal(14, config.ShopPool.Count);
 
             // Stage 09f: 10 upgrade choices (4 per arcane tier step plus one per step scoped
@@ -58,8 +60,9 @@ namespace ProjectSurvive.Core.Tests
             // was corrected once before: it said 144 while data/ held 145, because the 81 rows Stage 09
             // added to data/localization/localization.csv had not been regenerated yet. Stage 11a
             // added the four charm/offering tooltip rows (camp.tooltip.charm_effect and the three
-            // offering lines), taking it to 199.
-            Assert.Equal(199, config.Localization.Count);
+            // offering lines), taking it to 199. Stage 11c added `hud.possession`, the line the HUD
+            // draws while a boss's possession has the stick turned around, taking it to 200.
+            Assert.Equal(200, config.Localization.Count);
         }
 
         [Fact]

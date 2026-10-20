@@ -37,6 +37,8 @@ namespace ProjectSurvive.Core.Simulation.Battle
         private readonly EcsPool<Pickup> _pickups;
         private readonly EcsPool<EnemyAttack> _attacks;
         private readonly EcsPool<EnemyBrain> _brains;
+        private readonly EcsPool<BossMind> _bossMinds;
+        private readonly EcsPool<Possessed> _possessed;
 
         /// <summary>Resolves every pool the spawner writes.</summary>
         /// <exception cref="System.ArgumentNullException"><paramref name="world"/> is null.</exception>
@@ -55,6 +57,8 @@ namespace ProjectSurvive.Core.Simulation.Battle
             _pickups = world.GetPool<Pickup>();
             _attacks = world.GetPool<EnemyAttack>();
             _brains = world.GetPool<EnemyBrain>();
+            _bossMinds = world.GetPool<BossMind>();
+            _possessed = world.GetPool<Possessed>();
 
             // Also register the pools only the systems read, so the world's pool table and
             // every dense array exist before the first tick. A pool created lazily on the
@@ -104,6 +108,10 @@ namespace ProjectSurvive.Core.Simulation.Battle
             collider.Radius = BattleArena.PlayerRadius;
 
             _world.GetPool<PlayerTag>().Add(entity);
+
+            // Added at spawn, not on the first possession: the movement rule reads it every
+            // tick and a lazily added component would allocate inside a tick (Stage 11c).
+            _possessed.Add(entity) = default;
 
             return entity;
         }
@@ -221,6 +229,24 @@ namespace ProjectSurvive.Core.Simulation.Battle
             {
                 _attacks.Add(entity) = template.Attack;
                 _brains.Add(entity) = default;
+            }
+
+            // A boss carries its own machine: the phase it starts in and the corpse and
+            // possession numbers, both copied from the row so the tick reads no def (Stage 11c).
+            if (template.IsBoss)
+            {
+                ref BossMind mind = ref _bossMinds.Add(entity);
+                mind.Phase = 1;
+                mind.Phase2HpThreshold = template.Boss.Phase2HpThreshold;
+                mind.CorpseRange = template.Boss.CorpseRange;
+                mind.CorpseHeal = template.Boss.CorpseHeal;
+                mind.PossessTelegraphTicks = template.Boss.PossessTelegraphTicks;
+                mind.PossessTicks = template.Boss.PossessTicks;
+                mind.PossessIntervalTicks = template.Boss.PossessIntervalTicks;
+                mind.PossessRange = template.Boss.PossessRange;
+                mind.State = 0;
+                mind.StateTicks = 0;
+                mind.CooldownTicks = 0;
             }
 
             return entity;

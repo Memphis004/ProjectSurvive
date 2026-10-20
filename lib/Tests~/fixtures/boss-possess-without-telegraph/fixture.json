@@ -1,0 +1,8 @@
+{
+  "name": "boss-possess-without-telegraph",
+  "stage": "semantic",
+  "why": "Pob reverses the player's controls with no warning at all, so a reversed stick is indistinguishable from a broken one",
+  "expectedCodes": [
+    "enemy.boss_possess_telegraph_missing"
+  ]
+}

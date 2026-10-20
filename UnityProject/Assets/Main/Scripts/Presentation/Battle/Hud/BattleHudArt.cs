@@ -41,17 +41,24 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         public Sprite Bust { get; }
 
         /// <inheritdoc />
+        /// <remarks>
+        /// The generated textures and sprites are <b>immediate</b> outside Play Mode: the Editor
+        /// capture commands build this art in Edit Mode, and <c>Object.Destroy</c> there logs
+        /// "Destroy may not be called from edit mode" and leaves the object alive — which the Stage 11c
+        /// boss capture hit the first time it ran. Inside a player the ordinary deferred destroy is
+        /// right, so the two are chosen, never mixed.
+        /// </remarks>
         public void Dispose()
         {
             for (int i = 0; i < _owned.Count; i++)
             {
-                if (_owned[i] is Texture2D texture)
+                if (Application.isPlaying)
                 {
-                    UnityEngine.Object.Destroy(texture);
+                    UnityEngine.Object.Destroy(_owned[i]);
                 }
-                else if (_owned[i] is Sprite sprite)
+                else
                 {
-                    UnityEngine.Object.Destroy(sprite);
+                    UnityEngine.Object.DestroyImmediate(_owned[i]);
                 }
             }
 

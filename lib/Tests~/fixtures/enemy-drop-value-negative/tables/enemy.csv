@@ -1,5 +1,5 @@
-##,id,name_key,role,max_hp,move_speed,contact_damage,attack_cooldown_seconds,move_pattern,is_elite,is_boss,boss_phase2_hp_percent,drop_value,attack_pattern,attack_range,attack_telegraph_seconds,attack_seconds,attack_damage,attack_radius,attack_length,follow_up_telegraph_seconds,follow_up_seconds,follow_up_damage,follow_up_radius,follow_up_length,follow_up_tick_seconds,retreat_seconds,retreat_speed
-,enemy.wandering_spirit,enemy.wandering_spirit.name,Filler,20,1.6,5,1.0,Chase,false,false,0,1,None,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-,enemy.krasue,enemy.krasue.name,Fast,26,3.2,7,1.2,Charge,false,false,0,-1,DashDrain,9,0.6,0.25,9,0.9,6,0.4,1.0,2,2.2,0,0.3,0.9,2.4
-,enemy.nang_tani,enemy.nang_tani.name,Elite,90,0.8,10,2.0,Stationary,true,false,0,3,RingVines,8,1.0,0,12,4.5,0,0.8,0,8,0.55,7,0,0,0
-,enemy.pob,enemy.pob.name,Boss,320,1.2,12,1.5,Chase,false,true,50,10,None,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+##,id,name_key,role,max_hp,move_speed,contact_damage,attack_cooldown_seconds,move_pattern,is_elite,is_boss,boss_phase2_hp_percent,drop_value,attack_pattern,attack_range,attack_telegraph_seconds,attack_seconds,attack_damage,attack_radius,attack_length,follow_up_telegraph_seconds,follow_up_seconds,follow_up_damage,follow_up_radius,follow_up_length,follow_up_tick_seconds,retreat_seconds,retreat_speed,boss_possess_telegraph_seconds,boss_possess_seconds,boss_possess_interval_seconds,boss_possess_range,boss_corpse_range,boss_corpse_heal
+,enemy.wandering_spirit,enemy.wandering_spirit.name,Filler,20,1.6,5,1.0,Chase,false,false,0,1,None,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+,enemy.krasue,enemy.krasue.name,Fast,26,3.2,7,1.2,Charge,false,false,0,-1,DashDrain,9,0.6,0.25,9,0.9,6,0.4,1.0,2,2.2,0,0.3,0.9,2.4,0,0,0,0,0,0
+,enemy.nang_tani,enemy.nang_tani.name,Elite,90,0.8,10,2.0,Stationary,true,false,0,3,RingVines,8,1.0,0,12,4.5,0,0.8,0,8,0.55,7,0,0,0,0,0,0,0,0,0
+,enemy.pob,enemy.pob.name,Boss,320,1.2,12,1.5,Chase,false,true,50,10,None,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.8,3.0,14.0,8.0,6.0,12

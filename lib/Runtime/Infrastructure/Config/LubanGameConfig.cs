@@ -312,6 +312,12 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                     FollowUpTickSeconds = row.FollowUpTickSeconds,
                     RetreatSeconds = row.RetreatSeconds,
                     RetreatSpeed = row.RetreatSpeed,
+                    BossPossessTelegraphSeconds = row.BossPossessTelegraphSeconds,
+                    BossPossessSeconds = row.BossPossessSeconds,
+                    BossPossessIntervalSeconds = row.BossPossessIntervalSeconds,
+                    BossPossessRange = row.BossPossessRange,
+                    BossCorpseRange = row.BossCorpseRange,
+                    BossCorpseHeal = row.BossCorpseHeal,
                 };
                 _enemies.Add(enemy.Id, enemy);
                 _enemyList.Add(enemy);

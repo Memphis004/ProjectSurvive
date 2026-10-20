@@ -475,6 +475,10 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
                     // Stage 11b: the whole telegraphed-attack block, resolved to ticks once.
                     slot.Attack = EnemyAttackRules.FromConfig(enemy);
+
+                    // Stage 11c: the boss block — phases, corpse eating, possession — resolved
+                    // to ticks (and to an absolute HP threshold) in the same pass.
+                    slot.Boss = BossRules.FromConfig(enemy);
                 }
                 else
                 {

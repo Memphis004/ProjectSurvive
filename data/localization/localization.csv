@@ -198,3 +198,4 @@
 ,camp.tooltip.offering_heal.format,ฟื้น HP {0} · ใช้ได้ {1} ครั้ง,Heals {0} HP · {1} use(s)
 ,camp.tooltip.offering_bia.format,ได้เบี้ย {0} · ใช้ได้ {1} ครั้ง,Grants {0} bia · {1} use(s)
 ,camp.tooltip.offering_auto.format,ใช้เองเมื่อ HP เหลือ {0}% หรือน้อยกว่า,Used automatically at {0}% HP or less
+,hud.possession,ถูกปอบสิง · ทิศควบคุมสลับ,Possessed · controls reversed

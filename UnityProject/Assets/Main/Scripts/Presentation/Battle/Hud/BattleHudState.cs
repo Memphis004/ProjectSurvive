@@ -72,6 +72,18 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         /// <summary>Which floor of the run this is, localized ("ชั้น 2"), written once per floor.</summary>
         public ReactiveProperty<string> FloorIndex { get; } = new ReactiveProperty<string>(string.Empty);
 
+        /// <summary>
+        /// The line the status panel shows while a boss's possession has the controls turned
+        /// around ("ถูกปอบสิง · ทิศควบคุมสลับ"), or empty when they are normal (Stage 11c).
+        /// </summary>
+        /// <remarks>
+        /// A string rather than a flag plus a caption, because the panel has exactly one thing to say:
+        /// the localized line while the frame's <c>ControlFlipTicks</c> is above zero, and nothing
+        /// otherwise. The text is looked up once, when the floor begins, so a possession costs one
+        /// equality check per frame and no formatting at all.
+        /// </remarks>
+        public ReactiveProperty<string> PossessionText { get; } = new ReactiveProperty<string>(string.Empty);
+
         public ReactiveProperty<string> StatusLine { get; } = new ReactiveProperty<string>(string.Empty);
 
         public ReactiveProperty<string> SpeedLabel { get; } = new ReactiveProperty<string>("1x");
@@ -176,6 +188,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             WaveValue.Dispose();
             KillsValue.Dispose();
             FloorIndex.Dispose();
+            PossessionText.Dispose();
             StatusLine.Dispose();
             SpeedLabel.Dispose();
             HealthPercent.Dispose();

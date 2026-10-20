@@ -18,12 +18,19 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
     /// The player is kept inside the arena, which is what stops "run away forever" from
     /// being a strategy; the bound is structural (<see cref="BattleArena"/>), not balance.
     /// </para>
+    /// <para>
+    /// <b>Stage 11c:</b> a boss's possession reverses both axes for as long as the player's
+    /// <see cref="Possessed"/> clock has ticks. The reversal lives here — in the rule that
+    /// turns input into velocity — and nowhere else: the view is told the same tick is flipped
+    /// through the HUD, and no presentation code touches the input it passes down.
+    /// </para>
     /// </remarks>
     public sealed class PlayerMoveSystem : IEcsInitSystem, IEcsRunSystem
     {
         private BattleContext _context = null!;
         private EcsPool<Position> _positions = null!;
         private EcsPool<Velocity> _velocities = null!;
+        private EcsPool<Possessed> _possessed = null!;
 
         /// <inheritdoc />
         public void Init(IEcsSystems systems)
@@ -32,6 +39,7 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
             EcsWorld world = systems.GetWorld();
             _positions = world.GetPool<Position>();
             _velocities = world.GetPool<Velocity>();
+            _possessed = world.GetPool<Possessed>();
         }
 
         /// <inheritdoc />
@@ -47,11 +55,22 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
 
             PlayerInputFrame input = context.Input;
 
+            float axisX = input.AxisX;
+            float axisY = input.AxisY;
+
+            if (_possessed.Has(player) && BossRules.IsFlipped(in _possessed.Get(player)))
+            {
+                // "สิงจนปุ่มเดินสลับทิศ": both axes are negated, so up walks down and left
+                // walks right. Negating both (rather than one) is the mirror the GDD asks for.
+                axisX = -axisX;
+                axisY = -axisY;
+            }
+
             ref Position position = ref _positions.Get(player);
             ref Velocity velocity = ref _velocities.Get(player);
 
-            velocity.X = input.AxisX * context.MoveSpeed;
-            velocity.Y = input.AxisY * context.MoveSpeed;
+            velocity.X = axisX * context.MoveSpeed;
+            velocity.Y = axisY * context.MoveSpeed;
 
             position.X += velocity.X * BattleArena.TickDeltaSeconds;
             position.Y += velocity.Y * BattleArena.TickDeltaSeconds;

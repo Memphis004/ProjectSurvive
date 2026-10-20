@@ -35,6 +35,7 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
         private EcsPool<Health> _healths = null!;
         private EcsPool<EnemyTag> _enemies = null!;
         private EcsPool<Mana> _manas = null!;
+        private EcsPool<Possessed> _possessed = null!;
         private EcsPool<Caster> _casters = null!;
         private EcsFilter _enemyFilter = null!;
         private EcsFilter _casterFilter = null!;
@@ -51,6 +52,7 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
             _healths = world.GetPool<Health>();
             _enemies = world.GetPool<EnemyTag>();
             _manas = world.GetPool<Mana>();
+            _possessed = world.GetPool<Possessed>();
             _casters = world.GetPool<Caster>();
             _enemyFilter = world.Filter<EnemyTag>().Inc<Position>().End(BattleArena.FilterDenseCapacity);
             _casterFilter = world.Filter<Caster>().End(BattleArena.FilterDenseCapacity);
@@ -146,6 +148,14 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
                     Mana mana = _manas.Get(player);
                     hud.Mp = mana.Mp;
                     hud.MaxMp = mana.MaxMp;
+                }
+
+                // The frame the HUD reads and the components the movement rule reads are the
+                // same tick's, so "turns are flipped" on screen cannot disagree with the stick
+                // (Stage 11c, ADR 0030).
+                if (_possessed.Has(player))
+                {
+                    hud.ControlFlipTicks = _possessed.Get(player).RemainingTicks;
                 }
             }
 

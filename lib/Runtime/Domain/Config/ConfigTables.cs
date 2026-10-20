@@ -332,6 +332,24 @@ namespace ProjectSurvive.Core.Domain.Config
 
         /// <summary>Speed of the retreat, in world units per second.</summary>
         public float RetreatSpeed { get; set; }
+
+        /// <summary>How long the boss warns before it possesses the player, in seconds; 0 for none (Stage 11c).</summary>
+        public float BossPossessTelegraphSeconds { get; set; }
+
+        /// <summary>How long the player's movement input stays reversed after a possession, in seconds.</summary>
+        public float BossPossessSeconds { get; set; }
+
+        /// <summary>Shortest gap between the end of one possession and the start of the next, in seconds.</summary>
+        public float BossPossessIntervalSeconds { get; set; }
+
+        /// <summary>How close the player must be for the boss to possess them, in world units.</summary>
+        public float BossPossessRange { get; set; }
+
+        /// <summary>How close a dying ghost must be to the boss for it to be eaten, in world units; 0 for none.</summary>
+        public float BossCorpseRange { get; set; }
+
+        /// <summary>HP the boss regains from one corpse, never above its max.</summary>
+        public int BossCorpseHeal { get; set; }
     }
 
     public sealed class FloorConfig

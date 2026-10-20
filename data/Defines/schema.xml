@@ -297,6 +297,25 @@
     <var name="follow_up_tick_seconds" type="float"/>
     <var name="retreat_seconds" type="float"/>
     <var name="retreat_speed" type="float"/>
+
+    <!-- Boss behaviour (Stage 11c). All six columns are zero on a ghost that is not
+         a boss, and a boss leaves a block at zero when it does not do that thing.
+
+         Phase 2 starts when HP falls to `boss_phase2_hp_percent` of max; from then on
+         the boss possesses the player — the movement input is negated for
+         `boss_possess_seconds`, warned for `boss_possess_telegraph_seconds` first,
+         and repeated no sooner than `boss_possess_interval_seconds` after the last
+         one ended, for a player standing within `boss_possess_range`. -->
+    <var name="boss_possess_telegraph_seconds" type="float"/>
+    <var name="boss_possess_seconds" type="float"/>
+    <var name="boss_possess_interval_seconds" type="float"/>
+    <var name="boss_possess_range" type="float"/>
+
+    <!-- Corpse eating. A ghost that dies within `boss_corpse_range` of the boss is
+         eaten: the boss regains `boss_corpse_heal` HP, never above its max. Zero
+         range means the boss does not eat. -->
+    <var name="boss_corpse_range" type="float"/>
+    <var name="boss_corpse_heal" type="int"/>
   </bean>
 
   <!-- `index` is the 1-based run order of the floor. The shop pool bands and the

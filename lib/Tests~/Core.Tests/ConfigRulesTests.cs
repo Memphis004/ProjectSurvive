@@ -635,6 +635,37 @@ namespace ProjectSurvive.Core.Tests
         }
 
         [Fact]
+        public void A_possession_without_a_warning_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Enemy(config, "enemy.pob").BossPossessTelegraphSeconds = 0f;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("enemy.boss_possess_telegraph_missing", Codes(findings));
+            Assert.Contains("enemy['enemy.pob'].boss_possess_telegraph_seconds", Targets(findings));
+        }
+
+        [Fact]
+        public void A_corpse_rule_with_a_range_but_no_heal_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Enemy(config, "enemy.pob").BossCorpseHeal = 0;
+
+            Assert.Contains("enemy.boss_corpse_incomplete", Codes(ConfigValidator.Validate(config)));
+        }
+
+        [Fact]
+        public void A_ghost_that_is_not_a_boss_and_carries_boss_numbers_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Enemy(config, "enemy.nang_tani").BossCorpseRange = 4f;
+            ConfigFixture.Enemy(config, "enemy.nang_tani").BossCorpseHeal = 8;
+
+            Assert.Contains("enemy.boss_behaviour_on_a_ghost", Codes(ConfigValidator.Validate(config)));
+        }
+
+        [Fact]
         public void A_contact_only_ghost_that_carries_attack_numbers_is_reported()
         {
             LubanGameConfig config = ConfigFixture.Load();

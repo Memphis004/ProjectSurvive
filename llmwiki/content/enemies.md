@@ -25,6 +25,7 @@ All 4 rows of `data/tables/enemy.csv`, in file order. "Appears on" is computed f
 - [ป่าช้าวัดร้าง ชั้น 1](floors.md#floor.forest_1) - wave `wave.forest_1.a`: 30 spawn(s) from 0s to 60s every 2.0s
 - [ป่าช้าวัดร้าง ชั้น 2](floors.md#floor.forest_2) - wave `wave.forest_2.a`: 20 spawn(s) from 0s to 30s every 1.5s
 - [ป่าช้าวัดร้าง ชั้น 4](floors.md#floor.forest_4) - wave `wave.forest_4.a`: 20 spawn(s) from 0s to 20s every 1.0s
+- [ป่าช้าวัดร้าง ชั้น 5](floors.md#floor.forest_5) - wave `wave.forest_5.spirits`: 26 spawn(s) from 0s to 90s every 3.0s
 
 <a id="enemy.krasue"></a>
 ### enemy.krasue - กระสือ (Krasue)

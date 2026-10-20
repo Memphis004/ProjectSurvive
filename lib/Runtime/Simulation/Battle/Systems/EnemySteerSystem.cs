@@ -38,6 +38,7 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
         private EcsPool<EnemyTag> _enemies = null!;
         private EcsPool<Collider> _colliders = null!;
         private EcsPool<EnemyBrain> _brains = null!;
+        private EcsPool<BossMind> _bossMinds = null!;
         private EcsFilter _filter = null!;
 
         /// <inheritdoc />
@@ -51,6 +52,7 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
             _enemies = world.GetPool<EnemyTag>();
             _colliders = world.GetPool<Collider>();
             _brains = world.GetPool<EnemyBrain>();
+            _bossMinds = world.GetPool<BossMind>();
             _filter = world.Filter<EnemyTag>().Inc<Position>().End(BattleArena.FilterDenseCapacity);
         }
 
@@ -84,6 +86,16 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
                     && _brains.Get(entity).State != (int)EnemyAttackState.Chase)
                 {
                     // The attack system owns this ghost's position until its cycle ends.
+                    velocity.X = 0f;
+                    velocity.Y = 0f;
+                    continue;
+                }
+
+                // A boss stands still while it holds the player under a possession warning, so the
+                // circle it drew is still where the possession will look for the player (Stage 11c).
+                if (_bossMinds.Has(entity)
+                    && _bossMinds.Get(entity).State == (int)BossPossessionState.Warn)
+                {
                     velocity.X = 0f;
                     velocity.Y = 0f;
                     continue;

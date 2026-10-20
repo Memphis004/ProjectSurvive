@@ -63,6 +63,8 @@ namespace ProjectSurvive.Core.Simulation.Battle
         private readonly EcsPool<Caster> _casters;
         private readonly EcsPool<ContactAttack> _contacts;
         private readonly EcsPool<EnemyBrain> _brains;
+        private readonly EcsPool<BossMind> _bossMinds;
+        private readonly EcsPool<Possessed> _possessed;
         private readonly EcsPool<Status> _statuses;
         private readonly EcsPool<Lifetime> _lifetimes;
 
@@ -124,6 +126,9 @@ namespace ProjectSurvive.Core.Simulation.Battle
             _systems
                 .Add(new WaveSpawnSystem())
                 .Add(new LoadTestSystem())
+                // Stage 11c: the boss's phase and possession run before the movement rule, so a
+                // possession that lands this tick is already felt by this tick's step.
+                .Add(new BossSystem())
                 .Add(new PlayerMoveSystem())
                 .Add(new EnemySteerSystem())
                 .Add(new EnemyAttackSystem())
@@ -156,6 +161,8 @@ namespace ProjectSurvive.Core.Simulation.Battle
             _casters = _world.GetPool<Caster>();
             _contacts = _world.GetPool<ContactAttack>();
             _brains = _world.GetPool<EnemyBrain>();
+            _bossMinds = _world.GetPool<BossMind>();
+            _possessed = _world.GetPool<Possessed>();
             _statuses = _world.GetPool<Status>();
             _lifetimes = _world.GetPool<Lifetime>();
 
@@ -616,6 +623,20 @@ namespace ProjectSurvive.Core.Simulation.Battle
                     hash = Mix(hash, (uint)brain.DamageTicks);
                     hash = Mix(hash, (uint)(int)Math.Round(brain.AimX * PositionHashScale));
                     hash = Mix(hash, (uint)(int)Math.Round(brain.AimY * PositionHashScale));
+                }
+
+                if (_bossMinds.Has(entity))
+                {
+                    BossMind mind = _bossMinds.Get(entity);
+                    hash = Mix(hash, (uint)mind.Phase);
+                    hash = Mix(hash, (uint)mind.State);
+                    hash = Mix(hash, (uint)mind.StateTicks);
+                    hash = Mix(hash, (uint)mind.CooldownTicks);
+                }
+
+                if (_possessed.Has(entity))
+                {
+                    hash = Mix(hash, (uint)_possessed.Get(entity).RemainingTicks);
                 }
 
                 if (_casters.Has(entity))
