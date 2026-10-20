@@ -40,7 +40,8 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **11a** | **Item-local effects and the status table (data, Domain, Simulation)** | **DONE** — see [ADR 0028](docs/adr/0028-item-effects-and-status-table.md) (the report was never written; the behaviour is covered by the 11a tests and the stage log) |
 | **11b** | **Krasue and Nang Tani, with telegraphs (Simulation + Presentation)** | **DONE** — see [`docs/stages/11b-report.md`](docs/stages/11b-report.md), [ADR 0029](docs/adr/0029-enemy-telegraphed-attacks.md) |
 | **11c** | **Pob boss: two phases, corpse eating, the possession that reverses the stick** | **DONE** — see [`docs/stages/11c-report.md`](docs/stages/11c-report.md), [ADR 0030](docs/adr/0030-boss-possession-hud-channel.md) |
-| 11 | Thai ghost AI, Pob boss, balance (11b and 11c landed; 11d remains) | in progress |
+| **11d** | **Balance pass: 200 seeds, four bot builds, data only** | **DONE** — see [`docs/stages/11d-report.md`](docs/stages/11d-report.md) |
+| 11 | Thai ghost AI, Pob boss, balance (11a–11d all landed) | **DONE** — [`11a`](docs/adr/0028-item-effects-and-status-table.md), [`11b`](docs/stages/11b-report.md), [`11c`](docs/stages/11c-report.md), [`11d`](docs/stages/11d-report.md) |
 | 12 | Save, resume, settings | not started |
 | 13 | Content complete & UX | not started |
 | 14 | Test harness & CI | not started |

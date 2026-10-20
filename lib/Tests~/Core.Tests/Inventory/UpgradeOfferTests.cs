@@ -317,8 +317,11 @@ namespace ProjectSurvive.Core.Tests.Inventory
 
             // The baseline: no step has been chosen yet, so the weapon is the data's skill with
             // the layout's combos on it - one knife and its bag are `synergy.bag_area_bonus`
-            // (+10% damage), which is 15 off a base of 14.
-            Assert.Equal(15, plain.Damage);
+            // (+10% damage). The base is read from the row so a balance pass moves the test with
+            // it, and the rounding is the resolver's own (half away from zero).
+            int baseDamage = ConfigFixture.Skill(config, "skill.knife_thrust").Damage;
+            Assert.Equal(
+                (int)Math.Round(baseDamage * 1.1f, MidpointRounding.AwayFromZero), plain.Damage);
             Assert.Equal(1, plain.Tier);
 
             string stepOne = Ids(editor.OfferMerge(others[0], survivor, Seed))[0];

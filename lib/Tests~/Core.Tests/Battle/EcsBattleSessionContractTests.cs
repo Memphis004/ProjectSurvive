@@ -143,13 +143,20 @@ namespace ProjectSurvive.Core.Tests
         /// differently report the same fingerprint. The value below was re-recorded from this build
         /// after that change, and it did not move again during the rest of the stage.
         /// </para>
+        /// <para>
+        /// <b>Bumped once, on purpose, by Stage 11d.</b> The 11d balance pass changed the data the
+        /// fight reads (the boss's hit points, the boss's contact damage, the wave that feeds floor
+        /// 1), and a fight that now kills at a different tick is expected to fingerprint differently.
+        /// The value below was re-recorded from this build after the data was regenerated, and it
+        /// did not move again during the rest of the stage; the code is unchanged.
+        /// </para>
         /// </remarks>
         [Fact]
         public void The_state_hash_of_a_seeded_floor_with_casters_is_unchanged()
         {
             uint hash = HashAfter300Ticks(CreateFactory(), CreateCasterSetup());
 
-            Assert.Equal(2558501440u, hash);
+            Assert.Equal(3561164121u, hash);
         }
     }
 }

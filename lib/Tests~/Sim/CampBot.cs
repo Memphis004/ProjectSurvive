@@ -43,10 +43,12 @@ namespace ProjectSurvive.Sim
     internal sealed class CampBot
     {
         private readonly IGameConfig _config;
+        private readonly BuildPlan _plan;
 
-        internal CampBot(IGameConfig config)
+        internal CampBot(IGameConfig config, BuildPlan? plan = null)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
+            _plan = plan ?? BuildPlan.Default;
         }
 
         /// <summary>Plays one camp visit on <paramref name="run"/>.</summary>
@@ -82,14 +84,17 @@ namespace ProjectSurvive.Sim
             return report;
         }
 
-        /// <summary>Rents the cheapest affordable offer, over and over, until none is left.</summary>
+        /// <summary>
+        /// Rents the next offer the plan wants, over and over, until nothing is affordable:
+        /// the preferred items in order (Stage 11d), then the cheapest affordable slot.
+        /// </summary>
         private int BuyWhatIsAffordable(RunSession run)
         {
             int purchases = 0;
 
             while (true)
             {
-                int slot = CheapestAffordableSlot(run);
+                int slot = NextSlot(run);
                 if (slot < 0)
                 {
                     return purchases;
@@ -106,7 +111,24 @@ namespace ProjectSurvive.Sim
             }
         }
 
-        private int CheapestAffordableSlot(RunSession run)
+        /// <summary>The plan's next pick: the first preferred item on offer, else the cheapest slot.</summary>
+        private int NextSlot(RunSession run)
+        {
+            string[] preferences = _plan.Preferences;
+            for (int i = 0; i < preferences.Length; i++)
+            {
+                int preferred = CheapestAffordableSlot(run, preferences[i]);
+                if (preferred >= 0)
+                {
+                    return preferred;
+                }
+            }
+
+            return CheapestAffordableSlot(run, null);
+        }
+
+        /// <summary>The cheapest affordable slot, optionally only one offering <paramref name="itemId"/>.</summary>
+        private int CheapestAffordableSlot(RunSession run, string? itemId)
         {
             ShopStock stock = run.Stock;
             int best = -1;
@@ -116,6 +138,11 @@ namespace ProjectSurvive.Sim
             {
                 ShopSlot slot = stock[i];
                 if (slot.IsEmpty || slot.IsPurchased || slot.Price > run.Wallet.Bia)
+                {
+                    continue;
+                }
+
+                if (itemId != null && !string.Equals(slot.OfferedId, itemId, StringComparison.Ordinal))
                 {
                     continue;
                 }

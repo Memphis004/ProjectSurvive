@@ -22,7 +22,7 @@ All 4 rows of `data/tables/enemy.csv`, in file order. "Appears on" is computed f
 
 **Appears on:**
 
-- [ป่าช้าวัดร้าง ชั้น 1](floors.md#floor.forest_1) - wave `wave.forest_1.a`: 30 spawn(s) from 0s to 60s every 2.0s
+- [ป่าช้าวัดร้าง ชั้น 1](floors.md#floor.forest_1) - wave `wave.forest_1.a`: 20 spawn(s) from 0s to 60s every 3.0s
 - [ป่าช้าวัดร้าง ชั้น 2](floors.md#floor.forest_2) - wave `wave.forest_2.a`: 20 spawn(s) from 0s to 30s every 1.5s
 - [ป่าช้าวัดร้าง ชั้น 4](floors.md#floor.forest_4) - wave `wave.forest_4.a`: 20 spawn(s) from 0s to 20s every 1.0s
 - [ป่าช้าวัดร้าง ชั้น 5](floors.md#floor.forest_5) - wave `wave.forest_5.spirits`: 26 spawn(s) from 0s to 90s every 3.0s
@@ -34,9 +34,9 @@ All 4 rows of `data/tables/enemy.csv`, in file order. "Appears on" is computed f
 | --- | --- |
 | role | `Fast` |
 | max_hp | 26 |
-| move_speed | 3.2 |
-| contact_damage | 7 |
-| attack_cooldown_seconds | 1.2 |
+| move_speed | 2.9 |
+| contact_damage | 4 |
+| attack_cooldown_seconds | 2.2 |
 | move_pattern | `Charge` |
 | is_elite | false |
 | is_boss | false |
@@ -46,7 +46,7 @@ All 4 rows of `data/tables/enemy.csv`, in file order. "Appears on" is computed f
 **Appears on:**
 
 - [ป่าช้าวัดร้าง ชั้น 2](floors.md#floor.forest_2) - wave `wave.forest_2.b`: 10 spawn(s) from 30s to 60s every 3.0s
-- [ป่าช้าวัดร้าง ชั้น 3](floors.md#floor.forest_3) - wave `wave.forest_3.a`: 16 spawn(s) from 0s to 25s every 1.5s
+- [ป่าช้าวัดร้าง ชั้น 3](floors.md#floor.forest_3) - wave `wave.forest_3.a`: 12 spawn(s) from 0s to 25s every 2.0s
 - [ป่าช้าวัดร้าง ชั้น 4](floors.md#floor.forest_4) - wave `wave.forest_4.b`: 14 spawn(s) from 20s to 45s every 1.8s
 
 <a id="enemy.nang_tani"></a>
@@ -76,9 +76,9 @@ All 4 rows of `data/tables/enemy.csv`, in file order. "Appears on" is computed f
 | Field | Value |
 | --- | --- |
 | role | `Boss` |
-| max_hp | 320 |
+| max_hp | 250 |
 | move_speed | 1.2 |
-| contact_damage | 12 |
+| contact_damage | 22 |
 | attack_cooldown_seconds | 1.5 |
 | move_pattern | `Chase` |
 | is_elite | false |

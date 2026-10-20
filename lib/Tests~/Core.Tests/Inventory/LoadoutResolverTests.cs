@@ -1,3 +1,4 @@
+using System;
 using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
@@ -252,8 +253,10 @@ namespace ProjectSurvive.Core.Tests.Inventory
             // 0.9 s * 0.85 from synergy.takrut_yant_cooldown. The battle must not have to
             // know the rule to be correct ("Battle ไม่อ่านตำแหน่ง UI และไม่คำนวณคอมโบเอง").
             Assert.Equal(0.9f * 0.85f, weapon.CooldownSeconds, 4);
-            // +10 % from the bag-area rule, and no other damage rule is active.
-            Assert.Equal(11, weapon.Damage);
+            // +10 % from the bag-area rule, and no other damage rule is active. The base is
+            // read from the row, so a balance pass (Stage 11d) moves the test with it.
+            Assert.Equal(
+                Rounded(BaseDamage(config, "skill.fire_bolt") * 1.1f), weapon.Damage);
             // The takrut keeps its own cooldown: the rule only ever shortens the yant.
             Assert.Equal(1.4f, Weapon(snapshot, "skill.takrut_ward").CooldownSeconds, 4);
         }
@@ -272,9 +275,9 @@ namespace ProjectSurvive.Core.Tests.Inventory
             CombatLoadoutSnapshot snapshot = Resolver(config).Resolve(backpack);
             WeaponLoadout weapon = Assert.Single(snapshot.Weapons);
 
-            // knife 14 damage: +20 +20 from two tomes in the row, +10 from the bag area
-            // -> +50 % -> 21.
-            Assert.Equal(21, weapon.Damage);
+            // The knife's row damage: +20 +20 from two tomes in the row, +10 from the bag
+            // area -> +50 %.
+            Assert.Equal(Rounded(BaseDamage(config, "skill.knife_thrust") * 1.5f), weapon.Damage);
         }
 
         [Fact]
@@ -288,9 +291,13 @@ namespace ProjectSurvive.Core.Tests.Inventory
 
             CombatLoadoutSnapshot snapshot = Resolver(config).Resolve(backpack);
 
-            // curse_wave 6 * 0.8 = 4.8 -> 5; thread_pierce 9 * 0.8 = 7.2 -> 7.
-            Assert.Equal(5, Assert.Single(snapshot.Summons).Damage);
-            Assert.Equal(7, Assert.Single(snapshot.Weapons).Damage);
+            // Both rows take the curse-power decay (x0.8) and are rounded to whole damage.
+            Assert.Equal(
+                Rounded(BaseDamage(config, "skill.curse_wave") * 0.8f),
+                Assert.Single(snapshot.Summons).Damage);
+            Assert.Equal(
+                Rounded(BaseDamage(config, "skill.thread_pierce") * 0.8f),
+                Assert.Single(snapshot.Weapons).Damage);
         }
 
         [Fact]
@@ -476,6 +483,14 @@ namespace ProjectSurvive.Core.Tests.Inventory
             Assert.Throws<System.ArgumentNullException>(() => new LoadoutResolver(null!, evaluator));
             Assert.Throws<System.ArgumentNullException>(() => new LoadoutResolver(config, null!));
         }
+
+        /// <summary>Rounds the way the resolver does: the nearest whole damage, half away from zero.</summary>
+        private static int Rounded(float value) =>
+            (int)Math.Round(value, MidpointRounding.AwayFromZero);
+
+        /// <summary>The damage the skill's own row carries (a data number, not a test constant).</summary>
+        private static int BaseDamage(IGameConfig config, string skillId) =>
+            ConfigFixture.Skill(config, skillId).Damage;
 
         private static WeaponLoadout Weapon(CombatLoadoutSnapshot snapshot, string skillId)
         {

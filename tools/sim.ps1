@@ -59,6 +59,10 @@ param(
 
     [string]$Data = '',
 
+    # Which camp build the bot commits to (Stage 11d): default | ranged | melee | familiar.
+    # The bot is the instrument, not the game: this chooses what it buys, never a rule.
+    [string]$Build = 'default',
+
     [string]$Configuration = 'Release',
 
     [Alias('SkipBuild')]
@@ -106,7 +110,7 @@ if (-not (Test-Path -LiteralPath $script:Artifacts)) {
 $simArguments = @('exec', $simDll, '--mode', $Mode, '--seed', "$Seed", '--out', $Output)
 
 if ($Mode -eq 'bot') {
-    $simArguments += @('--seeds', "$Seeds", '--max-steps', "$MaxSteps")
+    $simArguments += @('--seeds', "$Seeds", '--max-steps', "$MaxSteps", '--build', $Build)
 }
 else {
     $simArguments += @(

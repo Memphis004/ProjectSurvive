@@ -6,9 +6,9 @@ All 5 rows of `data/tables/floor.csv` and the 10 `wave` rows, in file order. A f
 
 | Floor | index | duration (s) | boss | waves | total spawns |
 | --- | --- | --- | --- | --- | --- |
-| [ป่าช้าวัดร้าง ชั้น 1](floors.md#floor.forest_1) | 1 | 60 | no | 1 | 30 |
+| [ป่าช้าวัดร้าง ชั้น 1](floors.md#floor.forest_1) | 1 | 60 | no | 1 | 20 |
 | [ป่าช้าวัดร้าง ชั้น 2](floors.md#floor.forest_2) | 2 | 60 | no | 2 | 30 |
-| [ป่าช้าวัดร้าง ชั้น 3](floors.md#floor.forest_3) | 3 | 60 | no | 2 | 19 |
+| [ป่าช้าวัดร้าง ชั้น 3](floors.md#floor.forest_3) | 3 | 60 | no | 2 | 15 |
 | [ป่าช้าวัดร้าง ชั้น 4](floors.md#floor.forest_4) | 4 | 60 | no | 3 | 36 |
 | [ป่าช้าวัดร้าง ชั้น 5](floors.md#floor.forest_5) | 5 | 90 | yes (`enemy.pob`) | 2 | 27 |
 
@@ -21,9 +21,9 @@ All 5 rows of `data/tables/floor.csv` and the 10 `wave` rows, in file order. A f
 
 | Wave | Enemy | start (s) | end (s) | spawn_count | interval (s) | elite |
 | --- | --- | --- | --- | --- | --- | --- |
-| `wave.forest_1.a` | [วิญญาณเร่ร่อน](enemies.md#enemy.wandering_spirit) | 0 | 60 | 30 | 2.0 | false |
+| `wave.forest_1.a` | [วิญญาณเร่ร่อน](enemies.md#enemy.wandering_spirit) | 0 | 60 | 20 | 3.0 | false |
 
-Total spawns in the data: 30. The interval is the gap between spawns inside that wave's window.
+Total spawns in the data: 20. The interval is the gap between spawns inside that wave's window.
 
 <a id="floor.forest_2"></a>
 ### floor.forest_2 - ป่าช้าวัดร้าง ชั้น 2 (Graveyard Forest F2)
@@ -48,10 +48,10 @@ Total spawns in the data: 30. The interval is the gap between spawns inside that
 
 | Wave | Enemy | start (s) | end (s) | spawn_count | interval (s) | elite |
 | --- | --- | --- | --- | --- | --- | --- |
-| `wave.forest_3.a` | [กระสือ](enemies.md#enemy.krasue) | 0 | 25 | 16 | 1.5 | false |
+| `wave.forest_3.a` | [กระสือ](enemies.md#enemy.krasue) | 0 | 25 | 12 | 2.0 | false |
 | `wave.forest_3.b` | [นางตานี](enemies.md#enemy.nang_tani) | 25 | 60 | 3 | 10.0 | true |
 
-Total spawns in the data: 19. The interval is the gap between spawns inside that wave's window.
+Total spawns in the data: 15. The interval is the gap between spawns inside that wave's window.
 
 <a id="floor.forest_4"></a>
 ### floor.forest_4 - ป่าช้าวัดร้าง ชั้น 4 (Graveyard Forest F4)

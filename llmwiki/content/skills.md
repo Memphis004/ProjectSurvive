@@ -13,7 +13,7 @@ One section per row of `data/tables/skill.csv` (5 skills), in file order. A piec
 | element | `Fire` |
 | cooldown_seconds | 0.9 |
 | mp_cost | 4 |
-| damage | 10 |
+| damage | 7 |
 | range | 6.0 |
 | pierce_count | 0 |
 | projectile_count | 1 |
@@ -32,7 +32,7 @@ See also: [synergy rules](synergies.md) that change this skill's damage or coold
 | element | `None` |
 | cooldown_seconds | 1.2 |
 | mp_cost | 5 |
-| damage | 9 |
+| damage | 7 |
 | range | 7.0 |
 | pierce_count | 3 |
 | projectile_count | 1 |
@@ -51,8 +51,8 @@ See also: [synergy rules](synergies.md) that change this skill's damage or coold
 | element | `None` |
 | cooldown_seconds | 0.6 |
 | mp_cost | 3 |
-| damage | 14 |
-| range | 1.5 |
+| damage | 17 |
+| range | 1.7 |
 | pierce_count | 0 |
 | projectile_count | 1 |
 | projectile_speed | 0.0 |
@@ -70,7 +70,7 @@ See also: [synergy rules](synergies.md) that change this skill's damage or coold
 | element | `None` |
 | cooldown_seconds | 1.4 |
 | mp_cost | 5 |
-| damage | 7 |
+| damage | 9 |
 | range | 2.5 |
 | pierce_count | 0 |
 | projectile_count | 1 |

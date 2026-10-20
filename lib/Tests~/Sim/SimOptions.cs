@@ -42,6 +42,7 @@ namespace ProjectSurvive.Sim
             + "    --seeds <int>            how many consecutive seeds to play (default 1)\n"
             + "    --out <path>             balance CSV (default artifacts/balance.csv)\n"
             + "    --max-steps <int>        per-floor step guard (default 20000)\n"
+            + "    --build <name>           camp plan: default|ranged|melee|familiar (default default)\n"
             + "    --quiet                  do not print the per-run progress lines\n"
             + "  benchmark: the Stage 07 acceptance load\n"
             + "    --enemies <int>          load ghosts (default 300)\n"
@@ -74,6 +75,9 @@ namespace ProjectSurvive.Sim
         internal string DataDirectory { get; private set; } = string.Empty;
 
         internal string OutputPath { get; private set; } = string.Empty;
+
+        /// <summary>What the bot buys towards (Stage 11d); <see cref="BuildPlan.Default"/> when unset.</summary>
+        internal BuildPlan Build { get; private set; } = BuildPlan.Default;
 
         internal int MaxSteps { get; private set; } = 20_000;
 
@@ -162,6 +166,20 @@ namespace ProjectSurvive.Sim
 
                     case "--out":
                         parsed.OutputPath = Next(args, ref i, key);
+                        break;
+
+                    case "--build":
+                        string build = Next(args, ref i, key);
+                        BuildPlan? plan = BuildPlan.ByName(build);
+                        if (plan is null)
+                        {
+                            Console.Error.WriteLine("unknown build: " + build);
+                            Console.Error.WriteLine(Usage);
+                            options = parsed;
+                            return false;
+                        }
+
+                        parsed.Build = plan;
                         break;
 
                     case "--max-steps":
