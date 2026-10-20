@@ -149,5 +149,32 @@ namespace ProjectSurvive.Core.Domain.Inventory
 
         /// <summary>The cooldown multiplier those rules apply.</summary>
         public float CooldownMultiplier { get; set; } = 1f;
+
+        /// <summary>True when this is a charm with its own passive (Stage 11a).</summary>
+        public bool HasCharmEffect { get; set; }
+
+        /// <summary>The stat the charm adjusts (valid only when <see cref="HasCharmEffect"/>).</summary>
+        public UpgradeStat CharmStat { get; set; }
+
+        /// <summary>How the charm adjusts it.</summary>
+        public UpgradeMethod CharmMethod { get; set; }
+
+        /// <summary>How much the charm adds or scales.</summary>
+        public float CharmMagnitude { get; set; }
+
+        /// <summary>True when this is an offering.</summary>
+        public bool IsOffering { get; set; }
+
+        /// <summary>What one use does (valid only when <see cref="IsOffering"/>).</summary>
+        public OfferingEffect OfferingEffect { get; set; }
+
+        /// <summary>HP restored or bia granted per use.</summary>
+        public int OfferingAmount { get; set; }
+
+        /// <summary>How many times one carried piece can be used.</summary>
+        public int OfferingUses { get; set; }
+
+        /// <summary>HP percentage at or below which the battle uses it automatically; 0 = never.</summary>
+        public int OfferingAutoHpPercent { get; set; }
     }
 }

@@ -35,6 +35,7 @@ namespace ProjectSurvive.Core.Infrastructure.Config
             "tblocalization",
             "tbbag",
             "tbskill",
+            "tbstatus",
             "tbitem",
             "tbsynergy",
             "tbmergerecipe",
@@ -51,6 +52,7 @@ namespace ProjectSurvive.Core.Infrastructure.Config
         private readonly Dictionary<string, BagConfig> _bags = new Dictionary<string, BagConfig>(StringComparer.Ordinal);
         private readonly Dictionary<string, ItemConfig> _items = new Dictionary<string, ItemConfig>(StringComparer.Ordinal);
         private readonly Dictionary<string, SkillConfig> _skills = new Dictionary<string, SkillConfig>(StringComparer.Ordinal);
+        private readonly Dictionary<string, StatusConfig> _statuses = new Dictionary<string, StatusConfig>(StringComparer.Ordinal);
         private readonly Dictionary<string, UpgradeVariantConfig> _upgradeVariants =
             new Dictionary<string, UpgradeVariantConfig>(StringComparer.Ordinal);
         private readonly Dictionary<string, EnemyConfig> _enemies = new Dictionary<string, EnemyConfig>(StringComparer.Ordinal);
@@ -60,6 +62,7 @@ namespace ProjectSurvive.Core.Infrastructure.Config
         private readonly List<BagConfig> _bagList = new List<BagConfig>();
         private readonly List<ItemConfig> _itemList = new List<ItemConfig>();
         private readonly List<SkillConfig> _skillList = new List<SkillConfig>();
+        private readonly List<StatusConfig> _statusList = new List<StatusConfig>();
         private readonly List<SynergyConfig> _synergyList = new List<SynergyConfig>();
         private readonly List<MergeRecipeConfig> _mergeRecipeList = new List<MergeRecipeConfig>();
         private readonly List<UpgradeVariantConfig> _upgradeVariantList = new List<UpgradeVariantConfig>();
@@ -125,6 +128,21 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                 _skillList.Add(skill);
             }
 
+            foreach (ProjectSurvive.Config.Status row in tables.TbStatus.DataList)
+            {
+                var status = new StatusConfig
+                {
+                    Id = row.Id,
+                    Element = (Element)row.Element,
+                    DamagePerTick = row.DamagePerTick,
+                    TickIntervalSeconds = row.TickIntervalSeconds,
+                    DurationSeconds = row.DurationSeconds,
+                    MaxStacks = row.MaxStacks,
+                };
+                _statuses.Add(status.Id, status);
+                _statusList.Add(status);
+            }
+
             foreach (ProjectSurvive.Config.Item row in tables.TbItem.DataList)
             {
                 var item = new ItemConfig
@@ -140,7 +158,38 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                     SkillId = row.SkillId,
                     Tags = row.Tags.ToArray(),
                     Footprint = ParseFootprint("tbitem", row.Id, row.Footprint),
+                    OfferingEffect = (OfferingEffect)row.OfferingEffect,
+                    OfferingAmount = row.OfferingAmount,
+                    OfferingUses = row.OfferingUses,
+                    OfferingAutoHpPercent = row.OfferingAutoHpPercent,
                 };
+
+                // The charm columns are names, so a typo produces a finding that names the
+                // row instead of a Luban parse failure (the same shape the upgrade rows use).
+                if (!string.IsNullOrEmpty(row.CharmStat))
+                {
+                    if (!UpgradeVocabulary.TryParseStat(row.CharmStat, out UpgradeStat charmStat))
+                    {
+                        throw new ConfigLoadException(ConfigError.UpgradeStatUnknown,
+                            "tbitem['" + row.Id + "'].charm_stat",
+                            "stat '" + row.CharmStat + "' is not one the battle loadout carries ("
+                            + string.Join(", ", UpgradeVocabulary.StatNames) + ")");
+                    }
+
+                    if (!UpgradeVocabulary.TryParseMethod(row.CharmMethod, out UpgradeMethod charmMethod))
+                    {
+                        throw new ConfigLoadException(ConfigError.UpgradeMethodUnknown,
+                            "tbitem['" + row.Id + "'].charm_method",
+                            "method '" + row.CharmMethod + "' is not known ("
+                            + string.Join(", ", UpgradeVocabulary.MethodNames) + ")");
+                    }
+
+                    item.HasCharmEffect = true;
+                    item.CharmStat = charmStat;
+                    item.CharmMethod = charmMethod;
+                    item.CharmMagnitude = row.CharmMagnitude;
+                }
+
                 _items.Add(item.Id, item);
                 _itemList.Add(item);
             }
@@ -248,6 +297,21 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                     IsBoss = row.IsBoss,
                     BossPhase2HpPercent = row.BossPhase2HpPercent,
                     DropValue = row.DropValue,
+                    AttackPattern = (EnemyAttackPattern)row.AttackPattern,
+                    AttackRange = row.AttackRange,
+                    AttackTelegraphSeconds = row.AttackTelegraphSeconds,
+                    AttackSeconds = row.AttackSeconds,
+                    AttackDamage = row.AttackDamage,
+                    AttackRadius = row.AttackRadius,
+                    AttackLength = row.AttackLength,
+                    FollowUpTelegraphSeconds = row.FollowUpTelegraphSeconds,
+                    FollowUpSeconds = row.FollowUpSeconds,
+                    FollowUpDamage = row.FollowUpDamage,
+                    FollowUpRadius = row.FollowUpRadius,
+                    FollowUpLength = row.FollowUpLength,
+                    FollowUpTickSeconds = row.FollowUpTickSeconds,
+                    RetreatSeconds = row.RetreatSeconds,
+                    RetreatSpeed = row.RetreatSpeed,
                 };
                 _enemies.Add(enemy.Id, enemy);
                 _enemyList.Add(enemy);
@@ -341,6 +405,8 @@ namespace ProjectSurvive.Core.Infrastructure.Config
 
         public IReadOnlyList<SkillConfig> Skills => _skillList;
 
+        public IReadOnlyList<StatusConfig> Statuses => _statusList;
+
         public IReadOnlyList<SynergyConfig> Synergies => _synergyList;
 
         public IReadOnlyList<MergeRecipeConfig> MergeRecipes => _mergeRecipeList;
@@ -362,6 +428,8 @@ namespace ProjectSurvive.Core.Infrastructure.Config
         public bool TryGetItem(string id, out ItemConfig value) => TryGet(_items, id, out value);
 
         public bool TryGetSkill(string id, out SkillConfig value) => TryGet(_skills, id, out value);
+
+        public bool TryGetStatus(string id, out StatusConfig value) => TryGet(_statuses, id, out value);
 
         public bool TryGetUpgradeVariant(string id, out UpgradeVariantConfig value) =>
             TryGet(_upgradeVariants, id, out value);

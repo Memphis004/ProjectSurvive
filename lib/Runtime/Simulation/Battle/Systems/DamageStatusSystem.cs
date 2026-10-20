@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using Leopotam.EcsLite;
 using ProjectSurvive.Core.Domain.Combat.Battle;
+using ProjectSurvive.Core.Domain.Config;
 
 namespace ProjectSurvive.Core.Simulation.Battle.Systems
 {
@@ -9,14 +11,10 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Element and status.</b> A hit whose skill carries an element leaves a
-    /// <see cref="Status"/> on the ghost: the element decides which effect, the damage
-    /// re-applied is the <i>same damage the hit dealt</i>, and the cadence is one second
-    /// (<c>BattleConstants.TickRate</c>, the same tick rate the simulation is built on).
-    /// Nothing here invents a magnitude — GDD v0.3 describes elemental status but has no
-    /// table for it, so the applying skill's own number is the only data-derived
-    /// magnitude available. [ADR 0017] records that a dedicated <c>status</c> table is
-    /// what replaces this, and that its balance pass is Stage 11's.
+    /// <b>Element and status.</b> A hit whose skill carries an element leaves the
+    /// <see cref="Status"/> row the <c>status</c> table declares for that element on the
+    /// ghost: damage per application, cadence, duration and stack cap all come from the row
+    /// (Stage 11a, replacing ADR 0017's "re-use the skill's damage" interim rule).
     /// </para>
     /// <para>
     /// <b>Once.</b> The damage queue can hold several hits on one ghost in one tick, and a
@@ -37,6 +35,9 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
         private EcsPool<EnemyTag> _enemies = null!;
         private EcsFilter _statusFilter = null!;
 
+        /// <summary>Status row by element value, built once at session start.</summary>
+        private StatusConfig?[] _byElement = null!;
+
         /// <inheritdoc />
         public void Init(IEcsSystems systems)
         {
@@ -47,6 +48,29 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
             _statuses = world.GetPool<Status>();
             _enemies = world.GetPool<EnemyTag>();
             _statusFilter = world.Filter<Status>().Inc<Health>().End(BattleArena.FilterDenseCapacity);
+
+            // One lookup per element, allocated once: a hit must not scan the table on a
+            // tick whose whole point is to allocate nothing.
+            IReadOnlyList<StatusConfig> rows = _context.Config.Statuses;
+            int highest = 0;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if ((int)rows[i].Element > highest)
+                {
+                    highest = (int)rows[i].Element;
+                }
+            }
+
+            _byElement = new StatusConfig?[highest + 1];
+            for (int i = 0; i < rows.Count; i++)
+            {
+                StatusConfig row = rows[i];
+                int element = (int)row.Element;
+                if (element > 0 && _byElement[element] is null)
+                {
+                    _byElement[element] = row;
+                }
+            }
         }
 
         /// <inheritdoc />
@@ -135,37 +159,36 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
 
                 if (element != 0)
                 {
-                    ApplyStatus(target, element, damage, defId);
+                    ApplyStatus(target, element);
                 }
             }
         }
 
-        private void ApplyStatus(int target, int element, int damage, int defId)
+        private void ApplyStatus(int target, int element)
         {
-            // Refresh rather than stack: two fire bolts in a second are one burn at the
-            // stronger number, which keeps the effect bounded and the state hash small.
+            if (element <= 0 || element >= _byElement.Length)
+            {
+                return;
+            }
+
+            StatusConfig? config = _byElement[element];
+            if (config is null)
+            {
+                // No row for this element means no effect: the battle never invents one.
+                return;
+            }
+
+            int defId = _context.DefIds.Status(config.Id);
+
             if (_statuses.Has(target))
             {
                 ref Status existing = ref _statuses.Get(target);
-                existing.Element = element;
-                existing.RemainingTicks = BattleConstants.TickRate;
-                existing.TickInterval = BattleConstants.TickRate;
-                existing.NextTickIn = BattleConstants.TickRate;
-                if (damage > existing.DamagePerTick)
-                {
-                    existing.DamagePerTick = damage;
-                }
-
+                StatusRules.Apply(ref existing, config, defId);
                 return;
             }
 
             ref Status status = ref _statuses.Add(target);
-            status.Element = element;
-            status.RemainingTicks = BattleConstants.TickRate;
-            status.TickInterval = BattleConstants.TickRate;
-            status.NextTickIn = BattleConstants.TickRate;
-            status.DamagePerTick = damage;
-            status.DefId = defId;
+            StatusRules.Apply(ref status, config, defId);
         }
 
         private void HurtPlayer(BattleContext context)

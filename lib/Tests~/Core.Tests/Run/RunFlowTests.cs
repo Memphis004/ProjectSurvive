@@ -370,20 +370,53 @@ namespace ProjectSurvive.Core.Tests.Run
 
             Assert.True(flow.EnterBattle().IsSuccess);
 
-            // The floor says one of the two was used.
+            // The floor says one of the two pieces was used. RemainingConsumables counts USES
+            // (Stage 11a): two red sodas at two uses each is four, so one used piece leaves two.
             var result = new BattleResult
             {
                 Outcome = BattlePhase.Won,
                 EndReason = BattleEndReason.SurvivedAllWaves,
                 FinalHp = config.Constant.MaxHp,
                 CurrencyEarned = 0,
-                RemainingConsumables = new List<int> { 1 },
+                RemainingConsumables = new List<int> { 2 },
             };
 
             Result<FloorSettlement> settled = run.ApplyBattleResult(result);
 
             Assert.True(settled.IsSuccess, settled.Error.ToString());
             Assert.Equal(1, CountItems(run, "item.red_soda"));
+            Assert.True(run.Backpack.TryValidate(out string? violation), violation);
+        }
+
+        /// <summary>
+        /// A piece with several uses is still gone once any of them is spent: the result
+        /// reports uses, and the settlement rounds the difference up to whole pieces.
+        /// </summary>
+        [Fact]
+        public void A_partly_used_offering_still_leaves_the_bag_at_settlement()
+        {
+            IGameConfig config = RunFixture.Config();
+            RunSession run = RunFixture.StartedRun(config);
+            var flow = new SceneFlow(run, new ScriptedBattleSessionFactory(config));
+
+            Assert.True(run.MovePiece(run.Backpack.AddItem("item.red_soda").Value, new CellOffset(1, 1), Rotation.Degrees0).IsSuccess);
+            Assert.Equal(2, run.Backpack.Items.Count);
+
+            Assert.True(flow.EnterBattle().IsSuccess);
+
+            // One red soda carries two uses; one was spent, so the piece is consumed.
+            var result = new BattleResult
+            {
+                Outcome = BattlePhase.Won,
+                EndReason = BattleEndReason.SurvivedAllWaves,
+                FinalHp = config.Constant.MaxHp,
+                RemainingConsumables = new List<int> { 1 },
+            };
+
+            Result<FloorSettlement> settled = run.ApplyBattleResult(result);
+
+            Assert.True(settled.IsSuccess, settled.Error.ToString());
+            Assert.Equal(0, CountItems(run, "item.red_soda"));
             Assert.True(run.Backpack.TryValidate(out string? violation), violation);
         }
 

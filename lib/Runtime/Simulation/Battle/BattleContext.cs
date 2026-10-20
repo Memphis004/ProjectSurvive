@@ -105,6 +105,19 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
             StartingHp = Clamp(setup.CurrentHp, 0, MaxHp);
 
+            // Remaining *uses*, not remaining pieces: an offering row says how many times one
+            // carried piece can be used (Stage 11a), and the result reports what is left in
+            // that unit. The settlement converts it back to pieces to remove.
+            IReadOnlyList<ConsumableLoadout> consumables = setup.Loadout.Consumables;
+            ConsumableUses = new int[consumables.Count];
+            for (int i = 0; i < consumables.Count; i++)
+            {
+                ConsumableLoadout entry = consumables[i];
+                int perItem = entry.UsesPerItem > 0 ? entry.UsesPerItem : 1;
+                int count = entry.Count > 0 ? entry.Count : 0;
+                ConsumableUses[i] = count * perItem;
+            }
+
             Waves = BuildWaves(floor, config, defIds);
             WaveCount = Waves.Length;
         }
@@ -207,6 +220,13 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
         /// <summary>The player's entity, or -1 before the session built it.</summary>
         public int PlayerEntity { get; set; } = -1;
+
+        /// <summary>
+        /// Uses left per <see cref="BattleSetup.Loadout"/> consumable entry, in loadout order.
+        /// Initialised to <c>Count * UsesPerItem</c> and spent by
+        /// <see cref="Systems.ConsumableSystem"/>; the result reports it verbatim.
+        /// </summary>
+        public int[] ConsumableUses { get; }
 
         /// <summary>The floor's boss entity, or -1 when none has spawned.</summary>
         public int BossEntity { get; set; } = -1;
@@ -331,6 +351,16 @@ namespace ProjectSurvive.Core.Simulation.Battle
         /// Appends one presentation event. The ring assigns <c>Seq</c> itself, so the
         /// value passed as the sequence is ignored — pass <c>0</c>, as the fake does.
         /// </summary>
+        /// <param name="type">What happened.</param>
+        /// <param name="entity">The entity the event is about.</param>
+        /// <param name="defId">The event's def id, or -1.</param>
+        /// <param name="value">The event's integer payload.</param>
+        /// <param name="flags">Optional tags.</param>
+        /// <param name="x">World X, when the event has a position.</param>
+        /// <param name="y">World Y, when the event has a position.</param>
+        /// <param name="radius">Footprint radius / half-width (Stage 11b telegraphs).</param>
+        /// <param name="length">Footprint length; 0 for a circle (Stage 11b telegraphs).</param>
+        /// <param name="angle">Footprint direction in radians (Stage 11b telegraphs).</param>
         public long Emit(
             BattleEventType type,
             EntityRef entity = default,
@@ -338,9 +368,13 @@ namespace ProjectSurvive.Core.Simulation.Battle
             int value = 0,
             BattleEventFlags flags = BattleEventFlags.None,
             float x = 0f,
-            float y = 0f)
+            float y = 0f,
+            float radius = 0f,
+            float length = 0f,
+            float angle = 0f)
         {
-            return Events.Write(new BattleEvent(0, type, entity, defId, value, flags, x, y));
+            return Events.Write(new BattleEvent(
+                0, type, entity, defId, value, flags, x, y, radius, length, angle));
         }
 
         /// <summary>
@@ -438,6 +472,9 @@ namespace ProjectSurvive.Core.Simulation.Battle
                     slot.IsBoss = enemy.IsBoss;
                     slot.IsElite = enemy.IsElite || wave.IsElite;
                     slot.DropValue = enemy.DropValue > 0 ? enemy.DropValue : 0;
+
+                    // Stage 11b: the whole telegraphed-attack block, resolved to ticks once.
+                    slot.Attack = EnemyAttackRules.FromConfig(enemy);
                 }
                 else
                 {

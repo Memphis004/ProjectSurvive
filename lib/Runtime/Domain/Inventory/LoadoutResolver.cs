@@ -171,6 +171,22 @@ namespace ProjectSurvive.Core.Domain.Inventory
             result.ComboRuleIds = ComboRules(evaluation, item.InstanceId);
             result.Steps = Steps(item);
 
+            if (_config.TryGetItem(item.ItemId, out ItemConfig itemDefinition))
+            {
+                // The item-local effects the tooltip draws (Stage 11a). They are copied from
+                // the same row the loadout resolver reads, so the screen and the snapshot
+                // cannot disagree about a charm's passive or an offering's uses.
+                result.HasCharmEffect = itemDefinition.HasCharmEffect;
+                result.CharmStat = itemDefinition.CharmStat;
+                result.CharmMethod = itemDefinition.CharmMethod;
+                result.CharmMagnitude = itemDefinition.CharmMagnitude;
+                result.IsOffering = itemDefinition.Category == ItemCategory.Offering;
+                result.OfferingEffect = itemDefinition.OfferingEffect;
+                result.OfferingAmount = itemDefinition.OfferingAmount;
+                result.OfferingUses = itemDefinition.OfferingUses;
+                result.OfferingAutoHpPercent = itemDefinition.OfferingAutoHpPercent;
+            }
+
             if (_config.TryGetItem(item.ItemId, out ItemConfig definition)
                 && !string.IsNullOrEmpty(definition.SkillId)
                 && _config.TryGetSkill(definition.SkillId, out SkillConfig skill))
@@ -330,10 +346,20 @@ namespace ProjectSurvive.Core.Domain.Inventory
                 SpeedPenaltyPercent = speedPenalty,
             };
 
+            // A charm adjusts a player stat the snapshot already carries (Stage 11a). The
+            // modifiers are accumulated across the board before the base is touched, exactly
+            // like an upgrade: every Add sums, every Percent sums, every Multiply folds, so
+            // the result never depends on the board's iteration order.
+            stats.MaxHp = AtLeast(ApplyCharms(UpgradeStat.MaxHp, stats.MaxHp, items), 1);
+            stats.MaxMp = AtLeast(ApplyCharms(UpgradeStat.MaxMp, stats.MaxMp, items), 0);
+            stats.MoveSpeed = ApplyCharms(UpgradeStat.MoveSpeed, stats.MoveSpeed, items);
+            stats.PickupRadius = ApplyCharms(UpgradeStat.PickupRadius, stats.PickupRadius, items);
+            stats.FocusPerSecond = ApplyCharms(UpgradeStat.FocusPerSecond, stats.FocusPerSecond, items);
+
             var weapons = new List<WeaponLoadout>();
             var summons = new List<SummonLoadout>();
             var consumableCounts = new Dictionary<string, int>(StringComparer.Ordinal);
-            var consumableSkill = new Dictionary<string, string>(StringComparer.Ordinal);
+            var consumableDefinitions = new Dictionary<string, ItemConfig>(StringComparer.Ordinal);
 
             for (int i = 0; i < items.Count; i++)
             {
@@ -364,7 +390,7 @@ namespace ProjectSurvive.Core.Domain.Inventory
                     case ItemCategory.Offering:
                         consumableCounts[definition.Id] =
                             (consumableCounts.TryGetValue(definition.Id, out int count) ? count : 0) + 1;
-                        consumableSkill[definition.Id] = definition.SkillId;
+                        consumableDefinitions[definition.Id] = definition;
                         break;
                 }
             }
@@ -374,11 +400,16 @@ namespace ProjectSurvive.Core.Domain.Inventory
             var consumables = new List<ConsumableLoadout>(consumableCounts.Count);
             foreach (KeyValuePair<string, int> entry in consumableCounts)
             {
+                ItemConfig definition = consumableDefinitions[entry.Key];
                 consumables.Add(new ConsumableLoadout
                 {
                     ItemId = entry.Key,
                     Count = entry.Value,
-                    SkillId = consumableSkill[entry.Key],
+                    SkillId = definition.SkillId,
+                    Effect = definition.OfferingEffect,
+                    EffectAmount = definition.OfferingAmount,
+                    UsesPerItem = definition.OfferingUses > 0 ? definition.OfferingUses : 1,
+                    AutoUseHpPercent = definition.OfferingAutoHpPercent,
                 });
             }
 
@@ -391,6 +422,47 @@ namespace ProjectSurvive.Core.Domain.Inventory
                 Summons = summons,
                 Consumables = consumables,
             };
+        }
+
+        /// <summary>
+        /// The value <paramref name="baseValue"/> reaches after every charm on the board that
+        /// adjusts <paramref name="stat"/> (Stage 11a). Order-independent by construction.
+        /// </summary>
+        private float ApplyCharms(UpgradeStat stat, float baseValue, List<ItemInstance> items)
+        {
+            float flatAdd = 0f;
+            float percentAdd = 0f;
+            float factor = 1f;
+            bool touched = false;
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                ItemInstance item = items[i];
+                if (!_config.TryGetItem(item.ItemId, out ItemConfig definition)
+                    || definition.Category != ItemCategory.Charm
+                    || !definition.HasCharmEffect
+                    || definition.CharmStat != stat)
+                {
+                    continue;
+                }
+
+                switch (definition.CharmMethod)
+                {
+                    case UpgradeMethod.Add:
+                        flatAdd += definition.CharmMagnitude;
+                        break;
+                    case UpgradeMethod.Percent:
+                        percentAdd += definition.CharmMagnitude;
+                        break;
+                    case UpgradeMethod.Multiply:
+                        factor *= definition.CharmMagnitude;
+                        break;
+                }
+
+                touched = true;
+            }
+
+            return touched ? ((baseValue + flatAdd) * (1f + (percentAdd / 100f))) * factor : baseValue;
         }
 
         private bool TryBuildWeapon(

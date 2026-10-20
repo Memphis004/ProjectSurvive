@@ -16,6 +16,7 @@ public partial class Tables
     public TbLocalization TbLocalization {get; }
     public TbBag TbBag {get; }
     public TbSkill TbSkill {get; }
+    public TbStatus TbStatus {get; }
     public TbItem TbItem {get; }
     public TbSynergy TbSynergy {get; }
     public TbMergeRecipe TbMergeRecipe {get; }
@@ -33,6 +34,7 @@ public partial class Tables
         TbLocalization = new TbLocalization(loader("tblocalization"));
         TbBag = new TbBag(loader("tbbag"));
         TbSkill = new TbSkill(loader("tbskill"));
+        TbStatus = new TbStatus(loader("tbstatus"));
         TbItem = new TbItem(loader("tbitem"));
         TbSynergy = new TbSynergy(loader("tbsynergy"));
         TbMergeRecipe = new TbMergeRecipe(loader("tbmergerecipe"));
@@ -52,6 +54,7 @@ public partial class Tables
         TbLocalization.ResolveRef(this);
         TbBag.ResolveRef(this);
         TbSkill.ResolveRef(this);
+        TbStatus.ResolveRef(this);
         TbItem.ResolveRef(this);
         TbSynergy.ResolveRef(this);
         TbMergeRecipe.ResolveRef(this);

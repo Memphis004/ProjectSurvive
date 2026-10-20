@@ -533,10 +533,14 @@ namespace ProjectSurvive.Core.Application.Battle.Fake
             _phase = phase;
             _reason = reason;
 
+            // Remaining uses, like the real session (Stage 11a). The fake never spends one
+            // (it has no auto-use rule), so every entry reports its full stack.
             int[] remaining = new int[_setup.Loadout.Consumables.Count];
             for (int i = 0; i < remaining.Length; i++)
             {
-                remaining[i] = _setup.Loadout.Consumables[i].Count;
+                ConsumableLoadout entry = _setup.Loadout.Consumables[i];
+                int perItem = entry.UsesPerItem > 0 ? entry.UsesPerItem : 1;
+                remaining[i] = (entry.Count > 0 ? entry.Count : 0) * perItem;
             }
 
             _result = new BattleResult

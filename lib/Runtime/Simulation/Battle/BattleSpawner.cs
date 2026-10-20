@@ -1,5 +1,6 @@
 using Leopotam.EcsLite;
 using ProjectSurvive.Core.Domain.Combat.Battle;
+using ProjectSurvive.Core.Domain.Config;
 
 namespace ProjectSurvive.Core.Simulation.Battle
 {
@@ -34,6 +35,8 @@ namespace ProjectSurvive.Core.Simulation.Battle
         private readonly EcsPool<Collider> _colliders;
         private readonly EcsPool<Lifetime> _lifetimes;
         private readonly EcsPool<Pickup> _pickups;
+        private readonly EcsPool<EnemyAttack> _attacks;
+        private readonly EcsPool<EnemyBrain> _brains;
 
         /// <summary>Resolves every pool the spawner writes.</summary>
         /// <exception cref="System.ArgumentNullException"><paramref name="world"/> is null.</exception>
@@ -50,6 +53,8 @@ namespace ProjectSurvive.Core.Simulation.Battle
             _colliders = world.GetPool<Collider>();
             _lifetimes = world.GetPool<Lifetime>();
             _pickups = world.GetPool<Pickup>();
+            _attacks = world.GetPool<EnemyAttack>();
+            _brains = world.GetPool<EnemyBrain>();
 
             // Also register the pools only the systems read, so the world's pool table and
             // every dense array exist before the first tick. A pool created lazily on the
@@ -58,6 +63,8 @@ namespace ProjectSurvive.Core.Simulation.Battle
             world.GetPool<Mana>();
             world.GetPool<Caster>();
             world.GetPool<Status>();
+            world.GetPool<EnemyAttack>();
+            world.GetPool<EnemyBrain>();
         }
 
         /// <summary>Creates the player: position, health, mana, body and the player faction.</summary>
@@ -207,6 +214,14 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
             ref Collider collider = ref _colliders.Add(entity);
             collider.Radius = EnemyRadius(template.IsBoss, template.IsElite);
+
+            // Only a ghost with a telegraphed attack gets the attack and its brain: the systems
+            // filter on them, so a walker is not charged for a machine it never runs.
+            if (template.Attack.Pattern != (int)EnemyAttackPattern.None)
+            {
+                _attacks.Add(entity) = template.Attack;
+                _brains.Add(entity) = default;
+            }
 
             return entity;
         }

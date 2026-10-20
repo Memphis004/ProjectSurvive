@@ -95,12 +95,33 @@ simulation state. A reader owns its own `cursor`; an event type's payload is
 | `StatusExpired` | status def | – | |
 | `PickupSpawned` | – | pickup kind | |
 | `PickupCollected` | – | pickup kind | |
-| `TelegraphStarted` | skill def | – | shape/time come from the skill def |
-| `TelegraphEnded` | skill def | – | |
+| `TelegraphStarted` | enemy def | `(int)TelegraphShape` | the warning's footprint is on `Radius`/`Length`/`Angle` (Stage 11b, §5.1) |
+| `TelegraphEnded` | enemy def | `(int)TelegraphShape` | emitted in the tick the stage ends |
 | `CorpseConsumed` | enemy def (the eater) | HP the eater regained | Pob (Stage 11) |
 | `BossPhaseChanged` | – | new phase number | |
 | `TimeWarning` | – | seconds remaining | |
 | `BattleEnded` | – | `(int)BattleEndReason` | last event of a session |
+
+### 5.1 The telegraph payload (Stage 11b)
+
+A ghost's strong attack is a warning plus a footprint, and the warning carries the footprint so
+Presentation draws what the rule used ([ADR 0029](../../docs/adr/0029-enemy-telegraphed-attacks.md)):
+
+| Field | Meaning |
+| --- | --- |
+| `DefId` | the **enemy** def that is attacking (not a skill def: a ghost attack is not a loadout entry) |
+| `Value` | `(int)TelegraphShape`: `Circle = 0`, `Line = 1` |
+| `X`, `Y` | origin — a circle's centre, a line's start |
+| `Radius` | circle radius, or the line's half-width |
+| `Length` | line length; `0` for a circle |
+| `Angle` | line direction in radians from +X; `0` for a circle |
+
+`Radius`, `Length` and `Angle` are **additive** fields on `BattleEvent` (every other event leaves
+them at zero); no new event type was appended, because one warning with more numbers is still one
+fact. A `TelegraphStarted` is emitted in the tick its warning begins and the matching
+`TelegraphEnded` in the tick the stage ends — the same tick the damage lands, so a decal can never
+outlive its hazard. `DefId` names the attacker because the aim a warning depicts is the ghost's, and
+a reader that wants the numbers reads the `enemy` row.
 
 `BattleEventRing` is the shared implementation: fixed capacity
 (`BattleConstants.EventRingCapacity = 4096`), strictly increasing `Seq`, multiple

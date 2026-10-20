@@ -25,6 +25,7 @@ namespace ProjectSurvive.Core.Tests
         private static readonly (Type Domain, Type Generated)[] Pairs =
         {
             (typeof(Element), typeof(ProjectSurvive.Config.Element)),
+            (typeof(OfferingEffect), typeof(ProjectSurvive.Config.OfferingEffect)),
             (typeof(ItemCategory), typeof(ProjectSurvive.Config.ItemCategory)),
             (typeof(SkillBehavior), typeof(ProjectSurvive.Config.SkillBehavior)),
             (typeof(EnemyRole), typeof(ProjectSurvive.Config.EnemyRole)),
@@ -71,7 +72,7 @@ namespace ProjectSurvive.Core.Tests
         {
             // Guards the table above: a renamed enum must be updated here rather
             // than silently dropped from the parity check.
-            Assert.Equal(8, Pairs.Length);
+            Assert.Equal(9, Pairs.Length);
             Assert.All(Pairs, pair =>
             {
                 Assert.True(pair.Domain.IsEnum, pair.Domain.FullName);

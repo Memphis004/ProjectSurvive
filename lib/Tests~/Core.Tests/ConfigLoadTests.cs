@@ -56,8 +56,10 @@ namespace ProjectSurvive.Core.Tests
             // (4 `hud.*` rows: hud.kills, hud.bag, hud.status and the hud.floor.format floor label).
             // The count is pinned so a table that silently loses rows fails here - which is how this pin
             // was corrected once before: it said 144 while data/ held 145, because the 81 rows Stage 09
-            // added to data/localization/localization.csv had not been regenerated yet.
-            Assert.Equal(195, config.Localization.Count);
+            // added to data/localization/localization.csv had not been regenerated yet. Stage 11a
+            // added the four charm/offering tooltip rows (camp.tooltip.charm_effect and the three
+            // offering lines), taking it to 199.
+            Assert.Equal(199, config.Localization.Count);
         }
 
         [Fact]
@@ -199,9 +201,9 @@ namespace ProjectSurvive.Core.Tests
         {
             Assert.Matches("^\\d+\\.\\d+\\.\\d+$", ProjectSurvive.Config.ConfigBuildMetadata.LubanVersion);
             Assert.StartsWith("5.1", ProjectSurvive.Config.ConfigBuildMetadata.LubanVersion, StringComparison.Ordinal);
-            // Stage 07c added constant.magnet_speed and constant.sweep_timeout_seconds, so
-            // the schema revision moved to 5 (Stage 07b had taken it to 4).
-            Assert.Equal(5, ProjectSurvive.Config.ConfigBuildMetadata.SchemaVersion);
+            // Stage 11a added the charm/offering columns on item and the status table, so
+            // the schema revision moved to 6 (Stage 07c had taken it to 5).
+            Assert.Equal(6, ProjectSurvive.Config.ConfigBuildMetadata.SchemaVersion);
         }
 
         [Fact]

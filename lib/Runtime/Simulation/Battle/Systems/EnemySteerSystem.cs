@@ -22,6 +22,12 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
     /// Speed, body radius and the pattern all come from the ghost's own components, so this
     /// system never looks a def up on the hot path.
     /// </para>
+    /// <para>
+    /// <b>Stage 11b:</b> a ghost that carries an <see cref="EnemyBrain"/> is only walked while
+    /// the brain is <see cref="EnemyAttackState.Chase"/>. Every other stage — a telegraph, a
+    /// dash, a drain, a retreat — is the attack system's to move, and two systems writing one
+    /// position is how a warning ends up somewhere other than the attack.
+    /// </para>
     /// </remarks>
     public sealed class EnemySteerSystem : IEcsInitSystem, IEcsRunSystem
     {
@@ -31,6 +37,7 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
         private EcsPool<Health> _healths = null!;
         private EcsPool<EnemyTag> _enemies = null!;
         private EcsPool<Collider> _colliders = null!;
+        private EcsPool<EnemyBrain> _brains = null!;
         private EcsFilter _filter = null!;
 
         /// <inheritdoc />
@@ -43,6 +50,7 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
             _healths = world.GetPool<Health>();
             _enemies = world.GetPool<EnemyTag>();
             _colliders = world.GetPool<Collider>();
+            _brains = world.GetPool<EnemyBrain>();
             _filter = world.Filter<EnemyTag>().Inc<Position>().End(BattleArena.FilterDenseCapacity);
         }
 
@@ -71,6 +79,15 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
                 ref Position position = ref _positions.Get(entity);
                 ref Velocity velocity = ref _velocities.Get(entity);
                 EnemyTag tag = _enemies.Get(entity);
+
+                if (_brains.Has(entity)
+                    && _brains.Get(entity).State != (int)EnemyAttackState.Chase)
+                {
+                    // The attack system owns this ghost's position until its cycle ends.
+                    velocity.X = 0f;
+                    velocity.Y = 0f;
+                    continue;
+                }
 
                 if (tag.MovePattern == (int)MovePattern.Stationary)
                 {

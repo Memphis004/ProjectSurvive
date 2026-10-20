@@ -194,3 +194,7 @@
 ,camp.tooltip.base.format,ค่าพื้นฐาน {0},Base {0}
 ,camp.tooltip.minimum.format,คูลดาวน์ถึงขีดต่ำสุดแล้ว ({0:0.##} วิ),Cooldown is at its floor ({0:0.##}s)
 ,camp.tooltip.upgrade.format,ระดับ {0} · {1}: {2},Tier {0} · {1}: {2}
+,camp.tooltip.charm_effect.format,ผล: {0} {1},Effect: {0} {1}
+,camp.tooltip.offering_heal.format,ฟื้น HP {0} · ใช้ได้ {1} ครั้ง,Heals {0} HP · {1} use(s)
+,camp.tooltip.offering_bia.format,ได้เบี้ย {0} · ใช้ได้ {1} ครั้ง,Grants {0} bia · {1} use(s)
+,camp.tooltip.offering_auto.format,ใช้เองเมื่อ HP เหลือ {0}% หรือน้อยกว่า,Used automatically at {0}% HP or less

@@ -1,6 +1,10 @@
 # ADR 0010 — Item-local effects (charm passive, offering consumable) stay out of the item table for now
 
-- **Status:** Accepted (Stage 04)
+> **Superseded by [ADR 0028](0028-item-effects-and-status-table.md) (Stage 11a).** The charm and
+> offering columns now exist in `data/tables/item.csv` together with their consumers. This record
+> is kept as the reason they were deferred.
+
+- **Status:** Superseded (Stage 11a)
 - **Date:** 2026-10-14
 
 ## Context

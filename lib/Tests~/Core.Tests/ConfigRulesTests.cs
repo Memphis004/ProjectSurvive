@@ -61,6 +61,94 @@ namespace ProjectSurvive.Core.Tests
             Assert.Contains("id.duplicate", Codes(ConfigValidator.Validate(config)));
         }
 
+        // -- item-local effects (Stage 11a) ------------------------------------
+
+        [Fact]
+        public void A_charm_with_no_effect_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Item(config, "item.phra_amulet").HasCharmEffect = false;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("item.charm_effect_missing", Codes(findings));
+            Assert.Contains("item['item.phra_amulet'].charm_stat", Targets(findings));
+        }
+
+        [Fact]
+        public void A_charm_may_not_adjust_a_weapon_stat()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Item(config, "item.phra_amulet").CharmStat = UpgradeStat.Damage;
+
+            Assert.Contains("item.charm_stat_not_allowed", Codes(ConfigValidator.Validate(config)));
+        }
+
+        [Fact]
+        public void A_weapon_may_not_carry_a_charm_effect()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ItemConfig weapon = ConfigFixture.Item(config, "item.mor_knife");
+            weapon.HasCharmEffect = true;
+            weapon.CharmStat = UpgradeStat.MaxHp;
+            weapon.CharmMagnitude = 5f;
+
+            Assert.Contains("item.effect_not_allowed", Codes(ConfigValidator.Validate(config)));
+        }
+
+        [Fact]
+        public void An_offering_with_no_effect_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Item(config, "item.red_soda").OfferingEffect = OfferingEffect.None;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("item.offering_effect_missing", Codes(findings));
+            Assert.Contains("item['item.red_soda'].offering_effect", Targets(findings));
+        }
+
+        [Fact]
+        public void An_offering_with_no_uses_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Item(config, "item.boiled_egg").OfferingUses = 0;
+
+            Assert.Contains("item.offering_uses_not_positive", Codes(ConfigValidator.Validate(config)));
+        }
+
+        // -- status (Stage 11a) -------------------------------------------------
+
+        [Fact]
+        public void A_status_with_no_damage_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            config.Statuses[0].DamagePerTick = 0;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("status.damage_not_positive", Codes(findings));
+            Assert.Contains("status['" + config.Statuses[0].Id + "'].damage_per_tick", Targets(findings));
+        }
+
+        [Fact]
+        public void Two_status_rows_for_one_element_are_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            config.Statuses[1].Element = Element.Fire;
+
+            Assert.Contains("status.element_duplicate", Codes(ConfigValidator.Validate(config)));
+        }
+
+        [Fact]
+        public void An_element_no_status_row_describes_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ((List<StatusConfig>)config.Statuses).Clear();
+
+            Assert.Contains("status.element_missing", Codes(ConfigValidator.Validate(config)));
+        }
+
         // -- missing references -------------------------------------------------
 
         [Fact]
@@ -532,6 +620,51 @@ namespace ProjectSurvive.Core.Tests
 
             Assert.Contains("enemy.drop_value_negative", Codes(findings));
             Assert.Contains("enemy['enemy.krasue'].drop_value", Targets(findings));
+        }
+
+        [Fact]
+        public void A_telegraphed_attack_without_a_warning_time_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Enemy(config, "enemy.krasue").AttackTelegraphSeconds = 0f;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("enemy.attack_telegraph_not_positive", Codes(findings));
+            Assert.Contains("enemy['enemy.krasue'].attack_telegraph_seconds", Targets(findings));
+        }
+
+        [Fact]
+        public void A_contact_only_ghost_that_carries_attack_numbers_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Enemy(config, "enemy.wandering_spirit").AttackDamage = 5;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("enemy.attack_on_contact_only_ghost", Codes(findings));
+        }
+
+        [Fact]
+        public void A_ring_that_carries_a_line_length_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Enemy(config, "enemy.nang_tani").AttackLength = 3f;
+
+            Assert.Contains(
+                "enemy.attack_length_on_circle",
+                Codes(ConfigValidator.Validate(config)));
+        }
+
+        [Fact]
+        public void A_second_attack_without_a_cadence_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Enemy(config, "enemy.krasue").FollowUpTickSeconds = 0f;
+
+            Assert.Contains(
+                "enemy.follow_up_tick_missing",
+                Codes(ConfigValidator.Validate(config)));
         }
 
         [Fact]

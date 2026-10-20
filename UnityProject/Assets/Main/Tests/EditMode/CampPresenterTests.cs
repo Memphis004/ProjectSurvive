@@ -1034,6 +1034,48 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         /// <summary>
+        /// Stage 11a: a charm and an offering print the effect their data row carries, not just
+        /// their category. The expected strings are built from the row through the same
+        /// localization keys, so a balance edit moves the test with the data.
+        /// </summary>
+        [Test]
+        public void The_tooltip_shows_a_charms_and_an_offerings_effect()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            RunSession run = ui.Run;
+
+            PieceRef charm = run.Backpack.AddItem("item.phra_amulet").Value;
+            Assert.That(run.MovePiece(charm, new CellOffset(1, 0), Rotation.Degrees0).IsSuccess, Is.True);
+            Assert.That(_config.TryGetItem("item.phra_amulet", out ItemConfig charmRow), Is.True);
+
+            ui.Presenter.Hover(charm);
+
+            string charmEffect = Format(
+                "camp.tooltip.charm_effect.format",
+                Text("upgrade.stat.max_hp"),
+                "+" + charmRow.CharmMagnitude.ToString("0.##", CultureInfo.InvariantCulture));
+            Assert.That(
+                ui.State.TooltipStatus.Value,
+                Is.EqualTo(Text("camp.category.charm") + "\n" + charmEffect),
+                "the charm's own passive is on screen (visible=" + ui.State.TooltipVisible.Value
+                + ", title='" + ui.State.TooltipTitle.Value + "', category='"
+                + Text("camp.category.charm") + "', effect='" + charmEffect + "')");
+
+            PieceRef offering = run.Backpack.AddItem("item.red_soda").Value;
+            Assert.That(run.MovePiece(offering, new CellOffset(2, 0), Rotation.Degrees0).IsSuccess, Is.True);
+            Assert.That(_config.TryGetItem("item.red_soda", out ItemConfig offeringRow), Is.True);
+
+            ui.Presenter.Hover(offering);
+
+            string expected = Text("camp.category.offering")
+                + "\n" + Format(
+                    "camp.tooltip.offering_heal.format", offeringRow.OfferingAmount, offeringRow.OfferingUses)
+                + "\n" + Format("camp.tooltip.offering_auto.format", offeringRow.OfferingAutoHpPercent);
+
+            Assert.That(ui.State.TooltipStatus.Value, Is.EqualTo(expected), "the offering's effect and uses are on screen");
+        }
+
+        /// <summary>
         /// Stage 09h: after a card is confirmed the tooltip prints the numbers the loadout resolved,
         /// the step that produced them, and nothing stale; undo puts the old numbers back.
         /// </summary>

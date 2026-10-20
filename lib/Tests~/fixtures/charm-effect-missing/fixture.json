@@ -1,0 +1,8 @@
+{
+  "name": "charm-effect-missing",
+  "stage": "semantic",
+  "why": "a charm row with no effect columns is a passive piece that does nothing",
+  "expectedCodes": [
+    "item.charm_effect_missing"
+  ]
+}

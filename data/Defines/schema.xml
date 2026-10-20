@@ -27,6 +27,14 @@
     <var name="Curse" value="2"/>
   </enum>
 
+  <!-- What an offering does when it is used (Stage 11a). A column, not code:
+       the amount and the number of uses live beside it in the item row. -->
+  <enum name="OfferingEffect">
+    <var name="None" value="0"/>
+    <var name="Heal" value="1"/>
+    <var name="Bia" value="2"/>
+  </enum>
+
   <enum name="ItemCategory">
     <var name="Bag" value="1"/>
     <var name="ArcaneWeapon" value="2"/>
@@ -54,6 +62,20 @@
     <var name="Chase" value="1"/>
     <var name="Charge" value="2"/>
     <var name="Stationary" value="3"/>
+  </enum>
+
+  <!-- The telegraphed attack a ghost runs, if any (Stage 11b).
+
+       None    : contact damage only (walker / boss).
+       DashDrain: Krasue - wind up, dash along a line, then drain an aura, then retreat.
+       RingVines: Nang Tani - wind up a ring around herself, then lash vines along a line.
+
+       The numbers beside it in the enemy row are the whole attack: no behaviour is
+       encoded here, only which of the simulation's small per-kind state machines runs. -->
+  <enum name="EnemyAttackPattern">
+    <var name="None" value="0"/>
+    <var name="DashDrain" value="1"/>
+    <var name="RingVines" value="2"/>
   </enum>
 
   <enum name="SynergyKind">
@@ -138,6 +160,39 @@
          An item is placeable only where a bag covers every one of its cells, so
          a 2x2 tome and a 2x1 familiar need this to be representable. -->
     <var name="footprint" type="list#sep=|,string"/>
+
+    <!-- Item-local effects (Stage 11a, replacing ADR 0010's deferral).
+
+         A charm adjusts ONE player stat that CombatLoadoutSnapshot already carries;
+         the stat and method names are the upgrade vocabulary (Damage, Cooldown,
+         MaxHp, ... / Add, Percent, Multiply), checked by the adapter and validator.
+         Only a Charm row may set these; every other item leaves them empty.
+
+         An offering says what using it does, how much, how many uses one carried
+         piece has, and the HP percentage at or below which the battle spends one
+         automatically (0 = never). Only an Offering row may set these. -->
+    <var name="charm_stat" type="string"/>
+    <var name="charm_method" type="string"/>
+    <var name="charm_magnitude" type="float"/>
+    <var name="offering_effect" type="OfferingEffect"/>
+    <var name="offering_amount" type="int"/>
+    <var name="offering_uses" type="int"/>
+    <var name="offering_auto_hp_percent" type="int"/>
+  </bean>
+
+  <!-- Elemental status, one row per element (Stage 11a). A hit whose skill carries
+       an element applies the row whose `element` matches: the damage per application,
+       how often it is applied, how long it lasts and how many applications stack are
+       all data. `max_stacks = 1` is the refresh rule; a higher value adds one stack per
+       application up to the cap. This replaces ADR 0017's "re-use the skill's damage"
+       interim rule. -->
+  <bean name="Status">
+    <var name="id" type="string"/>
+    <var name="element" type="Element"/>
+    <var name="damage_per_tick" type="int"/>
+    <var name="tick_interval_seconds" type="float"/>
+    <var name="duration_seconds" type="float"/>
+    <var name="max_stacks" type="int#(range=[1,99])"/>
   </bean>
 
   <!-- Combo rule. Matching is by item TAG, so a rule covers a whole family. -->
@@ -214,6 +269,34 @@
          legal value (a ghost that pays nothing); a negative one is not. Stage 07b:
          every row must name its own value so a boss and a filler can differ. -->
     <var name="drop_value" type="int"/>
+
+    <!-- Telegraphed attack (Stage 11b). Every number is here, never in code.
+
+         A shape is decided by the two length columns: `attack_length = 0` is a CIRCLE
+         centred on the ghost with `attack_radius`, and a positive length is a LINE from
+         the ghost along its aim with `attack_radius` as the half-width. The telegraph
+         event carries the resolved shape, radius, length and angle, so Presentation
+         draws what the rule used rather than re-deriving it.
+
+         `attack_seconds` is the strike window (a dash's travel time); `follow_up_*` is
+         the second attack of the same cycle (Krasue's drain, Nang Tani's vines) and
+         `retreat_*` the step back before the cooldown. Zero means "this stage does not
+         happen", which is how one struct describes both ghosts. -->
+    <var name="attack_pattern" type="EnemyAttackPattern"/>
+    <var name="attack_range" type="float"/>
+    <var name="attack_telegraph_seconds" type="float"/>
+    <var name="attack_seconds" type="float"/>
+    <var name="attack_damage" type="int"/>
+    <var name="attack_radius" type="float"/>
+    <var name="attack_length" type="float"/>
+    <var name="follow_up_telegraph_seconds" type="float"/>
+    <var name="follow_up_seconds" type="float"/>
+    <var name="follow_up_damage" type="int"/>
+    <var name="follow_up_radius" type="float"/>
+    <var name="follow_up_length" type="float"/>
+    <var name="follow_up_tick_seconds" type="float"/>
+    <var name="retreat_seconds" type="float"/>
+    <var name="retreat_speed" type="float"/>
   </bean>
 
   <!-- `index` is the 1-based run order of the floor. The shop pool bands and the

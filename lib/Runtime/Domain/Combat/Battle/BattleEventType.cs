@@ -46,10 +46,17 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
         /// <summary>A pickup was collected. <c>Value</c> = pickup kind.</summary>
         PickupCollected = 10,
 
-        /// <summary>A telegraphed attack started. <c>DefId</c> = skill def.</summary>
+        /// <summary>
+        /// A telegraphed attack started. <c>DefId</c> = the enemy def that is attacking;
+        /// <c>Value</c> = <see cref="TelegraphShape"/>; the footprint is on <c>X</c>,
+        /// <c>Y</c>, <c>Radius</c>, <c>Length</c> and <c>Angle</c> (Stage 11b).
+        /// </summary>
         TelegraphStarted = 11,
 
-        /// <summary>A telegraphed attack resolved. <c>DefId</c> = skill def.</summary>
+        /// <summary>
+        /// A telegraphed attack resolved. Same payload as <see cref="TelegraphStarted"/>;
+        /// emitted in the tick the stage ends, which is the tick the damage lands.
+        /// </summary>
         TelegraphEnded = 12,
 
         /// <summary>A corpse was consumed. <c>Value</c> = HP the consumer regained.</summary>

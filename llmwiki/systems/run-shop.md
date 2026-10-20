@@ -197,8 +197,10 @@ The order, with nothing paid until the whole change is known to be applicable:
    the loadout the floor started from, one entry per `CombatLoadoutSnapshot.Consumables` entry;
    a **different length is a desync** and refuses the whole settlement with
    `inventory.not_enough_pieces`. An empty list means the floor reported nothing and is
-   accepted. When the length matches, each entry is checked with `Editor.CanConsume`
-   (the difference between the loadout count and the clamped remaining count is what was used).
+   accepted. When the length matches, each entry is checked with `Editor.CanConsume`;
+   the value is **remaining uses** (Stage 11a), so the pieces used are
+   `ceil((Count × UsesPerItem − remainingUses) / UsesPerItem)` and a partly used piece is
+   still removed from the bag.
 2. Credit the floor's takings: `CurrencyEarned` (the collected pickups' `enemy.drop_value` sum)
    on any outcome, plus `economy.clear_reward_bia` **on a win only** ([ADR 0025](../../docs/adr/0025-bia-from-battle.md)).
 3. `Hp = clamp(result.FinalHp, 0, MaxHp)`; remove the used offerings (`Editor.Consume`).

@@ -139,6 +139,100 @@ namespace ProjectSurvive.Core.Tests.Inventory
             Assert.Equal(2, snapshot.Consumables[1].Count);
         }
 
+        /// <summary>
+        /// Every charm on the board moves the player stat its row names, and no charm is inert
+        /// (Stage 11a). The expected value is computed from the row itself, so a data edit moves
+        /// the test with it rather than pinning a balance number here.
+        /// </summary>
+        [Fact]
+        public void Every_charm_changes_the_player_stat_its_row_names()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            int covered = 0;
+
+            for (int i = 0; i < config.Items.Count; i++)
+            {
+                ItemConfig charm = config.Items[i];
+                if (charm.Category != ItemCategory.Charm)
+                {
+                    continue;
+                }
+
+                Assert.True(charm.HasCharmEffect, charm.Id + " has no effect columns");
+
+                BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+                InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+                InventoryFixture.Place(editor, charm.Id, 0, 0);
+
+                CombatLoadoutSnapshot snapshot = Resolver(config).Resolve(backpack);
+                ConstantConfig constant = config.Constant;
+
+                switch (charm.CharmStat)
+                {
+                    case UpgradeStat.MaxHp:
+                        Assert.Equal(constant.MaxHp + (int)charm.CharmMagnitude, snapshot.Stats.MaxHp);
+                        break;
+                    case UpgradeStat.MaxMp:
+                        Assert.Equal(constant.MaxMp + (int)charm.CharmMagnitude, snapshot.Stats.MaxMp);
+                        break;
+                    case UpgradeStat.MoveSpeed:
+                    {
+                        int penalty = WeightPenalty.Percent(backpack.BoardWeight, constant);
+                        float baseSpeed = constant.MoveSpeed * (1f - (penalty / 100f));
+                        Assert.Equal(
+                            baseSpeed * (1f + (charm.CharmMagnitude / 100f)),
+                            snapshot.Stats.MoveSpeed, 4);
+                        break;
+                    }
+
+                    default:
+                        Assert.Fail(charm.Id + " names a stat this test does not know: " + charm.CharmStat);
+                        break;
+                }
+
+                covered++;
+            }
+
+            Assert.True(covered >= 3, "the data must carry at least the three charm rows, found " + covered);
+        }
+
+        /// <summary>
+        /// An offering's effect, amount, uses per piece and auto-use threshold reach the snapshot
+        /// exactly as the item row states them (Stage 11a).
+        /// </summary>
+        [Fact]
+        public void Every_offering_carries_its_effect_uses_and_auto_use_threshold()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            int covered = 0;
+
+            for (int i = 0; i < config.Items.Count; i++)
+            {
+                ItemConfig definition = config.Items[i];
+                if (definition.Category != ItemCategory.Offering)
+                {
+                    continue;
+                }
+
+                BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+                InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+                InventoryFixture.Place(editor, definition.Id, 0, 0);
+
+                CombatLoadoutSnapshot snapshot = Resolver(config).Resolve(backpack);
+                ConsumableLoadout entry = Assert.Single(snapshot.Consumables);
+
+                Assert.Equal(definition.Id, entry.ItemId);
+                Assert.Equal(1, entry.Count);
+                Assert.Equal(definition.OfferingEffect, entry.Effect);
+                Assert.Equal(definition.OfferingAmount, entry.EffectAmount);
+                Assert.Equal(definition.OfferingUses, entry.UsesPerItem);
+                Assert.Equal(definition.OfferingAutoHpPercent, entry.AutoUseHpPercent);
+                covered++;
+            }
+
+            Assert.True(covered >= 2, "the data must carry at least the two offering rows, found " + covered);
+        }
+
         [Fact]
         public void An_active_cooldown_synergy_is_already_applied_to_the_weapon()
         {

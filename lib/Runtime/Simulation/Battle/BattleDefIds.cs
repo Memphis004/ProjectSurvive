@@ -40,6 +40,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
         private readonly Dictionary<string, int> _enemies;
         private readonly Dictionary<string, int> _skills;
         private readonly Dictionary<string, int> _items;
+        private readonly Dictionary<string, int> _statuses;
 
         /// <summary>Builds the map from a config snapshot.</summary>
         /// <exception cref="ArgumentNullException"><paramref name="config"/> is null.</exception>
@@ -53,6 +54,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
             _enemies = Build(config.Enemies.Count, i => config.Enemies[i].Id);
             _skills = Build(config.Skills.Count, i => config.Skills[i].Id);
             _items = Build(config.Items.Count, i => config.Items[i].Id);
+            _statuses = Build(config.Statuses.Count, i => config.Statuses[i].Id);
         }
 
         /// <summary>Def id of an enemy row, or <see cref="Unknown"/>.</summary>
@@ -63,6 +65,9 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
         /// <summary>Def id of an item row, or <see cref="Unknown"/>.</summary>
         public int Item(string id) => Lookup(_items, id);
+
+        /// <summary>Def id of a status row, or <see cref="Unknown"/>.</summary>
+        public int Status(string id) => Lookup(_statuses, id);
 
         /// <summary>The first enemy row's id, or empty when the table is empty.</summary>
         /// <exception cref="ArgumentNullException"><paramref name="config"/> is null.</exception>

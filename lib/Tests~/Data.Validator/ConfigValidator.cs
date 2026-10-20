@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
@@ -57,6 +58,7 @@ namespace ProjectSurvive.Data.Validator
             ValidateBags(config, findings);
             ValidateItems(config, findings);
             ValidateSkills(config, findings);
+            ValidateStatuses(config, findings);
             ValidateSynergies(config, findings);
             ValidateMergeRecipes(config, findings);
             ValidateUpgradeVariants(config, findings);
@@ -175,6 +177,116 @@ namespace ProjectSurvive.Data.Validator
                         "item.description_key_missing", row + ".description_key",
                         "localization key '" + item.DescriptionKey + "' does not exist");
                 }
+
+                ValidateItemEffect(item, row, findings);
+            }
+        }
+
+        /// <summary>
+        /// A charm's passive and an offering's use are local to the piece, so they live on the
+        /// item row (Stage 11a). Only the category that owns each column set may fill it, and
+        /// the numbers must be usable: an inert effect is the thing this stage exists to end.
+        /// </summary>
+        private static void ValidateItemEffect(ItemConfig item, string row, List<Finding> findings)
+        {
+            if (item.Category == ItemCategory.Charm)
+            {
+                Check(item.HasCharmEffect, findings, "item.charm_effect_missing", row + ".charm_stat",
+                    "a charm must name the stat its passive adjusts");
+
+                if (item.HasCharmEffect)
+                {
+                    bool allowed = item.CharmStat == UpgradeStat.MaxHp
+                        || item.CharmStat == UpgradeStat.MaxMp
+                        || item.CharmStat == UpgradeStat.MoveSpeed
+                        || item.CharmStat == UpgradeStat.PickupRadius
+                        || item.CharmStat == UpgradeStat.FocusPerSecond;
+
+                    Check(allowed, findings, "item.charm_stat_not_allowed", row + ".charm_stat",
+                        "a charm may adjust a player stat the loadout carries (MaxHp, MaxMp, MoveSpeed, "
+                        + "PickupRadius, FocusPerSecond), was " + item.CharmStat);
+
+                    Check(item.CharmMagnitude != 0f, findings, "item.charm_effect_zero",
+                        row + ".charm_magnitude", "a charm effect of 0 does nothing");
+                }
+            }
+            else
+            {
+                Check(!item.HasCharmEffect, findings, "item.effect_not_allowed", row + ".charm_stat",
+                    "only a Charm row may carry a charm effect");
+            }
+
+            if (item.Category == ItemCategory.Offering)
+            {
+                Check(item.OfferingEffect != OfferingEffect.None, findings, "item.offering_effect_missing",
+                    row + ".offering_effect", "an offering must say what one use does");
+                Check(item.OfferingAmount > 0, findings, "item.offering_amount_not_positive",
+                    row + ".offering_amount", "an offering amount must be >= 1, was " + item.OfferingAmount);
+                Check(item.OfferingUses > 0, findings, "item.offering_uses_not_positive",
+                    row + ".offering_uses", "an offering must be usable at least once, was " + item.OfferingUses);
+                Check(item.OfferingAutoHpPercent >= 0 && item.OfferingAutoHpPercent <= 100,
+                    findings, "item.offering_auto_hp_out_of_range", row + ".offering_auto_hp_percent",
+                    "the auto-use threshold is a percentage, was " + item.OfferingAutoHpPercent);
+            }
+            else
+            {
+                Check(item.OfferingEffect == OfferingEffect.None
+                        && item.OfferingAmount == 0
+                        && item.OfferingUses == 0
+                        && item.OfferingAutoHpPercent == 0,
+                    findings, "item.effect_not_allowed", row + ".offering_effect",
+                    "only an Offering row may carry an offering effect");
+            }
+        }
+
+        // -- 4b. status -------------------------------------------------------
+
+        private static void ValidateStatuses(IGameConfig config, List<Finding> findings)
+        {
+            var seen = new Dictionary<Element, string>();
+
+            foreach (StatusConfig status in config.Statuses)
+            {
+                string row = Row("status", status.Id);
+
+                Check(status.Element != Element.None, findings, "status.element_none", row + ".element",
+                    "a status row must carry an element");
+
+                if (status.Element != Element.None)
+                {
+                    if (seen.TryGetValue(status.Element, out string? owner))
+                    {
+                        findings.Add(new Finding("status.element_duplicate", row + ".element",
+                            "element " + status.Element + " is already described by " + owner));
+                    }
+                    else
+                    {
+                        seen.Add(status.Element, row);
+                    }
+                }
+
+                Check(status.DamagePerTick > 0, findings, "status.damage_not_positive",
+                    row + ".damage_per_tick", "damage per application must be >= 1, was " + status.DamagePerTick);
+                Check(status.TickIntervalSeconds > 0f, findings, "status.interval_not_positive",
+                    row + ".tick_interval_seconds", "the interval must be > 0");
+                Check(status.DurationSeconds > 0f, findings, "status.duration_not_positive",
+                    row + ".duration_seconds", "the duration must be > 0");
+                Check(status.DurationSeconds >= status.TickIntervalSeconds, findings,
+                    "status.duration_shorter_than_interval", row + ".duration_seconds",
+                    "a status that expires before its first application does nothing");
+                Check(status.MaxStacks > 0, findings, "status.max_stacks_not_positive",
+                    row + ".max_stacks", "max stacks must be >= 1, was " + status.MaxStacks);
+            }
+
+            foreach (SkillConfig skill in config.Skills)
+            {
+                if (skill.Element == Element.None || seen.ContainsKey(skill.Element))
+                {
+                    continue;
+                }
+
+                findings.Add(new Finding("status.element_missing", Row("skill", skill.Id) + ".element",
+                    "element " + skill.Element + " has no status row"));
             }
         }
 
@@ -497,6 +609,106 @@ namespace ProjectSurvive.Data.Validator
                 bool roleIsBoss = enemy.Role == EnemyRole.Boss;
                 Check(roleIsBoss == enemy.IsBoss, findings, "enemy.boss_role_mismatch",
                     row, "role Boss and is_boss must agree");
+
+                ValidateEnemyAttack(enemy, row, findings);
+            }
+        }
+
+        /// <summary>
+        /// The Stage 11b attack row: a telegraphed attack is a whole package, so a row that
+        /// says it has one must fill in the numbers that package uses, and a row that has none
+        /// must leave every one of them at zero.
+        /// </summary>
+        /// <remarks>
+        /// The rules are stated in terms of the behaviour, not of a table shape: any strong
+        /// attack needs a warning time (otherwise it cannot be dodged), a reach and a damage;
+        /// a dash is a line and a ring is a circle; a follow-up that lasts needs a cadence to
+        /// apply damage on; and a retreat without a speed would stand still.
+        /// </remarks>
+        private static void ValidateEnemyAttack(EnemyConfig enemy, string row, List<Finding> findings)
+        {
+            if (enemy.AttackPattern == EnemyAttackPattern.None)
+            {
+                Check(
+                    enemy.AttackRange == 0f
+                    && enemy.AttackTelegraphSeconds == 0f
+                    && enemy.AttackSeconds == 0f
+                    && enemy.AttackDamage == 0
+                    && enemy.AttackRadius == 0f
+                    && enemy.AttackLength == 0f
+                    && enemy.FollowUpTelegraphSeconds == 0f
+                    && enemy.FollowUpSeconds == 0f
+                    && enemy.FollowUpDamage == 0
+                    && enemy.FollowUpRadius == 0f
+                    && enemy.FollowUpLength == 0f
+                    && enemy.FollowUpTickSeconds == 0f
+                    && enemy.RetreatSeconds == 0f
+                    && enemy.RetreatSpeed == 0f,
+                    findings,
+                    "enemy.attack_on_contact_only_ghost",
+                    row + ".attack_pattern",
+                    "attack_pattern is None, so every attack column must be 0");
+
+                return;
+            }
+
+            Check(enemy.AttackRange > 0f, findings, "enemy.attack_range_not_positive",
+                row + ".attack_range", "a telegraphed attack needs a range to start at, was " + enemy.AttackRange.ToString("0.###", CultureInfo.InvariantCulture));
+
+            Check(enemy.AttackTelegraphSeconds > 0f, findings, "enemy.attack_telegraph_not_positive",
+                row + ".attack_telegraph_seconds", "a strong attack must warn before it lands");
+
+            Check(enemy.AttackDamage > 0, findings, "enemy.attack_damage_not_positive",
+                row + ".attack_damage", "a telegraphed attack with no damage is not an attack");
+
+            Check(enemy.AttackRadius > 0f, findings, "enemy.attack_radius_not_positive",
+                row + ".attack_radius", "a telegraph needs a footprint; the radius is 0");
+
+            Check(enemy.AttackSeconds >= 0f, findings, "enemy.attack_seconds_negative",
+                row + ".attack_seconds", "attack_seconds must not be negative");
+
+            if (enemy.AttackPattern == EnemyAttackPattern.DashDrain)
+            {
+                Check(enemy.AttackLength > 0f, findings, "enemy.attack_length_not_positive",
+                    row + ".attack_length", "a dash travels along a line, so attack_length must be > 0");
+            }
+            else
+            {
+                Check(enemy.AttackLength == 0f, findings, "enemy.attack_length_on_circle",
+                    row + ".attack_length", "a ring is a circle around the ghost, so attack_length must be 0");
+            }
+
+            if (enemy.FollowUpTelegraphSeconds > 0f || enemy.FollowUpSeconds > 0f)
+            {
+                Check(enemy.FollowUpTelegraphSeconds > 0f, findings, "enemy.follow_up_telegraph_missing",
+                    row + ".follow_up_telegraph_seconds", "the second attack must warn before it lands");
+
+                Check(enemy.FollowUpDamage > 0, findings, "enemy.follow_up_damage_not_positive",
+                    row + ".follow_up_damage", "a second attack with no damage is not an attack");
+
+                Check(enemy.FollowUpSeconds >= 0f, findings, "enemy.follow_up_seconds_negative",
+                    row + ".follow_up_seconds", "follow_up_seconds must not be negative");
+
+                Check(enemy.FollowUpRadius > 0f || enemy.FollowUpLength > 0f, findings,
+                    "enemy.follow_up_footprint_missing", row + ".follow_up_radius",
+                    "the second attack needs a radius or a length to have a footprint");
+
+                if (enemy.FollowUpSeconds > 0f)
+                {
+                    Check(enemy.FollowUpTickSeconds > 0f, findings, "enemy.follow_up_tick_missing",
+                        row + ".follow_up_tick_seconds", "a window that lasts applies damage on an interval");
+                }
+            }
+
+            if (enemy.RetreatSeconds > 0f)
+            {
+                Check(enemy.RetreatSpeed > 0f, findings, "enemy.retreat_speed_missing",
+                    row + ".retreat_speed", "a retreat that lasts needs a speed to move at");
+            }
+            else
+            {
+                Check(enemy.RetreatSpeed == 0f, findings, "enemy.retreat_speed_without_retreat",
+                    row + ".retreat_speed", "retreat_seconds is 0, so retreat_speed must be 0");
             }
         }
 

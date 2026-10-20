@@ -110,6 +110,24 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
 
         /// <summary>Skill id of the effect, or empty for a plain-use offering.</summary>
         public string SkillId { get; set; } = string.Empty;
+
+        /// <summary>What one use does (Stage 11a), from <c>item.offering_effect</c>.</summary>
+        public OfferingEffect Effect { get; set; }
+
+        /// <summary>HP restored or bia granted by one use.</summary>
+        public int EffectAmount { get; set; }
+
+        /// <summary>
+        /// How many times one carried piece can be used. <c>1</c> for a loadout built by a
+        /// caller that predates the column, so the old "one use per piece" reading stays valid.
+        /// </summary>
+        public int UsesPerItem { get; set; } = 1;
+
+        /// <summary>
+        /// HP percentage (0–100) at or below which the battle spends a use automatically;
+        /// <c>0</c> means the battle never uses it on its own.
+        /// </summary>
+        public int AutoUseHpPercent { get; set; }
     }
 
     /// <summary>

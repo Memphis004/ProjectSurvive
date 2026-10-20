@@ -75,6 +75,7 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
                     IsBoss = false,
                     IsElite = false,
                     DropValue = enemy.DropValue > 0 ? enemy.DropValue : 0,
+                    Attack = EnemyAttackRules.FromConfig(enemy),
                 };
             }
 

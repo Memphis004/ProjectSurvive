@@ -53,6 +53,8 @@ namespace ProjectSurvive.Game.Presentation.Battle
             Projectile = CreateDisc("ps-battle-bolt", 24, Bolt);
             Pickup = CreateDiamond("ps-battle-drop", 24, Drop);
             Ground = CreateGroundTile("ps-battle-ground", 256, Floor, FloorLine);
+            TelegraphCircle = CreateTelegraphDisc("ps-battle-telegraph-circle", 128);
+            TelegraphBar = CreateTelegraphBar("ps-battle-telegraph-bar", 128);
         }
 
         /// <summary>The ghost-doctor.</summary>
@@ -69,6 +71,19 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
         /// <summary>The floor tile, drawn once across the arena.</summary>
         public Sprite Ground { get; }
+
+        /// <summary>
+        /// The circle a telegraphed warning draws on the floor (Stage 11b): a translucent
+        /// disc with a brighter rim, white so the pool can tint it and one world unit across
+        /// so a decal is scaled by its radius alone.
+        /// </summary>
+        public Sprite TelegraphCircle { get; }
+
+        /// <summary>
+        /// The bar a line-shaped warning draws: white, one world unit long and one wide, so
+        /// a decal is scaled by the attack's length and half-width.
+        /// </summary>
+        public Sprite TelegraphBar { get; }
 
         /// <summary>The sprite for a published entity.</summary>
         public Sprite SpriteFor(RenderEntityKind kind)
@@ -243,6 +258,59 @@ namespace ProjectSurvive.Game.Presentation.Battle
             }
 
             return Finish(texture, pixels, size);
+        }
+
+        /// <summary>
+        /// A filled warning disc: solid in the middle, brighter at the rim, and transparent
+        /// outside it. Generated like every other placeholder, so there is no asset to attribute
+        /// and the WebGL payload stays a function of this file.
+        /// </summary>
+        private Sprite CreateTelegraphDisc(string name, int size)
+        {
+            Texture2D texture = NewTexture(name, size);
+            var pixels = new Color32[size * size];
+            const float half = 0.5f;
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float nx = ((x + half) / size) - half;
+                    float ny = ((y + half) / size) - half;
+                    float distance = Mathf.Sqrt((nx * nx) + (ny * ny)) * 2f;
+
+                    float body = Mathf.Clamp01((0.96f - distance) / 0.08f);
+                    float rim = Mathf.Clamp01(1f - (Mathf.Abs(distance - 0.88f) / 0.08f));
+                    float alpha = Mathf.Clamp01((body * 0.30f) + (rim * 0.50f));
+
+                    pixels[(y * size) + x] = new Color32(255, 255, 255, (byte)(alpha * 255f));
+                }
+            }
+
+            return Finish(texture, pixels, size, pixelsPerUnit: size);
+        }
+
+        /// <summary>A warning bar: soft top and bottom edges, solid enough to read on the floor.</summary>
+        private Sprite CreateTelegraphBar(string name, int size)
+        {
+            Texture2D texture = NewTexture(name, size);
+            var pixels = new Color32[size * size];
+            const float half = 0.5f;
+
+            for (int y = 0; y < size; y++)
+            {
+                float ny = Mathf.Abs(((y + half) / size) - half) * 2f;
+                float body = Mathf.Clamp01((0.98f - ny) / 0.10f);
+                float edge = Mathf.Clamp01(1f - (Mathf.Abs(ny - 0.90f) / 0.08f));
+                float alpha = Mathf.Clamp01((body * 0.30f) + (edge * 0.45f));
+
+                for (int x = 0; x < size; x++)
+                {
+                    pixels[(y * size) + x] = new Color32(255, 255, 255, (byte)(alpha * 255f));
+                }
+            }
+
+            return Finish(texture, pixels, size, pixelsPerUnit: size);
         }
 
         private Sprite CreateGroundTile(string name, int size, Color32 fill, Color32 line)

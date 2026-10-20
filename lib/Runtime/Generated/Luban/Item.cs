@@ -28,6 +28,13 @@ public sealed partial class Item : Luban.BeanBase
         SkillId = _buf.ReadString();
         {int n0 = _buf.ReadSize(); Tags = new System.Collections.Generic.List<string>(n0);for(var i0 = 0 ; i0 < n0 ; i0++) { string _e0;  _e0 = _buf.ReadString(); Tags.Add(_e0);}}
         {int n0 = _buf.ReadSize(); Footprint = new System.Collections.Generic.List<string>(n0);for(var i0 = 0 ; i0 < n0 ; i0++) { string _e0;  _e0 = _buf.ReadString(); Footprint.Add(_e0);}}
+        CharmStat = _buf.ReadString();
+        CharmMethod = _buf.ReadString();
+        CharmMagnitude = _buf.ReadFloat();
+        OfferingEffect = (OfferingEffect)_buf.ReadInt();
+        OfferingAmount = _buf.ReadInt();
+        OfferingUses = _buf.ReadInt();
+        OfferingAutoHpPercent = _buf.ReadInt();
     }
 
     public static Item DeserializeItem(ByteBuf _buf)
@@ -47,6 +54,13 @@ public sealed partial class Item : Luban.BeanBase
     public readonly string SkillId;
     public readonly System.Collections.Generic.List<string> Tags;
     public readonly System.Collections.Generic.List<string> Footprint;
+    public readonly string CharmStat;
+    public readonly string CharmMethod;
+    public readonly float CharmMagnitude;
+    public readonly OfferingEffect OfferingEffect;
+    public readonly int OfferingAmount;
+    public readonly int OfferingUses;
+    public readonly int OfferingAutoHpPercent;
    
     public const int __ID__ = 2289459;
     public override int GetTypeId() => __ID__;
@@ -70,6 +84,13 @@ public sealed partial class Item : Luban.BeanBase
         + "skillId:" + SkillId + ","
         + "tags:" + Luban.StringUtil.CollectionToString(Tags) + ","
         + "footprint:" + Luban.StringUtil.CollectionToString(Footprint) + ","
+        + "charmStat:" + CharmStat + ","
+        + "charmMethod:" + CharmMethod + ","
+        + "charmMagnitude:" + CharmMagnitude + ","
+        + "offeringEffect:" + OfferingEffect + ","
+        + "offeringAmount:" + OfferingAmount + ","
+        + "offeringUses:" + OfferingUses + ","
+        + "offeringAutoHpPercent:" + OfferingAutoHpPercent + ","
         + "}";
     }
 }

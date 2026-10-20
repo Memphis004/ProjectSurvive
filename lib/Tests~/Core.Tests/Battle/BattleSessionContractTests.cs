@@ -259,6 +259,57 @@ namespace ProjectSurvive.Core.Tests
             }
         }
 
+        /// <summary>
+        /// A telegraphed attack is a promise the player reads: every warning that goes up closes,
+        /// the shape it names is one the contract defines, and the footprint it carries is a real
+        /// size. A factory that never telegraphs (the fake) passes by having nothing to check.
+        /// </summary>
+        /// <remarks>
+        /// Stage 11b. The case is deliberately about the <i>shape of the promise</i> and not about
+        /// a particular ghost: which attack a floor runs is data, and a contract that named Krasue
+        /// would break the day a floor's waves change.
+        /// </remarks>
+        [Fact]
+        public void A_telegraph_that_goes_up_ends_with_a_defined_footprint()
+        {
+            IBattleSession session = CreateFactory().Create(CreateSetup(false));
+            for (int i = 0; i < 300; i++)
+            {
+                session.Step(PlayerInputFrame.Idle);
+            }
+
+            var buffer = new BattleEvent[BattleConstants.EventRingCapacity];
+            long cursor = 0;
+            int read = session.Events.Read(ref cursor, buffer, out _);
+
+            for (int i = 0; i < read; i++)
+            {
+                if (buffer[i].Type != BattleEventType.TelegraphStarted)
+                {
+                    continue;
+                }
+
+                BattleEvent started = buffer[i];
+                Assert.True(
+                    started.Value == (int)TelegraphShape.Circle
+                    || started.Value == (int)TelegraphShape.Line,
+                    "a telegraph named a shape the contract does not define: " + started.Value);
+                Assert.True(started.Radius > 0f, "a telegraph with no footprint warns about nothing");
+                Assert.True(started.Length >= 0f, "a line cannot have a negative length");
+                Assert.True(started.DefId > 0, "a telegraph must name the attacker");
+
+                bool closed = false;
+                for (int e = i + 1; e < read && !closed; e++)
+                {
+                    closed = buffer[e].Type == BattleEventType.TelegraphEnded
+                        && buffer[e].Entity == started.Entity
+                        && buffer[e].DefId == started.DefId;
+                }
+
+                Assert.True(closed, "a warning went up at tick " + started.Seq + " and never came down");
+            }
+        }
+
         [Fact]
         public void A_reader_that_falls_behind_is_told_how_much_it_dropped()
         {

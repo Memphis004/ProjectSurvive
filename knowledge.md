@@ -37,7 +37,9 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **10t** | **Shared generic buffers and per-scene builders (template groundwork)** | **DONE** — see [`docs/stages/10t-report.md`](docs/stages/10t-report.md), [ADR 0024](docs/adr/0024-shared-generic-buffers.md) |
 | **09h** | **The tooltip's numbers follow the upgrade** | **DONE** — see [`docs/stages/09h-report.md`](docs/stages/09h-report.md) |
 | **10e** | **LLM wiki (Karpathy-style): generated content, SCHEMA, INGEST, link/id lint** | **DONE** — see [`docs/stages/10e-report.md`](docs/stages/10e-report.md), [`llmwiki/SCHEMA.md`](llmwiki/SCHEMA.md) |
-| 11 | Thai ghost AI, Pob boss, balance | not started |
+| **11a** | **Item-local effects and the status table (data, Domain, Simulation)** | **DONE** — see [ADR 0028](docs/adr/0028-item-effects-and-status-table.md) (the report was never written; the behaviour is covered by the 11a tests and the stage log) |
+| **11b** | **Krasue and Nang Tani, with telegraphs (Simulation + Presentation)** | **DONE** — see [`docs/stages/11b-report.md`](docs/stages/11b-report.md), [ADR 0029](docs/adr/0029-enemy-telegraphed-attacks.md) |
+| 11 | Thai ghost AI, Pob boss, balance (11b landed; 11c/11d remain) | in progress |
 | 12 | Save, resume, settings | not started |
 | 13 | Content complete & UX | not started |
 | 14 | Test harness & CI | not started |
@@ -471,13 +473,14 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
   is **unproven** — Stage 03.
 - IndexedDB flush method on Unity 6.3 — Stage 12.
 - Firefox not installed → cross-browser runs are NOT RUN until it is.
-- **Charm passives and offering consumable effects have no columns yet.**
-  `item` records a charm's tags but not its own buff magnitude, and an offering's
-  heal/bia/uses likewise. Deliberate at Stage 04
-  ([ADR 0010](docs/adr/0010-item-local-effects-deferred.md)): Stages 05–07 have landed and the
-  item-local effects are **still** unmodelled, because neither the bag rules, the economy nor the
-  battle needed a magnitude a designer had not written. **The numbers must land in `data/` when a
-  consumer does — never in code** (rule 5).
+- **Charm passives and offering effects are data since Stage 11a.** `item` carries
+  `charm_stat`/`charm_method`/`charm_magnitude` and
+  `offering_effect`/`amount`/`uses`/`auto_hp_percent`; `LoadoutResolver` applies a charm to a
+  player stat the loadout already carries, the battle spends an offering when HP crosses its
+  threshold, and elemental status comes from the `status` table
+  ([ADR 0028](docs/adr/0028-item-effects-and-status-table.md), superseding
+  [ADR 0010](docs/adr/0010-item-local-effects-deferred.md) and ADR 0017 §4). The numbers are
+  starting points for Stage 11's balance pass — never code constants (rule 5).
 - **A piece's weight and price do not depend on its tier.** `item`/`bag` carry one
   `weight` and one `price`, so merging to tier 3 makes a piece stronger without making it
   heavier or more valuable ([ADR 0013](docs/adr/0013-weight-speed-penalty-curve.md),

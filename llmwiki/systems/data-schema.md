@@ -56,12 +56,13 @@ not run.
 | `skill` | `id` | cast behaviour shared by weapons and familiars |
 | `synergy` | `id` | a combo rule, matched by item **tag** |
 | `merge_recipe` | `id` | one merge step: same id + tier+1 (max tier from `constant`) |
-| `enemy` | `id` | ghost / elite / boss stats; `drop_value` is what one kill pays |
+| `enemy` | `id` | ghost / elite / boss stats; `drop_value` is what one kill pays; the `attack_*` / `follow_up_*` / `retreat_*` columns describe its telegraphed attack (Stage 11b) |
 | `floor` | `id` | `index` is the 1-based run order; `is_boss` + `boss_enemy_id` |
 | `wave` | `id` | spawn window inside a floor |
 | `shop_pool` | `id` | one weighted shop offer over a floor range |
 | `economy` | one | starting bia, slot count, refresh cost, sell-back, heal, chest, clear reward |
 | `constant` | one | board size, min cooldown, max tier, HP/MP, move speed, pickup radius, magnet speed + sweep cap |
+| `status` | `id` | one elemental effect per element: damage per application, interval, duration, `max_stacks` |
 
 ### The Stage 04 prototype content
 
@@ -71,6 +72,30 @@ not run.
 2×1, `Curse` — the คุณไสย piece the 30 % power-decay rule is tested with).
 Every piece reaches tier 3, every enemy, floor and wave the 5-floor run needs is
 present, and `shop_pool` covers all 14 pieces.
+
+### A ghost's telegraphed attack (Stage 11b)
+
+`attack_pattern` says *which* machine runs — `None` (contact damage only), `DashDrain` (Krasue) or
+`RingVines` (Nang Tani) — and the columns beside it are the whole attack, in seconds and world units:
+
+| Column | Meaning |
+| --- | --- |
+| `attack_range` | start the cycle when the player is this close |
+| `attack_telegraph_seconds` | how long the warning is on the floor before the hit |
+| `attack_seconds` | the strike window (a dash's travel); `0` = the hit is instant |
+| `attack_damage`, `attack_radius`, `attack_length` | what it hits for, and its footprint |
+| `follow_up_telegraph_seconds`, `follow_up_seconds`, `follow_up_damage`, `follow_up_radius`, `follow_up_length`, `follow_up_tick_seconds` | the cycle's second attack (Krasue's drain, Nang Tani's vines); all zero = none |
+| `retreat_seconds`, `retreat_speed` | the step back before the cooldown; `0` = none |
+
+**Shape is decided by `length`**: `0` is a circle centred on the ghost with `radius`, and a positive
+value is a line from the ghost along its aim with `radius` as the half-width. The telegraph event
+publishes the resolved shape and size, so the floor decal and the damage read one set of numbers.
+`attack_cooldown_seconds` (which contact damage already used) is the cycle cooldown.
+
+Rules (`tools/validate-data.ps1`): a pattern other than `None` needs a range, a warning time, damage
+and a footprint; `DashDrain` needs a line (`attack_length > 0`) and `RingVines` a circle
+(`attack_length = 0`); a follow-up that lasts needs a cadence; a retreat that lasts needs a speed;
+and a `None` row must leave every attack column at zero (`enemy.attack_on_contact_only_ghost`).
 
 ## Footprint syntax
 
@@ -189,6 +214,9 @@ newest being `enemy-drop-value-negative` (Stage 07b).
   is the bag-load that slows the player down.
 - **Tags are a controlled vocabulary**: see the table above. An unused tag is fine; a
   synergy that names an unowned tag fails the build.
-- **A charm's or offering's own effect has no column yet** — that is deliberate, see
-  [ADR 0010](../../docs/adr/0010-item-local-effects-deferred.md). Do not add a
-  magnitude to `item` without also landing its consumer, and never as a code constant.
+- **A charm's and an offering's own effect are `item` columns** (Stage 11a):
+  `charm_stat`/`charm_method`/`charm_magnitude` and `offering_effect`/`amount`/`uses`/
+  `auto_hp_percent`. A charm may only name a player stat the loadout carries; only the owning
+  category may fill each set, and never as a code constant. See
+  [ADR 0028](../../docs/adr/0028-item-effects-and-status-table.md). Note that `item.csv` keeps
+  `footprint` **last**: Luban 5.1.0 rejects an empty list cell that is followed by other columns.

@@ -67,7 +67,8 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
         {
             long seq = _ring.NextSeq;
             var stored = new BattleEvent(
-                seq, template.Type, template.Entity, template.DefId, template.Value, template.Flags, template.X, template.Y);
+                seq, template.Type, template.Entity, template.DefId, template.Value, template.Flags,
+                template.X, template.Y, template.Radius, template.Length, template.Angle);
             _ring.Write(stored);
             return seq;
         }

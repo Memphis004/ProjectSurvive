@@ -38,6 +38,13 @@ namespace ProjectSurvive.Core.Domain.Config
 
         IReadOnlyList<SkillConfig> Skills { get; }
 
+        /// <summary>
+        /// Every elemental status row, in data-file order (Stage 11a). The battle resolves
+        /// one row per element; the validator rejects a duplicate element and an element a
+        /// skill uses with no row.
+        /// </summary>
+        IReadOnlyList<StatusConfig> Statuses { get; }
+
         IReadOnlyList<SynergyConfig> Synergies { get; }
 
         IReadOnlyList<MergeRecipeConfig> MergeRecipes { get; }
@@ -64,6 +71,8 @@ namespace ProjectSurvive.Core.Domain.Config
         bool TryGetItem(string id, out ItemConfig value);
 
         bool TryGetSkill(string id, out SkillConfig value);
+
+        bool TryGetStatus(string id, out StatusConfig value);
 
         bool TryGetUpgradeVariant(string id, out UpgradeVariantConfig value);
 

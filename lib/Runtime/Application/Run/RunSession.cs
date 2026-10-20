@@ -1223,7 +1223,7 @@ namespace ProjectSurvive.Core.Application.Run
             for (int i = 0; i < loadout.Consumables.Count; i++)
             {
                 ConsumableLoadout entry = loadout.Consumables[i];
-                int used = entry.Count - ClampedRemaining(remaining[i], entry.Count);
+                int used = ItemsUsed(entry, remaining[i]);
                 if (used > 0 && !Editor.CanConsume(entry.ItemId, used))
                 {
                     return Result.Fail(InventoryError.NotEnoughPieces, ErrorKind.InvalidState);
@@ -1245,12 +1245,27 @@ namespace ProjectSurvive.Core.Application.Run
             for (int i = 0; i < loadout.Consumables.Count && i < remaining.Count; i++)
             {
                 ConsumableLoadout entry = loadout.Consumables[i];
-                int used = entry.Count - ClampedRemaining(remaining[i], entry.Count);
+                int used = ItemsUsed(entry, remaining[i]);
                 if (used > 0)
                 {
                     Editor.Consume(entry.ItemId, used);
                 }
             }
+        }
+
+        /// <summary>
+        /// Pieces of one offering entry the floor spent. <see cref="BattleResult.RemainingConsumables"/>
+        /// counts <b>uses</b> (Stage 11a), and one carried piece has
+        /// <see cref="ConsumableLoadout.UsesPerItem"/> of them, so a partly used piece is still
+        /// gone from the bag: the difference rounds up to whole pieces.
+        /// </summary>
+        private static int ItemsUsed(ConsumableLoadout entry, int remainingUses)
+        {
+            int perItem = entry.UsesPerItem > 0 ? entry.UsesPerItem : 1;
+            int totalUses = (entry.Count > 0 ? entry.Count : 0) * perItem;
+            int left = ClampedRemaining(remainingUses, totalUses);
+            int usedUses = totalUses - left;
+            return usedUses <= 0 ? 0 : ((usedUses + perItem - 1) / perItem);
         }
 
         private static int ClampedRemaining(int left, int count)

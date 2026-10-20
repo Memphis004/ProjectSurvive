@@ -17,6 +17,18 @@ namespace ProjectSurvive.Core.Domain.Config
         Curse = 2,
     }
 
+    /// <summary>
+    /// What an offering does when the battle spends one of its uses (Stage 11a).
+    /// Values match <c>data/Defines/schema.xml</c>; the amount and use count are
+    /// columns beside it, never code constants.
+    /// </summary>
+    public enum OfferingEffect
+    {
+        None = 0,
+        Heal = 1,
+        Bia = 2,
+    }
+
     public enum ItemCategory
     {
         Bag = 1,
@@ -49,6 +61,26 @@ namespace ProjectSurvive.Core.Domain.Config
         Chase = 1,
         Charge = 2,
         Stationary = 3,
+    }
+
+    /// <summary>
+    /// The telegraphed attack a ghost runs (Stage 11b), from the enemy row.
+    /// </summary>
+    /// <remarks>
+    /// Values match <c>data/Defines/schema.xml</c>. The enum names the <i>shape of the
+    /// state machine</i>, never one of its numbers: range, telegraph time, damage,
+    /// radius, length, drain window and retreat all come from the columns beside it.
+    /// </remarks>
+    public enum EnemyAttackPattern
+    {
+        /// <summary>Contact damage only.</summary>
+        None = 0,
+
+        /// <summary>Krasue: dash along a line, drain an aura, then step back.</summary>
+        DashDrain = 1,
+
+        /// <summary>Nang Tani: a ring around herself, then vines along a line.</summary>
+        RingVines = 2,
     }
 
     /// <summary>

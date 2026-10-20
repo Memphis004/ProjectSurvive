@@ -181,15 +181,16 @@ namespace ProjectSurvive.Core.Simulation.Battle
     public struct Status
     {
         /// <summary>
-        /// Def id the status is announced with. Until a <c>status</c> table exists this is
-        /// the def id of the <b>skill that applied it</b> — a real id from a real table —
-        /// and <see cref="Element"/> says which effect; when a status table lands this
-        /// becomes the status row's own def id (ADR 0017).
+        /// Def id of the <c>status</c> row that applied it (Stage 11a), so the event stream
+        /// names the effect rather than the skill that happened to carry the element.
         /// </summary>
         public int DefId;
 
         /// <summary>Element that applied it, or <c>0</c> when none.</summary>
         public int Element;
+
+        /// <summary>Applications riding at once; capped by the row's <c>max_stacks</c>.</summary>
+        public int Stacks;
 
         /// <summary>Ticks until it expires.</summary>
         public int RemainingTicks;
@@ -215,6 +216,96 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
         /// <summary>Ticks until this ghost may hurt the player again; 0 means ready.</summary>
         public int RemainingTicks;
+    }
+
+    /// <summary>
+    /// The telegraphed attack a ghost owns, copied from its enemy row at spawn (Stage 11b).
+    /// </summary>
+    /// <remarks>
+    /// A plain copy of the numbers, so the state machine never looks a def up on the hot
+    /// path — the same rule <see cref="EnemyTag"/> follows for HP and speed. Zero on a
+    /// stage means "this ghost does not run that stage", which is how one struct describes
+    /// both Krasue (dash, drain, retreat) and Nang Tani (ring, vines).
+    /// </remarks>
+    public struct EnemyAttack
+    {
+        /// <summary>Attack pattern, from <see cref="ProjectSurvive.Core.Domain.Config.EnemyAttackPattern"/>.</summary>
+        public int Pattern;
+
+        /// <summary>Distance at which the cycle starts, in world units.</summary>
+        public float Range;
+
+        /// <summary>Warning time before the attack lands, in ticks.</summary>
+        public int TelegraphTicks;
+
+        /// <summary>Strike window (a dash's travel), in ticks.</summary>
+        public int StrikeTicks;
+
+        /// <summary>Damage of one application of the attack.</summary>
+        public int Damage;
+
+        /// <summary>Circle radius, or the half-width of a line.</summary>
+        public float Radius;
+
+        /// <summary>Line length; 0 makes the attack a circle centred on the ghost.</summary>
+        public float Length;
+
+        /// <summary>Warning time of the second attack, in ticks; 0 for none.</summary>
+        public int FollowUpTelegraphTicks;
+
+        /// <summary>Duration of the second attack's window, in ticks; 0 for a single application.</summary>
+        public int FollowUpTicks;
+
+        /// <summary>Damage of one application of the second attack.</summary>
+        public int FollowUpDamage;
+
+        /// <summary>Circle radius, or the half-width of the second attack's line.</summary>
+        public float FollowUpRadius;
+
+        /// <summary>Line length of the second attack; 0 makes it a circle.</summary>
+        public float FollowUpLength;
+
+        /// <summary>Ticks between applications inside the second attack's window.</summary>
+        public int FollowUpTickTicks;
+
+        /// <summary>How long it steps away after the cycle, in ticks; 0 for none.</summary>
+        public int RetreatTicks;
+
+        /// <summary>Retreat speed, in world units per second.</summary>
+        public float RetreatSpeed;
+
+        /// <summary>
+        /// Ticks between two cycles, from the row's <c>attack_cooldown_seconds</c> — the same
+        /// column the contact attack uses, because a ghost that attacks on a rhythm has one
+        /// rhythm.
+        /// </summary>
+        public int CooldownTicks;
+    }
+
+    /// <summary>
+    /// The tiny state machine a telegraphed attack runs (Stage 11b), one per ghost that has
+    /// an <see cref="EnemyAttack"/>.
+    /// </summary>
+    /// <remarks>
+    /// State and aim are part of the battle's deterministic state, so they are hashed: where a
+    /// ghost is in its cycle is as much a fact of the fight as its HP.
+    /// </remarks>
+    public struct EnemyBrain
+    {
+        /// <summary>Current stage, from <see cref="Systems.EnemyAttackState"/>.</summary>
+        public int State;
+
+        /// <summary>Ticks left in the current stage.</summary>
+        public int StateTicks;
+
+        /// <summary>Ticks until the next damage application inside a window.</summary>
+        public int DamageTicks;
+
+        /// <summary>Unit aim locked when the telegraph began (X).</summary>
+        public float AimX;
+
+        /// <summary>Unit aim locked when the telegraph began (Y).</summary>
+        public float AimY;
     }
 
     /// <summary>A drop on the floor, waiting to be pulled in.</summary>
@@ -292,5 +383,8 @@ namespace ProjectSurvive.Core.Simulation.Battle
 
         /// <summary>Bia one kill of this enemy pays, copied from <c>enemy.drop_value</c>.</summary>
         public int DropValue;
+
+        /// <summary>The row's telegraphed attack, copied whole (Stage 11b).</summary>
+        public EnemyAttack Attack;
     }
 }

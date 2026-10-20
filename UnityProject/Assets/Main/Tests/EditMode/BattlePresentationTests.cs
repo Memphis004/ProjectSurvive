@@ -442,6 +442,68 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(pool.ActiveCount, Is.Zero);
         }
 
+        /// <summary>
+        /// Stage 11b: a telegraph event becomes a pooled floor decal, drawn at the footprint
+        /// the event carries, and the matching end event removes it. The pool recycles and
+        /// never grows, and a warning that loses its end event still expires.
+        /// </summary>
+        [Test]
+        public void A_telegraph_event_becomes_a_pooled_floor_decal()
+        {
+            var root = new GameObject("telegraph-root");
+            _temporary.Add(root);
+
+            var art = new BattlePlaceholderArt();
+            _owned.Add(art);
+
+            var pool = new TelegraphPool(root.transform, art);
+            _owned.Add(pool);
+
+            Assert.That(pool.Capacity, Is.EqualTo(BattleViewCaps.Telegraphs));
+            Assert.That(pool.ActiveCount, Is.Zero, "a warmed pool draws nothing until an attack warns");
+
+            // Krasue: a line 6 units long and 0.9 to each side, aimed along +X.
+            pool.OnBattleEvent(Telegraph(
+                BattleEventType.TelegraphStarted, TelegraphShape.Line, 4f, 2f, 0.9f, 6f, 0f));
+
+            Assert.That(pool.ActiveCount, Is.EqualTo(1), "a started warning must be on the floor");
+
+            Transform decal = root.transform.GetChild(0);
+            Assert.That(decal.position.x, Is.EqualTo(4f).Within(0.001f));
+            Assert.That(decal.position.z, Is.EqualTo(2f).Within(0.001f));
+            Assert.That(decal.localScale.x, Is.EqualTo(6f).Within(0.001f), "the bar must be as long as the line");
+            Assert.That(decal.localScale.y, Is.EqualTo(1.8f).Within(0.001f), "the bar must be as wide as twice the half-width");
+
+            pool.OnBattleEvent(Telegraph(
+                BattleEventType.TelegraphEnded, TelegraphShape.Line, 4f, 2f, 0.9f, 6f, 0f));
+
+            Assert.That(pool.ActiveCount, Is.Zero, "a warning must come off the floor when it ends");
+
+            // Nang Tani: a ring of radius 4.5 around the ghost itself.
+            pool.OnBattleEvent(Telegraph(
+                BattleEventType.TelegraphStarted, TelegraphShape.Circle, 0f, 0f, 4.5f, 0f, 0f));
+
+            Assert.That(pool.ActiveCount, Is.EqualTo(1));
+            Assert.That(
+                root.transform.GetChild(0).localScale.x,
+                Is.EqualTo(9f).Within(0.001f),
+                "a circle decal is as wide as its diameter");
+
+            // A wave's worth of warnings recycles the pool rather than growing it.
+            for (int i = 0; i < BattleViewCaps.Telegraphs * 4; i++)
+            {
+                pool.OnBattleEvent(Telegraph(
+                    BattleEventType.TelegraphStarted, TelegraphShape.Circle, i, i, 2f, 0f, 0f));
+            }
+
+            Assert.That(pool.Capacity, Is.EqualTo(BattleViewCaps.Telegraphs), "the decal pool grew");
+            Assert.That(pool.ActiveCount, Is.LessThanOrEqualTo(pool.Capacity));
+
+            // An end event that never arrives may not leave the warning there for ever.
+            pool.Tick(BattleViewCaps.TelegraphMaxLifetimeSeconds + 0.01f);
+            Assert.That(pool.ActiveCount, Is.Zero, "a warning outlived its safety lifetime");
+        }
+
         [Test]
         public void Speed_control_toggles_between_one_and_two_and_the_presenter_labels_it()
         {
@@ -903,6 +965,26 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         /// <summary>One "something was hit" event, in the shape the session publishes.</summary>
+        private static BattleEvent Telegraph(
+            BattleEventType type,
+            TelegraphShape shape,
+            float x,
+            float y,
+            float radius,
+            float length,
+            float angle) =>
+            new BattleEvent(
+                seq: 0,
+                type: type,
+                entity: new EntityRef(1, 1),
+                defId: 2,
+                value: (int)shape,
+                x: x,
+                y: y,
+                radius: radius,
+                length: length,
+                angle: angle);
+
         private static BattleEvent Hit(BattleEventType type, float x, float y, int amount) =>
             new BattleEvent(
                 seq: 0,

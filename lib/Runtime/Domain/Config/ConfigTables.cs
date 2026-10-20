@@ -105,6 +105,61 @@ namespace ProjectSurvive.Core.Domain.Config
         /// with no shape could not be placed on a bag at all.
         /// </summary>
         public Footprint Footprint { get; set; } = Footprint.Empty;
+
+        /// <summary>
+        /// True when this row carries a charm's own passive (Stage 11a). Only a
+        /// <see cref="ItemCategory.Charm"/> may set it; the numbers are applied to the
+        /// player stats the battle already reads, never to a new mechanic.
+        /// </summary>
+        public bool HasCharmEffect { get; set; }
+
+        /// <summary>The stat a charm adjusts (valid only when <see cref="HasCharmEffect"/>).</summary>
+        public UpgradeStat CharmStat { get; set; }
+
+        /// <summary>How the charm adjusts it.</summary>
+        public UpgradeMethod CharmMethod { get; set; }
+
+        /// <summary>How much, in the units <see cref="CharmMethod"/> implies.</summary>
+        public float CharmMagnitude { get; set; }
+
+        /// <summary>
+        /// What using an offering does (Stage 11a). <see cref="OfferingEffect.None"/> for
+        /// every non-offering row.
+        /// </summary>
+        public OfferingEffect OfferingEffect { get; set; }
+
+        /// <summary>HP restored or bia granted per use; 0 when not an offering.</summary>
+        public int OfferingAmount { get; set; }
+
+        /// <summary>How many times one carried piece can be used; 0 when not an offering.</summary>
+        public int OfferingUses { get; set; }
+
+        /// <summary>
+        /// HP percentage (0–100) at or below which the battle spends a use
+        /// automatically; 0 means the piece is not used automatically.
+        /// </summary>
+        public int OfferingAutoHpPercent { get; set; }
+    }
+
+    /// <summary>One row of the <c>status</c> table: an elemental effect (Stage 11a).</summary>
+    public sealed class StatusConfig
+    {
+        public string Id { get; set; } = string.Empty;
+
+        /// <summary>The element whose hits apply this status.</summary>
+        public Element Element { get; set; }
+
+        /// <summary>Damage of one application.</summary>
+        public int DamagePerTick { get; set; }
+
+        /// <summary>Seconds between two applications.</summary>
+        public float TickIntervalSeconds { get; set; }
+
+        /// <summary>Seconds the status stays on the target.</summary>
+        public float DurationSeconds { get; set; }
+
+        /// <summary>Applications stack up to this many; 1 is "refresh only".</summary>
+        public int MaxStacks { get; set; }
     }
 
     /// <summary>A combo rule, matched by item tag.</summary>
@@ -232,6 +287,51 @@ namespace ProjectSurvive.Core.Domain.Config
 
         /// <summary>Bia one kill of this enemy pays (Stage 07b). Never negative.</summary>
         public int DropValue { get; set; }
+
+        /// <summary>Which telegraphed attack it runs, if any (Stage 11b).</summary>
+        public EnemyAttackPattern AttackPattern { get; set; }
+
+        /// <summary>Distance at which it starts a telegraphed attack, in world units.</summary>
+        public float AttackRange { get; set; }
+
+        /// <summary>How long the warning is on screen before the attack lands, in seconds.</summary>
+        public float AttackTelegraphSeconds { get; set; }
+
+        /// <summary>How long the strike window lasts (a dash's travel), in seconds.</summary>
+        public float AttackSeconds { get; set; }
+
+        /// <summary>Damage of the telegraphed attack (one application, or per drain tick).</summary>
+        public int AttackDamage { get; set; }
+
+        /// <summary>Circle radius, or the half-width of a line.</summary>
+        public float AttackRadius { get; set; }
+
+        /// <summary>Line length; 0 makes the attack a circle centred on the ghost.</summary>
+        public float AttackLength { get; set; }
+
+        /// <summary>Warning time of the cycle's second attack, in seconds; 0 for none.</summary>
+        public float FollowUpTelegraphSeconds { get; set; }
+
+        /// <summary>Duration of the second attack's window, in seconds; 0 for none.</summary>
+        public float FollowUpSeconds { get; set; }
+
+        /// <summary>Damage of one application of the second attack.</summary>
+        public int FollowUpDamage { get; set; }
+
+        /// <summary>Circle radius, or the half-width of the second attack's line.</summary>
+        public float FollowUpRadius { get; set; }
+
+        /// <summary>Line length of the second attack; 0 makes it a circle.</summary>
+        public float FollowUpLength { get; set; }
+
+        /// <summary>Interval between damage applications inside the second attack's window.</summary>
+        public float FollowUpTickSeconds { get; set; }
+
+        /// <summary>How long it steps away after the cycle, in seconds; 0 for none.</summary>
+        public float RetreatSeconds { get; set; }
+
+        /// <summary>Speed of the retreat, in world units per second.</summary>
+        public float RetreatSpeed { get; set; }
     }
 
     public sealed class FloorConfig

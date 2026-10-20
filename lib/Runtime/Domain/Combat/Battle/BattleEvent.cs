@@ -23,7 +23,10 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
             int value = 0,
             BattleEventFlags flags = BattleEventFlags.None,
             float x = 0f,
-            float y = 0f)
+            float y = 0f,
+            float radius = 0f,
+            float length = 0f,
+            float angle = 0f)
         {
             Seq = seq;
             Type = type;
@@ -33,6 +36,9 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
             Flags = flags;
             X = x;
             Y = y;
+            Radius = radius;
+            Length = length;
+            Angle = angle;
         }
 
         /// <summary>Strictly increasing sequence number; one per event, never reused.</summary>
@@ -58,6 +64,22 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
 
         /// <summary>World Y of the event, when it has a position.</summary>
         public float Y { get; }
+
+        /// <summary>
+        /// Radius of the event's footprint, in world units (Stage 11b): a telegraph
+        /// circle's radius, or a telegraph line's half-width. 0 when the event has none.
+        /// </summary>
+        public float Radius { get; }
+
+        /// <summary>
+        /// Length of a telegraph line in world units, or 0 for a circle (Stage 11b).
+        /// </summary>
+        public float Length { get; }
+
+        /// <summary>
+        /// Direction of a telegraph line in radians from +X, or 0 for a circle (Stage 11b).
+        /// </summary>
+        public float Angle { get; }
 
         /// <inheritdoc />
         public override string ToString() => "#" + Seq + " " + Type + " v=" + Value;

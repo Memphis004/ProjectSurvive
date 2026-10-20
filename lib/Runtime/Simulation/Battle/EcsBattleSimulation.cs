@@ -62,6 +62,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
         private readonly EcsPool<Pickup> _pickups;
         private readonly EcsPool<Caster> _casters;
         private readonly EcsPool<ContactAttack> _contacts;
+        private readonly EcsPool<EnemyBrain> _brains;
         private readonly EcsPool<Status> _statuses;
         private readonly EcsPool<Lifetime> _lifetimes;
 
@@ -125,11 +126,13 @@ namespace ProjectSurvive.Core.Simulation.Battle
                 .Add(new LoadTestSystem())
                 .Add(new PlayerMoveSystem())
                 .Add(new EnemySteerSystem())
+                .Add(new EnemyAttackSystem())
                 .Add(new AutoCastSystem())
                 .Add(new ProjectileMoveSystem())
                 .Add(new SpatialHashSystem())
                 .Add(new CollisionSystem())
                 .Add(new DamageStatusSystem())
+                .Add(new ConsumableSystem())
                 .Add(_deathSystem)
                 .Add(new DropSystem())
                 .Add(new PickupSystem())
@@ -152,6 +155,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
             _pickups = _world.GetPool<Pickup>();
             _casters = _world.GetPool<Caster>();
             _contacts = _world.GetPool<ContactAttack>();
+            _brains = _world.GetPool<EnemyBrain>();
             _statuses = _world.GetPool<Status>();
             _lifetimes = _world.GetPool<Lifetime>();
 
@@ -448,13 +452,12 @@ namespace ProjectSurvive.Core.Simulation.Battle
             _phase = phase;
             _reason = reason;
 
-            IReadOnlyList<ConsumableLoadout> consumables = _context.Setup.Loadout.Consumables;
-            for (int i = 0; i < _remainingConsumables.Length; i++)
+            // Remaining USES, spent by the auto-use rule and reported per loadout entry
+            // (Stage 11a). RunSession converts the difference back to pieces to remove.
+            int[] usesLeft = _context.ConsumableUses;
+            for (int i = 0; i < _remainingConsumables.Length && i < usesLeft.Length; i++)
             {
-                // The battle never consumes an offering: the item-local effects that would
-                // spend one are not modelled yet (ADR 0010), so the report is "nothing was
-                // used" rather than a guess, and RunSession reconciles it.
-                _remainingConsumables[i] = consumables[i].Count;
+                _remainingConsumables[i] = usesLeft[i];
             }
 
             _result = new BattleResult
@@ -605,6 +608,16 @@ namespace ProjectSurvive.Core.Simulation.Battle
                     hash = Mix(hash, (uint)_contacts.Get(entity).RemainingTicks);
                 }
 
+                if (_brains.Has(entity))
+                {
+                    EnemyBrain brain = _brains.Get(entity);
+                    hash = Mix(hash, (uint)brain.State);
+                    hash = Mix(hash, (uint)brain.StateTicks);
+                    hash = Mix(hash, (uint)brain.DamageTicks);
+                    hash = Mix(hash, (uint)(int)Math.Round(brain.AimX * PositionHashScale));
+                    hash = Mix(hash, (uint)(int)Math.Round(brain.AimY * PositionHashScale));
+                }
+
                 if (_casters.Has(entity))
                 {
                     hash = Mix(hash, (uint)_casters.Get(entity).CooldownTicks);
@@ -625,8 +638,12 @@ namespace ProjectSurvive.Core.Simulation.Battle
                 if (_statuses.Has(entity))
                 {
                     Status status = _statuses.Get(entity);
+                    hash = Mix(hash, (uint)status.DefId);
                     hash = Mix(hash, (uint)status.Element);
+                    hash = Mix(hash, (uint)status.Stacks);
                     hash = Mix(hash, (uint)status.RemainingTicks);
+                    hash = Mix(hash, (uint)status.NextTickIn);
+                    hash = Mix(hash, (uint)status.DamagePerTick);
                 }
 
                 if (_pickups.Has(entity))

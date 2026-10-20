@@ -60,6 +60,31 @@ namespace ProjectSurvive.Game.Presentation.Battle
         public const int DamageNumbers = 48;
 
         /// <summary>
+        /// Pooled floor telegraph decals (Stage 11b). A ghost holds one warning at a time, so
+        /// this bounds how many ghosts can be mid-warning on screen; the simulation's enemy cap
+        /// is 512, but 64 warnings at once is far past what a player could read.
+        /// </summary>
+        public const int Telegraphs = 64;
+
+        /// <summary>
+        /// Sorting order of a floor warning: above the floor tile, below every actor that can
+        /// stand on it.
+        /// </summary>
+        public const int TelegraphSortingOrder = -9000;
+
+        /// <summary>
+        /// How long a warning is kept if its <c>TelegraphEnded</c> never arrives (cosmetic
+        /// safety net: a dropped event may not leave a permanent decal on the floor).
+        /// </summary>
+        public const float TelegraphMaxLifetimeSeconds = 6f;
+
+        /// <summary>Time a warning takes to reach full strength, in seconds (cosmetic).</summary>
+        public const float TelegraphFadeInSeconds = 0.12f;
+
+        /// <summary>Pulse rate of a warning, in radians per second (cosmetic).</summary>
+        public const float TelegraphPulseRadiansPerSecond = 7f;
+
+        /// <summary>
         /// Pooled mini-bag cells: the board's own maximum (Stage 08c).
         /// </summary>
         /// <remarks>

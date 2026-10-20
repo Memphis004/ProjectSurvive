@@ -36,7 +36,8 @@ about a battle it learned from that page; this page is the *inside*.
 | 1 | `WaveSpawn` | opens each wave window, walks ghosts in from the rim, announces once |
 | 2 | `LoadTest` | benchmark only: tops the world up to `LoadTestEnemies` / `LoadTestProjectiles`, with optional churn |
 | 3 | `PlayerMove` | moves the player from the input frame, clamps to the disc |
-| 4 | `EnemySteer` | walks ghosts at their def's speed toward the player (chase / charge / stationary) |
+| 4 | `EnemySteer` | walks ghosts at their def's speed toward the player — only while they are chasing (see §2c) |
+| 4b | `EnemyAttack` | the per-kind telegraphed attack, its warning events and its damage (§2c) |
 | 5 | `AutoCast` | focus regen, cooldown clocks, one cast (see §5) |
 | 6 | `ProjectileMove` | advances shots, releases expired / out-of-bounds ones, recomputes the in-flight count |
 | 7 | `SpatialHash` | rebuilds the grid the next three systems read |
@@ -57,6 +58,40 @@ while `SweepSystem` pulls every drop still on the ground into the player, at
 `constant.sweep_timeout_seconds` runs out; at the cap whatever is left is collected at once, so a
 won floor always produces its result. A **loss** (the player dying, or a boss floor timing out)
 never sweeps, and `DevWinNow` still finishes immediately because it stands for "skip this floor".
+
+## 2c. Telegraphed ghost attacks (Stage 11b)
+
+A ghost whose `enemy` row names a pattern carries `EnemyAttack` (the row's numbers, in ticks) and
+`EnemyBrain` (where it is in its cycle). `EnemyAttackSystem` runs one small machine for both kinds and
+skips every stage whose tick count is zero:
+
+```
+Chase -> Telegraph -> Strike -> FollowUpTelegraph -> FollowUp -> Retreat -> Recover -> Chase
+```
+
+- **Krasue (`DashDrain`)**: warns a **line** (`attack_length` 6, half-width 0.9) for 0.6 s, dashes
+along it for 0.25 s, warns a **circle** around herself for 0.4 s, drains for 1.0 s (2 damage every
+0.3 s inside 2.2 units), retreats at 2.4 u/s, then waits `attack_cooldown_seconds`.
+- **Nang Tani (`RingVines`)**: stands still (her `move_pattern` is `Stationary`), warns a **ring** of
+radius 4.5 for 1 s around herself, then warns a **vine line** (length 7, half-width 0.55) for 0.8 s
+and lashes it. Both hit once, for the row's damage, at the end of their own warning.
+- A ghost with `attack_pattern = None` (the wandering spirit, Pob) gets neither component and keeps
+the walking rule it had.
+
+**Steering cooperates instead of competing**: `EnemySteerSystem` moves a ghost only while its brain is
+`Chase`. A dash, a drain, a retreat or a warning stage writes position itself, so a charging Krasue
+cannot be dragged at walking speed through her own telegraph. `EnemyBrain` is hashed (state, timers,
+locked aim) because the cycle position is part of the fight.
+
+The warning is an event (`TelegraphStarted` / `TelegraphEnded`) whose payload is the footprint the
+damage really used — shape, origin, radius, length and angle, see
+[`battle-contract.md`](battle-contract.md). Presentation draws exactly that, and nothing in it
+re-derives a reach from a def. Resolved damage goes through the existing queue
+(`BattleContext.PlayerHitDamage`), so god mode and the HUD are unchanged.
+
+The numbers all live on the `enemy` row ([ADR 0029](../../docs/adr/0029-enemy-telegraphed-attacks.md));
+the validator rejects a strong attack with no warning time, a ring with a line length, a drain with
+no cadence, a retreat with no speed, and a contact-only ghost that carries attack numbers.
 
 While `SweepActive`, `Step` runs only `SweepSystem` and `FramePublishSystem` — no wave, no
 steering, no casts, no collision, no damage, no death, no new drops. The ghosts that are left
@@ -83,7 +118,8 @@ cannot make — "ready and only the pool is short" — as `IBattleFrame.Cooldown
 ## 3. Components
 
 `Position`, `Velocity`, `Health`, `Faction`, `PlayerTag`, `EnemyTag`, `Mana`, `Caster`,
-`Projectile`, `Status`, `ContactAttack`, `Pickup`, `Lifetime`, `Collider` — all plain
+`Projectile`, `Status`, `ContactAttack`, `EnemyAttack`, `EnemyBrain`, `Pickup`, `Lifetime`,
+`Collider` — all plain
 structs with public fields, no references, no EcsLite types inside. Everything a system
 needs about a def (move speed, contact damage, cooldown, damage, reach) is **copied onto
 the entity at spawn**, so no hot path looks a def up.
@@ -172,12 +208,13 @@ is therefore the sum of collected drops; the flat clear reward is separate
 values are filler/fast 1, elite 3, boss 10 and clear 8 — starting values for the
 Stage 11 balance pass, not a claim.
 
-Two numbers the prototype still wants and the tables still do not carry; neither was
-invented in code:
-
-| Gap | What the stage did instead | Column Stage 11 adds |
-| --- | --- | --- |
-| Elemental status magnitude | re-uses the applying skill's own damage, on a 1 s cadence, refreshed (not stacked) | a `status` table |
+**Stage 11a closed the elemental-status gap**: a hit applies the `status` row for its
+element (`damage_per_tick`, `tick_interval_seconds`, `duration_seconds`, `max_stacks`),
+stacks up to the row's cap, and the component's `DefId` is the status row's own id.
+[ADR 0028](../../docs/adr/0028-item-effects-and-status-table.md) supersedes ADR 0017 §4.
+A charm's passive is applied by `LoadoutResolver` to the player stats the snapshot
+already carries, and an offering's use, amount and auto-use threshold come from the
+`item` row; both are Stage 11a's [ADR 0028](../../docs/adr/0028-item-effects-and-status-table.md).
 
 `constant.magnet_speed` and `constant.sweep_timeout_seconds` landed in Stage 07c for the **end-of-floor
 sweep** only (ADR 0027); during the fight itself a drop is still collected instantaneously inside

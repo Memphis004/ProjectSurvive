@@ -30,7 +30,12 @@ namespace ProjectSurvive.Core.Domain.Combat.Battle
         /// <summary>Enemies killed.</summary>
         public int Kills { get; set; }
 
-        /// <summary>Consumables still unused, aligned with <see cref="CombatLoadoutSnapshot.Consumables"/> order.</summary>
+        /// <summary>
+        /// Offering <b>uses</b> still unspent, aligned with
+        /// <see cref="CombatLoadoutSnapshot.Consumables"/> order. One entry per loadout entry, as
+        /// the settlement contract requires; a carried piece may contribute more than one use
+        /// (<see cref="ConsumableLoadout.UsesPerItem"/>).
+        /// </summary>
         public IReadOnlyList<int> RemainingConsumables { get; set; } = new List<int>();
 
         /// <summary>True when the run should be offered a clear reward.</summary>

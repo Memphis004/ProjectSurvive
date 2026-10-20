@@ -1,0 +1,8 @@
+{
+  "name": "status-element-missing",
+  "stage": "semantic",
+  "why": "a fire skill has no status row, so its elemental hit would silently do nothing",
+  "expectedCodes": [
+    "status.element_missing"
+  ]
+}

@@ -2,6 +2,7 @@
 ,TbLocalization,Localization,key,,,,,localization/localization.csv,,
 ,TbBag,Bag,id,,,,,tables/bag.csv,,
 ,TbSkill,Skill,id,,,,,tables/skill.csv,,
+,TbStatus,Status,id,,,,,tables/status.csv,,
 ,TbItem,Item,id,,,,,tables/item.csv,,
 ,TbSynergy,Synergy,id,,,,,tables/synergy.csv,,
 ,TbMergeRecipe,MergeRecipe,id,,,,,tables/merge_recipe.csv,,

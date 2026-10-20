@@ -80,6 +80,11 @@ as an implementation detail.
 **4. Elemental status re-uses the applying skill's own damage, on a one-second cadence, until a
 `status` table exists.**
 
+> **Superseded by [ADR 0028](0028-item-effects-and-status-table.md) (Stage 11a).** The `status`
+> table now exists; damage, interval, duration and the stack cap come from it. The paragraph below
+> is kept as the Stage 07 record of the interim rule.
+
+
 An element-carrying hit leaves a status on the ghost: the element decides which effect, the damage
 re-applied is the same damage the hit dealt (`BattleConstants.TickRate` ticks apart), and the effect
 expires after one second. A second application refreshes rather than stacks, and keeps the stronger

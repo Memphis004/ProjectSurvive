@@ -49,6 +49,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private readonly BattleRenderBridge _bridge;
         private readonly BattleCameraRig _camera;
         private readonly FloatingDamagePool _damage;
+        private readonly TelegraphPool _telegraphs;
 
         private IBattleSession _session;
         private GameObject _floor;
@@ -91,9 +92,14 @@ namespace ProjectSurvive.Game.Presentation.Battle
             IRandomSource visual = new RandomStreams(_visualSeed).Visual;
             _damage = _owned.Own(new FloatingDamagePool(root, settings.Font, visual, _camera.BillboardPitch));
 
+            // Stage 11b: the floor warnings a telegraphed attack publishes, drawn from the
+            // event's own shape and footprint rather than re-derived from a def.
+            _telegraphs = _owned.Own(new TelegraphPool(root, _art));
+
             // This is the whole event-side subscription list: three cursors, one per channel.
             _events.AddListener(BattleEventChannel.Hud, _hud);
             _events.AddListener(BattleEventChannel.Vfx, _damage);
+            _events.AddListener(BattleEventChannel.Vfx, _telegraphs);
 
             CreateFloor(root);
 
@@ -132,6 +138,9 @@ namespace ProjectSurvive.Game.Presentation.Battle
         /// <summary>How many damage numbers are alive right now.</summary>
         public int ActiveDamageNumbers => _damage.ActiveCount;
 
+        /// <summary>How many floor warnings are drawn right now (Stage 11b).</summary>
+        public int ActiveTelegraphs => _telegraphs.ActiveCount;
+
         /// <summary>
         /// Starts a floor: creates the session through the port, snapshots its first frame and
         /// fills the HUD's static half. This is the only place a session is created, and the
@@ -153,6 +162,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
             _session?.Dispose();
             _session = factory.Create(setup);
+            _telegraphs.Clear();
 
             // The mini bag is the run's own bag, drawn once: the loadout the battle was handed is
             // what says which pieces can cast, so the plates and the cooldown list cannot disagree
@@ -209,6 +219,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
             _bridge.Render(alpha);
             _camera.Follow(PlayerPosition());
             _damage.Tick(deltaSeconds);
+            _telegraphs.Tick(deltaSeconds);
             _settings.MiniBag?.RefreshIfResized();
         }
 

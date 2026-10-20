@@ -29,6 +29,21 @@ public sealed partial class Enemy : Luban.BeanBase
         IsBoss = _buf.ReadBool();
         BossPhase2HpPercent = _buf.ReadFloat();
         DropValue = _buf.ReadInt();
+        AttackPattern = (EnemyAttackPattern)_buf.ReadInt();
+        AttackRange = _buf.ReadFloat();
+        AttackTelegraphSeconds = _buf.ReadFloat();
+        AttackSeconds = _buf.ReadFloat();
+        AttackDamage = _buf.ReadInt();
+        AttackRadius = _buf.ReadFloat();
+        AttackLength = _buf.ReadFloat();
+        FollowUpTelegraphSeconds = _buf.ReadFloat();
+        FollowUpSeconds = _buf.ReadFloat();
+        FollowUpDamage = _buf.ReadInt();
+        FollowUpRadius = _buf.ReadFloat();
+        FollowUpLength = _buf.ReadFloat();
+        FollowUpTickSeconds = _buf.ReadFloat();
+        RetreatSeconds = _buf.ReadFloat();
+        RetreatSpeed = _buf.ReadFloat();
     }
 
     public static Enemy DeserializeEnemy(ByteBuf _buf)
@@ -49,6 +64,21 @@ public sealed partial class Enemy : Luban.BeanBase
     public readonly bool IsBoss;
     public readonly float BossPhase2HpPercent;
     public readonly int DropValue;
+    public readonly EnemyAttackPattern AttackPattern;
+    public readonly float AttackRange;
+    public readonly float AttackTelegraphSeconds;
+    public readonly float AttackSeconds;
+    public readonly int AttackDamage;
+    public readonly float AttackRadius;
+    public readonly float AttackLength;
+    public readonly float FollowUpTelegraphSeconds;
+    public readonly float FollowUpSeconds;
+    public readonly int FollowUpDamage;
+    public readonly float FollowUpRadius;
+    public readonly float FollowUpLength;
+    public readonly float FollowUpTickSeconds;
+    public readonly float RetreatSeconds;
+    public readonly float RetreatSpeed;
    
     public const int __ID__ = 67100520;
     public override int GetTypeId() => __ID__;
@@ -73,6 +103,21 @@ public sealed partial class Enemy : Luban.BeanBase
         + "isBoss:" + IsBoss + ","
         + "bossPhase2HpPercent:" + BossPhase2HpPercent + ","
         + "dropValue:" + DropValue + ","
+        + "attackPattern:" + AttackPattern + ","
+        + "attackRange:" + AttackRange + ","
+        + "attackTelegraphSeconds:" + AttackTelegraphSeconds + ","
+        + "attackSeconds:" + AttackSeconds + ","
+        + "attackDamage:" + AttackDamage + ","
+        + "attackRadius:" + AttackRadius + ","
+        + "attackLength:" + AttackLength + ","
+        + "followUpTelegraphSeconds:" + FollowUpTelegraphSeconds + ","
+        + "followUpSeconds:" + FollowUpSeconds + ","
+        + "followUpDamage:" + FollowUpDamage + ","
+        + "followUpRadius:" + FollowUpRadius + ","
+        + "followUpLength:" + FollowUpLength + ","
+        + "followUpTickSeconds:" + FollowUpTickSeconds + ","
+        + "retreatSeconds:" + RetreatSeconds + ","
+        + "retreatSpeed:" + RetreatSpeed + ","
         + "}";
     }
 }

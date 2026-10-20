@@ -559,8 +559,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
             }
 
             _hovered = piece;
-            PublishTooltip();
+
+            // The board first, then the tooltip: the piece cache this presenter reads a hovered
+            // piece out of is rebuilt by PublishBag, and the bag command that put the piece there
+            // may have been the run's own (a test, or a chest item placed before the screen was
+            // open). Publishing the tooltip first read a stale cache and silently drew nothing.
             PublishBag();
+            PublishTooltip();
         }
 
         /// <summary>Drops the tooltip.</summary>
@@ -726,16 +731,20 @@ namespace ProjectSurvive.Game.Presentation.Camp
             modifier.Method == UpgradeMethod.Multiply ? modifier.Magnitude - 1f : modifier.Magnitude;
 
         /// <summary>How a modifier's amount is written on a card, sign included.</summary>
-        private static string ModifierValue(UpgradeModifierConfig modifier)
+        private static string ModifierValue(UpgradeModifierConfig modifier) =>
+            EffectValue(modifier.Method, modifier.Magnitude);
+
+        /// <summary>One method + magnitude written the one way the tooltip and a card both use.</summary>
+        private static string EffectValue(UpgradeMethod method, float magnitude)
         {
-            switch (modifier.Method)
+            switch (method)
             {
                 case UpgradeMethod.Percent:
-                    return modifier.Magnitude.ToString("+0.##;-0.##", CultureInfo.InvariantCulture) + "%";
+                    return magnitude.ToString("+0.##;-0.##", CultureInfo.InvariantCulture) + "%";
                 case UpgradeMethod.Multiply:
-                    return "×" + modifier.Magnitude.ToString("0.##", CultureInfo.InvariantCulture);
+                    return "×" + magnitude.ToString("0.##", CultureInfo.InvariantCulture);
                 default:
-                    return modifier.Magnitude.ToString("+0.##;-0.##", CultureInfo.InvariantCulture);
+                    return magnitude.ToString("+0.##;-0.##", CultureInfo.InvariantCulture);
             }
         }
 
@@ -1423,9 +1432,53 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return string.Empty;
             }
 
-            if (readout == null || !readout.Casts)
+            if (readout == null)
             {
                 return Lookup(CategoryKey(item.Category));
+            }
+
+            if (!readout.Casts)
+            {
+                // A charm or an offering used to print its category and nothing else. The
+                // item's own effect is now a row in data, so it is printed from the same
+                // read model the loadout resolver built (Stage 11a).
+                _builder.Clear();
+                _builder.Append(Lookup(CategoryKey(item.Category)));
+
+                if (readout.HasCharmEffect)
+                {
+                    _builder.Append('\n');
+                    _builder.Append(Format(
+                        "camp.tooltip.charm_effect.format",
+                        Lookup(StatKey(readout.CharmStat)),
+                        EffectValue(readout.CharmMethod, readout.CharmMagnitude)));
+                }
+
+                if (readout.IsOffering)
+                {
+                    int uses = readout.OfferingUses > 0 ? readout.OfferingUses : 1;
+                    if (readout.OfferingEffect == OfferingEffect.Heal)
+                    {
+                        _builder.Append('\n');
+                        _builder.Append(Format(
+                            "camp.tooltip.offering_heal.format", readout.OfferingAmount, uses));
+                    }
+                    else if (readout.OfferingEffect == OfferingEffect.Bia)
+                    {
+                        _builder.Append('\n');
+                        _builder.Append(Format(
+                            "camp.tooltip.offering_bia.format", readout.OfferingAmount, uses));
+                    }
+
+                    if (readout.OfferingAutoHpPercent > 0)
+                    {
+                        _builder.Append('\n');
+                        _builder.Append(Format(
+                            "camp.tooltip.offering_auto.format", readout.OfferingAutoHpPercent));
+                    }
+                }
+
+                return _builder.ToString();
             }
 
             _builder.Clear();
