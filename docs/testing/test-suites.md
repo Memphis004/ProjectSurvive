@@ -27,8 +27,8 @@ need to run, and the Web build moved behind the Full suite.
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 21 broken data sets rejected for the right reason |
 | `wiki: content reproducible` | Fast | `tools/verify-wiki.ps1` — `llmwiki/content/` regenerates byte-identically from `data/`, every relative link and anchor resolves, every data id has a section, no `systems/`/`gotchas/` orphan, and a WARN-only heuristic for hand-written pages that restate skill numbers |
-| `unity: EditMode` | Fast | 157 tests in `ProjectSurvive.Game.Tests.EditMode` |
-| `unity: PlayMode` | **Full** | 48 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
+| `unity: EditMode` | Fast | 168 tests in `ProjectSurvive.Game.Tests.EditMode` |
+| `unity: PlayMode` | **Full** | 62 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
 | `web: Playwright (smoke + title + battle + camp + result)` | **Full** | 10 browser tests against that build, in Chrome (13 more are the opt-in screenshot generator, skipped unless `SCREENS=1`) |
 
@@ -254,7 +254,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `Inventory/*.cs` | Board/Backpack/BackpackEditor/Merge/Recycle/Rotation/Synergy/Loadout + the randomized bag tests |
 | `Run/*.cs` | RunSession economy and flow, shop stock, the drop preview, replay. **Stage 06b** added seven cases to `ShopStockTests` (`A_new_camp_refills_a_slot_rented_in_the_previous_one`, four of them through `[Theory]`, plus several purchases, the whole panel, and a pin left behind): every new sala offers four rentable shelves again, none of them still marked rented or locked, `RefreshCount` 0 |
 
-### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (157 tests) → **Fast**
+### Unity EditMode — `ProjectSurvive.Game.Tests.EditMode` (168 tests) → **Fast**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
@@ -274,12 +274,13 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `TitleScreenTests` | 5 | **Stage 10d** — the screen's one action through the presenter and the shipped tables: the start caption and the heading come from the localization table (and every key exists in both languages), the control starts the run **once** and refuses a second press while the first move is in flight, a run that is already live is taken to the camp rather than started again (`RunSession.StartRun` refuses `WrongState`), and after a disposal the same control builds a **new** run |
 | `TitleScreenLayoutTests` | 4 | **Stage 10d** — `Title.unity` read from disk and judged with `UiLayoutCheck`: the heading, the build line and the control are pairwise disjoint and inside the canvas, every label is ≥ 22 px in a ≥ 32 px line box, the control is ≥ 44 px tall with a raycastable target, and the reading order (heading → build line → control) holds |
 
-### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (47 tests) → **Full**
+### Unity PlayMode — `ProjectSurvive.Game.Tests.PlayMode` (62 tests) → **Full**
 
 | Class | Tests | What it covers |
 | --- | --- | --- |
 | `BattlePlayModeTests` | 6 | the battle scene starts, ticks, re-enters and disposes; **Stage 08c** added the scene's own wiring of the mini ย่าม (it is built, it matches the loadout's casters, and it creates nothing after its build) and the two claims a run can only make through the real scene — every plate equals the frame's own `RemainingTicks / PeriodTicks` with the tone its flags ask for, and those plates move as the floor runs. **Stage 08d** added the scene's own geometry: the grid's rectangle is below the caption and shares its left edge, the first box is at the content's top-left, and `CreatedAfterBuild` / `viewsGrownDuringPlay` stay 0 over a second of ticks |
-| `CampBagDragPlayModeTests` | 12 | the จัดย่าม screen driven by real pointer events, plus the tooltip's draw order, the two-name rule and the line/badge kinds |
+| `CampBagDragPlayModeTests` | 16 | the จัดย่าม screen driven by real pointer events, plus the tooltip's draw order, the two-name rule and the line/badge kinds; **Stage 09k** added the grab offset — a piece grabbed by its lower-right cell drops where the ghost showed — and the selection being cleared by a refused drop |
+| `CampSynergyLinePlayModeTests` | 10 | **Stage 09j/09k** — where a combo mark is drawn at all: only a touching tome→weapon pair on one row gets a line, the line is level and joins the two cells it names, every rotation keeps it on the gap, the names are drawn above it, and the 720p scale factor keeps the same geometry |
 | `CampMergeChooserPlayModeTests` | 4 | **Stage 09g** — the upgrade-choice window through real pointer/keyboard events: drag onto the twin opens it (measured geometry: the dim covers the canvas, the cards do not overlap), a tap on the second card upgrades in the same cell with that card's variant id, `Escape` and the back control close it with the run's hash byte-identical and the same cards offered again, the board behind it stays locked and no tooltip is drawn, and `2` picks the second card |
 | `CampWorldPlayModeTests` | 8 | WASD walking, the walk clamp, `E` at a shelf, clicking without walking |
 | `SceneFlowPlayModeTests` | 5 | **Stage 10a** — the whole loop through the real scenes: the purse, bag and HP that went into the arena come back out of it (same `RunSession` object, same seed), a settled floor writes `BattleResult.FinalHp` back into the run and heals only what the run's own settlement heals, leaving the arena disposes its `IBattleSession`, arriving at the title leaves no run scope and no scene scope behind, the loader refuses a second transition and a scene that is not built, and **20 camp/battle round trips** leave exactly one scene scope and one run scope each time and grow the managed heap by ≤ 3 MiB (measured: 0.70 MiB; [`artifacts/stage10/loop-memory.md`](../../artifacts/stage10/loop-memory.md)) |

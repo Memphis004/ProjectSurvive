@@ -250,6 +250,15 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private RectTransform _linkRoot;
         private RectTransform _badgeRoot;
 
+        /// <summary>
+        /// Where the names drawn inside pieces live: a container above the combo marks, so a line is
+        /// drawn <b>under</b> the name it passes (Stage 09k). A name is a piece's primary text, and a
+        /// stroke painted over it is a stroke through a word — the defect the previous layer order
+        /// produced once the line was given the middle of a row to run along.
+        /// </summary>
+        private RectTransform _boardLabelRoot;
+        private RectTransform _chestLabelRoot;
+
         private int _boardWidth;
         private int _boardHeight;
         private int _chestSlots;
@@ -257,6 +266,14 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private bool _bound;
         private bool _pointerDown;
         private PieceRef _selectedPiece = PieceRef.None;
+
+        /// <summary>
+        /// True after a drag this view started, until the click that follows the release has been
+        /// swallowed. The EventSystem reports a click for a press-and-release even when the pointer
+        /// travelled, and that click used to select whatever stood under the pointer — leaving an item
+        /// painted as "selected" after a drop had already happened (Stage 09k).
+        /// </summary>
+        private bool _suppressClick;
 
         /// <summary>How many piece rectangles exist (a test reads the pool's size).</summary>
         public int PieceViewCount => _pieceViews.Count;
@@ -795,8 +812,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
             if (piece.IsValid && !IsDraggingPiece(piece))
             {
                 _selectedPiece = piece;
-                _presenter.DragStart(piece, RotationFor(piece));
-                UpdateGhostPosition(eventData.position);
+
+                // The press's own cell is the grab offset, so the cell the player took hold of stays
+                // under the pointer for the whole gesture (Stage 09k). The ghost follows the drag
+                // state from here on: it is drawn at the cell the run is asked about, never centred
+                // on the mouse, so what is on screen and what would be commanded are one cell.
+                _suppressClick = true;
+                _presenter.DragStart(piece, RotationFor(piece), cell);
             }
         }
 
@@ -812,8 +834,6 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
-            UpdateGhostPosition(eventData.position);
-
             TryLocate(eventData.position, out BagDropZone zone, out CellOffset cell);
             _presenter.DragMove(zone, cell);
         }
@@ -827,6 +847,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 _presenter.Drop();
             }
 
+            // Whatever the drop answered, the gesture leaves nothing behind: no ghost, no highlight
+            // (the bag repaint clears it) and no selection.
+            _selectedPiece = PieceRef.None;
             HideGhost();
         }
 
@@ -875,6 +898,17 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             if (eventData.button != PointerEventData.InputButton.Left || _presenter == null)
             {
+                return;
+            }
+
+            if (_suppressClick)
+            {
+                // The click that ends the drag this view just handled: the gesture already decided
+                // what happens at that cell, and selecting the piece under the pointer now would put
+                // a selection on screen that the player never made.
+                _suppressClick = false;
+                _selectedPiece = PieceRef.None;
+                _presenter.SelectOnly(PieceRef.None);
                 return;
             }
 
@@ -973,6 +1007,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             {
                 _pointerDown = false;
                 _presenter.Drop();
+                _selectedPiece = PieceRef.None;
                 HideGhost();
             }
         }
@@ -1334,7 +1369,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
                             badgeIdx++;
                         }
                     }
-                    else if (PlaceLine(lineIdx, source, target))
+                    else if (PlaceLine(lineIdx, link))
                     {
                         lineIdx++;
                     }
@@ -1372,42 +1407,38 @@ namespace ProjectSurvive.Game.Presentation.Camp
         }
 
         /// <summary>
-        /// Lays a line across the gap between two pieces that touch: from the point of one piece's
-        /// <b>edge</b> nearest the other to the point of the other's edge nearest the first.
+        /// Draws a combo line: horizontally from the middle of the weapon's cell to the middle of the
+        /// tome's cell on the row they share (Stage 09k).
         /// </summary>
         /// <remarks>
         /// <para>
-        /// Since Stage 09j a line only exists between two pieces the run says are edge-adjacent, so
-        /// the two rectangles are neighbours with one cell gap between them. The mark is the bridge
-        /// over that gap: it starts and ends on the drawn edges rather than in the middles, which is
-        /// what keeps it off the two names — an item's name fills its cell, and a centre-to-centre
-        /// stroke painted above the pieces (Stage 09i) would run straight through both of them.
+        /// The two cells are the presenter's, not the view's: a line only exists for a pair the run
+        /// says touches left-to-right, and the presenter has already picked the row and the cells. This
+        /// method turns those two cells into their middles and decides nothing else, which is why the
+        /// stroke is horizontal by construction — the two cells have the same row, and the y of the
+        /// second end is the y of the first even if a pixel of canvas scaling rounds them differently.
         /// </para>
         /// <para>
-        /// The nearest-point test is a clamp rather than a direction table, so the same code covers a
-        /// weapon to the right, below, above or left of a tome of any shape, at any rotation and any
-        /// canvas scale.
+        /// A line whose two cells are not drawn (its piece is being dragged) is skipped rather than
+        /// drawn somewhere else. The names are painted above this mark (see <see cref="LabelRootFor"/>),
+        /// so the stroke runs behind them and never over a word.
         /// </para>
         /// </remarks>
-        /// <returns>False when a piece has no rectangle on the board (it is being dragged) or the two
-        /// rectangles do not face each other, so the caller draws nothing rather than a stray mark.</returns>
-        private bool PlaceLine(int index, CampPieceModel source, CampPieceModel target)
+        /// <returns>False when the mark has nowhere to go, so the caller draws nothing.</returns>
+        private bool PlaceLine(int index, CampLink link)
         {
-            if (!TryGetDrawnRect(source.Piece, out Rect sourceRect)
-                || !TryGetDrawnRect(target.Piece, out Rect targetRect))
+            if (!TryCellCentre(link.SourceCell, out Vector2 from)
+                || !TryCellCentre(link.TargetCell, out Vector2 to))
             {
                 return false;
             }
 
-            Vector2 from = NearestPoint(sourceRect, targetRect.center);
-            Vector2 to = NearestPoint(targetRect, sourceRect.center);
-            Vector2 direction = to - from;
-            float length = direction.magnitude;
+            // Same row on purpose: the row's own middle is one height, so the stroke is level.
+            to.y = from.y;
 
+            float length = Mathf.Abs(to.x - from.x);
             if (length < 0.5f)
             {
-                // Two rectangles that share an edge with no gap: nothing to bridge, and a zero-length
-                // bar would be an unrotated dot in the corner.
                 return false;
             }
 
@@ -1416,11 +1447,31 @@ namespace ProjectSurvive.Game.Presentation.Camp
             return true;
         }
 
-        /// <summary>The point of <paramref name="rect"/> closest to <paramref name="point"/> (its edge, when the point is outside).</summary>
-        private static Vector2 NearestPoint(Rect rect, Vector2 point) =>
-            new Vector2(
-                Mathf.Clamp(point.x, rect.xMin, rect.xMax),
-                Mathf.Clamp(point.y, rect.yMin, rect.yMax));
+        /// <summary>
+        /// The middle of a board cell, in the line container's own space.
+        /// </summary>
+        /// <remarks>
+        /// Read from the cell rectangle that is actually drawn, not from a pitch calculation, for the
+        /// reason the Stage 09i marks learnt: the canvas may be scaled, and a mark computed from
+        /// constants lands next to the cell it names. Reused array/transform arithmetic, so a render
+        /// allocates nothing.
+        /// </remarks>
+        private bool TryCellCentre(CellOffset cell, out Vector2 local)
+        {
+            local = default;
+            int index = (cell.Y * _boardWidth) + cell.X;
+
+            if (_linkRoot == null || cell.X < 0 || cell.Y < 0
+                || index < 0 || index >= _boardCells.Count)
+            {
+                return false;
+            }
+
+            RectTransform rect = _boardCells[index].rectTransform;
+            Vector3 point = _linkRoot.InverseTransformPoint(rect.TransformPoint(rect.rect.center));
+            local = new Vector2(point.x, point.y);
+            return true;
+        }
 
         /// <summary>
         /// Marks a piece the bag-area bonus reached, on the piece's own corner: the rule is about the
@@ -1504,23 +1555,65 @@ namespace ProjectSurvive.Game.Presentation.Camp
         {
             if (_linkRoot == null)
             {
-                _linkRoot = CreateOverlayRoot("SynergyLines");
+                _linkRoot = CreateOverlayRoot("SynergyLines", _boardRect);
             }
 
             if (_badgeRoot == null)
             {
-                _badgeRoot = CreateOverlayRoot("BagBonusBadges");
+                _badgeRoot = CreateOverlayRoot("BagBonusBadges", _boardRect);
             }
 
             _linkRoot.SetAsLastSibling();
             _badgeRoot.SetAsLastSibling();
+
+            // The names go last of all: a mark is drawn under the word it passes (Stage 09k).
+            if (_boardLabelRoot != null)
+            {
+                _boardLabelRoot.SetAsLastSibling();
+            }
+
+            if (_chestLabelRoot != null)
+            {
+                _chestLabelRoot.SetAsLastSibling();
+            }
         }
 
-        private RectTransform CreateOverlayRoot(string name)
+        /// <summary>
+        /// The container a piece's name lives in, created on demand and kept <b>above</b> every mark.
+        /// </summary>
+        /// <remarks>
+        /// Names used to be children of their piece, which put them under the synergy lines as soon as
+        /// the lines were lifted above the pieces (Stage 09i) — and a line drawn along the middle of a
+        /// row runs straight through the middle of a one-line name. A container of its own, after the
+        /// marks, is what makes "เส้นอยู่ใต้ชื่อไอเทม" true of the picture and not just of the model.
+        /// </remarks>
+        private RectTransform LabelRootFor(bool onBoard)
+        {
+            RectTransform root = onBoard ? _boardLabelRoot : _chestLabelRoot;
+
+            if (root == null)
+            {
+                root = CreateOverlayRoot(onBoard ? "PieceLabels" : "ChestLabels", onBoard ? _boardRect : _chestRect);
+
+                if (onBoard)
+                {
+                    _boardLabelRoot = root;
+                }
+                else
+                {
+                    _chestLabelRoot = root;
+                }
+            }
+
+            root.SetAsLastSibling();
+            return root;
+        }
+
+        private static RectTransform CreateOverlayRoot(string name, RectTransform parent)
         {
             var rootObject = new GameObject(name, typeof(RectTransform));
             var root = (RectTransform)rootObject.transform;
-            root.SetParent(_boardRect, false);
+            root.SetParent(parent, false);
             root.anchorMin = Vector2.zero;
             root.anchorMax = Vector2.one;
             root.offsetMin = Vector2.zero;
@@ -1674,10 +1767,107 @@ namespace ProjectSurvive.Game.Presentation.Camp
             int h = shape?.Height ?? 1;
             float pitch = CellPitch;
             _ghostRect.sizeDelta = new Vector2((w * pitch) - _cellGap, (h * pitch) - _cellGap);
+            PlaceGhost(drag);
             _ghostRect.SetAsLastSibling();
 
             HighlightDropCells(drag, shape);
             RenderCarryGhosts(drag);
+        }
+
+        /// <summary>
+        /// Puts the ghost exactly on the cells the drag state describes, never at the pointer.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The ghost's top-left corner is pinned to the origin cell's top-left corner (Stage 09k). The
+        /// old code centred the ghost on the mouse, so a 2×2 piece's ghost covered the cells up and
+        /// left of the one the command used: the picture promised a legal placement the run then
+        /// refused with <c>inventory.item_not_covered</c>. One origin — the state's — now drives the
+        /// ghost, the cell highlight and the command.
+        /// </para>
+        /// <para>
+        /// Over the altar there is no grid: the "cell" is the pot, so the ghost sits on the pot's
+        /// centre. Over nothing, there is no target and nothing is drawn.
+        /// </para>
+        /// </remarks>
+        private void PlaceGhost(CampDragState drag)
+        {
+            if (_ghostRect == null)
+            {
+                return;
+            }
+
+            switch (drag.Zone)
+            {
+                case BagDropZone.Board:
+                    if (!TryCellTopLeftWorld(drag.Origin, out Vector3 boardCorner))
+                    {
+                        _ghost.enabled = false;
+                        return;
+                    }
+
+                    _ghostRect.pivot = new Vector2(0f, 1f);
+                    _ghostRect.position = boardCorner;
+                    return;
+
+                case BagDropZone.Chest:
+                    int slot = drag.Origin.X + (drag.Origin.Y * _chestColumns);
+                    if (slot < 0 || slot >= _chestCells.Count)
+                    {
+                        _ghost.enabled = false;
+                        return;
+                    }
+
+                    _ghostRect.sizeDelta = new Vector2(_chestCellSize, _chestCellSize);
+                    _ghostRect.pivot = new Vector2(0f, 1f);
+                    _ghostRect.position = _chestCells[slot].rectTransform.TransformPoint(
+                        new Vector3(_chestCells[slot].rectTransform.rect.xMin, _chestCells[slot].rectTransform.rect.yMax));
+                    return;
+
+                case BagDropZone.Altar:
+                    if (_altarRect == null)
+                    {
+                        _ghost.enabled = false;
+                        return;
+                    }
+
+                    Vector3 centre = _altarRect.TransformPoint(_altarRect.rect.center);
+                    _ghostRect.pivot = new Vector2(0.5f, 0.5f);
+                    _ghostRect.position = centre;
+                    return;
+
+                default:
+                    // No surface under the pointer: no drop to promise.
+                    _ghost.enabled = false;
+                    return;
+            }
+        }
+
+        /// <summary>The top-left corner of a board cell, in world space, or false when the cell is off the board.</summary>
+        private bool TryCellTopLeftWorld(CellOffset cell, out Vector3 world)
+        {
+            world = default;
+            int index = (cell.Y * _boardWidth) + cell.X;
+
+            if (cell.X < 0 || cell.Y < 0 || index < 0 || index >= _boardCells.Count)
+            {
+                return false;
+            }
+
+            RectTransform rect = _boardCells[index].rectTransform;
+            world = rect.TransformPoint(new Vector3(rect.rect.xMin, rect.rect.yMax));
+            return true;
+        }
+
+        /// <summary>
+        /// The screen rectangle of the drag ghost, or false when it is not drawn — the promise the
+        /// picture makes about where the piece will land (Stage 09k).
+        /// </summary>
+        public bool TryGetDragGhostScreenRect(out Rect rect)
+        {
+            rect = default;
+            return _ghost != null && _ghost.enabled && _ghostRect != null
+                && CampScreenRects.TryOf(_ghostRect, out rect);
         }
 
         /// <summary>
@@ -1779,17 +1969,6 @@ namespace ProjectSurvive.Game.Presentation.Camp
             }
 
             return false;
-        }
-
-        private void UpdateGhostPosition(Vector2 screenPoint)
-        {
-            if (_ghostRect == null)
-            {
-                return;
-            }
-
-            _ghostRect.position = screenPoint;
-            _ghostRect.SetAsLastSibling();
         }
 
         private void HideGhost()
@@ -2554,6 +2733,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
             private Image _image;
             private TMP_Text _label;
 
+            /// <summary>
+            /// The piece's name lives in a box of its own, under the label container and the same shape
+            /// as the piece: the name therefore stays where the piece is while being drawn above the
+            /// marks (Stage 09k). The label keeps the anchors it always had, relative to this box.
+            /// </summary>
+            private RectTransform _labelBox;
+
             /// <summary>The piece's own rectangle, for the label rules.</summary>
             public RectTransform Rect => _rect;
 
@@ -2644,7 +2830,34 @@ namespace ProjectSurvive.Game.Presentation.Camp
                     _image.color = piece.IsBag ? owner._bagPiece : owner._itemPiece;
                 }
 
+                AttachLabelBox(owner, piece.IsOnBoard);
                 _label.text = piece.Label;
+            }
+
+            /// <summary>Puts the name's box on the piece's own rectangle, in the label container.</summary>
+            private void AttachLabelBox(CampBagScreenView owner, bool onBoard)
+            {
+                if (_labelBox == null)
+                {
+                    var boxObject = new GameObject("LabelBox", typeof(RectTransform));
+                    _labelBox = (RectTransform)boxObject.transform;
+                    _labelBox.anchorMin = new Vector2(0f, 1f);
+                    _labelBox.anchorMax = new Vector2(0f, 1f);
+                    _labelBox.pivot = new Vector2(0f, 1f);
+
+                    var labelRect = (RectTransform)_label.transform;
+                    labelRect.SetParent(_labelBox, false);
+                }
+
+                RectTransform root = owner.LabelRootFor(onBoard);
+                if (_labelBox.parent != root)
+                {
+                    _labelBox.SetParent(root, false);
+                }
+
+                _labelBox.anchoredPosition = _rect.anchoredPosition;
+                _labelBox.sizeDelta = _rect.sizeDelta;
+                _labelBox.gameObject.SetActive(true);
             }
 
             /// <summary>
@@ -2695,7 +2908,15 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 }
             }
 
-            public void Hide() => _rect.gameObject.SetActive(false);
+            public void Hide()
+            {
+                _rect.gameObject.SetActive(false);
+
+                if (_labelBox != null)
+                {
+                    _labelBox.gameObject.SetActive(false);
+                }
+            }
         }
     }
 }

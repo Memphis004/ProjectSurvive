@@ -81,6 +81,17 @@ drawn over it — the camp's own canvas order is its hierarchy order, and the bo
   คุณไสย↔พระเครื่อง, น้ำแดง↔ภูติ) draw no permanent mark at all — they highlight on hover and during a
   drag. Pairs come from Core's unchanged `SynergyEvaluator.Active`; `CampPresenter.DrawnLinks` only
   decides the drawing.
+- **Since 09k a line joins two board cells, and only on a row.** `CampLink` carries the two cells the
+  presenter chose (the tome's rightmost cell and the weapon's leftmost one), so the view turns two
+  cells into two points and the stroke is level by construction; a pair that touches *vertically*
+  keeps its combo and its tooltip line but draws no mark. Names live in their own containers
+  (`PieceLabels`, `ChestLabels`), raised above the line container on every render, so a stroke that
+  passes through a cell's middle cannot cover the word.
+- **A drag's origin is not the cell under the pointer.** `DragStart(piece, rotation, grabbedCell)`
+  records the pressed cell inside the piece's own footprint, and every move (and every turn during
+  the drag) recomputes the origin as pointer − grabbed cell, turned with `FootprintRotation`. Without
+  this a 2×2 piece grabbed by its lower-right cell was previewed one cell up and left of where it
+  landed (`../docs/stages/09k-report.md`).
 
 ## 4. Running the camp tests
 
@@ -97,11 +108,12 @@ node tools/serve-web.mjs --port 8080
 cd tests/web ; npx playwright test smoke.spec.ts battle.spec.ts camp.spec.ts
 ```
 
-Unity-side: the EditMode fixtures are `CampPresenterTests` (rules and the seam, 11 tests) and
+Unity-side: the EditMode fixtures are `CampPresenterTests` (rules and the seam, 33 tests) and
 `CampTooltipPlacementTests` (4, the placement rule with no scene); the PlayMode fixtures are
-`CampBagDragPlayModeTests` (11, real pointer events through the scene's own
-`InputSystemUIInputModule`, plus the tooltip's draw order, the two-name rule and the link kinds) and
-`CampWorldPlayModeTests` (8, walking, `E`, clicking a station).
+`CampBagDragPlayModeTests` (16, real pointer events through the scene's own
+`InputSystemUIInputModule`, plus the tooltip's draw order, the two-name rule, the grab offset and the
+link kinds), `CampSynergyLinePlayModeTests` (10, where a line is and is not drawn) and
+`CampWorldPlayModeTests` (9, walking, `E`, clicking a station).
 
 Layout without a browser: `ProjectSurvive/Tools/1. Capture UI` renders Camp, Battle and the summary
 screen (Result) at 1920×1080 and 1280×720 into `artifacts/ui/` and fails when two regions that must

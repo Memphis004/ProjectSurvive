@@ -410,12 +410,29 @@ namespace ProjectSurvive.Game.Presentation.Camp
     /// </remarks>
     public readonly struct CampLink : IEquatable<CampLink>
     {
-        /// <summary>Captures one drawn combo.</summary>
+        /// <summary>Captures one drawn combo without cell coordinates (a badge, or a mark the view derives itself).</summary>
         public CampLink(int sourceInstanceId, int targetInstanceId, CampLinkStyle style)
+            : this(sourceInstanceId, targetInstanceId, style, default, default)
+        {
+        }
+
+        /// <summary>
+        /// Captures one drawn combo and the two board cells its line joins.
+        /// </summary>
+        /// <remarks>
+        /// The cells are the presenter's decision (Stage 09k): which row the mark belongs on, and which
+        /// cell of each piece it reaches, is geometry the rules engine already answered by saying the
+        /// pair touches. The view then only turns two cells into two points.
+        /// </remarks>
+        public CampLink(
+            int sourceInstanceId, int targetInstanceId, CampLinkStyle style,
+            CellOffset sourceCell, CellOffset targetCell)
         {
             SourceInstanceId = sourceInstanceId;
             TargetInstanceId = targetInstanceId;
             Style = style;
+            SourceCell = sourceCell;
+            TargetCell = targetCell;
         }
 
         /// <summary>Instance id of the piece that provided the condition.</summary>
@@ -427,18 +444,27 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>How the screen draws it.</summary>
         public CampLinkStyle Style { get; }
 
+        /// <summary>The board cell of the source piece a line starts at (meaningless for a badge).</summary>
+        public CellOffset SourceCell { get; }
+
+        /// <summary>The board cell of the target piece a line ends at (meaningless for a badge).</summary>
+        public CellOffset TargetCell { get; }
+
         /// <inheritdoc />
         public bool Equals(CampLink other) =>
             SourceInstanceId == other.SourceInstanceId
             && TargetInstanceId == other.TargetInstanceId
-            && Style == other.Style;
+            && Style == other.Style
+            && SourceCell == other.SourceCell
+            && TargetCell == other.TargetCell;
 
         /// <inheritdoc />
         public override bool Equals(object obj) => obj is CampLink other && Equals(other);
 
         /// <inheritdoc />
         public override int GetHashCode() =>
-            (SourceInstanceId * 397) ^ (TargetInstanceId * 31) ^ (int)Style;
+            (SourceInstanceId * 397) ^ (TargetInstanceId * 31) ^ (int)Style
+            ^ (SourceCell.X * 7) ^ (SourceCell.Y * 11) ^ (TargetCell.X * 13) ^ (TargetCell.Y * 17);
 
         /// <inheritdoc />
         public override string ToString() =>

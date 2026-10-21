@@ -1434,6 +1434,261 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 HasLineBetween(links, tome.InstanceId, secondWeapon.Value.InstanceId), Is.True,
                 "the tome's second neighbour has no line: " + Links(ui));
             Assert.That(lines, Is.EqualTo(2), "two touching pairs should be two lines, not " + lines);
+
+            // Stage 09k: each mark is horizontal and sits on the row its own pair shares, so the
+            // two weapons beside a 2x2 tome get one line each, one row apart.
+            int[] rows = new int[2];
+            int seen = 0;
+
+            for (int i = 0; i < links.Length; i++)
+            {
+                if (links[i].Style != CampLinkStyle.Line)
+                {
+                    continue;
+                }
+
+                Assert.That(
+                    links[i].TargetCell.Y, Is.EqualTo(links[i].SourceCell.Y),
+                    "a line's two ends are not on one row: " + links[i]);
+                Assert.That(
+                    Math.Abs(links[i].TargetCell.X - links[i].SourceCell.X), Is.EqualTo(1),
+                    "a line's two cells are not neighbours: " + links[i]);
+
+                rows[seen++] = links[i].TargetCell.Y;
+            }
+
+            Assert.That(rows[0], Is.Not.EqualTo(rows[1]), "both weapons sit on the tome's right edge, on two different rows");
+        }
+
+        // -------------------------------------------------------------------
+        // the grab offset (Stage 09k)
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// The cell the player grabbed stays under the pointer: the origin is the pointer's cell minus
+        /// that cell's own offset, for a 1×1 piece and for a 2×2 grabbed by each of its four corners.
+        /// </summary>
+        [Test]
+        public void The_cell_a_player_grabs_stays_under_the_pointer()
+        {
+            Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
+            Assert.That(MoveTo(run, tome, 0, 1), Is.True, "the tome could not be placed at (0,1)");
+            ui.Presenter.Refresh();
+
+            CellOffset weaponOrigin = OriginOf(run, weapon);
+            var pointer = new CellOffset(5, 3);
+
+            ui.Presenter.DragStart(weapon, Rotation.Degrees0, weaponOrigin);
+            ui.Presenter.DragMove(BagDropZone.Board, pointer);
+
+            Assert.That(
+                ui.Presenter.Drag.Origin, Is.EqualTo(pointer),
+                "a 1x1 piece grabbed by its only cell should follow the pointer exactly");
+
+            ui.Presenter.CancelDrag();
+
+            CellOffset tomeOrigin = OriginOf(run, tome);
+            for (int corner = 0; corner < 4; corner++)
+            {
+                var offset = new CellOffset(corner & 1, (corner >> 1) & 1);
+                var grabbed = new CellOffset(tomeOrigin.X + offset.X, tomeOrigin.Y + offset.Y);
+                var expected = new CellOffset(pointer.X - offset.X, pointer.Y - offset.Y);
+
+                ui.Presenter.DragStart(tome, Rotation.Degrees0, grabbed);
+                ui.Presenter.DragMove(BagDropZone.Board, pointer);
+
+                Assert.That(
+                    ui.Presenter.Drag.Origin, Is.EqualTo(expected),
+                    "grabbing " + grabbed + " put the piece at " + ui.Presenter.Drag.Origin
+                    + " instead of " + expected);
+
+                ui.Presenter.CancelDrag();
+            }
+        }
+
+        /// <summary>
+        /// A piece turned while it is held keeps the grabbed cell under the pointer: the offset is
+        /// turned with the piece by Core's own quarter-turn map, so a turn does not make it jump.
+        /// </summary>
+        [Test]
+        public void A_turned_piece_keeps_the_grabbed_cell_under_the_pointer()
+        {
+            Screen ui = CampWithATome(out RunSession run, out _, out _, out PieceRef tome);
+            Assert.That(MoveTo(run, tome, 0, 1), Is.True, "the tome could not be placed at (0,1)");
+            ui.Presenter.Refresh();
+
+            Footprint shape = PieceOf(ui.Presenter.Bag, tome).Shape;
+            Assert.That(shape, Is.Not.Null, "the tome has no shape on screen");
+
+            var grabbed = new CellOffset(1, 2);          // the 2x2's lower-right cell
+            var local = new CellOffset(1, 1);            // relative to the piece's origin at (0,1)
+            var pointer = new CellOffset(5, 3);
+
+            FootprintRotation.Rotate(shape, Rotation.Degrees90, out CellOffset shift);
+            CellOffset turned = FootprintRotation.Turn(local, Rotation.Degrees90);
+            var expected = new CellOffset(
+                pointer.X - (turned.X - shift.X), pointer.Y - (turned.Y - shift.Y));
+
+            // Grab it while it stands at 0°, then turn it in flight: the grabbed cell has to stay
+            // under the pointer, which means the origin moves with the turn.
+            ui.Presenter.DragStart(tome, Rotation.Degrees0, grabbed);
+            ui.Presenter.DragMove(BagDropZone.Board, pointer);
+
+            Assert.That(
+                ui.Presenter.Drag.Origin, Is.EqualTo(new CellOffset(4, 2)),
+                "before any turn the piece should sit exactly one cell up and left of the pointer");
+
+            ui.Presenter.RotateDrag();
+
+            Assert.That(
+                ui.Presenter.Drag.Rotation, Is.EqualTo(Rotation.Degrees90));
+            Assert.That(
+                ui.Presenter.Drag.Origin, Is.EqualTo(expected),
+                "a piece grabbed at " + grabbed + " and turned in flight landed at "
+                + ui.Presenter.Drag.Origin + " instead of " + expected);
+
+            ui.Presenter.RotateDrag();
+
+            FootprintRotation.Rotate(shape, Rotation.Degrees180, out CellOffset shift180);
+            CellOffset turned180 = FootprintRotation.Turn(local, Rotation.Degrees180);
+            var expected180 = new CellOffset(
+                pointer.X - (turned180.X - shift180.X), pointer.Y - (turned180.Y - shift180.Y));
+
+            Assert.That(
+                ui.Presenter.Drag.Origin, Is.EqualTo(expected180),
+                "a second turn did not keep the grabbed cell under the pointer");
+        }
+
+        /// <summary>
+        /// The L-shaped รยาม: a 4-cell piece whose footprint changes shape when it turns, grabbed by
+        /// the cell at the end of its foot. The pointer stays over that cell through a turn.
+        /// </summary>
+        [Test]
+        public void The_L_shaped_bag_keeps_its_grabbed_cell_through_a_turn()
+        {
+            RunSession run = AtFirstCamp();
+            var state = new CampUiState();
+            var presenter = new CampPresenter(run, _config, _text, state);
+            presenter.Begin();
+
+            var added = run.Backpack.AddBag("bag.wicker_basket_l");
+            Assert.That(added.IsSuccess, Is.True, "the run could not take the L-shaped รยาม");
+            PieceRef bag = added.Value;
+            Assert.That(MoveTo(run, bag, 0, 4), Is.True, "the L-shaped รยาม could not be placed at (0,4)");
+
+            presenter.Refresh();
+
+            var pointer = new CellOffset(5, 3);
+            presenter.DragStart(bag, Rotation.Degrees0, new CellOffset(1, 6));
+            presenter.DragMove(BagDropZone.Board, pointer);
+
+            Assert.That(
+                presenter.Drag.Origin, Is.EqualTo(new CellOffset(4, 1)),
+                "the grabbed foot cell did not stay under the pointer: " + presenter.Drag.Origin);
+
+            presenter.RotateDrag();
+
+            CampDragState drag = presenter.Drag;
+            Assert.That(drag.Rotation, Is.EqualTo(Rotation.Degrees90));
+
+            Assert.That(run.Backpack.TryGetItem(bag.InstanceId, out _), Is.False, "the L-shaped bag is a bag, not an item");
+            Assert.That(
+                run.Backpack.TryGetPiece(bag, out PieceInstance piece) && piece != null, Is.True,
+                "the run lost its L-shaped รยาม");
+
+            Footprint turned = run.Backpack.ShapeAt(piece, drag.Rotation);
+            var underPointer = new CellOffset(pointer.X - drag.Origin.X, pointer.Y - drag.Origin.Y);
+            Assert.That(
+                turned.Contains(underPointer), Is.True,
+                "after the turn the pointer at " + pointer + " is no longer over the piece at " + drag.Origin);
+        }
+
+        // -------------------------------------------------------------------
+        // the line's cells (Stage 09k)
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// A tome with a weapon against its right edge draws <b>one horizontal line</b>, from the
+        /// middle of the weapon's cell to the middle of the tome's cell on the row they share.
+        /// </summary>
+        [Test]
+        public void A_tome_with_a_weapon_on_its_right_draws_one_level_line_between_the_two_cells()
+        {
+            Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
+            Assert.That(MoveTo(run, tome, 0, 1), Is.True, "the tome could not be placed at (0,1)");
+            ui.Presenter.Refresh();
+
+            CampLink[] links = ui.Presenter.Bag.Links;
+            Assert.That(
+                CountLines(links), Is.EqualTo(1),
+                "one touching pair should be one line: " + Links(ui));
+
+            CampLink line = FirstLine(links);
+            Assert.That(
+                line.SourceCell.Y, Is.EqualTo(line.TargetCell.Y),
+                "the two ends of the line are not on one row: " + line);
+            Assert.That(
+                Math.Abs(line.SourceCell.X - line.TargetCell.X), Is.EqualTo(1),
+                "the line does not join the two neighbouring cells: " + line);
+
+            // The cells are the tome's right-hand cell and the weapon's own cell.
+            int tomeId = tome.InstanceId;
+            CellOffset tomeCell = line.SourceInstanceId == tomeId ? line.SourceCell : line.TargetCell;
+            CellOffset weaponCell = line.SourceInstanceId == tomeId ? line.TargetCell : line.SourceCell;
+
+            Assert.That(tomeCell, Is.EqualTo(new CellOffset(1, 1)), "the line reaches the wrong tome cell: " + tomeCell);
+            Assert.That(weaponCell, Is.EqualTo(OriginOf(run, weapon)), "the line reaches the wrong weapon cell: " + weaponCell);
+        }
+
+        /// <summary>A weapon against the tome's left edge gets the same horizontal mark.</summary>
+        [Test]
+        public void A_tome_with_a_weapon_on_its_left_draws_the_same_level_line()
+        {
+            Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
+
+            Assert.That(MoveTo(run, weapon, 0, 1), Is.True, "the weapon could not be moved to (0,1)");
+            Assert.That(MoveTo(run, tome, 1, 1), Is.True, "the tome could not be placed at (1,1)");
+            ui.Presenter.Refresh();
+
+            CampLink[] links = ui.Presenter.Bag.Links;
+            Assert.That(CountLines(links), Is.EqualTo(1), "one touching pair should be one line: " + Links(ui));
+
+            CampLink line = FirstLine(links);
+            Assert.That(line.SourceCell.Y, Is.EqualTo(line.TargetCell.Y), "the line is not level: " + line);
+            Assert.That(
+                Math.Abs(line.SourceCell.X - line.TargetCell.X), Is.EqualTo(1),
+                "the line does not join the two neighbouring cells: " + line);
+        }
+
+        /// <summary>How many lines a mark set holds.</summary>
+        private static int CountLines(CampLink[] links)
+        {
+            int lines = 0;
+
+            for (int i = 0; i < links.Length; i++)
+            {
+                if (links[i].Style == CampLinkStyle.Line)
+                {
+                    lines++;
+                }
+            }
+
+            return lines;
+        }
+
+        /// <summary>The first line in a mark set.</summary>
+        private static CampLink FirstLine(CampLink[] links)
+        {
+            for (int i = 0; i < links.Length; i++)
+            {
+                if (links[i].Style == CampLinkStyle.Line)
+                {
+                    return links[i];
+                }
+            }
+
+            Assert.Fail("the mark set holds no line");
+            return default;
         }
 
         [Test]

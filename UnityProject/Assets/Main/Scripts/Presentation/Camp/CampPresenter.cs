@@ -88,6 +88,20 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private CampDragState _drag = CampDragState.None;
         private Rotation _dragRotation = Rotation.Degrees0;
         private CellOffset _dragAnchor;
+
+        /// <summary>
+        /// The cell the player grabbed, in the footprint the piece had when the drag started, and the
+        /// tap of the shape that cell belongs to (Stage 09k). A drag with no grab offset — a click to
+        /// place, or a piece dragged out of the chest — leaves <see cref="_hasGrab"/> false.
+        /// </summary>
+        private Footprint _grabShape;
+        private CellOffset _grabCell;
+        private Rotation _grabRotation = Rotation.Degrees0;
+        private bool _hasGrab;
+
+        /// <summary>The cell the pointer last reported during this drag, before the grab offset.</summary>
+        private CellOffset _dragCell;
+
         private PieceRef _selected = PieceRef.None;
         private PieceRef _hovered = PieceRef.None;
         private string _statusCode = string.Empty;
@@ -393,10 +407,36 @@ namespace ProjectSurvive.Game.Presentation.Camp
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// Starts dragging <paramref name="piece"/>, keeping the orientation it already has so a
-        /// piece that was turned stays turned.
+        /// Starts dragging <paramref name="piece"/> with <b>no grab offset</b>: the cell under the
+        /// pointer becomes the piece's top-left cell. This is the click-to-place gesture.
         /// </summary>
-        public void DragStart(PieceRef piece, Rotation rotation)
+        public void DragStart(PieceRef piece, Rotation rotation) =>
+            StartDrag(piece, rotation, default, grabbed: false);
+
+        /// <summary>
+        /// Starts dragging <paramref name="piece"/> from the cell the player actually pressed, keeping
+        /// the orientation it already has so a piece that was turned stays turned.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <paramref name="grabbedCell"/> is the board cell under the press. It is stored as a cell of
+        /// the piece's <i>own</i> footprint, so every later <see cref="DragMove"/> can subtract it: the
+        /// cell the player grabbed stays under the pointer for the whole gesture, and the origin the
+        /// screen draws the ghost at is the origin the run is asked about (Stage 09k). Before this,
+        /// the origin was the cell under the pointer, so a 2×2 tome grabbed by its bottom-right cell
+        /// was previewed one cell up and left of where the player aimed, and a ghost shown over four
+        /// bag cells could be dropped as a placement whose top-left cell was off the bag.
+        /// </para>
+        /// <para>
+        /// A press that lands on the piece's own cell always does; a press the hit test resolved to the
+        /// piece but to a cell it does not cover keeps the old anchor, which is the shape of a bug, not
+        /// a placement.
+        /// </para>
+        /// </remarks>
+        public void DragStart(PieceRef piece, Rotation rotation, CellOffset grabbedCell) =>
+            StartDrag(piece, rotation, grabbedCell, grabbed: true);
+
+        private void StartDrag(PieceRef piece, Rotation rotation, CellOffset grabbedCell, bool grabbed)
         {
             if (!piece.IsValid)
             {
@@ -425,11 +465,37 @@ namespace ProjectSurvive.Game.Presentation.Camp
             }
 
             _dragRotation = rotation;
+            _dragCell = default;
+            _grabShape = null;
+            _grabCell = default;
+            _grabRotation = rotation;
+            _hasGrab = false;
 
             if (_run.Backpack.TryGetPiece(piece, out PieceInstance instance) && instance != null
                 && instance.Zone == PieceZone.Board)
             {
                 _dragAnchor = instance.Origin;
+
+                if (grabbed)
+                {
+                    var local = new CellOffset(
+                        grabbedCell.X - instance.Origin.X, grabbedCell.Y - instance.Origin.Y);
+
+                    for (int i = 0; i < instance.CellCount; i++)
+                    {
+                        if (instance.Shape.CellAt(i) == local)
+                        {
+                            // The shape as it stands now, and the local cell inside it: a later turn
+                            // is expressed as a turn of this cell (see OriginFor), so the piece turns
+                            // about the cell the player is holding instead of jumping a row.
+                            _grabShape = instance.Shape;
+                            _grabCell = local;
+                            _grabRotation = rotation;
+                            _hasGrab = true;
+                            break;
+                        }
+                    }
+                }
             }
             else
             {
@@ -451,6 +517,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
             if (!_drag.IsActive)
             {
                 return;
+            }
+
+            if (zone == BagDropZone.Board || zone == BagDropZone.Chest)
+            {
+                _dragCell = cell;
+                cell = OriginFor(cell, _dragRotation);
             }
 
             CampDragState next = Evaluate(_drag.Piece, zone, cell, _dragRotation, _drag);
@@ -478,8 +550,14 @@ namespace ProjectSurvive.Game.Presentation.Camp
             Counters.DragRotations++;
 
             // A bag's turn is a new placement at the same cell, so the riders' landing places are
-            // recomputed: the difference in rotation is what the plan reads (ADR 0020 §1).
-            _drag = Evaluate(_drag.Piece, _drag.Zone, _drag.Origin, _dragRotation, _drag);
+            // recomputed: the difference in rotation is what the plan reads (ADR 0020 §1). The
+            // grabbed cell stays under the pointer, so a turn is also a new origin — computed from
+            // the same pointer cell the last move reported.
+            CellOffset origin = _drag.Zone == BagDropZone.Board || _drag.Zone == BagDropZone.Chest
+                ? OriginFor(_dragCell, _dragRotation)
+                : _drag.Origin;
+
+            _drag = Evaluate(_drag.Piece, _drag.Zone, origin, _dragRotation, _drag);
             PublishDrag();
         }
 
@@ -514,6 +592,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
             BagDropZone zone = _drag.Zone;
             CellOffset origin = _drag.Origin;
             Rotation rotation = _drag.Rotation;
+
+            // The gesture is over, so nothing is "selected" any more — whether the release was
+            // accepted or refused. A refused drop used to leave the piece (or, through the click
+            // handler firing right after the drag, whatever stood under the pointer) painted in the
+            // selection colour with no gesture left to explain it (Stage 09k).
+            _selected = PieceRef.None;
 
             EndDrag();
 
@@ -980,8 +1064,42 @@ namespace ProjectSurvive.Game.Presentation.Camp
         {
             _dragRotation = Rotation.Degrees0;
             _drag = CampDragState.None;
+            _dragCell = default;
+            _grabShape = null;
+            _grabCell = default;
+            _grabRotation = Rotation.Degrees0;
+            _hasGrab = false;
             _carryScratch.Clear();
             PublishDrag();
+        }
+
+        /// <summary>
+        /// The piece's top-left cell for a pointer at <paramref name="pointerCell"/>: the pointer cell
+        /// minus the cell the player grabbed, turned with the piece.
+        /// </summary>
+        /// <remarks>
+        /// The turn is <see cref="FootprintRotation"/>'s — the same map a bag's riders go through
+        /// (ADR 0020) — so the grabbed cell keeps its place in the footprint when the piece is turned
+        /// during the drag. Nothing is re-derived here: <c>Rotate</c> also publishes the translation its
+        /// re-normalisation removed, which is what keeps the offset in the normalised frame. The common
+        /// case is no turn at all, where <c>Rotate</c> returns early and nothing is allocated.
+        /// </remarks>
+        private CellOffset OriginFor(CellOffset pointerCell, Rotation rotation)
+        {
+            if (!_hasGrab || _grabShape == null)
+            {
+                return pointerCell;
+            }
+
+            Rotation turn = RotationOps.FromQuarterTurns(
+                rotation.QuarterTurns() - _grabRotation.QuarterTurns());
+
+            FootprintRotation.Rotate(_grabShape, turn, out CellOffset shift);
+            CellOffset turned = FootprintRotation.Turn(_grabCell, turn);
+
+            return new CellOffset(
+                pointerCell.X - (turned.X - shift.X),
+                pointerCell.Y - (turned.Y - shift.Y));
         }
 
         private void PublishDrag()
@@ -1219,23 +1337,30 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 switch (kind)
                 {
                     case SynergyKind.SameRow:
-                    case SynergyKind.SameColumn:
-                        // Stage 09j: the rule reaches any partner on the same line, however far
-                        // away; the *line* is only drawn for a pair that also touches along a
-                        // board edge. A pair a row apart with a gap (or another item) between
-                        // them is still a working combo — it is shown by the hover and drag
-                        // highlight and named on the tooltip — but a permanent mark between two
-                        // pieces with nothing between them would cross the empty cells, the
-                        // third piece and the names it passes. The relation is Core's own
-                        // `IsAdjacentTo` (the same predicate the adjacency rules use), so this
-                        // is a drawing decision and not a second copy of a rule.
-                        if (!TouchesAlongAnEdge(synergy.SourceInstanceId, synergy.TargetInstanceId))
+                        // Stage 09k: the rule reaches any partner on the same row, however far away;
+                        // the *line* is drawn for a tome and a weapon that touch left-to-right and
+                        // share a row, and it is always horizontal — from the middle of the weapon's
+                        // cell to the middle of the tome's cell in that row. Stage 09j bridged the
+                        // two nearest rectangle edges instead, which for a 2x2 tome beside a 1x1
+                        // weapon drew a near-vertical stub across the cells' join; and a rule that
+                        // reaches a partner with a gap between them still draws nothing permanent
+                        // (it is shown by the hover and the tooltip).
+                        if (!TryHorizontalPairCells(synergy.SourceInstanceId, synergy.TargetInstanceId,
+                                out CellOffset sourceCell, out CellOffset targetCell))
                         {
                             break;
                         }
 
                         _linkScratch.Add(new CampLink(
-                            synergy.SourceInstanceId, synergy.TargetInstanceId, CampLinkStyle.Line));
+                            synergy.SourceInstanceId, synergy.TargetInstanceId, CampLinkStyle.Line,
+                            sourceCell, targetCell));
+                        break;
+
+                    case SynergyKind.SameColumn:
+                        // The same-line idea along a column has no horizontal mark: a line between
+                        // two pieces above one another would run through the cells between them and
+                        // through their own names. Such a pair is shown by the hover highlight and
+                        // named on the tooltip, like any other pair without a permanent mark.
                         break;
 
                     case SynergyKind.BagArea:
@@ -1257,23 +1382,65 @@ namespace ProjectSurvive.Game.Presentation.Camp
         }
 
         /// <summary>
-        /// True when the two pieces share a board edge (4 directions, no diagonals) — the condition
-        /// under which a same-line pair also gets a permanent line (Stage 09j).
+        /// The two <b>cells</b> a same-row tome–weapon pair's line joins, or false when the pair does
+        /// not touch left-to-right on a shared row (Stage 09k).
         /// </summary>
         /// <remarks>
-        /// Asked of the run's own pieces, so the answer follows the bag that carries them: a bag turn
-        /// moves both partners and the relation is re-asked on the next evaluation rather than cached
-        /// from the picture. The predicate is <see cref="PieceInstance.IsAdjacentTo"/>, which is also
-        /// what <c>synergy.kind = AdjacentPair</c> uses — one definition of "ติดกัน" for the whole
-        /// project.
+        /// <para>
+        /// The cells are found from the run's own pieces: no distance is invented here, and a pair with
+        /// a gap between it — or a diagonal pair, or a pair touching above/below — has no cell pair and
+        /// therefore no line. The row is the <i>topmost</i> one the two pieces share <b>and touch on</b>,
+        /// which is the stage's "แถวร่วมแถวบนสุด": a vertical weapon beside a 2×2 tome can share two
+        /// rows, and the mark belongs on the upper one.
+        /// </para>
+        /// <para>
+        /// Both cells lie in the same row, so the view's stroke between their middles is horizontal by
+        /// construction, and because the cells are neighbours nothing stands between them — the line
+        /// cannot cross a third item.
+        /// </para>
         /// </remarks>
-        private bool TouchesAlongAnEdge(int sourceInstanceId, int targetInstanceId)
+        private bool TryHorizontalPairCells(
+            int sourceInstanceId, int targetInstanceId, out CellOffset sourceCell, out CellOffset targetCell)
         {
-            return _run.Backpack.TryGetItem(sourceInstanceId, out ItemInstance source)
-                && _run.Backpack.TryGetItem(targetInstanceId, out ItemInstance target)
-                && source != null
-                && target != null
-                && source.IsAdjacentTo(target);
+            sourceCell = default;
+            targetCell = default;
+
+            if (!_run.Backpack.TryGetItem(sourceInstanceId, out ItemInstance source) || source == null
+                || !_run.Backpack.TryGetItem(targetInstanceId, out ItemInstance target) || target == null)
+            {
+                return false;
+            }
+
+            int row = int.MaxValue;
+
+            for (int i = 0; i < source.CellCount; i++)
+            {
+                CellOffset a = source.CellAt(i);
+
+                if (a.Y > row)
+                {
+                    continue;
+                }
+
+                for (int j = 0; j < target.CellCount; j++)
+                {
+                    CellOffset b = target.CellAt(j);
+
+                    // Same row and side by side: left/right contact only, never a diagonal and never
+                    // a pair stacked above one another.
+                    if (b.Y != a.Y || Math.Abs(a.X - b.X) != 1)
+                    {
+                        continue;
+                    }
+
+                    row = a.Y;
+                    sourceCell = a;
+                    targetCell = b;
+                    break;
+                }
+            }
+
+            return row != int.MaxValue;
         }
 
         /// <summary>The kind of a rule the screen is drawing, or false when the config has no such row.</summary>

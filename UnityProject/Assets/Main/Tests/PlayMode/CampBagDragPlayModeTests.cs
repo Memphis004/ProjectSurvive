@@ -220,16 +220,38 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         {
             yield return LoadCamp();
 
+            RunSession run = _director.Run;
+            CampPresenter presenter = _director.Presenter;
+
             CampPieceModel bag = FirstPieceOfKind(PieceKind.Bag);
             CampPieceModel carried = FirstPieceOfKind(PieceKind.Item);
-            CellOffset from = BagOnlyCell(bag, out bool found);
-            Assert.That(found, Is.True, "the fixture found no bag cell that holds nothing else to grab the bag by");
 
+            // Park the rider on the bag's last cell, leaving the bag's own top-left cell free to
+            // grab. Since Stage 09k the grabbed cell stays under the pointer, so the far corner is
+            // only refused when the pointer cell <b>is</b> the origin: grabbing a lower-right cell
+            // would still leave room for the piece up and left of the corner.
+            int width = bag.Shape == null ? 1 : bag.Shape.Width;
+            int height = bag.Shape == null ? 1 : bag.Shape.Height;
+            var parked = new CellOffset(bag.Origin.X + width - 1, bag.Origin.Y + height - 1);
+
+            if (carried.Origin != parked)
+            {
+                Assert.That(
+                    run.MovePiece(carried.Piece, parked, Rotation.Degrees0).IsSuccess, Is.True,
+                    "the rider could not be parked on the bag's last cell");
+                presenter.Refresh();
+                Canvas.ForceUpdateCanvases();
+                yield return null;
+            }
+
+            bag = FirstPieceOfKind(PieceKind.Bag);
+            carried = FirstPieceOfKind(PieceKind.Item);
+
+            var from = new CellOffset(bag.Origin.X, bag.Origin.Y);
             CellOffset to = new CellOffset(_bag.BoardWidth - 1, _bag.BoardHeight - 1);
 
             yield return Drag(CellCentre(from.X, from.Y), CellCentre(to.X, to.Y));
 
-            CampPresenter presenter = _director.Presenter;
             Assert.That(presenter.Counters.DragPreviews, Is.GreaterThan(0), "no drag handler ran");
             Assert.That(presenter.Counters.InvalidDrops, Is.GreaterThan(0), "a drop that should have been refused was not");
             Assert.That(
@@ -273,8 +295,13 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             CellOffset to = FarthestFreeBagCell(bag, out bool fits);
             Assert.That(fits, Is.True, "the fixture found nowhere the bag fits whole");
 
+            // The grabbed cell stays under the pointer (Stage 09k): the pointer goes to the landing
+            // origin plus the cell that was taken hold of, never to the origin itself.
+            var grab = new CellOffset(from.X - bag.Origin.X, from.Y - bag.Origin.Y);
+            var pointer = new CellOffset(to.X + grab.X, to.Y + grab.Y);
+
             Vector2 fromPoint = CellCentre(from.X, from.Y);
-            Vector2 toPoint = CellCentre(to.X, to.Y);
+            Vector2 toPoint = CellCentre(pointer.X, pointer.Y);
             Assert.That(
                 Vector2.Distance(fromPoint, toPoint), Is.GreaterThan(EventSystem.current.pixelDragThreshold * 2f),
                 "the two cells are too close on screen for the EventSystem's drag threshold");
@@ -284,6 +311,9 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             CampPresenter presenter = _director.Presenter;
             Assert.That(presenter.Counters.DragPreviews, Is.GreaterThan(0), "no drag handler ran: the pointer never reached the view");
             Assert.That(presenter.IsDragging, Is.True, "the gesture ended before it could be read");
+            Assert.That(
+                presenter.Drag.Origin, Is.EqualTo(to),
+                "the run is asked about " + presenter.Drag.Origin + " but the bag was aimed at " + to);
             Assert.That(
                 presenter.Drag.CarryCount, Is.EqualTo(1),
                 "the item standing on the bag is not riding with it");
@@ -763,43 +793,327 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 "the line did not come back when the weapon returned to the tome's edge: the view drew "
                 + _bag.VisibleLineCount);
 
-            // The mark it came back as still reaches the two pieces and no name.
+            // The mark it came back as is horizontal and joins the two cells the model named
+            // (Stage 09k): from the middle of one cell to the middle of the other, one row.
             Assert.That(_bag.TryGetLineScreenEnds(0, out Vector2 from, out Vector2 to), Is.True);
-            Assert.That(
-                _bag.TryGetPieceScreenRect(tome.Value, out Rect tomeRect), Is.True,
-                "the tome has no rectangle on screen");
-            Assert.That(
-                _bag.TryGetPieceScreenRect(touchingWeapon, out Rect weaponRect), Is.True,
-                "the weapon has no rectangle on screen");
 
+            CampLink line = FirstLine(_bag.Model.Links);
+            Assert.That(line.Style, Is.EqualTo(CampLinkStyle.Line));
             Assert.That(
-                tomeRect.Contains(from) || EdgesWithin(from, tomeRect, 1f), Is.True,
-                "the line does not start on the tome: " + from + " against " + tomeRect);
+                CellCentre(line.SourceCell.X, line.SourceCell.Y), Is.EqualTo(from).Within(1f),
+                "the line does not start at the middle of the cell it names: " + from);
             Assert.That(
-                weaponRect.Contains(to) || EdgesWithin(to, weaponRect, 1f), Is.True,
-                "the line does not end on the weapon: " + to + " against " + weaponRect);
+                CellCentre(line.TargetCell.X, line.TargetCell.Y), Is.EqualTo(to).Within(1f),
+                "the line does not end at the middle of the cell it names: " + to);
+            Assert.That(
+                to.y, Is.EqualTo(from.y).Within(0.5f),
+                "the line is not horizontal: " + from + " -> " + to);
+            Assert.That(
+                line.SourceCell.Y, Is.EqualTo(line.TargetCell.Y),
+                "the two ends of a line are not on one row: " + line);
 
-            for (int i = 0; i < _bag.VisibleLineCount; i++)
+            // The names are drawn after the marks, so a stroke along the middle of a row runs
+            // <b>behind</b> the word and never over it (Stage 09k).
+            AssertNamesAreDrawnAfterTheLines();
+        }
+
+        /// <summary>Every line has a name drawn after it, and no piece is drawn after the marks.</summary>
+        private void AssertNamesAreDrawnAfterTheLines()
+        {
+            RectTransform marks = _bag.LineContainer;
+            Assert.That(marks, Is.Not.Null, "the view has no line container");
+
+            RectTransform board = marks.parent as RectTransform;
+            Assert.That(board, Is.Not.Null, "the line container is not under the board");
+
+            int markIndex = marks.GetSiblingIndex();
+            RectTransform labelRoot = null;
+
+            for (int i = 0; i < board.childCount; i++)
             {
-                Assert.That(_bag.TryGetLineScreenEnds(i, out Vector2 start, out Vector2 finish), Is.True);
+                var child = (RectTransform)board.GetChild(i);
+                TMP_Text label = child.Find(CampBagScreenView.CellLabelName)?.GetComponent<TMP_Text>();
 
-                foreach (TMP_Text label in _bag.GetComponentsInChildren<TMP_Text>(true))
+                if (label != null)
                 {
-                    if (label.name != CampBagScreenView.CellLabelName || !label.gameObject.activeInHierarchy)
-                    {
-                        continue;
-                    }
-
-                    if (!CampScreenRects.TryOf((RectTransform)label.transform, out Rect text))
-                    {
-                        continue;
-                    }
-
                     Assert.That(
-                        Crosses(start, finish, text), Is.False,
-                        "line " + i + " runs through the name '" + label.text + "' at " + text);
+                        i, Is.LessThan(markIndex),
+                        child.name + " is a piece drawn after the combo lines, which would hide the mark");
+                }
+
+                // The names live in a container of their own (Stage 09k), so the thing to compare
+                // with the marks is that container, not each piece's box.
+                if (child.name == "PieceLabels")
+                {
+                    labelRoot = child;
+                    Assert.That(
+                        i, Is.GreaterThan(markIndex),
+                        "the names at sibling " + i + " are drawn before the line container at " + markIndex
+                        + " — the line would paint over the word");
                 }
             }
+
+            Assert.That(labelRoot, Is.Not.Null, "no name container is drawn above the lines, so nothing was checked");
+
+            int boxes = 0;
+            for (int i = 0; i < labelRoot.childCount; i++)
+            {
+                if (labelRoot.GetChild(i).name == "LabelBox")
+                {
+                    boxes++;
+                }
+            }
+
+            Assert.That(boxes, Is.GreaterThan(0), "the name container holds no name box, so nothing was checked");
+        }
+
+        /// <summary>The first line the model lists.</summary>
+        private static CampLink FirstLine(CampLink[] links)
+        {
+            for (int i = 0; i < links.Length; i++)
+            {
+                if (links[i].Style == CampLinkStyle.Line)
+                {
+                    return links[i];
+                }
+            }
+
+            Assert.Fail("the model lists no line");
+            return default;
+        }
+
+        /// <summary>
+        /// Stage 09k: a 2×2 tome grabbed by its <b>lower-right cell</b> is dropped on the cells its
+        /// ghost covered — not one cell up and left of them, which is what the old origin did.
+        /// </summary>
+        /// <remarks>
+        /// The gesture is a real pointer drag, so this covers the whole chain the player uses: the hit
+        /// test's press cell, the grab offset the presenter stores, the ghost the view draws and the
+        /// origin the run is asked about. The cell under the pointer is deliberately not the piece's
+        /// top-left, because with the old code that difference is exactly what made a green ghost
+        /// land on a placement the run refused with <c>inventory.item_not_covered</c>.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator A_tome_grabbed_by_its_lower_corner_drops_where_the_ghost_showed()
+        {
+            yield return LoadCamp();
+
+            RunSession run = _director.Run;
+            CampPresenter presenter = _director.Presenter;
+
+            Assert.That(
+                run.MovePiece(run.Backpack.Bags[0].Ref, new CellOffset(0, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the starting รยาม could not be moved to (0,1)");
+
+            var secondBag = run.Backpack.AddBag("bag.raw_cotton_bag");
+            Assert.That(secondBag.IsSuccess, Is.True, "a second รยาม could not be added");
+            Assert.That(
+                run.MovePiece(secondBag.Value, new CellOffset(3, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the second รยาม could not be placed at (3,1)");
+
+            Assert.That(
+                run.MovePiece(run.Backpack.Items[0].Ref, new CellOffset(2, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the weapon could not be placed against the tome's right edge");
+
+            var tome = run.Backpack.AddItem("item.spell_tome");
+            Assert.That(tome.IsSuccess, Is.True, "the tome could not be added");
+            Assert.That(
+                run.MovePiece(tome.Value, new CellOffset(0, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the 2x2 tome could not be placed at (0,1)");
+
+            presenter.Refresh();
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            CellOffset freeBlock = FreeTwoByTwoBlockCoveredByABag(out bool found);
+            Assert.That(found, Is.True, "the fixture found no free 2x2 bag block for the tome");
+
+            // The cell the player holds is the tome's lower-right one, so the pointer has to be over
+            // the free block's lower-right cell for the piece to land on the block.
+            var grabbed = new CellOffset(1, 2);
+            var pointer = new CellOffset(freeBlock.X + 1, freeBlock.Y + 1);
+            Assert.That(Piece(tome.Value).Origin, Is.EqualTo(new CellOffset(0, 1)));
+
+            yield return DragWithoutReleasing(CellCentre(grabbed.X, grabbed.Y), CellCentre(pointer.X, pointer.Y));
+
+            Assert.That(presenter.IsDragging, Is.True, "the drag never started");
+            Assert.That(
+                presenter.Drag.Origin, Is.EqualTo(freeBlock),
+                "the run is asked about " + presenter.Drag.Origin + " but the pointer is over " + pointer);
+            Assert.That(presenter.Drag.IsValid, Is.True, "the ghost claims this placement is legal");
+
+            Assert.That(_bag.TryGetDragGhostScreenRect(out Rect ghost), Is.True, "no ghost is drawn mid-drag");
+
+            // The ghost covers a 2×2 block, so its middle sits on the corner shared by four cells and
+            // cannot name one. Its two diagonal quadrants each fall inside one cell: the top-left one
+            // names the origin the run is asked about, the bottom-right one the cell under the pointer.
+            Assert.That(
+                _bag.TryBoardCell(
+                    new Vector2(ghost.xMin + (ghost.width * 0.25f), ghost.yMax - (ghost.height * 0.25f)),
+                    out CellOffset ghostOriginCell),
+                Is.True, "the ghost's top-left quadrant is not over the board");
+            Assert.That(
+                _bag.TryBoardCell(
+                    new Vector2(ghost.xMax - (ghost.width * 0.25f), ghost.yMin + (ghost.height * 0.25f)),
+                    out CellOffset ghostPointerCell),
+                Is.True, "the ghost's bottom-right quadrant is not over the board");
+
+            Assert.That(
+                ghostOriginCell, Is.EqualTo(freeBlock),
+                "the ghost covers cells starting at " + ghostOriginCell + " while the command would place at "
+                + presenter.Drag.Origin);
+            Assert.That(
+                ghostPointerCell, Is.EqualTo(pointer),
+                "the ghost does not reach the cell the pointer is over: " + ghostPointerCell + " against "
+                + pointer);
+
+            yield return ReleaseAt(CellCentre(pointer.X, pointer.Y));
+
+            Assert.That(presenter.IsDragging, Is.False, "the drop never ended");
+            Assert.That(
+                Piece(tome.Value).Origin, Is.EqualTo(freeBlock),
+                "the tome landed at " + Piece(tome.Value).Origin + " instead of the cells the ghost showed ("
+                + freeBlock + ")");
+            Assert.That(presenter.StatusCode, Is.Empty, "a legal drop was refused: " + presenter.StatusCode);
+            Assert.That(_bag.SelectedPiece, Is.EqualTo(PieceRef.None), "the drop left a selection behind");
+            Assert.That(_bag.TryGetDragGhostScreenRect(out _), Is.False, "the ghost survived the drop");
+        }
+
+        /// <summary>
+        /// Stage 09k: a refused drop leaves nothing behind — no ghost, no highlighted cells and no
+        /// selection — and the piece is back where it started.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator A_refused_drop_clears_the_ghost_the_highlight_and_the_selection()
+        {
+            yield return LoadCamp();
+
+            RunSession run = _director.Run;
+            CampPresenter presenter = _director.Presenter;
+
+            var tome = run.Backpack.AddItem("item.spell_tome");
+            Assert.That(tome.IsSuccess, Is.True, "the tome could not be added");
+
+            CellOffset block = FreeTwoByTwoBlockCoveredByABag(out bool found);
+            Assert.That(found, Is.True, "the fixture found no free 2x2 bag block for the tome");
+            Assert.That(
+                run.MovePiece(tome.Value, block, Rotation.Degrees0).IsSuccess, Is.True,
+                "the 2x2 tome could not be placed at " + block);
+
+            presenter.Refresh();
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            CampPieceModel before = Piece(tome.Value);
+
+            // Grab the tome by its top-left cell, so the pointer cell is the origin the run is asked
+            // about: the far corner then leaves no room for 2x2 and the drop is refused. Grabbing a
+            // lower-right cell would still fit up and left of the corner (Stage 09k).
+            Vector2 from = CellCentre(block.X, block.Y);
+            Vector2 to = CellCentre(_bag.BoardWidth - 1, _bag.BoardHeight - 1);
+
+            yield return DragWithoutReleasing(from, to);
+
+            Assert.That(presenter.IsDragging, Is.True, "the drag never started");
+            Assert.That(presenter.Drag.IsValid, Is.False, "the fixture dropped on a cell the rules accept");
+
+            yield return ReleaseAt(to);
+
+            Assert.That(presenter.IsDragging, Is.False, "the drop never ended");
+            Assert.That(presenter.Counters.InvalidDrops, Is.GreaterThan(0), "the drop was not refused");
+            Assert.That(presenter.StatusCode, Is.Not.Empty, "a refusal said nothing to the player");
+            Assert.That(
+                Piece(tome.Value).Origin, Is.EqualTo(before.Origin),
+                "a refused drop moved the piece anyway");
+
+            Assert.That(_bag.TryGetDragGhostScreenRect(out _), Is.False, "the ghost is still on screen after a refusal");
+            Assert.That(_bag.SelectedPiece, Is.EqualTo(PieceRef.None), "the piece is still painted as selected");
+            Assert.That(presenter.Selected, Is.EqualTo(PieceRef.None), "the presenter still has a selection");
+        }
+
+        /// <summary>
+        /// Stage 09k, with the real pointer: carrying the weapon off the tome's row takes the line with
+        /// it, and carrying it back brings it back — in the same camp visit, with no refresh in between.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator A_line_goes_and_comes_back_with_a_real_pointer_drag()
+        {
+            yield return LoadCamp();
+
+            RunSession run = _director.Run;
+            CampPresenter presenter = _director.Presenter;
+
+            PieceRef weapon = run.Backpack.Items[0].Ref;
+            Assert.That(
+                run.MovePiece(run.Backpack.Bags[0].Ref, new CellOffset(0, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the starting รยาม could not be moved to (0,1)");
+
+            var secondBag = run.Backpack.AddBag("bag.raw_cotton_bag");
+            Assert.That(secondBag.IsSuccess, Is.True, "a second รยาม could not be added");
+            Assert.That(
+                run.MovePiece(secondBag.Value, new CellOffset(3, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the second รยาม could not be placed at (3,1)");
+            Assert.That(
+                run.MovePiece(weapon, new CellOffset(2, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the weapon could not be placed at (2,1)");
+
+            var tome = run.Backpack.AddItem("item.spell_tome");
+            Assert.That(tome.IsSuccess, Is.True, "the tome could not be added");
+            Assert.That(
+                run.MovePiece(tome.Value, new CellOffset(0, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the 2x2 tome could not be placed at (0,1)");
+
+            presenter.Refresh();
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            Assert.That(_bag.VisibleLineCount, Is.EqualTo(1), "the touching pair draws no line to begin with");
+
+            yield return Drag(CellCentre(2, 1), CellCentre(2, 3));
+
+            Assert.That(
+                _bag.VisibleLineCount, Is.Zero,
+                "the line survived the weapon being carried off the tome's row");
+
+            yield return Drag(CellCentre(2, 3), CellCentre(2, 1));
+
+            Assert.That(
+                _bag.VisibleLineCount, Is.EqualTo(1),
+                "the line did not come back when the weapon returned to the tome's edge");
+            AssertNamesAreDrawnAfterTheLines();
+        }
+
+        /// <summary>A free 2×2 block of bag cells, so the tome has somewhere it is legal to land.</summary>
+        private CellOffset FreeTwoByTwoBlockCoveredByABag(out bool found)
+        {
+            CampPieceModel[] pieces = _bag.Model.Pieces;
+            found = false;
+            var best = new CellOffset(-1, -1);
+
+            for (int row = 0; row + 1 < _bag.BoardHeight; row++)
+            {
+                for (int column = 0; column + 1 < _bag.BoardWidth; column++)
+                {
+                    bool free = true;
+
+                    for (int dy = 0; dy < 2 && free; dy++)
+                    {
+                        for (int dx = 0; dx < 2 && free; dx++)
+                        {
+                            var cell = new CellOffset(column + dx, row + dy);
+                            free = !OccupiedByAnItem(pieces, cell) && CoveredByABag(pieces, cell);
+                        }
+                    }
+
+                    if (free)
+                    {
+                        found = true;
+                        best = new CellOffset(column, row);
+                    }
+                }
+            }
+
+            return best;
         }
 
         /// <summary>True when the point is on the rectangle's edge, within a tolerance.</summary>

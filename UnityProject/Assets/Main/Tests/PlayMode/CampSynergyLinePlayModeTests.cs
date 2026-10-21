@@ -178,22 +178,23 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         }
 
         /// <summary>
-        /// Where a mark is drawn: both ends on the two pieces' <b>edges</b> (within 1 px), the middle of
-        /// the stroke in the gap between them, and the stroke clear of every name drawn in a cell.
+        /// Where a mark is drawn (Stage 09k): level, from the middle of one cell to the middle of the
+        /// other, on the row the two cells share — and the names are painted above it.
         /// </summary>
         /// <remarks>
-        /// Before this stage the mark ran centre to centre and, since Stage 09i, was painted above the
-        /// pieces — so it ran straight through both names. An end on the edge is what makes that
-        /// impossible: the stroke exists only between the two rectangles.
+        /// Stage 09j bridged the nearest edges of the two rectangles instead, which for a 2×2 tome
+        /// beside a 1×1 weapon was a near-vertical stub across the cells' join — the mark the player
+        /// reported. A stroke along a row crosses the names' cells by design; what keeps it off the
+        /// words is the layer, which is asserted below and painted by the label container.
         /// </remarks>
         [UnityTest]
-        public IEnumerator Every_line_bridges_the_gap_between_the_two_pieces_it_connects()
+        public IEnumerator Every_line_is_level_and_joins_the_two_cells_it_names()
         {
             yield return LoadCampWithTouchingAndDistantWeapons();
 
             Assert.That(_bag.VisibleLineCount, Is.GreaterThan(0), "there is no line to measure");
-            AssertEveryLineBridgesItsPieces("a fresh board");
-            AssertNoLineCrossesAName("a fresh board");
+            AssertEveryLineJoinsItsCells("a fresh board");
+            AssertTheNamesAreDrawnOverTheLines();
         }
 
         /// <summary>
@@ -216,7 +217,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 yield return null;
 
                 Assert.That(_bag.VisibleLineCount, Is.EqualTo(1), "a rotation of the tome changed the number of lines");
-                AssertEveryLineBridgesItsPieces("after turning the tome " + (turn + 1) + " quarter(s)");
+                AssertEveryLineJoinsItsCells("after turning the tome " + (turn + 1) + " quarter(s)");
             }
         }
 
@@ -250,7 +251,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 _bag.VisibleLineCount, Is.EqualTo(1),
                 "the line did not come back when the weapon returned to the tome's edge, and the view drew "
                 + _bag.VisibleLineCount);
-            AssertEveryLineBridgesItsPieces("after the weapon returned to the tome's edge");
+            AssertEveryLineJoinsItsCells("after the weapon returned to the tome's edge");
         }
 
         /// <summary>
@@ -280,8 +281,8 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                     "the canvas did not take the 720p factor: it is scaled by " + factor);
 
                 Assert.That(_bag.VisibleLineCount, Is.EqualTo(1), "the resized canvas changed the number of lines");
-                AssertEveryLineBridgesItsPieces("at a canvas scale of " + factor.ToString("0.###"));
-                AssertNoLineCrossesAName("at a canvas scale of " + factor.ToString("0.###"));
+                AssertEveryLineJoinsItsCells("at a canvas scale of " + factor.ToString("0.###"));
+                AssertTheNamesAreDrawnOverTheLines();
 
                 // The stage's thickness is a 1080p statement: at this factor the same line is two
                 // thirds of that on screen, which is correct for a scaled canvas and is reported rather
@@ -337,8 +338,13 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         /// The layer the stage asks for: the lines are the board's <b>last</b> children, after every
         /// piece and the name inside it, so a mark that reaches a piece is seen reaching it.
         /// </summary>
+        /// <remarks>
+        /// Since Stage 09k the names live in a container of their own after the marks, because a line
+        /// along the middle of a row would otherwise be painted across the middle of a name. The order
+        /// this asserts is therefore: every piece, then the combo lines, then the badges, then the names.
+        /// </remarks>
         [UnityTest]
-        public IEnumerator The_lines_are_drawn_after_every_piece_and_its_name()
+        public IEnumerator The_lines_are_drawn_after_every_piece_and_before_every_name()
         {
             yield return LoadCampWithTouchingAndDistantWeapons();
 
@@ -350,36 +356,59 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             int lineIndex = container.GetSiblingIndex();
             int pieces = 0;
+            int names = 0;
+            RectTransform labelRoot = null;
 
             for (int i = 0; i < board.childCount; i++)
             {
                 var child = (RectTransform)board.GetChild(i);
 
-                // A piece is the child that carries a name of its own; the cells, the ghosts and the
-                // two mark containers are not pieces and may sit either side of the marks.
-                TMP_Text label = child.Find(CampBagScreenView.CellLabelName)?.GetComponent<TMP_Text>();
-                if (label == null)
+                // A piece is the child the view creates for it; the cells, the ghosts and the mark
+                // containers are not pieces and may sit either side of the marks.
+                if (child.name == "Piece")
                 {
-                    continue;
+                    pieces++;
+
+                    Assert.That(
+                        i, Is.LessThan(lineIndex),
+                        child.name + " (a piece) is drawn at sibling " + i
+                        + ", at or after the line container at " + lineIndex
+                        + " — the line would run under the piece it names");
                 }
 
-                pieces++;
+                // The names live in one container of their own (Stage 09k), and it is the container
+                // that has to sit above the marks: every box inside it then does too.
+                if (child.name == "PieceLabels")
+                {
+                    labelRoot = child;
 
-                Assert.That(
-                    i, Is.LessThan(lineIndex),
-                    child.name + " (a piece and its name) is drawn at sibling " + i
-                    + ", at or after the line container at " + lineIndex
-                    + " — the line would run under the piece it names");
+                    Assert.That(
+                        i, Is.GreaterThan(lineIndex),
+                        "the names are drawn at sibling " + i + ", before the line container at "
+                        + lineIndex + " — the line would be painted over the word");
+                }
             }
 
             Assert.That(pieces, Is.GreaterThanOrEqualTo(4), "the board drew too few pieces to judge the order");
+            Assert.That(labelRoot, Is.Not.Null, "the board drew no name container above the marks");
 
-            // Nothing is drawn above the marks except the bag-area badges, which are the other mark.
+            for (int i = 0; i < labelRoot.childCount; i++)
+            {
+                if (labelRoot.GetChild(i).name == "LabelBox")
+                {
+                    names++;
+                }
+            }
+
+            Assert.That(names, Is.GreaterThanOrEqualTo(4), "the board drew too few names to judge the order");
+
+            // Nothing else is drawn above the marks except the bag-area badges, which are the other
+            // mark, and the names, which sit above both so a stroke runs behind the word.
             for (int i = lineIndex + 1; i < board.childCount; i++)
             {
                 var child = (RectTransform)board.GetChild(i);
                 Assert.That(
-                    child.name, Is.EqualTo("BagBonusBadges"),
+                    child.name == "BagBonusBadges" || child.name == "PieceLabels",
                     "'" + child.name + "' is drawn above the combo lines, which the stage does not allow");
             }
         }
@@ -514,11 +543,10 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// Every drawn line, checked against the two rectangles it connects: each end on its own
-        /// piece's edge (within 1 px), each end still inside that piece, the stroke's middle in the gap
-        /// between them, and the stroke belonging to no third piece.
+        /// Every drawn line against the two <b>cells</b> the model names: each end is the middle of
+        /// its cell (within 1 px), the stroke is level, and the two cells are neighbours on one row.
         /// </summary>
-        private void AssertEveryLineBridgesItsPieces(string state)
+        private void AssertEveryLineJoinsItsCells(string state)
         {
             CampLink[] links = _bag.Model.Links;
             int drawn = 0;
@@ -534,48 +562,27 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                     _bag.TryGetLineScreenEnds(drawn, out Vector2 from, out Vector2 to), Is.True,
                     state + ": line " + drawn + " is listed by the model but not drawn");
 
-                var source = new PieceRef(PieceKind.Item, links[i].SourceInstanceId);
-                var target = new PieceRef(PieceKind.Item, links[i].TargetInstanceId);
+                Assert.That(
+                    links[i].SourceCell.Y, Is.EqualTo(links[i].TargetCell.Y),
+                    state + ": line " + drawn + "'s cells are not on one row: " + links[i]);
+                Assert.That(
+                    Mathf.Abs(links[i].SourceCell.X - links[i].TargetCell.X), Is.EqualTo(1),
+                    state + ": line " + drawn + "'s cells are not neighbours: " + links[i]);
+
+                Vector2 sourceMiddle = CellMiddle(links[i].SourceCell);
+                Vector2 targetMiddle = CellMiddle(links[i].TargetCell);
 
                 Assert.That(
-                    _bag.TryGetPieceScreenRect(source, out Rect sourceRect), Is.True,
-                    state + ": the source piece has no rectangle on screen");
+                    Vector2.Distance(from, sourceMiddle), Is.LessThanOrEqualTo(TolerancePixels),
+                    state + ": line " + drawn + " starts at " + from + " instead of the middle of "
+                    + links[i].SourceCell + " at " + sourceMiddle);
                 Assert.That(
-                    _bag.TryGetPieceScreenRect(target, out Rect targetRect), Is.True,
-                    state + ": the target piece has no rectangle on screen");
-
-                AssertOnEdge(state, drawn, "source", from, sourceRect);
-                AssertOnEdge(state, drawn, "target", to, targetRect);
-
-                // The middle of the stroke is between the two pieces, not inside either of them.
-                Vector2 middle = (from + to) * 0.5f;
+                    Vector2.Distance(to, targetMiddle), Is.LessThanOrEqualTo(TolerancePixels),
+                    state + ": line " + drawn + " ends at " + to + " instead of the middle of "
+                    + links[i].TargetCell + " at " + targetMiddle);
                 Assert.That(
-                    sourceRect.Contains(middle), Is.False,
-                    state + ": line " + drawn + "'s middle " + middle + " is inside the source piece " + sourceRect);
-                Assert.That(
-                    targetRect.Contains(middle), Is.False,
-                    state + ": line " + drawn + "'s middle " + middle + " is inside the target piece " + targetRect);
-
-                // And it belongs to these two pieces only: no third <b>item</b>'s rectangle holds the
-                // middle. A bag is the surface both items lie on, so the gap between them is inside
-                // the bag's own rectangle by construction — that is not the line crossing anything.
-                CampPieceModel[] pieces = _bag.Model.Pieces;
-                for (int p = 0; p < pieces.Length; p++)
-                {
-                    if (pieces[p].Piece == source || pieces[p].Piece == target || !pieces[p].IsOnBoard
-                        || pieces[p].Kind == PieceKind.Bag)
-                    {
-                        continue;
-                    }
-
-                    if (_bag.TryGetPieceScreenRect(pieces[p].Piece, out Rect other))
-                    {
-                        Assert.That(
-                            other.Contains(middle), Is.False,
-                            state + ": line " + drawn + " passes through " + pieces[p].Piece
-                            + "'s rectangle " + other);
-                    }
-                }
+                    Mathf.Abs(to.y - from.y), Is.LessThanOrEqualTo(TolerancePixels),
+                    state + ": line " + drawn + " is not level: " + from + " -> " + to);
 
                 drawn++;
             }
@@ -585,84 +592,60 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 state + ": the model lists " + drawn + " line(s) and the view drew " + _bag.VisibleLineCount);
         }
 
-        /// <summary>One end: on the piece's edge, and still within the piece (its own rectangle plus 1 px).</summary>
-        private static void AssertOnEdge(string state, int line, string end, Vector2 point, Rect piece)
+        /// <summary>The middle of a board cell on screen, which is where a line end has to be.</summary>
+        private Vector2 CellMiddle(CellOffset cell)
         {
-            float toEdge = Mathf.Min(
-                Mathf.Min(Mathf.Abs(point.x - piece.xMin), Mathf.Abs(point.x - piece.xMax)),
-                Mathf.Min(Mathf.Abs(point.y - piece.yMin), Mathf.Abs(point.y - piece.yMax)));
-
             Assert.That(
-                toEdge, Is.LessThanOrEqualTo(TolerancePixels),
-                state + ": line " + line + "'s " + end + " end " + point + " is " + toEdge.ToString("0.##")
-                + " px from the piece's edge " + piece + " — a mark has to start on the edge it bridges");
-
-            Assert.That(
-                piece.xMin - TolerancePixels <= point.x && point.x <= piece.xMax + TolerancePixels
-                && piece.yMin - TolerancePixels <= point.y && point.y <= piece.yMax + TolerancePixels,
-                state + ": line " + line + "'s " + end + " end " + point + " is outside the piece " + piece);
-        }
-
-        /// <summary>No stroke crosses a name drawn inside a cell.</summary>
-        private void AssertNoLineCrossesAName(string state)
-        {
-            TMP_Text[] labels = _bag.GetComponentsInChildren<TMP_Text>(true);
-
-            for (int line = 0; line < _bag.VisibleLineCount; line++)
-            {
-                Assert.That(_bag.TryGetLineScreenEnds(line, out Vector2 from, out Vector2 to), Is.True);
-
-                foreach (TMP_Text label in labels)
-                {
-                    if (label.name != CampBagScreenView.CellLabelName || !label.gameObject.activeInHierarchy)
-                    {
-                        continue;
-                    }
-
-                    if (!CampScreenRects.TryOf((RectTransform)label.transform, out Rect text))
-                    {
-                        continue;
-                    }
-
-                    Assert.That(
-                        SegmentCrosses(from, to, text), Is.False,
-                        state + ": line " + line + " runs through the name '" + label.text + "' at " + text);
-                }
-            }
+                _bag.TryGetBoardCellScreenPoint(cell.X, cell.Y, out Vector2 point), Is.True,
+                "the board cell " + cell + " is not on screen");
+            return point;
         }
 
         /// <summary>
-        /// True when the stroke runs <b>through</b> the name — through its inside, not merely touching the
-        /// outline:
+        /// Stage 09k's answer to "the line must not cover a name": the names are drawn after the marks.
         /// </summary>
         /// <remarks>
-        /// Both ends of a mark sit on the edges of the two pieces, and a name fills its piece, so a
-        /// point-on-the-outline test would call every correct mark a crossing. The rectangle is pulled in
-        /// by a pixel and a half and the two ends are not sampled: what is left is "did the line paint
-        /// over the letters", which is the claim.
+        /// A stroke along the middle of a row passes through the cell a one-line name is centred in, so
+        /// geometry alone cannot keep the two apart. What keeps the word readable is the layer: the
+        /// label container is a later child of the board than the line container.
         /// </remarks>
-        private static bool SegmentCrosses(Vector2 from, Vector2 to, Rect rect)
+        private void AssertTheNamesAreDrawnOverTheLines()
         {
-            const int Steps = 24;
-            const float Inset = 1.5f;
+            RectTransform container = _bag.LineContainer;
+            Assert.That(container, Is.Not.Null, "the view has no line container");
 
-            var inside = new Rect(
-                rect.x + Inset, rect.y + Inset, rect.width - (Inset * 2f), rect.height - (Inset * 2f));
+            var board = container.parent as RectTransform;
+            Assert.That(board, Is.Not.Null, "the line container is not under the board");
 
-            if (inside.width <= 0f || inside.height <= 0f)
+            int lineIndex = container.GetSiblingIndex();
+            RectTransform labelRoot = null;
+
+            for (int i = 0; i < board.childCount; i++)
             {
-                return false;
+                var child = (RectTransform)board.GetChild(i);
+                if (child.name != "PieceLabels")
+                {
+                    continue;
+                }
+
+                labelRoot = child;
+                Assert.That(
+                    i, Is.GreaterThan(lineIndex),
+                    "the names are drawn at sibling " + i + ", before the line container at " + lineIndex);
             }
 
-            for (int i = 1; i < Steps; i++)
+            Assert.That(labelRoot, Is.Not.Null, "no name container was found on the board, so nothing was checked");
+
+            int names = 0;
+            for (int i = 0; i < labelRoot.childCount; i++)
             {
-                if (inside.Contains(Vector2.Lerp(from, to, i / (float)Steps)))
+                if (labelRoot.GetChild(i).name == "LabelBox")
                 {
-                    return true;
+                    names++;
                 }
             }
 
-            return false;
+            Assert.That(names, Is.GreaterThan(0), "the name container holds no name box, so nothing was checked");
         }
 
         private static float Luminance(Color colour) =>
