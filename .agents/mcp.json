@@ -9,7 +9,8 @@
     "comfy-mcp": {
       "type": "stdio",
       "command": "comfy-mcp",
-      "args": []
+      "args": [],
+      "enabled": false
     },
     "photocraft": {
       "command": "photocraft-cli",
@@ -18,7 +19,8 @@
         "--allow-path",
         "C:/Users/Memphis/Pictures"
       ],
-      "env": {}
+      "env": {},
+      "enabled": false
     }
   }
 }

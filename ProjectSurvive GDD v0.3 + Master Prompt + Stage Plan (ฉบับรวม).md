@@ -715,6 +715,45 @@ Acceptance:
 - scripted run 5 ชั้น (stub ชนะทุกชั้น) จบที่ Result และ replay จาก log ได้ RunState hash เดิม
 - ไม่มี economy logic ใน Presenter
 - เข้าถึง Battle ผ่าน `IBattleSessionFactory` เท่านั้น (ห้ามอ้าง FakeBattleSession ตรง ๆ); replay ชั้นด้วย `BattleReplay` แล้วได้ `ComputeStateHash` เดิม
+
+ทำ Stage 06b เท่านั้น: ร้านไม่เติมสินค้าในศาลาถัดไป (แก้บั๊ก ไม่เพิ่มฟีเจอร์)
+
+อาการจากผู้ใช้: ซื้อสินค้าจากชั้นวางในศาลาหนึ่งแล้ว ช่องนั้นว่างตลอดในศาลาถัดๆ ไป
+และเสี่ยงเซียมซีสุ่มใหม่เฉพาะช่องที่ยังมีของ
+กติกา (GDD): ทุกการเข้าศาลาสร้าง stock ใหม่ 4 ช่อง; ช่องที่เช่าแล้วไม่เติมฟรีเฉพาะ ภายในศาลาเดียวกัน
+
+A. เขียนเทสต์ที่ล้มก่อนแก้ (dotnet, ข้อมูลจริง): เริ่ม run → Purchase ช่อง 0 → StartFloor → ApplyBattleResult(ชนะ) → เข้าศาลาถัดไป
+   คาดหวัง: 4 ช่องมีสินค้า, ไม่มีช่องใดถูกทำเครื่องหมายว่าเช่าแล้วหรือล็อก, RefreshCount = 0
+   ทำซ้ำกับทุกช่อง, ซื้อหลายช่อง, ซื้อทั้ง 4 ช่อง, และกรณีล็อกช่องไว้แล้วออกเดินทาง
+B. หาสาเหตุจริง (ห้ามเดา): ตรวจ ShopStock.BeginCamp, ShopSlot (IsPurchased, IsLocked), ShopRoller (CanBeRerolled)
+   และ RunSession.EnterCamp ว่า flag ของช่องถูกล้างตอนเข้าศาลาใหม่ไหม ถ้า Core ผ่านเทสต์ A ให้ไล่ต่อที่ Presenter/View
+   ของ Camp (shelf cache ที่ไม่ refresh หลังโหลดฉากใหม่) พร้อมหลักฐาน
+C. แก้ที่ต้นเหตุ และคงกติกาเดิมทุกข้อ: ซื้อช่องเดิมซ้ำในศาลาเดียวกันไม่ได้, ช่องที่ซื้อแล้วไม่เติมฟรีในศาลาเดียวกัน,
+   เปิดร้านซ้ำไม่เปลี่ยนสินค้า, refresh ไม่แตะช่องที่ล็อก
+D. ใส่เทสต์ A ไว้ใน suite Fast และเพิ่มเงื่อนไข stock ของศาลาที่ 2 ไม่ว่างและไม่ติดสถานะเช่าแล้ว ในเทสต์ 20 รอบของ Stage 10
+
+Acceptance: เทสต์ A ล้มก่อนแก้และผ่านหลังแก้ (แนบผลทั้งสองครั้ง), เทสต์เดิมทั้งหมดผ่าน, รายงานสั้น PASS / FAIL / NOT RUN
+
+ทำ Stage 06c เท่านั้น: เสี่ยงเซียมซีเติมสินค้าให้ช่องที่เช่าแล้วด้วย (เปลี่ยนกติกาเดิมของ Stage 06)
+
+บริบท: ตอนนี้ช่องที่เช่าแล้วถูกข้ามตอนสุ่มใหม่ จึงว่างตลอดทั้งศาลา (ADR 0016 ข้อ 2)
+ผู้ใช้ต้องการให้ refresh เติมของใหม่ให้ช่องนั้นด้วย เหตุผล: GDD ห้ามเติมฟรี แต่ refresh เสียเบี้ย จึงไม่ใช่การเติมฟรี
+
+กติกาใหม่:
+1. Refresh สุ่มสินค้าใหม่ให้ทุกช่องที่ไม่ล็อก รวมช่องที่เช่าแล้ว; ช่องที่ล็อกยังคงสินค้าเดิม
+2. ช่องที่เช่าแล้วและยังไม่ refresh ยังว่าง ซื้อซ้ำไม่ได้ และแสดงว่าเช่าแล้วเหมือนเดิม;
+   เมื่อถูกสุ่มใหม่ ธง เช่าแล้ว ถูกล้างและเป็นสินค้าใหม่
+3. ล็อกช่องที่เช่าแล้วหรือว่างยังคงปฏิเสธ (ไม่มีอะไรให้ล็อก)
+4. สุ่มแบบไม่ซ้ำภายในรอบเดียว; ถ้าสินค้าที่เข้าเงื่อนไขน้อยกว่าช่องที่ต้องเติม ให้เว้นช่องว่างตามเดิม ไม่ซ้ำ
+5. ราคา refresh, ลำดับ RNG ของร้าน, และ atomic (เงินไม่พอ state ไม่เปลี่ยน) ไม่เปลี่ยน
+
+เอกสาร: ADR ใหม่ที่ supersede ADR 0016 ข้อ 2 (ส่วนที่ roller ข้ามช่องที่เช่าแล้ว) และแก้ llmwiki/systems/run-shop.md
+แก้เทสต์เดิมที่ยืนยันว่าช่องที่เช่าแล้วไม่ถูกสุ่มทับ ให้เป็นกติกาใหม่ ห้ามลบเทสต์เฉยๆ
+
+Tests: ซื้อช่อง 0 → refresh → ช่อง 0 มีสินค้าใหม่ไม่ติดสถานะเช่าแล้ว; ช่องที่ล็อกคงเดิม;
+ซื้อทั้ง 4 ช่องแล้ว refresh ได้ 4 ช่อง; เงินไม่พอ refresh ไม่เปลี่ยน state; seed เดิมได้ผลเดิม; replay ได้ hash เดิม
+Presentation: PlayMode: ซื้อจากชั้นวาง → คลิกกลอง → ชั้นวางนั้นมีสินค้าใหม่
+Acceptance: เทสต์ผ่าน, รายงานสั้น PASS / FAIL / NOT RUN
 ```
 
 ### Stage 07: Battle Core และ bot sim
@@ -755,6 +794,51 @@ Acceptance:
 - benchmark ที่ ~300 ศัตรู + 500 กระสุน บันทึกเวลาต่อ tick และ GC alloc ต่อ tick (เป้าคือ 0) บน .NET
 - ไม่สัญญา bitwise determinism ข้าม browser หรือ CPU
 - implement `IBattleSession` / `IBattleSessionFactory` และผ่าน `BattleSessionContractTests<TFactory>` ทุกข้อ; ใช้ `BattleEventRing` และ `BattleFrameBuffer` ร่วมกับ fake; ห้าม implement `IBattleFrame` เอง — `BattleFrameBuffer` ต้องเป็น implementation เดียว (บังคับด้วย architecture test)
+
+ทำ Stage 07b เท่านั้น: เบี้ยจากการต่อสู้ (ปิดช่องว่างที่ ADR 0017 บันทึกไว้) ผ่าน data, Simulation, Run
+
+บริบท: ตอนนี้ฆ่าผีไม่ได้เบี้ย (pickup มีค่า 0, BattleResult.CurrencyEarned = 0) และไม่มีรางวัลจบชั้น
+เบี้ยหลังศาลาแรกจึงมีแต่ที่เหลือจาก economy.start_bia (GDD: เบี้ยมาจากการเก็บในสนามและรางวัลจบชั้น จำนวนอยู่ใน data)
+ห้ามฝังตัวเลขในโค้ด
+
+1. data/: เพิ่มคอลัมน์ enemy.drop_value (เบี้ยต่อผีหนึ่งตัว แยกตามชนิด/Elite/บอส) และรางวัลจบชั้นใน economy
+   เลือกแบบที่เรียบที่สุดแล้วเขียนเหตุผลใน ADR สั้นๆ ตัวเลขเป็นค่าตั้งต้นเพื่อทดลอง:
+   ของในร้านราคา 8–11 เบี้ย ชั้น 1 ฆ่าได้ราว 20 ตัว ตั้งให้รายได้ต่อชั้นพอซื้อของได้ราว 1–2 ชิ้น แล้วค่อยจูนด้วย sim ใน Stage 11
+   เพิ่ม validation (ค่า ≥ 0, ทุก enemy มีค่า) และ fixture ผิด, bump SchemaVersion, gen + verify-generated
+2. Simulation: pickup ที่ผีทิ้งมีค่าตาม drop_value; เก็บแล้วสะสมเข้า CurrencyEarned (ครั้งเดียวต่อ pickup);
+   ไม่เปลี่ยนกฎอื่นของการต่อสู้
+3. Run: ApplyBattleResult เครดิต CurrencyEarned และรางวัลจบชั้น (เฉพาะชนะ) ตามกติกา settlement ครั้งเดียวเดิม
+4. HUD ขวาบน เบี้ยที่ได้ ต้องแสดงค่าที่เก็บได้ในสนามจริง (ถ้ายังไม่ตรงให้แก้ให้ตรง)
+5. แก้ ADR 0017 ส่วน kill pays nothing (supersede) และ llmwiki
+
+Tests: ฆ่าผีแล้วเก็บ → CurrencyEarned = ผลรวม drop_value; เก็บ pickup เดิมซ้ำไม่นับซ้ำ; แพ้ไม่ได้รางวัลจบชั้น;
+settlement ซ้ำไม่จ่ายซ้ำ; replay ได้ hash เดิม; sim 200 seed รายงานสัดส่วนชนะต่อชั้นก่อนและหลัง (ยังไม่ต้องจูนให้ได้ 30–60%)
+Acceptance: gen และ validate ผ่าน, เทสต์ผ่าน, รายงาน PASS / FAIL / NOT RUN
+
+ทำ Stage 07c เท่านั้น: กวาดเบี้ยทั้งหมดเข้าหาผู้เล่นก่อนจบชั้น (data และ Simulation)
+
+บริบท: ตอนครบเวลา (หรือฆ่าบอส) ชั้นจบทันที เบี้ยที่ยังตกอยู่บนพื้นหายไป ผู้ใช้ต้องการให้เบี้ยทั้งหมดบนพื้นลอยเข้าหาผู้เล่น
+และนับเข้า CurrencyEarned ก่อนค่อย fade ย้ายฉาก ห้ามคัดลอกโค้ดหรือ asset จากเกมอ้างอิง
+กติกานี้กระทบผลรางวัล จึงอยู่ใน Simulation ไม่ใช่ใน View เพื่อให้ replay ได้ผลเดิม
+
+1. data/: เพิ่ม constant.magnet_speed (ADR 0017 เสนอไว้) และเพดานเวลากวาด (วินาที) เป็นค่าใน constant;
+   bump SchemaVersion, gen, validate
+2. Simulation: เมื่อเงื่อนไขชนะเกิดขึ้น (ครบเวลาชั้นปกติ หรือบอสตาย) ให้เข้าช่วงกวาดก่อน Finish:
+   - ทุก pickup ที่เหลือเคลื่อนเข้าหาผู้เล่นด้วย magnet_speed และถูกเก็บเมื่อถึง (นับเข้า CurrencyEarned ครั้งเดียวต่อ pickup)
+   - ผีที่เหลือถูกกำจัดโดยไม่ดรอปเพิ่ม (หรือหยุดนิ่ง) และผู้เล่นไม่รับดาเมจระหว่างกวาด เลือกแบบที่เรียบที่สุดแล้วบันทึกใน ADR สั้นๆ
+   - จบช่วงกวาดเมื่อ pickup หมดหรือครบเพดานเวลา ที่เพดานให้เก็บส่วนที่เหลือทันที เพื่อให้จบแน่นอน
+   - แพ้ (ผู้เล่นตาย) ไม่กวาด; ไม่แตะกติกาอื่น
+3. สัญญา Battle: BattlePhase คงเดิม (ช่วงกวาดยังเป็น Running); เทสต์สัญญาที่ใช้ร่วมกับ Fake ต้องผ่านโดยไม่แก้
+   (ถ้าต้องแก้จริงให้เขียน ADR ก่อน)
+4. Presentation: ไม่ต้องมีโค้ดสั่งการเคลื่อนที่ pickup (เป็น entity ที่ view วาดอยู่แล้ว); ตัวขับฉากรอ phase เปลี่ยนก่อน fade เหมือนเดิม
+   ตรวจว่าไม่มี view ใหม่ถูกสร้างระหว่างกวาด (viewsGrownDuringPlay = 0)
+5. HUD: ตัวเลขเบี้ยที่ได้เพิ่มระหว่างกวาด (ใช้ช่องทางเดิม)
+
+Tests: ปล่อย pickup หลายค่าไว้บนพื้นแล้วครบเวลา → CurrencyEarned = ผลรวมทั้งหมด; ไม่นับซ้ำ;
+ครบเพดานเวลาแล้วที่เหลือถูกเก็บครบ; แพ้ไม่กวาด; ชั้นบอสกวาดหลังบอสตาย;
+Step ยังไม่ allocate หลัง warm-up และ benchmark 300 ศัตรู + 500 กระสุนไม่แย่ลงเกินที่รายงาน;
+seeded replay ได้ hash เดิม; BattleSessionContractTests ผ่านทั้งสอง factory
+Acceptance: gen และ validate ผ่าน, เทสต์ผ่าน, รายงานสั้น PASS / FAIL / NOT RUN
 ```
 
 ### Stage 08: Battle Presentation 2.5D
@@ -836,6 +920,52 @@ Acceptance: dotnet test ผ่าน (Fast), architecture test ยืนยั�
 Tests: PlayMode: ค่าคูลดาวน์จาก frame ทำให้แผ่นมืดเปลี่ยนตามสัดส่วน; ย่ามจิ๋วตรงกับ loadout;
 10 วินาทีของ battle ไม่มี exception และ viewsGrownDuringPlay = 0 เหมือนเดิม
 Acceptance: ภาพสองขนาดไม่มีการทับกัน, เทสต์ผ่าน, รายงานสั้น PASS / FAIL / NOT RUN
+
+
+ทำ Stage 08d เท่านั้น: ขยับย่ามจิ๋ว (MiniBagPanel) ของ Battle HUD ให้ชิดซ้ายบน ใต้ข้อความ "ย่าม"
+ขอบเขต: Presentation และการสร้างฉากเท่านั้น ห้ามแก้ Core, Simulation, data/ ห้ามเพิ่ม localization
+ตรวจด้วยภาพจาก Editor capture ที่ขนาดจริง ไม่ต้อง build Web
+
+ปัญหาที่เห็นจากภาพ Game view (1920×1080):
+- ข้อความ "ย่าม" (BagCaption) อยู่มุมซ้ายบนของ MiniBagPanel ถูกต้องแล้ว
+- แต่ตัวย่ามจิ๋ว (MiniBagContent ที่วาดกล่องย่ามและไอเทม) ลอยอยู่ห่างลงมาและเยื้องไปทางขวา
+  ไม่ได้ชิดใต้ข้อความ เพราะถูกจัดกึ่งกลางของพาเนลที่ใหญ่กว่า (Rect Transform ของ MiniBagPanel
+  Left/Top/Right/Bottom = 24, Pivot 0.5/0.5)
+- ผลที่ต้องการ: ย่ามจิ๋วเริ่มจากมุมซ้ายบนของพาเนล ต่ำกว่าข้อความ "ย่าม" ลงมาเล็กน้อย (ช่องว่างราว 8–12 px
+  ที่ 1080p) และชิดขอบซ้ายเดียวกับข้อความ
+
+งาน:
+1. วินิจฉัยก่อนแก้ แล้วบันทึกสั้นๆ ลง docs/stages/08d-report.md:
+   - ตำแหน่งจริงของ BagCaption และ MiniBagContent (anchor, pivot, offset, ขนาด) ที่ 1920×1080
+   - จุดที่ทำให้ content อยู่กึ่งกลาง: ดูที่ BattleMiniBagLayout (การคำนวณ origin/ขนาดช่อง)
+     BattleMiniBagView และ ProjectSetup (ตอนสร้าง MiniBagContent) ว่าตัวไหนเป็นต้นเหตุ ห้ามเดา
+   - ตรวจด้วยว่าคอมโพเนนต์ Image ของ MiniBagPanel ถูกปิดอยู่ (ติ๊กออก) โดยตั้งใจหรือไม่
+     รายงานผล แต่ห้ามเปลี่ยนสถานะ ถ้าไม่ใช่สาเหตุของปัญหานี้
+2. แก้การจัดตำแหน่ง:
+   - ให้ MiniBagContent ยึด anchor/pivot ที่มุมซ้ายบนของพื้นที่ใต้ข้อความ และให้ BattleMiniBagLayout
+     วางกริดชิดมุมซ้ายบนแทนการจัดกึ่งกลาง (ขนาดช่องยังคำนวณให้พอดีกรอบเหมือนเดิม
+     และพาเนลยังกว้างไม่เกิน 1/4 ของความกว้างจอ)
+   - ระยะห่างจากข้อความ และระยะขอบซ้าย เป็นค่าคงที่ที่มีชื่อชัดเจนในโค้ด (ไม่ใช่เลขลอย)
+     ใช้ anchor ผูกกับขอบพาเนล ไม่ใช้ตำแหน่งพิกเซลตายตัว ต้องถูกต้องทั้ง 1920×1080 และ 1280×720
+   - ย่ามที่รูปทรงไม่ใช่สี่เหลี่ยม (เช่นตะกร้า L) และย่ามหลายใบ ต้องชิดมุมซ้ายบนของ bounding box เช่นกัน
+   - ห้ามเปลี่ยนกฎการอ่านย่ามหรือคูลดาวน์: ยังอ่านอย่างเดียวจาก BagSnapshot/CombatLoadoutSnapshot
+     และ IBattleFrame.Cooldowns ตามเดิม ห้าม Instantiate เพิ่มระหว่างเล่น (CreatedAfterBuild ต้องเป็น 0)
+3. สร้างฉากใหม่ผ่านเมนู ProjectSurvive/Stage 08/3. Create Battle scene (Editor API เท่านั้น
+   ห้ามแก้ YAML ของ Battle.unity ด้วยมือ) แล้วตรวจว่า BattleViewSettings.MiniBag ยังถูกผูกอยู่
+
+Tests:
+- EditMode (BattleMiniBagTests): ตำแหน่งกล่องแรกของย่ามชิดมุมซ้ายบนของพื้นที่ใช้งาน ที่ขนาดพาเนลทั้งสองขนาด
+  รวมย่ามรูปตัว L; ช่องว่างจากข้อความเท่าค่าคงที่; ขนาดช่องเท่าเดิมกับก่อนแก้
+- PlayMode (BattlePlayModeTests): ย่ามจิ๋วในฉากจริง built แล้ว, rect ของกล่องย่ามไม่ทับ BagCaption,
+  CreatedAfterBuild = 0 และ viewsGrownDuringPlay = 0 เหมือนเดิม
+- UiLayoutCheck: ผ่านทั้งชุดเดิม และเพิ่มกฎว่า MiniBagContent ต้องอยู่ใต้ BagCaption และไม่ทับกัน
+
+ภาพหลักฐาน → artifacts/ui/ (1920×1080 และ 1280×720): เริ่มชั้น และกลางการต่อสู้ที่มีแผ่นคูลดาวน์
+เทียบกับภาพก่อนแก้ (เก็บภาพก่อนแก้ไว้ก่อนลงมือ) แล้วระบุว่าตำแหน่งย่ามขยับไปกี่ px
+
+รัน: tools/test.ps1 -Suite Fast และ capture UI
+Acceptance: ภาพสองขนาดไม่มี element ทับกัน, ย่ามจิ๋วชิดซ้ายบนใต้ข้อความ "ย่าม",
+เทสต์ผ่าน, รายงานสั้น PASS / FAIL / NOT RUN (WebGL และ Playwright = NOT RUN ตามที่สั่ง)
 ```
 
 ### Stage 09: ศาลาพัก (ร้าน และ UI จัดย่าม)
@@ -1015,6 +1145,26 @@ Acceptance: gen และ validate ผ่าน, fixture ผิดต้อง f
 Tests: PlayMode ใช้ pointer events จริง: รวมไอเทม → หน้าต่างเปิด → เลือกใบที่ 2 → ไอเทมเปลี่ยน; Esc แล้วไม่มีอะไรเปลี่ยน
 Acceptance: เทสต์ผ่าน, ภาพ Editor capture ของหน้าต่างที่ 2 ขนาด, รายงาน PASS / FAIL / NOT RUN
 
+ทำ Stage 09h เท่านั้น: Tooltip แสดงค่าจริงหลังอัปเกรด (ไม่แก้กติกา loadout ไม่แก้ data)
+
+อาการ: ยันต์เพลิงกาลี ระดับ 3/3 ยังแสดง ดาเมจ 10 และ คูลดาวน์ 0.9 วิ เท่าระดับ 1, และหลังเลือกรุ่นย่อยคาถาไว
+(คูลดาวน์ −15%) tooltip ไม่แสดงรายละเอียดเอฟเฟกต์และคูลดาวน์ไม่เปลี่ยน
+สมมติฐาน (ยังไม่ยืนยัน): tooltip อ่านค่าจาก config พื้นฐาน ไม่ได้อ่านค่าที่ LoadoutResolver คำนวณแล้ว ตรวจก่อนแก้ ห้ามเดา
+
+A. วินิจฉัย → report: พิมพ์เทียบสำหรับชิ้นเดียวกัน: ค่าที่ tooltip แสดง, ค่าใน WeaponLoadout/SummonLoadout ที่ LoadoutResolver คืน,
+   และ constant.min_cooldown_seconds (ถ้าค่าต่ำสุดเท่ากับหรือสูงกว่าคูลดาวน์หลังลด การลดจะไม่เห็นผล ซึ่งอาจเป็นสาเหตุของ 0.9 วิ)
+B. แยก read model ใน Application: RunSession ให้ข้อมูลอธิบายชิ้นที่ resolve แล้ว (ดาเมจ, คูลดาวน์, MP, ผลจาก tier,
+   ผลจากคอมโบ, และรายการรุ่นย่อยที่เลือกของแต่ละขั้นพร้อมบรรทัดค่าที่เปลี่ยน) จากแหล่งเดียวกับ LoadoutResolver
+   ห้ามให้ Presenter/View คำนวณเอง
+C. Tooltip แสดง: ชื่อ, ระดับ, ค่า resolved พร้อมค่าพื้นฐานเทียบ (เช่น คูลดาวน์ 0.77 วิ จาก 0.9),
+   ชื่อรุ่นย่อยและบรรทัดผลแต่ละขั้น, คอมโบที่ทำงาน; ถ้าค่าถูกจำกัดด้วยค่าต่ำสุด ให้บอกว่าถึงขีดต่ำสุดแล้ว
+D. แผงซ้ายของหน้าต่างเลือกอัปเกรดใช้ผู้ผลิตข้อมูลชุดเดียวกัน (ยังคงเนื้อหาเดียวกับ tooltip)
+E. ถ้าพบว่ารุ่นย่อยไม่มีผลใน snapshot จริง ให้รายงานเป็นบั๊กของ Core แยกต่างหาก ห้ามซ่อนด้วยการแก้ที่ tooltip
+
+Tests: หลัง ConfirmMerge ด้วยรุ่น X ค่าที่ tooltip = ค่าใน snapshot และต่างจากก่อนอัปเกรดตามตัวปรับของรุ่น X;
+ชิ้นที่ไม่มีรุ่นย่อย (รวมทันที) แสดงระดับใหม่โดยไม่มีบรรทัดรุ่นย่อย; undo แล้ว tooltip กลับค่าเดิม
+Acceptance: เทสต์ผ่าน, ภาพ Editor capture tooltip ก่อนและหลังอัปเกรด 1920×1080, รายงานสั้น PASS / FAIL / NOT RUN
+
 ### Stage 10: เชื่อมวงจรเต็ม (Vertical Slice)
 
 ```text
@@ -1086,6 +1236,62 @@ Acceptance:
 - มีอย่างน้อย 3 build ที่พฤติกรรมต่างกันชัดเจน
 - ไอเทมทุกชิ้นมีผลจริง ไม่ใช่ tooltip อย่างเดียว
 - boss และ telegraph สื่อสารผ่าน `BattleEventType` catalogue (`BossPhaseChanged`, `TelegraphStarted/Ended`, `CorpseConsumed`)
+
+ทำ Stage 11a เท่านั้น: ผลเฉพาะชิ้นของไอเทม และตารางสถานะ (data, Domain, Simulation; ยังไม่ทำ AI ผี)
+
+บริบท: ADR 0010 กำหนดว่าตัวเลขผลของเครื่องรางและของเซ่นต้องลง data พร้อมตัวที่ใช้ ห้ามเป็นค่าคงที่ในโค้ด
+และ ADR 0017 ระบุว่าสถานะธาตุใช้ดาเมจของคาถาแทนชั่วคราวจนกว่าจะมีตาราง status
+
+1. data/: คอลัมน์ผลของเครื่องราง (ตัวปรับค่าสถานะที่ CombatLoadoutSnapshot มีอยู่แล้ว ห้ามเพิ่มกลไกใหม่)
+   และของเซ่น (ผลลัพธ์ ฟื้น HP หรือเพิ่มเบี้ย, จำนวนครั้งที่ใช้ได้, เงื่อนไขใช้อัตโนมัติ)
+   ค่าตั้งต้น: ใช้เองอัตโนมัติเมื่อ HP ต่ำกว่าเกณฑ์ที่กำหนดใน data (ผู้ใช้ปรับได้ภายหลัง)
+2. ตาราง status: id, ธาตุ, ดาเมจต่อครั้ง, ช่วงเวลา, ระยะเวลา, ซ้อนได้สูงสุด แทนกติกาชั่วคราวใน ADR 0017
+3. LoadoutResolver ใส่ผลเครื่องรางลง snapshot; Simulation ใช้ของเซ่น (นับครั้งที่ใช้ แล้วส่งกลับใน
+   BattleResult.RemainingConsumables) และใช้ตาราง status; ไม่แตะกฎอื่น
+4. tooltip ของเครื่องรางและของเซ่นแสดงผลจริง (ใช้ read model เดียวกับ Stage 09h)
+5. validation + fixture ผิด, bump SchemaVersion, gen/verify; ADR สั้นๆ supersede ส่วนที่เกี่ยวของ ADR 0010 และ 0017
+
+Tests: เครื่องรางแต่ละชิ้นเปลี่ยนค่าใน snapshot ตามข้อมูล; ของเซ่นใช้ได้ไม่เกินจำนวนครั้ง และ settlement หักของออกจากย่ามถูกต้อง;
+status ตาม data; replay ได้ hash เดิม; ไม่ allocate ใน tick
+Acceptance: ไอเทมทุกชิ้นมีผลจริงใน snapshot หรือใน battle (มีเทสต์ครอบคลุมทุกชิ้น), gen/validate ผ่าน, รายงานสั้น PASS / FAIL / NOT RUN
+
+ทำ Stage 11b เท่านั้น: AI กระสือและนางตานี พร้อม telegraph (Simulation และ Presentation)
+
+1. FSM เล็กๆ ต่อชนิดใน Simulation: Krasue: dash → drain → retreat; NangTani: ยืนนิ่ง ร่ายวงช้าและเถาวัลย์
+2. Telegraph (รูปทรง, เวลาเตือน) ส่งเป็น event (TelegraphStarted/Ended) ให้ Presentation วาดวงเตือนบนพื้น
+   การโจมตีแรงทุกแบบต้องมี telegraph ที่อ่านออก
+3. พารามิเตอร์ทั้งหมดอยู่ใน enemy และ skill ใน data (เพิ่มคอลัมน์ได้ แต่ต้อง gen/validate/fixture)
+4. ผีแต่ละชนิดต้องมีพฤติกรรมที่ผู้เล่นแยกออกได้
+5. ถ้าต้องเพิ่ม event type ใหม่ ให้ต่อท้าย enum เท่านั้น แล้วอัปเดต battle-contract.md และเทสต์สัญญา
+
+Tests: เทสต์ Core ราย behavior (ลำดับสถานะ, เวลา telegraph ก่อนโจมตี); contract suite ผ่านทั้งสอง factory; ไม่ allocate ใน tick
+Acceptance: เทสต์ผ่าน, ภาพ Editor capture วงเตือนที่ 1920×1080, รายงานสั้น PASS / FAIL / NOT RUN
+
+ทำ Stage 11c เท่านั้น: บอสปอบ
+
+1. FSM ปอบ 2 เฟส เฟสสองเริ่มที่ HP% ใน data; กินศพผีตัวอื่นเพื่อฟื้น HP (CorpseConsumed);
+   สิงจนทิศควบคุมสลับชั่วคราว (เวลาและเงื่อนไขอยู่ใน data)
+2. การสลับทิศอยู่ใน Simulation ไม่ใช่ใน View; HUD ต้องบอกผู้เล่นว่าทิศถูกสลับอยู่ ผ่าน event หรือสถานะที่มีอยู่
+   ถ้าสัญญาไม่มีช่องทาง ให้แก้ด้วย ADR (ต่อท้าย enum) ห้ามให้ View เดา
+3. สื่อสารผ่าน BossPhaseChanged, TelegraphStarted/Ended, CorpseConsumed
+4. บอสทิ้งเบี้ยตาม enemy.drop_value และการกวาดของ 07c ทำงานหลังบอสตาย
+
+Tests: เฟส 2 เริ่มที่ HP% ที่กำหนด; ทิศ input สลับและกลับตามเวลา; กินศพฟื้น HP ไม่เกิน Max; replay ได้ hash เดิม
+Acceptance: เทสต์ผ่าน, ภาพ Editor capture ฉากบอสและสถานะทิศสลับ, รายงานสั้น PASS / FAIL / NOT RUN
+
+ทำ Stage 11d เท่านั้น: จูนบาลานซ์ด้วย sim (data เท่านั้น ห้ามแก้โค้ดกฎเพื่อให้ตัวเลขผ่าน)
+
+1. sim 200 seed ผ่าน IBattleSession รายงานก่อนจูน: อัตราผ่านต่อชั้น และสัดส่วน EndReason (PlayerDied / Timeout / BossDefeated)
+2. จูนเฉพาะ data (enemy, floor, wave, economy, constant, synergy, upgrade) ตั้งเป้าอัตราชนะบอสของ bot 30–60%
+   บันทึกผลก่อนและหลังทุกรอบลง report
+3. อย่างน้อย 3 build ที่พฤติกรรมต่างกันชัดเจน (เช่น ยิงไกล, ประชิดหรือรอบตัว, ภูติ) รายงานอัตราชนะของแต่ละ build
+   และชี้ว่าอันไหนเด่นหรือด้อยเกินไป
+4. เศรษฐกิจ: รายได้ต่อชั้นต้องพอซื้อของได้ราว 1–2 ชิ้นตามเป้าของ 07b
+
+Acceptance: อัตราชนะบอสของ bot อยู่ระหว่าง 30–60% (หรือรายงานตามจริงว่าทำไม่ได้พร้อมเหตุผล), มีตารางก่อน/หลัง,
+รายงานสั้น PASS / FAIL / NOT RUN
+
+
 ```
 
 ### Stage 12: Save, Resume และ Settings
@@ -1107,6 +1313,11 @@ Acceptance:
 6. Settings: เสียง, ภาษา TH/EN (สลับทันทีผ่าน R3), ความเร็วเริ่มต้น
 + ไม่บันทึกสถานะกลางการต่อสู้: ถ้า reload ระหว่าง Battle ให้กลับไปที่ checkpoint ศาลาพักล่าสุด
   (battle seed อยู่ใน checkpoint จึงได้ battle เดิมซ้ำ) และมีเทสต์ยืนยันพฤติกรรมนี้
++ (เพิ่มใน Stage 12) Checkpoint ต้องรวมของที่เพิ่มหลังเขียน prompt นี้: snapshot ย่ามที่มี MergeCount และ variant id
+  ต่อขั้นของแต่ละไอเทม (ใช้ BackpackSnapshot schema ปัจจุบัน ห้ามทำรูปแบบที่สองซ้ำ), สถานะร้าน (ช่องที่เช่าแล้ว, ช่องที่ล็อก,
+  จำนวน refresh), และ run seed พร้อมสถานะ RNG ของสายร้าน (Xoshiro128 ยังไม่มี export/import ของ state ต้องทำก่อน
+  ตาม llmwiki/gotchas/determinism-scope.md)
++ เทสต์: โหลด checkpoint แล้ว OfferMerge ได้ตัวเลือกชุดเดิม, Loadout ได้ค่าเดิม, ร้านสุ่มต่อได้ผลเดียวกับที่ไม่ได้ reload  
 
 Tests: round-trip, schema เก่า (fixture), schema ใหม่กว่าที่รองรับ, config mismatch, payload ขาดหรือเสีย,
 เขียนแข่งกัน, storage ใช้ไม่ได้
@@ -1156,6 +1367,13 @@ Acceptance:
 7. ตรวจว่า release build ไม่มี harness API
 + tools/test.ps1 รายงานผล contract suite แยกบรรทัดสำหรับ Fake และ BattleSimulation
 + Web harness (dev build) expose phase/tick/endReason จาก IBattleSession ให้ Playwright ตรวจได้
++ (เพิ่มใน Stage 14) เริ่มจากสำรวจของเดิมก่อนแล้วต่อยอด ห้ามสร้างซ้ำ: tools/test.ps1 -Suite Fast|Full, tests/web/*.spec.ts
+  (smoke, battle, camp, title, result) และเอกสารที่ player เผยผ่าน window.__projectSurvive* (พิกัดและสถานะ ไม่ใช่การตัดสินใจ)
+  WebBridge ในข้อ 2 ให้เพิ่มเฉพาะส่วนที่ page globals ยังทำไม่ได้ (เช่น seeded start และ advance ticks)
+  และต้องเรียก use case เดียวกับ UI
++ งานที่เหลือจริงของ Stage นี้คือ tools/ci.ps1, การพิสูจน์ว่า release build ไม่มี harness และ dev menu, artifacts,
+  และรายงาน PASS / FAIL / NOT RUN รวม
++ Firefox: ADR 0003 ระบุว่ายังไม่ได้ติดตั้ง ให้ติดตั้งก่อนรันหรือรายงาน NOT RUN ตามจริง
 
 Acceptance:
 - ci.ps1 คืน exit code ≠ 0 เมื่อ required check ล้มเหลว
@@ -1177,12 +1395,16 @@ Acceptance:
 4. ตั้ง compression และ hosting headers ให้ตรงกับ output จริง; ทดสอบผ่าน HTTP ไม่ใช้ file://;
    ทดสอบ tab blur/focus, resize และ stale cache หลัง deploy build ใหม่
 5. clean build จาก source และ toolchain ที่ล็อก; ทำ release checklist และ known issues; ปิด cheat และ harness
++ (เพิ่มใน Stage 15) ใช้นิยามขนาดของ ADR 0011 (initial payload วัด 3 ฐาน: ไม่บีบอัด / gzip / Brotli) และ profile ที่ Stage 03b
+  แนะนำ (optimize-size) วัดใหม่ทั้งหมดเพราะเนื้อหาเพิ่มขึ้นมาตั้งแต่ Stage 08; ก่อนสรุปให้อ่าน build-report.json
+  ตาม llmwiki/gotchas/webgl-size-profile-settings-residue.md เพื่อไม่ให้ setting ค้างจาก profile อื่น
 
 Acceptance:
 - release build เปิดได้บน browser ที่ประกาศรองรับ
 - required tests ผ่านจริง
 - มี performance report พร้อมสเปกเครื่องและ build hash เทียบกับงบใน GDD
 - ไม่อ้างตัวเลขที่ไม่ได้วัด
+
 ```
 
 ### Stage 16 ขึ้นไป: เพิ่มเนื้อหาหลัง Prototype
