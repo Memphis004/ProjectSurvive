@@ -275,8 +275,8 @@ namespace ProjectSurvive.Core.Tests.Inventory
             CombatLoadoutSnapshot snapshot = Resolver(config).Resolve(backpack);
             WeaponLoadout weapon = Assert.Single(snapshot.Weapons);
 
-            // The knife's row damage: +20 +20 from two tomes in the row, +10 from the bag
-            // area -> +50 %.
+            // The knife's tome damage: +20 +20 from the two tomes it touches (ADR 0031),
+            // +10 from the bag area -> +50 %.
             Assert.Equal(Rounded(BaseDamage(config, "skill.knife_thrust") * 1.5f), weapon.Damage);
         }
 

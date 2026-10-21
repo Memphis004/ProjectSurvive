@@ -26,7 +26,7 @@
 ,item.tiger_fang.name,เขี้ยวเสือ,Tiger Fang
 ,item.tiger_fang.desc,เขี้ยวเสือของศักดิ์สิทธิ์ที่พกไว้กันผี,A protective tiger fang worn as a charm.
 ,item.spell_tome.name,ตำราพระเวท,Spell Tome
-,item.spell_tome.desc,ตำราที่ขยายพลังอาคมในแถวเดียวกัน,A tome that empowers the arcane weapons sharing its row.
+,item.spell_tome.desc,ตำราที่ขยายพลังอาวุธอาคมที่วางติดกัน,A tome that empowers the arcane weapons placed against it.
 ,item.red_soda.name,น้ำแดง,Red Soda
 ,item.red_soda.desc,ของเซ่นรสหวานที่เป็นของโปรดของภูติรับใช้,A sweet offering - and a familiar's favourite.
 ,item.boiled_egg.name,ไข่ต้ม,Boiled Egg
@@ -39,7 +39,7 @@
 ,skill.takrut_ward.name,วงตะกรุดกัน,Takrut Ward
 ,skill.curse_wave.name,คลื่นคุณไสย,Curse Wave
 ,synergy.takrut_yant_cooldown.name,ตะกรุดหนุนผ้ายันต์,Takrut Yant Bond
-,synergy.tome_row_damage.name,ตำราหนุนอาคม,Tome Row Surge
+,synergy.tome_row_damage.name,ตำราหนุนอาคม,Touching Tome
 ,synergy.curse_holy_debuff.name,คุณไสยปะทะของศักดิ์สิทธิ์,Curse Meets the Sacred
 ,synergy.offering_familiar_speed.name,ของเซ่นเลี้ยงภูติ,Offering Feeds the Familiar
 ,synergy.bag_area_bonus.name,อานุภาพย่ามพิเศษ,Special Bag Aura

@@ -130,8 +130,8 @@ These are the tags the shipped data actually uses (a tag no item carries is
 
 | Tag | Carried by | Matched by |
 | --- | --- | --- |
-| `weapon` | all 4 arcane weapons | `synergy.tome_row_damage` |
-| `tome` | `item.spell_tome` | `synergy.tome_row_damage` |
+| `weapon` | all 4 arcane weapons | `synergy.tome_row_damage` (`AdjacentPair`) |
+| `tome` | `item.spell_tome` | `synergy.tome_row_damage` (`AdjacentPair`) |
 | `takrut` | `item.takrut_tone` | `synergy.takrut_yant_cooldown` |
 | `yant` | `item.kali_flame_yant`, `item.waist_yant` | `synergy.takrut_yant_cooldown` |
 | `curse` | `item.kuman_thong` | `synergy.curse_holy_debuff` |
@@ -144,6 +144,11 @@ Tags that are flavour only today (nothing matches them yet, which is allowed):
 
 Adding a tag is free; **using** one in `synergy.csv` requires some item to carry it,
 or the validator fails the build.
+
+A tag pair says *nothing* about distance: that is the row's `kind` column. Since
+[ADR 0031](../../docs/adr/0031-a-tome-touches-its-weapon.md) the tome rule is `AdjacentPair`
+(4-direction contact), so its `weapon` partner must touch the `tome` on an edge; `SameRow` and
+`SameColumn` remain valid kinds with no shipped row.
 
 ## Cross-table rules
 

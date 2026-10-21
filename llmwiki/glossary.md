@@ -22,7 +22,7 @@ ritual names are not presented as real practices (AGENTS #13).
 | ไอเทม / สินค้า | `Item` | Domain | ~14 items, 3 tiers |
 | อาวุธอาคม | `ArcaneWeapon` | Item category | Auto-cast on cooldown, costs MP |
 | เครื่องราง | `Charm` | Item category | Passive buff |
-| ตำราคาถา | `SpellTome` | Item category | Boosts same-row arcane weapons |
+| ตำราคาถา | `SpellTome` | Item category | Boosts the arcane weapons it touches (ADR 0031) |
 | ของเซ่น | `Offering` | Item category | Limited-use consumable |
 | ภูติรับใช้ | `Familiar` | Item category | Follows and helps fight |
 | ตะกรุด | `Takrut` | Item | Amulet |
@@ -163,7 +163,7 @@ tag, is in [`systems/data-schema.md`](systems/data-schema.md#tag-vocabulary).
 | สแนปช็อตย่าม | `BackpackSnapshot` | Data | The undo/checkpoint unit; MessagePack bytes via `IBackpackSnapshotCodec` |
 | ตัวแก้ไขย่าม | `BackpackEditor` | Domain | Owns every command; `Backpack` owns state |
 | โบนัสพื้นที่ย่าม | `BagArea` | synergy kind | Fires for any item sitting on a bag |
-| อยู่ในแถว/คอลัมน์เดียวกัน | `SameRow` / `SameColumn` | synergy kind | Two halves of the GDD's “แถวเดียวกัน” (ADR 0015) |
+| อยู่ในแถว/คอลัมน์เดียวกัน | `SameRow` / `SameColumn` | synergy kind | Two halves of the old “แถวเดียวกัน”; still valid kinds, no shipped row uses either (ADR 0015, ADR 0031) |
 | กำลังเสื่อม | `Debuff` | synergy stat | Applies to **both** pieces |
 | ความเร็วโจมตี | `AttackSpeed` | synergy stat | A positive percent *shortens* the cooldown |
 | ลดความเร็วจากน้ำหนัก | `WeightPenalty` | Stat | Linear slope, capped; chest pieces weigh nothing |

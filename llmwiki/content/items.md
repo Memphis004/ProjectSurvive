@@ -271,7 +271,7 @@ Every piece in `data/tables/item.csv` (11 items) and `data/tables/bag.csv` (3 ba
 | merges | 1->2, 2->3 |
 | shop | floor 3-5 (weight 10) |
 
-**Spell Tome.** ตำราที่ขยายพลังอาคมในแถวเดียวกัน
+**Spell Tome.** ตำราที่ขยายพลังอาวุธอาคมที่วางติดกัน
 
 **Combos this piece joins (computed from the tags in `data/tables/synergy.csv`):**
 

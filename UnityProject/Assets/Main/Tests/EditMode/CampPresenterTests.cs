@@ -828,6 +828,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
         [Test]
         public void A_bag_turn_takes_the_combo_line_with_the_items_that_ride()
         {
+            PointTheTomeRuleAtASameRow();
             Screen ui = ScreenAtFirstCamp();
             RunSession run = ui.Run;
             Backpack backpack = run.Backpack;
@@ -1208,13 +1209,11 @@ namespace ProjectSurvive.Game.Tests.EditMode
         [Test]
         public void Only_the_tome_to_weapon_rule_is_drawn_as_a_line_and_the_bag_bonus_is_not()
         {
+            // The screen's line drawing is the subject, so the rule it draws for is supplied: since
+            // ADR 0031 no shipped row is a same-line rule (the tome is a touching rule, drawn by
+            // Stage 09l), and `Kind` is drawing input, never a balance number.
             IGameConfig config = _config;
-            SynergyConfig lineRule = SameLineRule(config, out bool found);
-
-            Assert.That(
-                found,
-                Is.True,
-                "the shipped tables have no same-line rule, so there is nothing for this test to check");
+            SynergyConfig lineRule = PointTheTomeRuleAtASameRow();
 
             uint seed = SeedOffering(lineRule.TagA, out int slot);
             Assert.That(slot, Is.GreaterThanOrEqualTo(0), "no seed in range offered a '" + lineRule.TagA + "' piece in any camp of its run");
@@ -1317,13 +1316,14 @@ namespace ProjectSurvive.Game.Tests.EditMode
         // -------------------------------------------------------------------
 
         /// <summary>
-        /// The rule that is working draws a line <b>when the two pieces touch</b>: a 2×2 tome on the
-        /// bag with a weapon in the cell right of it shares the tome's row and touches it, which is the
-        /// shape a permanent mark was asked for.
+        /// The drawing rule still works: a same-line rule from a 2×2 tome to a weapon it touches gets a
+        /// line. The shipped data no longer has such a rule (ADR 0031), so this test supplies the kind —
+        /// what is under test is `CampPresenter.DrawnLinks`, not which kind `data/` happens to ship.
         /// </summary>
         [Test]
-        public void A_tome_touching_a_weapon_along_an_edge_draws_a_line()
+        public void A_tome_touching_a_weapon_along_an_edge_draws_a_line_for_a_same_line_rule()
         {
+            PointTheTomeRuleAtASameRow();
             Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
 
             Assert.That(MoveTo(run, tome, 0, 1), Is.True, "the tome could not be placed beside the weapon's cell");
@@ -1335,12 +1335,12 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         /// <summary>
-        /// The same row with a cell between the pieces is still a working combo — that is Core's rule,
-        /// and this stage changed only the drawing — but it draws no permanent line. The proof that the
-        /// rule itself was not touched is that <c>SynergyEvaluator</c> still reports the pair.
+        /// ADR 0031: the row is not the condition any more. A weapon one cell further along the same row
+        /// is <b>not</b> a working pair — Core says so and the screen draws nothing for it, which is the
+        /// claim Stage 09j could not make (it needed Core's row rule to keep the far pair alive).
         /// </summary>
         [Test]
-        public void A_tome_a_cell_away_on_the_same_row_is_a_working_combo_with_no_line()
+        public void A_tome_one_cell_away_on_the_same_row_is_not_a_combo_and_draws_nothing()
         {
             Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
 
@@ -1365,8 +1365,8 @@ namespace ProjectSurvive.Game.Tests.EditMode
             }
 
             Assert.That(
-                pairIsActive, Is.True,
-                "Core must still report the same-row pair: this stage only stopped drawing a line for a pair that does not touch");
+                pairIsActive, Is.False,
+                "Core still reports the pair a cell apart, so the rule is still reading a shared row");
             Assert.That(
                 HasLineBetween(ui.Presenter.Bag.Links, tome.InstanceId, weapon.InstanceId), Is.False,
                 "a line was drawn across an empty cell to a weapon the tome does not touch: " + Links(ui));
@@ -1391,7 +1391,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
             {
                 Assert.That(
                     layout.Active[i].RuleId, Is.Not.EqualTo("synergy.tome_row_damage"),
-                    "a corner touch must not count as the same-line rule's condition");
+                    "a corner touch must not count as the touching rule's condition");
             }
 
             Assert.That(
@@ -1400,12 +1400,13 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         /// <summary>
-        /// One tome can touch two weapons along its row — its right edge spans two cells — and each
-        /// touching partner gets its own line, because each is its own working pair.
+        /// One tome can touch two weapons — its right edge spans two cells, so one partner per row —
+        /// and a same-line rule draws each of them its own line, because each is its own working pair.
         /// </summary>
         [Test]
         public void A_tome_that_touches_two_weapons_draws_two_lines()
         {
+            PointTheTomeRuleAtASameRow();
             Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
 
             var secondWeapon = run.Backpack.AddItem("item.kali_flame_yant");
@@ -1614,6 +1615,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
         [Test]
         public void A_tome_with_a_weapon_on_its_right_draws_one_level_line_between_the_two_cells()
         {
+            PointTheTomeRuleAtASameRow();
             Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
             Assert.That(MoveTo(run, tome, 0, 1), Is.True, "the tome could not be placed at (0,1)");
             ui.Presenter.Refresh();
@@ -1644,6 +1646,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
         [Test]
         public void A_tome_with_a_weapon_on_its_left_draws_the_same_level_line()
         {
+            PointTheTomeRuleAtASameRow();
             Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
 
             Assert.That(MoveTo(run, weapon, 0, 1), Is.True, "the weapon could not be moved to (0,1)");
@@ -1814,21 +1817,72 @@ namespace ProjectSurvive.Game.Tests.EditMode
         // helpers
         // -------------------------------------------------------------------
 
-        /// <summary>The same-line rule the screen draws a line for, or false when the tables have none.</summary>
-        private static SynergyConfig SameLineRule(IGameConfig config, out bool found)
+        /// <summary>
+        /// Re-points the shipped tome rule at <c>SameRow</c> and returns it: the screen's line drawing
+        /// is what the cases below check, and since ADR 0031 no shipped row is a same-line rule, so the
+        /// test supplies the kind. Which kind a rule has is drawing input, not a balance number.
+        /// </summary>
+        /// <remarks>
+        /// Must be called <b>before</b> the presenter is built: <c>CampPresenter</c> reads the kind when
+        /// it rebuilds its marks, and a kind changed under a cached revision is not what this exercises.
+        /// </remarks>
+        private SynergyConfig PointTheTomeRuleAtASameRow()
         {
-            for (int i = 0; i < config.Synergies.Count; i++)
+            for (int i = 0; i < _config.Synergies.Count; i++)
             {
-                SynergyKind kind = config.Synergies[i].Kind;
-                if (kind == SynergyKind.SameRow || kind == SynergyKind.SameColumn)
+                SynergyConfig rule = _config.Synergies[i];
+                if (string.Equals(rule.Id, "synergy.tome_row_damage", StringComparison.Ordinal))
                 {
-                    found = true;
-                    return config.Synergies[i];
+                    rule.Kind = SynergyKind.SameRow;
+                    return rule;
                 }
             }
 
-            found = false;
+            Assert.Fail("the shipped tables have no 'synergy.tome_row_damage' rule");
             return null;
+        }
+
+        /// <summary>
+        /// Stage 09k-data: with the rule as the data ships it, a touching tome–weapon pair is a working
+        /// combo that the screen draws <b>no permanent mark</b> for, because the mark is chosen from
+        /// `synergy.kind` and the shipped kind is <c>AdjacentPair</c>. This is the state Stage 09l has
+        /// to change, so it is pinned rather than left to a screenshot.
+        /// </summary>
+        [Test]
+        public void With_the_shipped_touching_rule_the_pair_is_a_combo_and_draws_no_permanent_mark()
+        {
+            Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
+
+            Assert.That(MoveTo(run, tome, 0, 1), Is.True, "the tome could not be placed beside the weapon");
+            ui.Presenter.Refresh();
+
+            SynergyEvaluation layout = new SynergyEvaluator(_config).Evaluate(run.Backpack);
+            bool pairIsActive = false;
+            for (int i = 0; i < layout.Active.Count; i++)
+            {
+                ActiveSynergy synergy = layout.Active[i];
+                if (synergy.RuleId == "synergy.tome_row_damage"
+                    && synergy.SourceInstanceId == tome.InstanceId
+                    && synergy.TargetInstanceId == weapon.InstanceId)
+                {
+                    pairIsActive = true;
+                }
+            }
+
+            Assert.That(pairIsActive, Is.True, "Core does not report the touching pair, so the rule is not a touch rule");
+
+            CampLink[] links = ui.Presenter.Bag.Links;
+            for (int i = 0; i < links.Length; i++)
+            {
+                Assert.That(
+                    links[i].Style, Is.Not.EqualTo(CampLinkStyle.Line),
+                    "a permanent line is drawn for the touching rule already — Stage 09l's note is stale: "
+                    + links[i]);
+            }
+
+            Assert.That(
+                HasBadgeFromBag(links, run.Backpack.Bags[0].InstanceId), Is.True,
+                "the bag-area rule is a badge and must keep its mark: " + Links(ui));
         }
 
         /// <summary>

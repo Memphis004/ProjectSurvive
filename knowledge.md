@@ -36,6 +36,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **10d** | **Title screen and its start control** | **DONE** — see [`docs/stages/10d-report.md`](docs/stages/10d-report.md), [ADR 0022](docs/adr/0022-the-title-starts-a-run.md) |
 | **10t** | **Shared generic buffers and per-scene builders (template groundwork)** | **DONE** — see [`docs/stages/10t-report.md`](docs/stages/10t-report.md), [ADR 0024](docs/adr/0024-shared-generic-buffers.md) |
 | **09h** | **The tooltip's numbers follow the upgrade** | **DONE** — see [`docs/stages/09h-report.md`](docs/stages/09h-report.md) |
+| **09k-data** | **A tome empowers the weapon it touches (`AdjacentPair`, not `SameRow`)** | **DONE** — see [`docs/stages/09k-data-report.md`](docs/stages/09k-data-report.md), [ADR 0031](docs/adr/0031-a-tome-touches-its-weapon.md) (supersedes ADR 0015's shipping choice) |
 | **10e** | **LLM wiki (Karpathy-style): generated content, SCHEMA, INGEST, link/id lint** | **DONE** — see [`docs/stages/10e-report.md`](docs/stages/10e-report.md), [`llmwiki/SCHEMA.md`](llmwiki/SCHEMA.md) |
 | **11a** | **Item-local effects and the status table (data, Domain, Simulation)** | **DONE** — see [ADR 0028](docs/adr/0028-item-effects-and-status-table.md) (the report was never written; the behaviour is covered by the 11a tests and the stage log) |
 | **11b** | **Krasue and Nang Tani, with telegraphs (Simulation + Presentation)** | **DONE** — see [`docs/stages/11b-report.md`](docs/stages/11b-report.md), [ADR 0029](docs/adr/0029-enemy-telegraphed-attacks.md) |
@@ -47,7 +48,11 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
-**Current state:** Stages 00–10, plus **09h** (the camp tooltip no longer reads a `skill` row: it quotes
+**Current state:** Stages 00–10, plus **09k-data** (one word in `data/`: the tome combo is
+`AdjacentPair`, so a weapon takes +20 % from a tome it **touches** on any of its four edges — never
+across an empty cell, never diagonally — with the same id and numbers; [ADR 0031](docs/adr/0031-a-tome-touches-its-weapon.md)
+supersedes ADR 0015's shipping choice, `SameRow`/`SameColumn` stay as unshipped kinds, and the camp
+screen draws no permanent line for this rule until 09l), **09h** (the camp tooltip no longer reads a `skill` row: it quotes
 an Application read model, `RunSession.ExplainPiece` → `LoadoutResolver.TryExplain` → `PieceReadout`,
 which copies the resolved numbers out of the very `WeaponLoadout` the next floor receives — so a 3/3
 piece prints 15 damage / 0.77 s cooldown beside its base 10 / 0.9, one line per confirmed upgrade
@@ -104,7 +109,7 @@ and correct-looking capture shots all missed it, because the capture tool finds 
 builds it itself), and the layout work is judged by the existing overlap rule rather than by an eye:
 `UiLayoutCheck` gained the battle HUD's six surfaces and the controls inside them, and the capture
 command reports **0 overlaps over 36 battle regions per state per size** at 1920 × 1080 and 1280 × 720.
-**519 xUnit tests pass** (57 Stage 01, 73
+**571 xUnit tests pass** (57 Stage 01, 73
 Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05,
 44 Stage 06, 28 Stage 07, 11 Stage 09, the 8 the carried-item rule added in Stage 09f, the 33
 the upgrade choice added — 31 for the engine and the chooser's own rules, 2 for the stat-direction

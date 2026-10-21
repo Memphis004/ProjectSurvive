@@ -1,6 +1,6 @@
 ##,id,name_key,kind,tag_a,tag_b,stat,value_percent,max_stacks
 ,synergy.takrut_yant_cooldown,synergy.takrut_yant_cooldown.name,AdjacentPair,takrut,yant,Cooldown,-15,1
-,synergy.tome_row_damage,synergy.tome_row_damage.name,SameRow,tome,weapon,Damage,20,2
+,synergy.tome_row_damage,synergy.tome_row_damage.name,AdjacentPair,tome,weapon,Damage,20,2
 ,synergy.curse_holy_debuff,synergy.curse_holy_debuff.name,AdjacentPair,curse,holy,Debuff,-30,1
 ,synergy.offering_familiar_speed,synergy.offering_familiar_speed.name,AdjacentPair,offering,familiar,AttackSpeed,25,1
 ,synergy.bag_area_bonus,synergy.bag_area_bonus.name,BagArea,,,Damage,10,1

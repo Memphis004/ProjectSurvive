@@ -360,3 +360,27 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
 - **Did:** moved the "which pairs get a permanent line" decision into `CampPresenter.DrawnLinks` — a `SameRow`/`SameColumn` pair now draws a line only when `PieceInstance.IsAdjacentTo` says the two pieces share a board edge (Core's own adjacency predicate, no rule copied), and `CampBagScreenView.PlaceLine` draws edge-to-edge between the two drawn `RectTransform`s instead of centre-to-centre, so the mark no longer runs through the two names. Fixed the camp's two lifetime NREs (`CampPlayerView.Bind` set `_bound` before resolving, `CampSceneDirector.Publish` had no presenter guard). No `data/`, Core, localization or scene change.
 - **Result:** `-Suite Fast` **PASS 11 | FAIL 0 | NOT RUN 3 | WARN 0** with EditMode **163/163** (4 new presenter cases: touching / one-cell gap / diagonal / two weapons) and PlayMode `CampSynergyLine` **10/10** + `CampBagDrag` **13/13**; a live Camp session logs no NRE. Evidence `artifacts/ui/stage09j-touching-1920x1080.png` (70 red pixels) and `stage09j-apart-no-line-1920x1080.png` (0). A 1280×720 capture is NOT RUN — the Game View size cannot be driven from a script and a camera-to-RenderTexture render in Play Mode contains no UI.
 - **Next:** the third dark vertical line the previous stage reported is still unexplained (needs a board hierarchy dump at the moment it appears), and the two-size screenshot gate needs a capture path that works in Play Mode.
+
+## Stage 09k-data — a tome empowers the weapon it touches
+
+- **Did:** `data/tables/synergy.csv` row `synergy.tome_row_damage` changed `SameRow` → `AdjacentPair`
+  (id, tags, `Damage` +20 %, `max_stacks` 2 unchanged; no code, no schema, no `SchemaVersion`), the
+  tome's Thai/English description now says "placed together/touching" instead of "same row" (and the
+  English rule name `Tome Row Surge` became `Touching Tome`), and the
+  rule's decision is recorded in [ADR 0031](../docs/adr/0031-a-tome-touches-its-weapon.md), which
+  supersedes the shipping choice of ADR 0015 (both same-line kinds stay, unshipped). Core tests were
+  rewritten around contact — a four-edge `[Theory]`, the one-cell gap, the corner touch, two weapons
+  on different rows, the three-tome cap, a move-and-recompute case, and a 10 000-command randomized
+  walk that re-derives the pair from the cells — and the camp's EditMode line cases now supply the
+  same-line kind themselves, plus one new case pinning that a touching tome pair is a combo that
+  draws **no** permanent mark until Stage 09l.
+- **Result:** `tools/test.ps1 -Suite Fast` PASS with dotnet **571** and EditMode **169/169**; data
+  gates (gen/validate/verify/fixtures/wiki) all PASS, config hash `F651981D…`. `tools/sim.ps1
+  --seeds 200` before/after over the four bot builds: boss win rate 45.0 → 44.5 % (default; one seed
+  of 200 changed outcome) and 58.0 → 58.0 %, 37.8 → 37.8 %, 31.0 → 31.0 % for ranged/melee/familiar —
+  the greedy camp bot almost never stands the 2×2 tome against a weapon, so the instrument cannot
+  exercise the rule.
+- **Next:** Stage 09l gives `AdjacentPair` its own permanent mark in `CampPresenter.DrawnLinks` (the
+  line the tome rule used to get from the `SameRow` case is gone) and rewrites
+  `CampSynergyLinePlayModeTests` + the two line cases in `CampBagDragPlayModeTests`, which describe
+  the old "touching vs one cell away" shape.

@@ -8,8 +8,9 @@ namespace ProjectSurvive.Core.Tests.Inventory
 {
     /// <summary>
     /// Stage 05 task 7: the five GDD combo rules over the Stage 04 tag vocabulary —
-    /// 4-direction adjacency counted once per pair, same-row stacking with a cap, the
-    /// power-decay rule on both pieces, the bag-area bonus, and a single pass (no loop).
+    /// 4-direction adjacency counted once per pair, adjacency stacking with a cap (the tome
+    /// rule since ADR 0031), the power-decay rule on both pieces, the bag-area bonus, and a
+    /// single pass (no loop).
     /// </summary>
     public sealed class SynergyEvaluatorTests
     {
@@ -121,44 +122,160 @@ namespace ProjectSurvive.Core.Tests.Inventory
             Assert.Equal(2, evaluation.For(familiar.InstanceId).ActiveSynergyCount);
         }
 
-        [Fact]
-        public void A_tome_in_the_same_row_adds_damage_and_two_tomes_stack_once_each()
+        /// <summary>
+        /// The tome rule is <c>AdjacentPair</c> since ADR 0031: a spell tome empowers an arcane weapon
+        /// it <b>touches</b>, from whichever of the four edges — left, right, above, below, and never
+        /// diagonally (<c>docs/adr/0031-a-tome-touches-its-weapon.md</c>).
+        /// </summary>
+        [Theory]
+        [InlineData(1, 0, 3, 0)] // right
+        [InlineData(1, 0, 0, 0)] // left
+        [InlineData(1, 1, 1, 0)] // above
+        [InlineData(1, 0, 1, 2)] // below
+        public void A_tome_touching_a_weapon_on_any_of_the_four_edges_adds_damage(
+            int tomeX, int tomeY, int weaponX, int weaponY)
         {
             IGameConfig config = InventoryFixture.Config();
             BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
             InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
             InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 3, 0);
-            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 6, 0);
 
-            InventoryFixture.Place(editor, "item.spell_tome", 0, 0);
-            PieceRef knife = InventoryFixture.Place(editor, "item.mor_knife", 2, 0);
+            PieceRef tome = InventoryFixture.Place(editor, "item.spell_tome", tomeX, tomeY);
+            PieceRef knife = InventoryFixture.Place(editor, "item.mor_knife", weaponX, weaponY);
 
-            SynergyEvaluation oneTome = new SynergyEvaluator(config).Evaluate(backpack);
-            // One tome: +20 % for the row, +10 % from the bag area.
-            Assert.Equal(1.3f, oneTome.For(knife.InstanceId).DamageMultiplier, 4);
+            SynergyEvaluation evaluation = new SynergyEvaluator(config).Evaluate(backpack);
 
-            InventoryFixture.Place(editor, "item.spell_tome", 3, 0);
-            SynergyEvaluation twoTomes = new SynergyEvaluator(config).Evaluate(backpack);
-            Assert.Equal(1.5f, twoTomes.For(knife.InstanceId).DamageMultiplier, 4);
+            // +20 % for the touch, +10 % from the bag area.
+            Assert.Equal(1.3f, evaluation.For(knife.InstanceId).DamageMultiplier, 4);
+            Assert.Contains(
+                evaluation.Active,
+                entry => entry.RuleId == "synergy.tome_row_damage"
+                    && entry.SourceInstanceId == tome.InstanceId
+                    && entry.TargetInstanceId == knife.InstanceId);
+            // The rule and the bag, one application each.
+            Assert.Equal(2, evaluation.For(knife.InstanceId).ActiveSynergyCount);
+        }
 
-            // A third tome in the row is past max_stacks = 2 and adds nothing more.
-            InventoryFixture.Place(editor, "item.spell_tome", 6, 0);
-            SynergyEvaluation threeTomes = new SynergyEvaluator(config).Evaluate(backpack);
-            Assert.Equal(1.5f, threeTomes.For(knife.InstanceId).DamageMultiplier, 4);
+        /// <summary>
+        /// The same row is no longer the condition: a cell of empty board between the two pieces ends
+        /// the pair, however many edges of the stamped 2x2 grid they share (ADR 0031).
+        /// </summary>
+        [Fact]
+        public void A_tome_one_cell_away_on_the_same_row_does_not_reach_the_weapon()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 3, 0);
+
+            InventoryFixture.Place(editor, "item.spell_tome", 1, 0); // columns 1-2
+            PieceRef knife = InventoryFixture.Place(editor, "item.mor_knife", 4, 0); // column 3 is empty
+
+            SynergyEvaluation evaluation = new SynergyEvaluator(config).Evaluate(backpack);
+
+            // Only the bag-area bonus is left.
+            Assert.Equal(1.1f, evaluation.For(knife.InstanceId).DamageMultiplier, 4);
+            Assert.DoesNotContain(evaluation.Active, entry => entry.RuleId == "synergy.tome_row_damage");
         }
 
         [Fact]
-        public void A_tome_in_another_row_does_not_reach_the_weapon()
+        public void A_tome_touching_only_at_a_corner_does_not_reach_the_weapon()
         {
             IGameConfig config = InventoryFixture.Config();
             BackpackEditor editor = WithBag(config, out Backpack backpack);
-            InventoryFixture.Place(editor, "item.spell_tome", 0, 0);
+            InventoryFixture.Place(editor, "item.spell_tome", 0, 0); // rows 0-1, columns 0-1
             PieceRef knife = InventoryFixture.Place(editor, "item.mor_knife", 2, 2);
 
             SynergyEvaluation evaluation = new SynergyEvaluator(config).Evaluate(backpack);
 
             // Only the bag-area bonus is left.
             Assert.Equal(1.1f, evaluation.For(knife.InstanceId).DamageMultiplier, 4);
+            Assert.DoesNotContain(evaluation.Active, entry => entry.RuleId == "synergy.tome_row_damage");
+        }
+
+        /// <summary>
+        /// A 2x2 tome has two columns and two rows of edges, so it can touch two weapons that do not
+        /// share a row with each other — and each of them is its own working pair.
+        /// </summary>
+        [Fact]
+        public void A_tome_touching_two_weapons_on_different_rows_empowers_both()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 3, 0);
+
+            PieceRef tome = InventoryFixture.Place(editor, "item.spell_tome", 1, 0); // columns 1-2, rows 0-1
+            PieceRef upper = InventoryFixture.Place(editor, "item.mor_knife", 3, 0);
+            PieceRef lower = InventoryFixture.Place(editor, "item.kali_flame_yant", 3, 1);
+
+            SynergyEvaluation evaluation = new SynergyEvaluator(config).Evaluate(backpack);
+
+            Assert.Equal(1.3f, evaluation.For(upper.InstanceId).DamageMultiplier, 4);
+            Assert.Equal(1.3f, evaluation.For(lower.InstanceId).DamageMultiplier, 4);
+            Assert.Equal(
+                2,
+                evaluation.Active.Count(entry =>
+                    entry.RuleId == "synergy.tome_row_damage"
+                    && entry.SourceInstanceId == tome.InstanceId));
+        }
+
+        /// <summary>
+        /// <c>max_stacks = 2</c> means one weapon takes the bonus from at most two tomes, whichever
+        /// three of them it touches (ADR 0031; the cap was already a per-target count under
+        /// <c>SameRow</c>, so this stage did not change what it means).
+        /// </summary>
+        [Fact]
+        public void A_weapon_touching_three_tomes_takes_at_most_two_stacks()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 3, 0);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 3);
+
+            // Three tomes, each touching the weapon on a different edge.
+            InventoryFixture.Place(editor, "item.spell_tome", 0, 1); // left
+            InventoryFixture.Place(editor, "item.spell_tome", 3, 1); // right
+            InventoryFixture.Place(editor, "item.spell_tome", 1, 3); // below
+            PieceRef weapon = InventoryFixture.Place(editor, "item.mor_knife", 2, 2);
+
+            SynergyEvaluation evaluation = new SynergyEvaluator(config).Evaluate(backpack);
+
+            // +20 +20 from two of the three tomes, +10 from the bag area.
+            Assert.Equal(1.5f, evaluation.For(weapon.InstanceId).DamageMultiplier, 4);
+            Assert.Equal(
+                2,
+                evaluation.Active.Count(entry =>
+                    entry.RuleId == "synergy.tome_row_damage" && entry.TargetInstanceId == weapon.InstanceId));
+            Assert.Equal(3, evaluation.For(weapon.InstanceId).ActiveSynergyCount);
+        }
+
+        /// <summary>
+        /// One command, one recompute: moving the weapon a cell further along the row ends the touch, so
+        /// the very next evaluation loses the pair and the revision moved exactly once.
+        /// </summary>
+        [Fact]
+        public void Moving_the_weapon_one_cell_away_recomputes_once_and_drops_the_bonus()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 3, 0);
+
+            InventoryFixture.Place(editor, "item.spell_tome", 1, 0); // columns 1-2
+            PieceRef weapon = InventoryFixture.Place(editor, "item.mor_knife", 3, 0);
+            var evaluator = new SynergyEvaluator(config);
+
+            Assert.Equal(1.3f, evaluator.Evaluate(backpack).For(weapon.InstanceId).DamageMultiplier, 4);
+
+            int revision = backpack.Revision;
+            Assert.True(editor.Move(weapon, new CellOffset(4, 0), Rotation.Degrees0).IsSuccess);
+
+            Assert.Equal(revision + 1, backpack.Revision);
+            SynergyEvaluation moved = evaluator.Evaluate(backpack);
+            Assert.Equal(1.1f, moved.For(weapon.InstanceId).DamageMultiplier, 4);
+            Assert.DoesNotContain(moved.Active, entry => entry.RuleId == "synergy.tome_row_damage");
         }
 
         [Fact]
@@ -327,28 +444,32 @@ namespace ProjectSurvive.Core.Tests.Inventory
         [Fact]
         public void The_same_line_rule_fires_down_a_column_when_the_data_asks_for_a_column()
         {
-            // The GDD's condition is "อยู่แถวเดียวกัน" — the same line — and `synergy.kind`
-            // chooses which half of that a rule means (ADR 0015). The shipped tome rule is
-            // authored as SameRow; here the one authored row is re-pointed at SameColumn so
-            // the column relation is under test without inventing balance for a new rule.
+            // The same-line kinds still exist and still mean what ADR 0015 said (ADR 0031 keeps
+            // both, it only stops shipping one). No shipped row uses either, so the tome rule is
+            // re-pointed here: the column relation is under test without inventing a balance row.
             IGameConfig config = InventoryFixture.Config();
             SynergyConfig tomeRule = config.Synergies.Single(s => s.Id == "synergy.tome_row_damage");
 
-            BackpackEditor editor = WithBag(config, out Backpack backpack);
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 3);
             InventoryFixture.Place(editor, "item.spell_tome", 0, 0); // 2x2: rows 0-1, columns 0-1
-            PieceRef weapon = InventoryFixture.Place(editor, "item.mor_knife", 0, 2);
+            PieceRef weapon = InventoryFixture.Place(editor, "item.mor_knife", 1, 4); // column 1, rows away
 
-            // Same column 0, different row: the column rule must fire.
+            // Same column 1, no shared row, not touching: the column rule fires and the others do not.
             tomeRule.Kind = SynergyKind.SameColumn;
             SynergyEvaluation asColumn = new SynergyEvaluator(config).Evaluate(backpack);
-
             Assert.Equal(1.3f, asColumn.For(weapon.InstanceId).DamageMultiplier, 4);
 
-            // Same layout, row rule: no shared row, so only the bag-area bonus remains.
+            // Same layout as a row rule: no shared row, so only the bag-area bonus remains.
             tomeRule.Kind = SynergyKind.SameRow;
             SynergyEvaluation asRow = new SynergyEvaluator(config).Evaluate(backpack);
-
             Assert.Equal(1.1f, asRow.For(weapon.InstanceId).DamageMultiplier, 4);
+
+            // And as the kind the shipping data uses: still nothing, because they do not touch.
+            tomeRule.Kind = SynergyKind.AdjacentPair;
+            SynergyEvaluation asTouch = new SynergyEvaluator(config).Evaluate(backpack);
+            Assert.Equal(1.1f, asTouch.For(weapon.InstanceId).DamageMultiplier, 4);
         }
 
         [Fact]
@@ -373,8 +494,9 @@ namespace ProjectSurvive.Core.Tests.Inventory
 
         /// <summary>
         /// Stage 09f / ADR 0020: a bag brings the items on it along, so the combos are read from where
-        /// they landed. One quarter turn turns the whole assembly, which takes two items that shared a
-        /// row onto different rows — the same-line rule stops firing — and four turns bring it back.
+        /// they landed. The tome rule is a touch rule (ADR 0031), so a quarter turn that keeps the two
+        /// pieces against each other keeps the pair; four turns return the bag and both riders, so the
+        /// pair is still there. What this test pins is that the picture follows the <b>landing cells</b>.
         /// </summary>
         /// <remarks>
         /// The landing cells are asserted exactly rather than "somewhere else": the point of the stage
@@ -382,7 +504,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
         /// a test that only checked "the item moved" would pass for a rule that scattered them.
         /// </remarks>
         [Fact]
-        public void A_bag_turn_carries_the_items_so_the_same_row_combo_turns_with_them()
+        public void A_bag_turn_carries_the_items_so_the_touching_combo_turns_with_them()
         {
             IGameConfig config = InventoryFixture.Config();
             BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
@@ -394,7 +516,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
             CellOffset weaponStart = InventoryFixture.ItemOf(backpack, weapon).Origin;
             var evaluator = new SynergyEvaluator(config);
 
-            // The tome covers rows 0-1 and the weapon sits on row 0, so the rule fires.
+            // The tome's right column is the weapon's left edge, so the rule fires.
             Assert.Contains(
                 evaluator.Evaluate(backpack).Active,
                 entry => entry.RuleId == "synergy.tome_row_damage"
@@ -419,9 +541,19 @@ namespace ProjectSurvive.Core.Tests.Inventory
                 turnedTome.SharesRowWith(turnedWeapon),
                 "the riders did not turn with the bag: " + turnedTome.Origin + " still shares a row with " + turnedWeapon.Origin);
 
+            // The turn took them off each other's row, and the rotated tome now stands above the
+            // weapon: a touch rule reads the landing cells, so the pair survives.
+            Assert.True(
+                turnedTome.IsAdjacentTo(turnedWeapon),
+                "the rigid turn broke the contact the rule is read from: " + turnedTome.Origin + " / " + turnedWeapon.Origin);
+
             SynergyEvaluation turned = evaluator.Evaluate(backpack);
 
-            Assert.DoesNotContain(turned.Active, entry => entry.RuleId == "synergy.tome_row_damage");
+            Assert.Contains(
+                turned.Active,
+                entry => entry.RuleId == "synergy.tome_row_damage"
+                    && entry.SourceInstanceId == tome.InstanceId
+                    && entry.TargetInstanceId == weapon.InstanceId);
             Assert.Contains(
                 turned.Active,
                 entry => entry.RuleId == "synergy.bag_area_bonus" && entry.TargetInstanceId == weapon.InstanceId);

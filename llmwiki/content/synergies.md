@@ -7,7 +7,7 @@ All 5 rows of `data/tables/synergy.csv`, in file order. The rules are resolved i
 | Rule | kind | tag_a | tag_b | stat | value_percent | max_stacks |
 | --- | --- | --- | --- | --- | --- | --- |
 | [ตะกรุดหนุนผ้ายันต์](synergies.md#synergy.takrut_yant_cooldown) | `AdjacentPair` | `takrut` | `yant` | `Cooldown` | -15 | 1 |
-| [ตำราหนุนอาคม](synergies.md#synergy.tome_row_damage) | `SameRow` | `tome` | `weapon` | `Damage` | 20 | 2 |
+| [ตำราหนุนอาคม](synergies.md#synergy.tome_row_damage) | `AdjacentPair` | `tome` | `weapon` | `Damage` | 20 | 2 |
 | [คุณไสยปะทะของศักดิ์สิทธิ์](synergies.md#synergy.curse_holy_debuff) | `AdjacentPair` | `curse` | `holy` | `Debuff` | -30 | 1 |
 | [ของเซ่นเลี้ยงภูติ](synergies.md#synergy.offering_familiar_speed) | `AdjacentPair` | `offering` | `familiar` | `AttackSpeed` | 25 | 1 |
 | [อานุภาพย่ามพิเศษ](synergies.md#synergy.bag_area_bonus) | `BagArea` | - | - | `Damage` | 10 | 1 |
@@ -26,15 +26,15 @@ Pairs: 1 x 2 = 2 possible side-by-side combinations (orthogonal neighbours only)
 See the effect on each piece in [items.md](items.md); the stat is applied to both sides where the rule says so (`Cooldown`).
 
 <a id="synergy.tome_row_damage"></a>
-### synergy.tome_row_damage - ตำราหนุนอาคม (Tome Row Surge)
+### synergy.tome_row_damage - ตำราหนุนอาคม (Touching Tome)
 
-**Kind:** `SameRow`. **Stat:** `Damage` +20%. **Max stacks:** 2.
+**Kind:** `AdjacentPair`. **Stat:** `Damage` +20%. **Max stacks:** 2.
 
 **tag_a `tome` pieces (1):** [ตำราพระเวท](items.md#item.spell_tome)
 
 **tag_b `weapon` pieces (4):** [ยันต์เพลิงกาลี](items.md#item.kali_flame_yant), [ตะกรุดโทน](items.md#item.takrut_tone), [มีดหมอ](items.md#item.mor_knife), [สายสิญจน์](items.md#item.sai_sin_thread)
 
-Pairs: 1 x 4 = 4 possible same-row combinations (a shared column does not fire this rule).
+Pairs: 1 x 4 = 4 possible side-by-side combinations (orthogonal neighbours only).
 
 See the effect on each piece in [items.md](items.md); the stat is applied to both sides where the rule says so (`Damage`).
 

@@ -1,6 +1,11 @@
 # ADR 0015 — “อยู่แถวเดียวกัน” is two kinds: `SameRow` and `SameColumn`
 
-- **Status:** Accepted (Stage 05)
+> **Superseded in part by [ADR 0031](0031-a-tome-touches-its-weapon.md) (Stage 09k-data).** The
+> tome rule is now `AdjacentPair` (contact, no gap, no diagonal). Both same-line **kinds** stay in
+> the schema and in the evaluator; no shipped `synergy` row uses either of them. This record is
+> kept as the reason the kinds exist at all.
+
+- **Status:** Accepted (Stage 05); shipping choice superseded by ADR 0031
 - **Date:** 2026-10-14
 - **Related:** [ADR 0009](0009-footprint-picture-format.md) (footprint picture, and the
   `SchemaVersion` convention), GDD v0.3 §combination table vs. the Stage 05 rule list

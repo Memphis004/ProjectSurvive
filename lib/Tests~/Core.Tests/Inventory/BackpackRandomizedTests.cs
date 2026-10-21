@@ -51,7 +51,9 @@ namespace ProjectSurvive.Core.Tests.Inventory
             IGameConfig config = InventoryFixture.Config();
             BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
             var rng = new Xoshiro128(0x5EEB2026u);
-            var resolver = new LoadoutResolver(config, new SynergyEvaluator(config));
+            var evaluator = new SynergyEvaluator(config);
+            var resolver = new LoadoutResolver(config, evaluator);
+            int adjacencyPairsChecked = 0;
 
             for (int i = 0; i < 3; i++)
             {
@@ -149,7 +151,7 @@ namespace ProjectSurvive.Core.Tests.Inventory
                 Assert.True(backpack.OrderedBoardPieces().Count <= backpack.Bags.Count + backpack.Items.Count);
                 Assert.InRange(backpack.Chest.OccupiedCount, 0, backpack.Chest.SlotCount);
 
-                Probe(resolver, backpack, step);
+                adjacencyPairsChecked += Probe(config, evaluator, resolver, backpack, step);
 
                 bool Record(Result result)
                 {
@@ -171,6 +173,93 @@ namespace ProjectSurvive.Core.Tests.Inventory
             Assert.True(failureCodes.Count >= 4,
                 "too few distinct rejection reasons (" + failureCodes.Count + "): "
                 + string.Join(", ", failureCodes.Keys));
+            // The walk spreads pieces over the whole board, so it may never arrange a touching pair;
+            // the focused walk below is the one that guarantees the invariant is exercised.
+            Assert.True(adjacencyPairsChecked >= 0, adjacencyPairsChecked + " adjacency pairs were checked");
+        }
+
+        /// <summary>
+        /// ADR 0031's own property: 10,000 random commands with one fixed tome and a weapon carried
+        /// around the board. After every attempt the pair <c>SynergyEvaluator</c> reports for the tome
+        /// must be exactly the pair the cells say — the record exists when the weapon touches one of the
+        /// tome's four edges and not otherwise. The expectation is computed from the two shapes, never
+        /// from the rule's own output.
+        /// </summary>
+        [Fact]
+        public void Ten_thousand_random_weapon_positions_re_derive_the_touching_pair_from_the_cells()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 3, 0);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 6, 0);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 3);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 3, 3);
+
+            PieceRef tome = InventoryFixture.Place(editor, "item.spell_tome", 1, 0);
+            PieceRef weapon = InventoryFixture.Place(editor, "item.mor_knife", 3, 0);
+
+            var rng = new Xoshiro128(0x703132u);
+            var evaluator = new SynergyEvaluator(config);
+            int touched = 0;
+            int apart = 0;
+            int accepted = 0;
+            int rejected = 0;
+
+            for (int step = 0; step < OperationCount; step++)
+            {
+                int revisionBefore = backpack.Revision;
+                Result moved = editor.Move(
+                    weapon, new CellOffset(rng.NextInt(0, 9), rng.NextInt(0, 7)), RandomRotation(rng));
+
+                if (moved.IsSuccess)
+                {
+                    accepted++;
+                    Assert.True(backpack.Revision > revisionBefore, "step " + step + ": an accepted move left the revision alone");
+                }
+                else
+                {
+                    rejected++;
+                    Assert.True(backpack.Revision == revisionBefore, "step " + step + ": a refused move changed the revision");
+                }
+
+                ItemInstance tomeNow = InventoryFixture.ItemOf(backpack, tome);
+                ItemInstance weaponNow = InventoryFixture.ItemOf(backpack, weapon);
+                bool touches = weaponNow.Zone == PieceZone.Board && tomeNow.IsAdjacentTo(weaponNow);
+                int records = 0;
+
+                SynergyEvaluation layout = evaluator.Evaluate(backpack);
+                for (int i = 0; i < layout.Active.Count; i++)
+                {
+                    if (layout.Active[i].RuleId == "synergy.tome_row_damage")
+                    {
+                        records++;
+                        Assert.Equal(tome.InstanceId, layout.Active[i].SourceInstanceId);
+                        Assert.Equal(weapon.InstanceId, layout.Active[i].TargetInstanceId);
+                    }
+                }
+
+                Assert.True(
+                    records == (touches ? 1 : 0),
+                    "step " + step + ": the rule reported " + records + " pair(s) while the cells say "
+                    + (touches ? "touching" : "apart")
+                    + " (tome " + tomeNow.Origin + ", weapon " + weaponNow.Origin + " " + weaponNow.Rotation + ")");
+
+                if (touches)
+                {
+                    touched++;
+                }
+                else
+                {
+                    apart++;
+                }
+            }
+
+            Assert.Equal(OperationCount, touched + apart);
+            Assert.True(touched > 100, "the walk rarely put the weapon against the tome, was " + touched);
+            Assert.True(apart > 100, "the walk rarely took the weapon off the tome, was " + apart);
+            Assert.True(accepted > 1000, "the walk should mostly be accepted, was " + accepted);
+            Assert.True(rejected > 1000, "the walk should also exercise refusals, was " + rejected);
         }
 
         [Fact]
@@ -584,8 +673,14 @@ namespace ProjectSurvive.Core.Tests.Inventory
 
         private static Rotation RandomRotation(IRandomSource rng) => RotationOps.FromQuarterTurns(rng.NextInt(0, 4));
 
-        /// <summary>Resolves the loadout and checks the snapshot still describes a legal board.</summary>
-        private static void Probe(LoadoutResolver resolver, Backpack backpack, int step)
+        /// <summary>
+        /// Resolves the loadout, checks the snapshot still describes a legal board, and re-checks every
+        /// <c>AdjacentPair</c> record against the board itself: since ADR 0031 the tome rule is a touch
+        /// rule, so a reported pair that is not touching would be a rule reading something other than
+        /// the cells. Returns how many pairs were checked.
+        /// </summary>
+        private static int Probe(
+            IGameConfig config, SynergyEvaluator evaluator, LoadoutResolver resolver, Backpack backpack, int step)
         {
             CombatLoadoutSnapshot snapshot = resolver.Resolve(backpack);
 
@@ -610,6 +705,55 @@ namespace ProjectSurvive.Core.Tests.Inventory
             {
                 Assert.True(snapshot.Consumables[i].Count > 0, "step " + step + ": a consumable with no uses");
             }
+
+            // The observation-only invariant: every adjacency record must name two pieces that really
+            // share an edge on the board as it stands now (no re-running of the rule's own predicate
+            // through a cached value — the pieces are looked up and asked again).
+            SynergyEvaluation layout = evaluator.Evaluate(backpack);
+            int checkedPairs = 0;
+
+            for (int i = 0; i < layout.Active.Count; i++)
+            {
+                ActiveSynergy synergy = layout.Active[i];
+                if (!IsAdjacentPairRule(config, synergy.RuleId))
+                {
+                    continue;
+                }
+
+                Assert.True(
+                    backpack.TryGetItem(synergy.SourceInstanceId, out ItemInstance? source) && source is not null,
+                    "step " + step + ": an adjacency rule named a source that is not an item");
+                Assert.True(
+                    backpack.TryGetItem(synergy.TargetInstanceId, out ItemInstance? target) && target is not null,
+                    "step " + step + ": an adjacency rule named a target that is not an item");
+
+                Assert.True(
+                    source!.Zone == PieceZone.Board && target!.Zone == PieceZone.Board,
+                    "step " + step + ": an adjacency rule reached a piece that is not on the board");
+                Assert.True(
+                    source.IsAdjacentTo(target),
+                    "step " + step + ": '" + synergy.RuleId + "' reported a pair that does not touch: "
+                    + source.Origin + " / " + target.Origin);
+
+                checkedPairs++;
+            }
+
+            return checkedPairs;
+        }
+
+        /// <summary>True when a rule id is one of the touching kinds in the shipped tables.</summary>
+        private static bool IsAdjacentPairRule(IGameConfig config, string ruleId)
+        {
+            IReadOnlyList<SynergyConfig> rules = config.Synergies;
+            for (int i = 0; i < rules.Count; i++)
+            {
+                if (string.Equals(rules[i].Id, ruleId, StringComparison.Ordinal))
+                {
+                    return rules[i].Kind == SynergyKind.AdjacentPair;
+                }
+            }
+
+            return false;
         }
     }
 }

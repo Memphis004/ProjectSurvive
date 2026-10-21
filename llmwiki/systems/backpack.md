@@ -160,18 +160,25 @@ layout changes, not at 30 Hz.
 
 The rules are the `synergy` table, and `kind` picks the relation:
 
-| `kind` | Meaning |
-| --- | --- |
-| `AdjacentPair` | 4-direction edge contact (no diagonals) between the two tags |
-| `SameRow` | the two pieces share a board **row** |
-| `SameColumn` | the two pieces share a board **column** (available; no shipped row uses it — ADR 0015) |
-| `BagArea` | the item sits on a bag at all |
+| `kind` | Meaning | Shipped rows |
+| --- | --- | --- |
+| `AdjacentPair` | 4-direction edge contact (no diagonals) between the two tags | 4 — including the tome rule since ADR 0031 |
+| `SameRow` | the two pieces share a board **row**, at any distance | none (ADR 0015 kept the kind; ADR 0031 stopped shipping it) |
+| `SameColumn` | the two pieces share a board **column**, at any distance | none (available; a CSV row is enough) |
+| `BagArea` | the item sits on a bag at all | 1 |
+
+The tome rule (`synergy.tome_row_damage`, `tome` → `weapon`, `Damage` +20 %, `max_stacks` 2) is
+an **`AdjacentPair`**: a weapon is empowered by a tome it touches on the left, right, above or
+below, never diagonally and never across an empty cell. The id kept its old name because it is in
+the save/replay vocabulary — [ADR 0031](../../docs/adr/0031-a-tome-touches-its-weapon.md).
 
 Non-negotiable details, each with a test:
 
 1. **Counted once per pair.** A neighbour touching along three cells is *one* neighbour, so
    `AdjacentPair` iterates targets × distinct sources and stops at the rule's `max_stacks`.
-   “ติดกันหลายช่องนับครั้งเดียว” and “ซ้อนได้สูงสุด N ชั้น” are the same mechanism.
+   “ติดกันหลายช่องนับครั้งเดียว” and “ซ้อนได้สูงสุด N ชั้น” are the same mechanism: a 2×2 tome
+   against a weapon is one pair (not one per covered cell), and `max_stacks = 2` is **per target** —
+   one weapon, at most two tomes.
 2. **One pass, no fixed point.** Rules read positions and write multipliers; nothing a rule
    writes can enable another rule, so there is no iteration to diverge and evaluating twice
    gives the same answer.
