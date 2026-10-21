@@ -1372,19 +1372,25 @@ namespace ProjectSurvive.Game.Presentation.Camp
         }
 
         /// <summary>
-        /// Lays a line from the centre of one piece to the centre of another, both read from the
-        /// <b>rectangles the pieces are drawn in</b>.
+        /// Lays a line across the gap between two pieces that touch: from the point of one piece's
+        /// <b>edge</b> nearest the other to the point of the other's edge nearest the first.
         /// </summary>
         /// <remarks>
-        /// The previous version rebuilt a rectangle from the cell grid and took its
-        /// <c>top + height / 2</c> as the middle. Board space is y-<b>down</b>, so that point is a
-        /// whole piece-height <i>above</i> the piece: both ends of every line started at the tome's
-        /// top edge and arrived one weapon-height above each weapon (Stage 09i's diagnosis). Reading
-        /// the drawn <c>RectTransform</c> and converting its corners into the container's own space
-        /// removes the second formula entirely — there is one rectangle, the one on screen.
+        /// <para>
+        /// Since Stage 09j a line only exists between two pieces the run says are edge-adjacent, so
+        /// the two rectangles are neighbours with one cell gap between them. The mark is the bridge
+        /// over that gap: it starts and ends on the drawn edges rather than in the middles, which is
+        /// what keeps it off the two names — an item's name fills its cell, and a centre-to-centre
+        /// stroke painted above the pieces (Stage 09i) would run straight through both of them.
+        /// </para>
+        /// <para>
+        /// The nearest-point test is a clamp rather than a direction table, so the same code covers a
+        /// weapon to the right, below, above or left of a tome of any shape, at any rotation and any
+        /// canvas scale.
+        /// </para>
         /// </remarks>
-        /// <returns>False when a piece has no rectangle on the board (it is being dragged), so the
-        /// caller draws nothing rather than pointing at a place the piece is not.</returns>
+        /// <returns>False when a piece has no rectangle on the board (it is being dragged) or the two
+        /// rectangles do not face each other, so the caller draws nothing rather than a stray mark.</returns>
         private bool PlaceLine(int index, CampPieceModel source, CampPieceModel target)
         {
             if (!TryGetDrawnRect(source.Piece, out Rect sourceRect)
@@ -1393,13 +1399,15 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return false;
             }
 
-            Vector2 from = sourceRect.center;
-            Vector2 to = targetRect.center;
+            Vector2 from = NearestPoint(sourceRect, targetRect.center);
+            Vector2 to = NearestPoint(targetRect, sourceRect.center);
             Vector2 direction = to - from;
             float length = direction.magnitude;
 
-            if (length < 1f)
+            if (length < 0.5f)
             {
+                // Two rectangles that share an edge with no gap: nothing to bridge, and a zero-length
+                // bar would be an unrotated dot in the corner.
                 return false;
             }
 
@@ -1407,6 +1415,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
             line.Show(from, to, length);
             return true;
         }
+
+        /// <summary>The point of <paramref name="rect"/> closest to <paramref name="point"/> (its edge, when the point is outside).</summary>
+        private static Vector2 NearestPoint(Rect rect, Vector2 point) =>
+            new Vector2(
+                Mathf.Clamp(point.x, rect.xMin, rect.xMax),
+                Mathf.Clamp(point.y, rect.yMin, rect.yMax));
 
         /// <summary>
         /// Marks a piece the bag-area bonus reached, on the piece's own corner: the rule is about the

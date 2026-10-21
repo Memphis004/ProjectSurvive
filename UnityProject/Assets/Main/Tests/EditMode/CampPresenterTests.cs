@@ -1245,11 +1245,12 @@ namespace ProjectSurvive.Game.Tests.EditMode
             CampPieceModel weapon = FirstBoardItem(presenter.Bag);
             Assert.That(weapon.Kind, Is.EqualTo(PieceKind.Item));
 
-            // Place the tome on a cell that shares a row with the weapon: that is the rule's own
-            // condition, so the line has to appear.
-            CellOffset placed = PlaceSharingARow(presenter, tome, weapon, out bool rowsOverlap);
+            // Place the tome on a cell that shares a row with the weapon <b>and touches it</b>: since
+            // Stage 09j a line needs both (the rule's condition, plus the two pieces being neighbours),
+            // so that is the arrangement the line has to appear in.
+            CellOffset placed = PlaceTouchingTheWeapon(presenter, tome, weapon, out bool rowsOverlap);
 
-            Assert.That(rowsOverlap, Is.True, "the fixture could not put the tome on the weapon's row");
+            Assert.That(rowsOverlap, Is.True, "the fixture could not put the tome on the weapon's row, touching it");
             Assert.That(placed.X, Is.GreaterThanOrEqualTo(0), "the bag has no free 2x2 block left for the tome");
 
             CampLink[] links = presenter.Bag.Links;
@@ -1309,6 +1310,130 @@ namespace ProjectSurvive.Game.Tests.EditMode
                     links[i].Style, Is.Not.EqualTo(CampLinkStyle.Line),
                     "a line survived the pair going off the same row: " + links[i]);
             }
+        }
+
+        // -------------------------------------------------------------------
+        // the line's adjacency condition (Stage 09j)
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// The rule that is working draws a line <b>when the two pieces touch</b>: a 2×2 tome on the
+        /// bag with a weapon in the cell right of it shares the tome's row and touches it, which is the
+        /// shape a permanent mark was asked for.
+        /// </summary>
+        [Test]
+        public void A_tome_touching_a_weapon_along_an_edge_draws_a_line()
+        {
+            Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
+
+            Assert.That(MoveTo(run, tome, 0, 1), Is.True, "the tome could not be placed beside the weapon's cell");
+            ui.Presenter.Refresh();
+
+            Assert.That(
+                HasLineBetween(ui.Presenter.Bag.Links, tome.InstanceId, weapon.InstanceId), Is.True,
+                "a tome touching a weapon draws no line: " + Links(ui));
+        }
+
+        /// <summary>
+        /// The same row with a cell between the pieces is still a working combo — that is Core's rule,
+        /// and this stage changed only the drawing — but it draws no permanent line. The proof that the
+        /// rule itself was not touched is that <c>SynergyEvaluator</c> still reports the pair.
+        /// </summary>
+        [Test]
+        public void A_tome_a_cell_away_on_the_same_row_is_a_working_combo_with_no_line()
+        {
+            Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
+
+            var secondBag = run.Backpack.AddBag("bag.raw_cotton_bag");
+            Assert.That(secondBag.IsSuccess, Is.True, "a second รยาม could not be added");
+            Assert.That(MoveTo(run, secondBag.Value, 3, 1), Is.True, "the second รยาม could not be placed");
+            Assert.That(MoveTo(run, weapon, 3, 1), Is.True, "the weapon could not be moved a cell past the tome's edge");
+            Assert.That(MoveTo(run, tome, 0, 1), Is.True, "the tome could not be placed on the first รยาม");
+
+            ui.Presenter.Refresh();
+
+            SynergyEvaluation layout = new SynergyEvaluator(_config).Evaluate(run.Backpack);
+            bool pairIsActive = false;
+            for (int i = 0; i < layout.Active.Count; i++)
+            {
+                ActiveSynergy synergy = layout.Active[i];
+                if ((synergy.SourceInstanceId == tome.InstanceId && synergy.TargetInstanceId == weapon.InstanceId)
+                    || (synergy.SourceInstanceId == weapon.InstanceId && synergy.TargetInstanceId == tome.InstanceId))
+                {
+                    pairIsActive = true;
+                }
+            }
+
+            Assert.That(
+                pairIsActive, Is.True,
+                "Core must still report the same-row pair: this stage only stopped drawing a line for a pair that does not touch");
+            Assert.That(
+                HasLineBetween(ui.Presenter.Bag.Links, tome.InstanceId, weapon.InstanceId), Is.False,
+                "a line was drawn across an empty cell to a weapon the tome does not touch: " + Links(ui));
+        }
+
+        /// <summary>
+        /// Two pieces that only touch at a corner are not neighbours: the rule does not fire and the
+        /// screen draws nothing, which is the diagonal the stage excludes.
+        /// </summary>
+        [Test]
+        public void A_tome_touching_a_weapon_only_at_a_corner_draws_nothing()
+        {
+            Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
+
+            Assert.That(MoveTo(run, weapon, 2, 3), Is.True, "the weapon could not be placed diagonally off the tome's corner");
+            Assert.That(MoveTo(run, tome, 0, 1), Is.True, "the tome could not be placed on the รยาม");
+
+            ui.Presenter.Refresh();
+
+            SynergyEvaluation layout = new SynergyEvaluator(_config).Evaluate(run.Backpack);
+            for (int i = 0; i < layout.Active.Count; i++)
+            {
+                Assert.That(
+                    layout.Active[i].RuleId, Is.Not.EqualTo("synergy.tome_row_damage"),
+                    "a corner touch must not count as the same-line rule's condition");
+            }
+
+            Assert.That(
+                HasLineBetween(ui.Presenter.Bag.Links, tome.InstanceId, weapon.InstanceId), Is.False,
+                "a diagonal touch drew a line: " + Links(ui));
+        }
+
+        /// <summary>
+        /// One tome can touch two weapons along its row — its right edge spans two cells — and each
+        /// touching partner gets its own line, because each is its own working pair.
+        /// </summary>
+        [Test]
+        public void A_tome_that_touches_two_weapons_draws_two_lines()
+        {
+            Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
+
+            var secondWeapon = run.Backpack.AddItem("item.kali_flame_yant");
+            Assert.That(secondWeapon.IsSuccess, Is.True, "the run could not take a second weapon");
+
+            Assert.That(MoveTo(run, weapon, 2, 1), Is.True, "the first weapon could not be placed beside the tome");
+            Assert.That(MoveTo(run, secondWeapon.Value, 2, 2), Is.True, "the second weapon could not be placed beside the tome");
+            Assert.That(MoveTo(run, tome, 0, 1), Is.True, "the tome could not be placed on the รยาม");
+
+            ui.Presenter.Refresh();
+
+            int lines = 0;
+            CampLink[] links = ui.Presenter.Bag.Links;
+            for (int i = 0; i < links.Length; i++)
+            {
+                if (links[i].Style == CampLinkStyle.Line)
+                {
+                    lines++;
+                }
+            }
+
+            Assert.That(
+                HasLineBetween(links, tome.InstanceId, weapon.InstanceId), Is.True,
+                "the tome's first neighbour has no line: " + Links(ui));
+            Assert.That(
+                HasLineBetween(links, tome.InstanceId, secondWeapon.Value.InstanceId), Is.True,
+                "the tome's second neighbour has no line: " + Links(ui));
+            Assert.That(lines, Is.EqualTo(2), "two touching pairs should be two lines, not " + lines);
         }
 
         [Test]
@@ -1638,6 +1763,70 @@ namespace ProjectSurvive.Game.Tests.EditMode
             return new CellOffset(-1, -1);
         }
 
+        /// <summary>
+        /// The same scan as <see cref="PlaceSharingARow"/>, but the placement also has to <b>touch</b>
+        /// the weapon: since Stage 09j a line is drawn only for a pair that is both on one row and
+        /// edge-adjacent, so the fixture has to arrange that pair.
+        /// </summary>
+        private static CellOffset PlaceTouchingTheWeapon(
+            CampPresenter presenter, PieceRef piece, CampPieceModel weapon, out bool rowsOverlap)
+        {
+            rowsOverlap = false;
+
+            CampBagScreen bag = presenter.Bag;
+            CampPieceModel model = PieceOf(bag, piece);
+
+            presenter.DragStart(piece, Rotation.Degrees0);
+
+            for (int row = 0; row < bag.BoardHeight; row++)
+            {
+                for (int column = 0; column < bag.BoardWidth; column++)
+                {
+                    var cell = new CellOffset(column, row);
+                    presenter.DragMove(BagDropZone.Board, cell);
+
+                    if (!presenter.Drag.IsValid || presenter.Drag.Action != BagDropAction.Place
+                        || !SharesARow(model, cell, weapon)
+                        || !Touches(model, cell, weapon))
+                    {
+                        continue;
+                    }
+
+                    rowsOverlap = true;
+                    presenter.Drop();
+                    return cell;
+                }
+            }
+
+            presenter.CancelDrag();
+            return new CellOffset(-1, -1);
+        }
+
+        /// <summary>True when the piece placed at <paramref name="origin"/> would touch the weapon along an edge.</summary>
+        private static bool Touches(CampPieceModel piece, CellOffset origin, CampPieceModel other)
+        {
+            int width = piece.Shape == null ? 1 : piece.Shape.Width;
+            int height = piece.Shape == null ? 1 : piece.Shape.Height;
+            int otherWidth = other.Shape == null ? 1 : other.Shape.Width;
+            int otherHeight = other.Shape == null ? 1 : other.Shape.Height;
+
+            int left = origin.X;
+            int top = origin.Y;
+            int right = left + width - 1;
+            int bottom = top + height - 1;
+            int otherLeft = other.Origin.X;
+            int otherTop = other.Origin.Y;
+            int otherRight = otherLeft + otherWidth - 1;
+            int otherBottom = otherTop + otherHeight - 1;
+
+            bool sideBySide = (right + 1 == otherLeft || otherRight + 1 == left)
+                && top <= otherBottom && otherTop <= bottom;
+            bool stacked = (bottom + 1 == otherTop || otherBottom + 1 == top)
+                && left <= otherRight && otherLeft <= right;
+
+            return sideBySide || stacked;
+        }
+
         /// <summary>The opposite: drops the piece where it shares no row with the weapon.</summary>
         private static CellOffset PlaceOffEveryRow(
             CampPresenter presenter, PieceRef piece, CampPieceModel weapon, out bool found)
@@ -1853,7 +2042,65 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
         private static string Number(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
-        /// <summary>The screen and the run behind it, at the first camp of a fresh run.</summary>
+        // -------------------------------------------------------------------
+        // helpers for the line rule's adjacency condition (Stage 09j)
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// A camp whose รยาม holds a 2×2 tome and a weapon in the cell right of the tome's cells: the
+        /// smallest layout in which the same-line rule can draw a line. The tome is added through the
+        /// backpack's own command rather than won, because what is under test is the drawing.
+        /// </summary>
+        private Screen CampWithATome(
+            out RunSession run, out PieceRef bag, out PieceRef weapon, out PieceRef tome)
+        {
+            Screen ui = ScreenAtFirstCamp();
+            run = ui.Run;
+            bag = run.Backpack.Bags[0].Ref;
+            weapon = run.Backpack.Items[0].Ref;
+
+            Assert.That(MoveTo(run, bag, 0, 1), Is.True, "the starting รยาม could not be moved to (0,1)");
+            Assert.That(MoveTo(run, weapon, 2, 1), Is.True, "the weapon could not be placed at (2,1)");
+
+            Result<PieceRef> added = run.Backpack.AddItem("item.spell_tome");
+            Assert.That(added.IsSuccess, Is.True, "the run could not take a tome: " + added.Error);
+            tome = added.Value;
+
+            ui.Presenter.Refresh();
+            return ui;
+        }
+
+        /// <summary>The run's own placement command, so a layout this suite builds is one the game allows.</summary>
+        private static bool MoveTo(RunSession run, PieceRef piece, int x, int y) =>
+            run.MovePiece(piece, new CellOffset(x, y), Rotation.Degrees0).IsSuccess;
+
+        /// <summary>True when a line joins the two instances, in either direction.</summary>
+        private static bool HasLineBetween(CampLink[] links, int first, int second)
+        {
+            return HasLine(links, first, second) || HasLine(links, second, first);
+        }
+
+        /// <summary>The marks the screen is drawing, as one line, for a failure message.</summary>
+        private static string Links(Screen ui)
+        {
+            CampLink[] links = ui.Presenter.Bag.Links;
+            if (links.Length == 0)
+            {
+                return "no links at all";
+            }
+
+            var written = new List<string>(links.Length);
+            for (int i = 0; i < links.Length; i++)
+            {
+                written.Add(links[i].Style + ":" + links[i].SourceInstanceId + "->" + links[i].TargetInstanceId);
+            }
+
+            return string.Join(", ", written);
+        }
+
+        /// <summary>
+        /// The screen and the run behind it, at the first camp of a fresh run.
+        /// </summary>
         private Screen ScreenAtFirstCamp()
         {
             RunSession run = AtFirstCamp();

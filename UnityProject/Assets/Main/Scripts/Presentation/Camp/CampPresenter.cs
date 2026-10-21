@@ -1179,7 +1179,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <para>
         /// Which style a rule gets comes from its own <c>synergy.kind</c> row, so a same-line rule
         /// added to <c>data/</c> arrives with a line and no code change, and an adjacency rule
-        /// arrives with no mark at all.
+        /// arrives with no mark at all. Since Stage 09j a same-line rule draws its line only when the
+        /// two pieces it connects also touch along an edge: a line is a bridge between two pieces,
+        /// not a stripe across the board to a partner three cells away.
         /// </para>
         /// <para>
         /// Rebuilt only when the layout was rebuilt (a command moved the bag) and cached otherwise,
@@ -1218,6 +1220,20 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 {
                     case SynergyKind.SameRow:
                     case SynergyKind.SameColumn:
+                        // Stage 09j: the rule reaches any partner on the same line, however far
+                        // away; the *line* is only drawn for a pair that also touches along a
+                        // board edge. A pair a row apart with a gap (or another item) between
+                        // them is still a working combo — it is shown by the hover and drag
+                        // highlight and named on the tooltip — but a permanent mark between two
+                        // pieces with nothing between them would cross the empty cells, the
+                        // third piece and the names it passes. The relation is Core's own
+                        // `IsAdjacentTo` (the same predicate the adjacency rules use), so this
+                        // is a drawing decision and not a second copy of a rule.
+                        if (!TouchesAlongAnEdge(synergy.SourceInstanceId, synergy.TargetInstanceId))
+                        {
+                            break;
+                        }
+
                         _linkScratch.Add(new CampLink(
                             synergy.SourceInstanceId, synergy.TargetInstanceId, CampLinkStyle.Line));
                         break;
@@ -1238,6 +1254,26 @@ namespace ProjectSurvive.Game.Presentation.Camp
             _linksRevision = _layoutRevision;
             _links = _linkScratch.Count == 0 ? NoLinks : _linkScratch.ToArray();
             return _links;
+        }
+
+        /// <summary>
+        /// True when the two pieces share a board edge (4 directions, no diagonals) — the condition
+        /// under which a same-line pair also gets a permanent line (Stage 09j).
+        /// </summary>
+        /// <remarks>
+        /// Asked of the run's own pieces, so the answer follows the bag that carries them: a bag turn
+        /// moves both partners and the relation is re-asked on the next evaluation rather than cached
+        /// from the picture. The predicate is <see cref="PieceInstance.IsAdjacentTo"/>, which is also
+        /// what <c>synergy.kind = AdjacentPair</c> uses — one definition of "ติดกัน" for the whole
+        /// project.
+        /// </remarks>
+        private bool TouchesAlongAnEdge(int sourceInstanceId, int targetInstanceId)
+        {
+            return _run.Backpack.TryGetItem(sourceInstanceId, out ItemInstance source)
+                && _run.Backpack.TryGetItem(targetInstanceId, out ItemInstance target)
+                && source != null
+                && target != null
+                && source.IsAdjacentTo(target);
         }
 
         /// <summary>The kind of a rule the screen is drawing, or false when the config has no such row.</summary>

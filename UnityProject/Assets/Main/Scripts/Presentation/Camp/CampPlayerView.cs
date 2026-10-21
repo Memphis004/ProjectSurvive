@@ -91,9 +91,23 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
+            // Stage 09j: resolved first, bound last. `_bound = true` used to be set before the two
+            // resolves, so a container that had already been disposed threw out of this method and
+            // left the view running with a null config — one NullReferenceException every frame from
+            // `UpdateFocus` (measured: the reported stack, CampPlayerView.cs:202, thousands of them).
+            // A failed bind now leaves the view unbound and quiet instead.
+            IGameConfig config = _scope.Container.Resolve<IGameConfig>();
+            CampPresenter presenter = _scope.Container.Resolve<CampPresenter>();
+
+            if (config == null || presenter == null)
+            {
+                Debug.LogError("CampPlayerView could not resolve the run from its scope.", this);
+                return;
+            }
+
+            _config = config;
+            _presenter = presenter;
             _bound = true;
-            _config = _scope.Container.Resolve<IGameConfig>();
-            _presenter = _scope.Container.Resolve<CampPresenter>();
 
             if (_world != null && _world.PlayerTransform != null)
             {
@@ -103,7 +117,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         private void Update()
         {
-            if (!_bound)
+            if (!_bound || _config == null)
             {
                 return;
             }
@@ -194,7 +208,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// </summary>
         private void UpdateFocus()
         {
-            if (_world == null)
+            if (_world == null || _config == null)
             {
                 return;
             }

@@ -224,7 +224,11 @@ namespace ProjectSurvive.Game.Camp
         /// </remarks>
         private void Publish(bool force)
         {
-            if (!_publishReport)
+            // Stage 09j: the same lifetime guard the rest of the camp uses. A director whose start
+            // refused (a run that ended, a scene opened mid-run) has `_started` false and never gets
+            // here, but `Update` runs its own copy of this gate — and a presenter that is gone while
+            // the director still ticks threw from `Presenter.IsDragging`.
+            if (!_publishReport || Presenter == null)
             {
                 return;
             }

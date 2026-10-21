@@ -683,6 +683,162 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 "the view drew " + _bag.VisibleBadgeCount + " badge(s) for the " + badges + " the run listed");
         }
 
+        /// <summary>
+        /// Stage 09j: a permanent line needs the pair to <b>touch</b>, and the mark follows the weapon
+        /// the moment it is carried off the tome's edge and back.
+        /// </summary>
+        /// <remarks>
+        /// The layout is the stage's own: a 2×2 tome with one weapon against its right edge and a second
+        /// weapon a cell further along the same row. Core reports both weapons; the screen draws one
+        /// line. Dragging the touching weapon two rows down is a real gesture through the presenter, so
+        /// the count dropping to zero is the picture following a command rather than a cache expiring.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator Only_a_touching_pair_keeps_its_line_and_the_mark_follows_the_piece()
+        {
+            yield return LoadCamp();
+
+            RunSession run = _director.Run;
+            CampPresenter presenter = _director.Presenter;
+
+            PieceRef firstBag = run.Backpack.Bags[0].Ref;
+            PieceRef touchingWeapon = run.Backpack.Items[0].Ref;
+
+            Assert.That(
+                run.MovePiece(firstBag, new CellOffset(0, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the starting รยาม could not be moved to (0,1)");
+
+            var secondBag = run.Backpack.AddBag("bag.raw_cotton_bag");
+            Assert.That(secondBag.IsSuccess, Is.True, "a second รยาม could not be added");
+            Assert.That(
+                run.MovePiece(secondBag.Value, new CellOffset(3, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the second รยาม could not be placed at (3,1)");
+
+            // The weapon that rode the bag has to leave the tome's cells before the tome lands on them.
+            Assert.That(
+                run.MovePiece(touchingWeapon, new CellOffset(2, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the touching weapon could not be placed at (2,1)");
+
+            var tome = run.Backpack.AddItem("item.spell_tome");
+            Assert.That(tome.IsSuccess, Is.True, "the tome could not be added");
+            var farWeapon = run.Backpack.AddItem("item.kali_flame_yant");
+            Assert.That(farWeapon.IsSuccess, Is.True, "a second weapon could not be added");
+
+            Assert.That(
+                run.MovePiece(tome.Value, new CellOffset(0, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the 2x2 tome could not be placed at (0,1)");
+            Assert.That(
+                run.MovePiece(farWeapon.Value, new CellOffset(3, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the far weapon could not be placed at (3,1)");
+
+            presenter.Refresh();
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            Assert.That(
+                _bag.VisibleLineCount, Is.EqualTo(1),
+                "one touching pair should be one line, and the view drew " + _bag.VisibleLineCount);
+
+            // Off the tome's row, with the dock's own gesture.
+            presenter.DragStart(touchingWeapon, Rotation.Degrees0);
+            presenter.DragMove(BagDropZone.Board, new CellOffset(2, 3));
+            presenter.Drop();
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            Assert.That(
+                _bag.VisibleLineCount, Is.EqualTo(0),
+                "the line survived the weapon being carried off the tome's row: the view drew "
+                + _bag.VisibleLineCount);
+
+            // And back against the tome's edge: the mark returns with the pair.
+            presenter.DragStart(touchingWeapon, Rotation.Degrees0);
+            presenter.DragMove(BagDropZone.Board, new CellOffset(2, 1));
+            presenter.Drop();
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            Assert.That(
+                _bag.VisibleLineCount, Is.EqualTo(1),
+                "the line did not come back when the weapon returned to the tome's edge: the view drew "
+                + _bag.VisibleLineCount);
+
+            // The mark it came back as still reaches the two pieces and no name.
+            Assert.That(_bag.TryGetLineScreenEnds(0, out Vector2 from, out Vector2 to), Is.True);
+            Assert.That(
+                _bag.TryGetPieceScreenRect(tome.Value, out Rect tomeRect), Is.True,
+                "the tome has no rectangle on screen");
+            Assert.That(
+                _bag.TryGetPieceScreenRect(touchingWeapon, out Rect weaponRect), Is.True,
+                "the weapon has no rectangle on screen");
+
+            Assert.That(
+                tomeRect.Contains(from) || EdgesWithin(from, tomeRect, 1f), Is.True,
+                "the line does not start on the tome: " + from + " against " + tomeRect);
+            Assert.That(
+                weaponRect.Contains(to) || EdgesWithin(to, weaponRect, 1f), Is.True,
+                "the line does not end on the weapon: " + to + " against " + weaponRect);
+
+            for (int i = 0; i < _bag.VisibleLineCount; i++)
+            {
+                Assert.That(_bag.TryGetLineScreenEnds(i, out Vector2 start, out Vector2 finish), Is.True);
+
+                foreach (TMP_Text label in _bag.GetComponentsInChildren<TMP_Text>(true))
+                {
+                    if (label.name != CampBagScreenView.CellLabelName || !label.gameObject.activeInHierarchy)
+                    {
+                        continue;
+                    }
+
+                    if (!CampScreenRects.TryOf((RectTransform)label.transform, out Rect text))
+                    {
+                        continue;
+                    }
+
+                    Assert.That(
+                        Crosses(start, finish, text), Is.False,
+                        "line " + i + " runs through the name '" + label.text + "' at " + text);
+                }
+            }
+        }
+
+        /// <summary>True when the point is on the rectangle's edge, within a tolerance.</summary>
+        private static bool EdgesWithin(Vector2 point, Rect rect, float tolerance)
+        {
+            float distance = Mathf.Min(
+                Mathf.Min(Mathf.Abs(point.x - rect.xMin), Mathf.Abs(point.x - rect.xMax)),
+                Mathf.Min(Mathf.Abs(point.y - rect.yMin), Mathf.Abs(point.y - rect.yMax)));
+            return distance <= tolerance;
+        }
+
+        /// <summary>
+        /// True when the stroke runs through the name's inside — not merely touching its outline
+        /// (both ends of a mark sit on a piece's edge, and a name fills its piece).
+        /// </summary>
+        private static bool Crosses(Vector2 from, Vector2 to, Rect rect)
+        {
+            const int Steps = 24;
+            const float Inset = 1.5f;
+
+            var inside = new Rect(
+                rect.x + Inset, rect.y + Inset, rect.width - (Inset * 2f), rect.height - (Inset * 2f));
+
+            if (inside.width <= 0f || inside.height <= 0f)
+            {
+                return false;
+            }
+
+            for (int i = 1; i < Steps; i++)
+            {
+                if (inside.Contains(Vector2.Lerp(from, to, i / (float)Steps)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         /// <summary>One of the tooltip's five lines, found by the name the scene authored it under.</summary>
         private static TMP_Text LabelNamed(Component owner, string name)
         {
