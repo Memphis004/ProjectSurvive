@@ -46,6 +46,9 @@ namespace ProjectSurvive.Game.Presentation.Web
         /// <summary>Global the page reads for the Thai text spike measurement.</summary>
         public const string ThaiSpikeGlobal = "__projectSurviveThaiSpike";
 
+        /// <summary>Global the page reads for the checkpoint/settings storage verdict (Stage 12).</summary>
+        public const string PersistenceGlobal = "__projectSurvivePersistence";
+
         /// <summary>Event dispatched after a smoke report is published.</summary>
         public const string SmokeReportEvent = "projectsurvive:smoke";
 

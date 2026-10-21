@@ -165,5 +165,12 @@ namespace ProjectSurvive.Core.Domain.Inventory
 
         /// <summary>The run does not hold that many copies of the piece ("ใช้ของไปแล้ว").</summary>
         public const string NotEnoughPieces = "inventory.not_enough_pieces";
+
+        /// <summary>
+        /// A restored snapshot does not describe a valid backpack (Stage 12). The previous
+        /// state is put back before this is returned, so a corrupt checkpoint cannot leave
+        /// half a bag behind.
+        /// </summary>
+        public const string InvalidSnapshot = "inventory.invalid_snapshot";
     }
 }

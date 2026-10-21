@@ -94,6 +94,17 @@ namespace ProjectSurvive.Game.Editor
             CampTooltipView tooltip = BuildCampTooltip(font, scope);
             CampBagScreenView bag = BuildCampBagScreen(canvasRect, canvasObject, font, scope);
 
+            // Stage 12: a failed checkpoint write is visible in the sala, not just in the log.
+            TMP_Text saveWarning = ProjectSetup.CreateTmpLabel(
+                canvas, "SaveWarning", new Vector2(0f, 300f), 26f, font, new Vector2(1200f, 40f));
+            saveWarning.color = new Color(1f, 0.62f, 0.32f, 1f);
+
+            // A readout must not eat the sala's clicks. This label is a 1200 × 40 band across the
+            // shelf row, and TMP makes a new text a raycast target by default: with the default on,
+            // every click on a shelf became "pointer over UI" and rented nothing (found by
+            // CampWorldPlayModeTests.Clicking_a_shelf_rents_it_without_walking).
+            saveWarning.raycastTarget = false;
+
             ProjectSetup.SetObjectReference(walker, "_bag", bag);
             ProjectSetup.SetObjectReference(director, "_scope", scope);
             ProjectSetup.SetObjectReference(director, "_world", world);
@@ -101,6 +112,7 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(director, "_bag", bag);
             ProjectSetup.SetObjectReference(director, "_status", status);
             ProjectSetup.SetObjectReference(director, "_tooltip", tooltip);
+            ProjectSetup.SetObjectReference(director, "_saveWarning", saveWarning);
 
             EditorSceneManager.SaveScene(scene, ProjectSetup.CampScenePath);
         }

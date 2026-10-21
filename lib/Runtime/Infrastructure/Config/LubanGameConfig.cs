@@ -401,6 +401,9 @@ namespace ProjectSurvive.Core.Infrastructure.Config
 
         public string ConfigHash { get; }
 
+        /// <summary>The data schema the generated tables were built from.</summary>
+        public int SchemaVersion => ProjectSurvive.Config.ConfigBuildMetadata.SchemaVersion;
+
         public ConstantConfig Constant { get; }
 
         public EconomyConfig Economy { get; }

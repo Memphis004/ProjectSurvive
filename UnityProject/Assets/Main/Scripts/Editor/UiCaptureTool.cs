@@ -125,6 +125,24 @@ namespace ProjectSurvive.Game.Editor
         };
 
         /// <summary>
+        /// The title screen's Stage 12 settings overlay. The panel is a surface and every row and
+        /// button inside it is a control, so the same rule that keeps the title's own controls apart
+        /// says whether the settings the player changes can be read and pressed.
+        /// </summary>
+        private static readonly (string Name, string Field)[] SettingsControls =
+        {
+            ("SettingsTitle", "_titleLabel"),
+            ("VolumeLabel", "_volumeLabel"),
+            ("VolumeDown", "_volumeDownButton"),
+            ("VolumeUp", "_volumeUpButton"),
+            ("LanguageLabel", "_languageLabel"),
+            ("LanguageButton", "_languageButton"),
+            ("SpeedLabel", "_speedLabel"),
+            ("SpeedButton", "_speedButton"),
+            ("CloseButton", "_closeButton"),
+        };
+
+        /// <summary>
         /// The summary screen's five lines, as <c>ResultView</c> serializes them. They are measured as
         /// <see cref="UiRegionKind.Control"/> regions because that kind is the one the overlap rule lets
         /// sit inside a surface it belongs to ("a control drawn inside its own surface is by design"):
@@ -452,6 +470,53 @@ namespace ProjectSurvive.Game.Editor
             {
                 Vector2Int size = CapturedSizes[i];
                 Capture(SceneKind.Title, "start", "title", camera, size, regions, report);
+            }
+
+            // Stage 12: the settings overlay, opened once and measured at both sizes. It is measured
+            // in its own state rather than over the title's regions: the overlay is meant to cover
+            // them, and what has to hold is that its own rows and controls do not collide.
+            var settings = Object.FindFirstObjectByType<SettingsView>(FindObjectsInactive.Include);
+            if (settings == null)
+            {
+                report.Failures.Add("the Title scene is missing its SettingsView");
+                return;
+            }
+
+            var settingsObject = new SerializedObject(settings);
+            var panelProperty = settingsObject.FindProperty("_panel");
+            var panel = panelProperty?.objectReferenceValue as GameObject;
+            if (panel == null || panel.transform is not RectTransform panelRect)
+            {
+                report.Failures.Add("the Title scene's SettingsView has no panel RectTransform");
+                return;
+            }
+
+            var settingsRegions = new List<(string Name, UiRegionKind Kind, RectTransform Rect)>
+            {
+                ("SettingsPanel", UiRegionKind.Surface, panelRect),
+            };
+            AddSerializedComponents(settingsObject, SettingsControls, UiRegionKind.Control, settingsRegions);
+
+            if (settingsRegions.Count < SettingsControls.Length + 1)
+            {
+                report.Failures.Add(
+                    "the Title scene wires " + (settingsRegions.Count - 1) + " of its "
+                    + SettingsControls.Length + " settings controls, so a control that overlaps another "
+                    + "one could go unnoticed");
+            }
+
+            panel.SetActive(true);
+            try
+            {
+                for (int i = 0; i < CapturedSizes.Length; i++)
+                {
+                    Vector2Int size = CapturedSizes[i];
+                    Capture(SceneKind.Title, "settings", "title-settings", camera, size, settingsRegions, report);
+                }
+            }
+            finally
+            {
+                panel.SetActive(false);
             }
         }
 

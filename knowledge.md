@@ -44,7 +44,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **11c** | **Pob boss: two phases, corpse eating, the possession that reverses the stick** | **DONE** — see [`docs/stages/11c-report.md`](docs/stages/11c-report.md), [ADR 0030](docs/adr/0030-boss-possession-hud-channel.md) |
 | **11d** | **Balance pass: 200 seeds, four bot builds, data only** | **DONE** — see [`docs/stages/11d-report.md`](docs/stages/11d-report.md) |
 | 11 | Thai ghost AI, Pob boss, balance (11a–11d all landed) | **DONE** — [`11a`](docs/adr/0028-item-effects-and-status-table.md), [`11b`](docs/stages/11b-report.md), [`11c`](docs/stages/11c-report.md), [`11d`](docs/stages/11d-report.md) |
-| 12 | Save, resume, settings | not started |
+| **12** | **Save, resume, settings (checkpoint, IndexedDB flush, TH/EN, volume, starting speed)** | **DONE** — see [`docs/stages/12-report.md`](docs/stages/12-report.md), [ADR 0033](docs/adr/0033-application-awaits-capture-the-caller-context.md) |
 | 13 | Content complete & UX | not started |
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
@@ -473,14 +473,18 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
   so far. That `.bytes` in `Resources/Config` load in a real Web build, and that
   the asmdef graph resolves as the csprojs do, is proven at Stage 03.
 - The data schema has **no versioned migration story** yet: `SchemaVersion` in
-  `ConfigBuildMetadata.g.cs` is bumped by hand in `tools/gen.ps1`, and no save
-  format reads these tables yet (Stage 12).
+  `ConfigBuildMetadata.g.cs` is bumped by hand in `tools/gen.ps1`. The Stage 12
+  checkpoint records that hash and schema version and refuses a save taken against
+  different data (`save.config_mismatch`); there is still no *data migration*, only
+  a refusal.
 - Nothing in `lib/` has been compiled by Unity yet. The `dotnet` harness mirrors
   the Unity compiler surface (C# 9 / netstandard2.1), but asmdef resolution
   itself is only proven in Stage 03.
 - IL2CPP stripping/AOT behaviour of MessagePack, Protobuf, R3, VContainer on Web
   is **unproven** — Stage 03.
-- IndexedDB flush method on Unity 6.3 — Stage 12.
+- ~~IndexedDB flush method on Unity 6.3~~ — **resolved at Stage 12**: `FS.syncfs` is the
+  flush, and it must be **polled from a Unity frame**, not completed from its browser
+  callback ([ADR 0033](docs/adr/0033-application-awaits-capture-the-caller-context.md)).
 - Firefox not installed → cross-browser runs are NOT RUN until it is.
 - **Charm passives and offering effects are data since Stage 11a.** `item` carries
   `charm_stat`/`charm_method`/`charm_magnitude` and

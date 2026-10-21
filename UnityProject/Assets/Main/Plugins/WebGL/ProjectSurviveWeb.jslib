@@ -58,5 +58,56 @@ mergeInto(LibraryManager.library, {
     if (window.console && window.console.log) {
       window.console.log("[ProjectSurvive] " + UTF8ToString(messagePtr));
     }
+  },
+
+  // Stage 12: is the browser's IndexedDB usable? Unity mounts
+  // Application.persistentDataPath on an Emscripten IDBFS when IndexedDB exists
+  // (WebGLSupport/BuildTools/prejs/IdbFs.js, Unity 6000.3.9f1). A test hook can
+  // force the unavailable path before the player boots.
+  ProjectSurvive_StorageAvailable: function () {
+    if (window.projectSurviveStorageDisabled === true) {
+      return 0;
+    }
+    return (typeof indexedDB !== 'undefined' && indexedDB !== null) ? 1 : 0;
+  },
+
+  // Stage 12: flush the IDBFS mount that backs Application.persistentDataPath.
+  // FS.syncfs is Emscripten's own API; Unity's WebGL support calls it through
+  // IDBFS.queuePersist (BuildTools/lib/FileSystem.js).
+  //
+  // The result is POLLED, not called back. `FS.syncfs` finishes on a browser
+  // event, and a C# Task completed from there never resumed its awaiting code
+  // in the player (measured in Stage 12: the write reached IndexedDB, and the
+  // save callers waited forever with no error). Recording the outcome lets the
+  // player complete the task from its own Update, where continuations run.
+  //
+  // The outcome lives in a `$`-prefixed library symbol: it is scoped to the generated
+  // player code and is NOT a page global, so no global name is written here (Stage 10t:
+  // a page global's name is passed in by WebGlBridge). 0 idle, 1 in flight, 2 written,
+  // 3 failed — see ProjectSurvive_FlushPoll.
+  $ProjectSurviveFlushState: 0,
+
+  ProjectSurvive_FlushBegin: function () {
+    $ProjectSurviveFlushState = 1;
+    if (typeof FS === 'undefined' || !FS.syncfs) {
+      $ProjectSurviveFlushState = 3;
+      return;
+    }
+    try {
+      FS.syncfs(false, function (error) {
+        $ProjectSurviveFlushState = error ? 3 : 2;
+      });
+    } catch (error) {
+      $ProjectSurviveFlushState = 3;
+    }
+  },
+
+  // 0 idle, 1 in flight, 2 written, 3 failed. A finished state is reported once.
+  ProjectSurvive_FlushPoll: function () {
+    var state = $ProjectSurviveFlushState | 0;
+    if (state === 2 || state === 3) {
+      $ProjectSurviveFlushState = 0;
+    }
+    return state;
   }
 });

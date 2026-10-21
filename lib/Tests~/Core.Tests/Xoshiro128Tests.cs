@@ -181,6 +181,37 @@ namespace ProjectSurvive.Core.Tests
             Assert.Throws<ArgumentNullException>(() => source!.NextFloat());
         }
 
+        [Fact]
+        public void Exporting_and_importing_state_continues_the_same_sequence()
+        {
+            var original = new Xoshiro128(987654u);
+            for (int i = 0; i < 37; i++)
+            {
+                original.NextUInt();
+            }
+
+            Xoshiro128State state = original.ExportState();
+            uint[] expected = new uint[64];
+            for (int i = 0; i < expected.Length; i++)
+            {
+                expected[i] = original.NextUInt();
+            }
+
+            var restored = new Xoshiro128(1u);
+            restored.ImportState(state);
+            for (int i = 0; i < expected.Length; i++)
+            {
+                Assert.Equal(expected[i], restored.NextUInt());
+            }
+        }
+
+        [Fact]
+        public void Importing_the_zero_state_is_refused()
+        {
+            var generator = new Xoshiro128(1u);
+            Assert.Throws<ArgumentException>(() => generator.ImportState(new Xoshiro128State(0u, 0u, 0u, 0u)));
+        }
+
         private static void AssertSequence(uint seed, uint[] expected)
         {
             var generator = new Xoshiro128(seed);

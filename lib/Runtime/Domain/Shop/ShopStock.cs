@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using ProjectSurvive.Core.Domain.Config;
 
 namespace ProjectSurvive.Core.Domain.Shop
@@ -158,6 +159,41 @@ namespace ProjectSurvive.Core.Domain.Shop
 
         /// <summary>Records that one re-roll was paid for. Called by the run after the purse moved.</summary>
         public void MarkRefreshed() => RefreshCount++;
+
+        /// <summary>
+        /// Restores a checkpoint's shop exactly: every offer, every rent, every pin and the
+        /// re-roll counter (Stage 12).
+        /// </summary>
+        /// <remarks>
+        /// The slot count must match this stock's: a save from a build with a different
+        /// <c>economy.shop_slot_count</c> is a config mismatch, and the caller reports it as
+        /// one rather than letting the panel silently grow or shrink.
+        /// </remarks>
+        /// <returns>False when the state does not describe exactly this stock.</returns>
+        public bool Restore(IReadOnlyList<ShopSlotState> slots, int refreshCount)
+        {
+            if (slots is null || slots.Count != SlotCount || refreshCount < 0)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < slots.Count; i++)
+            {
+                ShopSlotState state = slots[i];
+                if (state.Index != i || state.Price < 0)
+                {
+                    return false;
+                }
+            }
+
+            for (int i = 0; i < slots.Count; i++)
+            {
+                _slots[i].Restore(slots[i]);
+            }
+
+            RefreshCount = refreshCount;
+            return true;
+        }
 
         /// <summary>Marks a slot as rented. Precondition: the run validated the purchase and paid.</summary>
         public void MarkPurchased(int index)

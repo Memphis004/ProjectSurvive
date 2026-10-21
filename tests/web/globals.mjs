@@ -12,10 +12,12 @@
  * `.mjs` file is what both a Playwright spec and `node scripts/probe-boot.mjs`
  * can import without a build step.
  *
- *   __projectSurviveSmoke      the boot self-check report (`SceneBoot`)
- *   __projectSurviveScene      the scene on screen (every scene director)
- *   __projectSurviveThaiSpike  the Thai text spike measurement (`ThaiSpikeReporter`)
+ *   __projectSurviveSmoke        the boot self-check report (`SceneBoot`)
+ *   __projectSurviveScene        the scene on screen (every scene director)
+ *   __projectSurviveThaiSpike    the Thai text spike measurement (`ThaiSpikeReporter`)
+ *   __projectSurvivePersistence  the checkpoint/settings storage verdict (`GameSave`)
  */
 export const SMOKE = "__projectSurviveSmoke";
 export const SCENE = "__projectSurviveScene";
 export const THAI_SPIKE = "__projectSurviveThaiSpike";
+export const PERSISTENCE = "__projectSurvivePersistence";

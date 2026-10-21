@@ -41,7 +41,7 @@ namespace ProjectSurvive.Game.Presentation.Flow
         public const uint DefaultSeed = 20261015u;
 
         private readonly LifetimeScope _owner;
-        private readonly uint _seed;
+        private uint _seed;
 
         private RunLifetimeScope _scope;
         private RunSession _run;
@@ -68,12 +68,22 @@ namespace ProjectSurvive.Game.Presentation.Flow
         /// same instance, which is what makes a wallet survive a scene change.
         /// </summary>
         /// <exception cref="InvalidOperationException">The owner scope has no built container.</exception>
-        public RunSession RequireRun()
+        public RunSession RequireRun() => RequireRun(_seed);
+
+        /// <summary>
+        /// The run, created on first use from <paramref name="seed"/>. A checkpoint restore
+        /// uses this overload because the seed is part of the save, not the scene's default
+        /// (Stage 12). An already-created run is returned unchanged; the checkpoint's validation
+        /// is what refuses a seed mismatch, so this can never rebuild a live run underneath it.
+        /// </summary>
+        public RunSession RequireRun(uint seed)
         {
             if (_run is not null)
             {
                 return _run;
             }
+
+            _seed = seed;
 
             if (_owner is null || _owner.Container is null)
             {

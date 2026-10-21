@@ -28,6 +28,13 @@ namespace ProjectSurvive.Core.Domain.Config
         /// </summary>
         string ConfigHash { get; }
 
+        /// <summary>
+        /// Schema revision of <c>data/Defines</c> these tables were generated from (Stage 12).
+        /// A checkpoint records it so a save made against a different data shape is refused
+        /// with a config mismatch instead of being read as the new shape.
+        /// </summary>
+        int SchemaVersion { get; }
+
         ConstantConfig Constant { get; }
 
         EconomyConfig Economy { get; }

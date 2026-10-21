@@ -850,6 +850,44 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// The board's occupancy maps are rebuilt from the pieces rather than trusted,
         /// so a restored backpack can never disagree with the board it draws.
         /// </remarks>
+        /// <summary>
+        /// Replaces the whole backpack with a checkpoint's snapshot, atomically.
+        /// </summary>
+        /// <remarks>
+        /// The run-level restore command (Stage 12). The previous state is captured first, so
+        /// a snapshot that turns out to be invalid — a repeated instance id, an out-of-range
+        /// tier, a piece off the board — puts the old bag back and returns the typed failure.
+        /// The snapshot itself is trusted input from the save layer only after this check; a
+        /// hand-edited or old-format payload is exactly what the check exists for.
+        /// </remarks>
+        /// <exception cref="System.ArgumentNullException"><paramref name="snapshot"/> is null.</exception>
+        public Result Restore(BackpackSnapshot snapshot)
+        {
+            if (snapshot is null)
+            {
+                throw new ArgumentNullException(nameof(snapshot));
+            }
+
+            BackpackSnapshot previous = CaptureSnapshot();
+            try
+            {
+                RestoreSnapshot(snapshot);
+            }
+            catch (Exception)
+            {
+                RestoreSnapshot(previous);
+                return Result.Fail(InventoryError.InvalidSnapshot, ErrorKind.Validation);
+            }
+
+            if (!TryValidate(out _))
+            {
+                RestoreSnapshot(previous);
+                return Result.Fail(InventoryError.InvalidSnapshot, ErrorKind.Validation);
+            }
+
+            return Result.Ok();
+        }
+
         internal void RestoreSnapshot(BackpackSnapshot snapshot)
         {
             if (snapshot is null)
@@ -948,6 +986,19 @@ namespace ProjectSurvive.Core.Domain.Inventory
 
         /// <summary>Raises <see cref="Revision"/> by one.</summary>
         internal void MarkChanged() => Revision++;
+
+        /// <summary>
+        /// Restores the revision counter a checkpoint captured (Stage 12). The counter is
+        /// not a gameplay value, but it is part of the run-state hash and the loadout cache
+        /// key, so a resumed run must not look older than the one it replaced.
+        /// </summary>
+        public void RestoreRevision(int revision)
+        {
+            if (revision >= 0)
+            {
+                Revision = revision;
+            }
+        }
 
         /// <summary>
         /// Checks every invariant the rest of the game assumes, and describes the

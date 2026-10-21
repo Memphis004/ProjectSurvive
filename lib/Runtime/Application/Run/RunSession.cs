@@ -58,6 +58,12 @@ namespace ProjectSurvive.Core.Application.Run
         private int _pendingSettlementId;
         private int _settlementCounter;
 
+        // Written by StartFloor and by a restored checkpoint: the seed of the floor that is
+        // about to be fought. A reload during Battle resumes with this seed, which is what
+        // makes the re-fought floor the same floor rather than a newly rolled one.
+        private uint _nextBattleSeed;
+        private bool _hasNextBattleSeed;
+
         /// <summary>Creates a run for <paramref name="seed"/>. It starts in <see cref="RunFlowState.Title"/>.</summary>
         /// <exception cref="ArgumentNullException">A required argument is null.</exception>
         public RunSession(IGameConfig config, IBackpackSnapshotCodec codec, uint seed)
@@ -97,13 +103,17 @@ namespace ProjectSurvive.Core.Application.Run
             _loadouts = new LoadoutResolver(config, _synergies);
 
             Hp = MaxHp;
+            RunId = "run-" + seed.ToString("X8") + "-" + Guid.NewGuid().ToString("N");
         }
 
         /// <summary>The run seed every stream and the log were derived from.</summary>
         public uint Seed { get; }
 
+        /// <summary>Stable identity of this run, carried by every checkpoint it writes.</summary>
+        public string RunId { get; private set; }
+
         /// <summary>The purse (เบี้ย).</summary>
-        public Wallet Wallet { get; }
+        public Wallet Wallet { get; private set; }
 
         /// <summary>The bag (ย่าม) and the chest.</summary>
         public Backpack Backpack { get; }
@@ -341,8 +351,10 @@ namespace ProjectSurvive.Core.Application.Run
             {
                 // One draw per floor from the run's own battle stream: the floor's
                 // battle is reproducible from the run seed, and the shop stream is
-                // untouched either way (AGENTS rule 6).
-                Seed = _streams.Battle.NextUInt(),
+                // untouched either way (AGENTS rule 6). A resumed checkpoint already
+                // carries this floor's seed, so the draw is skipped and the reloaded
+                // floor is the same battle rather than a new one.
+                Seed = TakeNextBattleSeed(),
                 StageId = floor.Id,
                 DifficultyId = RunDefaults.DifficultyId,
                 FloorIndex = floor.Index,
@@ -915,6 +927,185 @@ namespace ProjectSurvive.Core.Application.Run
         /// (GDD: \"replay จาก log ได้ RunState hash เดิม\").
         /// </summary>
         public uint ComputeStateHash() => CaptureState().ComputeHash();
+
+        /// <summary>
+        /// The checkpoint a reload resumes from: the run as it stood in the <b>camp</b>,
+        /// plus the seed of the floor about to be fought (Stage 12).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A save taken while a floor is running is still a camp checkpoint. The battle
+        /// owns the only things a floor changes, and the run does not accept them until
+        /// <see cref="ApplyBattleResult"/>; until then the camp state is untouched. So the
+        /// saved state is the state before the floor, and the pending setup contributes
+        /// only its seed — which is exactly the "store the battle's input, never its live
+        /// state" requirement.
+        /// </para>
+        /// <para>
+        /// The bag snapshot is the one Stage 05/09f schema, so it already carries the merge
+        /// count and every step's variant id. There is no second bag format.
+        /// </para>
+        /// </remarks>
+        /// <exception cref="InvalidOperationException">The run has not started yet.</exception>
+        public RunCheckpoint CaptureCheckpoint()
+        {
+            if (FlowState == RunFlowState.Title)
+            {
+                throw new InvalidOperationException("A run that has not started has no checkpoint.");
+            }
+
+            bool hasBattleSeed = false;
+            uint battleSeed = 0;
+            if (_pendingSetup is not null)
+            {
+                hasBattleSeed = true;
+                battleSeed = _pendingSetup.Seed;
+            }
+            else if (_hasNextBattleSeed)
+            {
+                hasBattleSeed = true;
+                battleSeed = _nextBattleSeed;
+            }
+
+            return new RunCheckpoint
+            {
+                SchemaVersion = RunCheckpointFormat.SchemaVersion,
+                RunId = RunId,
+                Seed = Seed,
+                Random = _streams.CaptureState(),
+                FloorIndex = FloorIndex,
+                Hp = Hp,
+                Bia = Wallet.Bia,
+                FloorsCleared = FloorsCleared,
+                GhostsDefeated = GhostsDefeated,
+                LastSettlementId = LastSettlementId,
+                RefreshCount = Stock.RefreshCount,
+                BackpackRevision = Backpack.Revision,
+                NextBattleSeed = battleSeed,
+                HasNextBattleSeed = hasBattleSeed,
+                Backpack = Backpack.CaptureSnapshot(),
+                ShopSlots = Stock.Capture(),
+            };
+        }
+
+        /// <summary>
+        /// Resumes a run from a checkpoint (Stage 12). Only callable on a fresh run that has
+        /// not started; every field is validated before the first mutation, and a rejected
+        /// checkpoint leaves the run exactly as it was.
+        /// </summary>
+        /// <remarks>
+        /// The flow resumes at <see cref="RunFlowState.Camp"/> even when the save was taken at
+        /// departure for a floor. That is the point: a reload during Battle goes back to the
+        /// last sala, with the shop it had and the floor's seed waiting, and no reward from the
+        /// battle that never finished.
+        /// </remarks>
+        public Result RestoreCheckpoint(RunCheckpoint checkpoint)
+        {
+            if (checkpoint is null)
+            {
+                throw new ArgumentNullException(nameof(checkpoint));
+            }
+
+            if (FlowState != RunFlowState.Title)
+            {
+                return Result.Fail(RunError.WrongState, ErrorKind.InvalidState);
+            }
+
+            if (checkpoint.SchemaVersion < RunCheckpointFormat.MinimumSchemaVersion
+                || checkpoint.SchemaVersion > RunCheckpointFormat.SchemaVersion)
+            {
+                return Result.Fail(CheckpointError.InvalidState, ErrorKind.Validation);
+            }
+
+            if (checkpoint.Seed != Seed)
+            {
+                return Result.Fail(CheckpointError.InvalidState, ErrorKind.Validation);
+            }
+
+            if (checkpoint.FloorIndex < 1 || checkpoint.FloorIndex > _floors.Count
+                || checkpoint.Hp < 0 || checkpoint.Hp > MaxHp
+                || checkpoint.Bia < 0
+                || checkpoint.FloorsCleared < 0
+                || checkpoint.GhostsDefeated < 0
+                || checkpoint.LastSettlementId < 0
+                || checkpoint.RefreshCount < 0)
+            {
+                return Result.Fail(CheckpointError.InvalidState, ErrorKind.Validation);
+            }
+
+            IReadOnlyList<ShopSlotState> slots = checkpoint.ShopSlots;
+            if (slots is null || slots.Count != Stock.SlotCount)
+            {
+                return Result.Fail(CheckpointError.InvalidState, ErrorKind.Validation);
+            }
+
+            BackpackSnapshot previousBag = Backpack.CaptureSnapshot();
+            ShopSlotState[] previousSlots = Stock.Capture();
+            int previousRefresh = Stock.RefreshCount;
+
+            Result restoredBag = Backpack.Restore(checkpoint.Backpack);
+            if (restoredBag.IsFailure)
+            {
+                return Result.Fail(CheckpointError.InvalidState, ErrorKind.Validation);
+            }
+
+            if (!Stock.Restore(slots, checkpoint.RefreshCount))
+            {
+                Backpack.Restore(previousBag);
+                Stock.Restore(previousSlots, previousRefresh);
+                return Result.Fail(CheckpointError.InvalidState, ErrorKind.Validation);
+            }
+
+            try
+            {
+                _streams.RestoreState(checkpoint.Random);
+            }
+            catch (ArgumentException)
+            {
+                Backpack.Restore(previousBag);
+                Stock.Restore(previousSlots, previousRefresh);
+                return Result.Fail(CheckpointError.InvalidState, ErrorKind.Validation);
+            }
+
+            Wallet = new Wallet(checkpoint.Bia);
+            FloorIndex = checkpoint.FloorIndex;
+            Hp = checkpoint.Hp;
+            FloorsCleared = checkpoint.FloorsCleared;
+            GhostsDefeated = checkpoint.GhostsDefeated;
+            LastSettlementId = checkpoint.LastSettlementId;
+            RunId = string.IsNullOrEmpty(checkpoint.RunId) ? RunId : checkpoint.RunId;
+            _nextBattleSeed = checkpoint.NextBattleSeed;
+            _hasNextBattleSeed = checkpoint.HasNextBattleSeed;
+            _pendingSetup = null;
+            _pendingLoadout = null;
+
+            Backpack.RestoreRevision(checkpoint.BackpackRevision);
+            FlowState = RunFlowState.Camp;
+            Editor.SetLocked(false);
+            Editor.MarkCampEntry();
+
+            Emit(RunEventKind.ShopStockChanged, -1);
+            Emit(RunEventKind.InventoryChanged, Backpack.Revision);
+            Emit(RunEventKind.LoadoutChanged, Backpack.Revision);
+            Emit(RunEventKind.WalletChanged, Wallet.Bia);
+            Emit(RunEventKind.FlowChanged, (int)FlowState);
+            return Result.Ok();
+        }
+
+        /// <summary>
+        /// The seed for the floor about to start: the restored one when a checkpoint carries
+        /// it, otherwise one draw from the battle stream.
+        /// </summary>
+        private uint TakeNextBattleSeed()
+        {
+            if (_hasNextBattleSeed)
+            {
+                _hasNextBattleSeed = false;
+                return _nextBattleSeed;
+            }
+
+            return _streams.Battle.NextUInt();
+        }
 
         /// <summary>Drops the buffered events. Presentation calls this after it has read them.</summary>
         public void ClearEvents() => _events.Clear();

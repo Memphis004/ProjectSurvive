@@ -11,7 +11,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The C# side is <see cref="WebGlBridge"/>'s three constants — the <c>.jslib</c>
+    /// The C# side is <see cref="WebGlBridge"/>'s four constants — the <c>.jslib</c>
     /// now takes the name as an argument instead of writing it into the plugin — and
     /// the browser-test side is <c>tests/web/globals.mjs</c>. A rename that touches
     /// one side and not the other is the failure this class exists to catch: it
@@ -30,14 +30,16 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Path.GetFullPath(Path.Combine(Application.dataPath, "..", ".."));
 
         [Test]
-        public void The_three_page_globals_keep_their_published_names()
+        public void The_page_globals_keep_their_published_names()
         {
             // The names a browser test reads are a wire contract: the published
             // reports have carried these exact strings since Stage 03, and every
-            // spec and every document names them.
+            // spec and every document names them. Stage 12 added the persistence
+            // verdict beside them.
             Assert.AreEqual("__projectSurviveSmoke", WebGlBridge.SmokeReportGlobal);
             Assert.AreEqual("__projectSurviveScene", WebGlBridge.SceneGlobal);
             Assert.AreEqual("__projectSurviveThaiSpike", WebGlBridge.ThaiSpikeGlobal);
+            Assert.AreEqual("__projectSurvivePersistence", WebGlBridge.PersistenceGlobal);
         }
 
         [Test]
@@ -52,7 +54,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         [Test]
-        public void The_browser_suite_exports_the_same_three_names()
+        public void The_browser_suite_exports_the_same_names()
         {
             string globals = Path.Combine(RepositoryRoot, "tests", "web", "globals.mjs");
             Assert.IsTrue(File.Exists(globals), "the browser suite's globals file is missing: " + globals);
@@ -61,6 +63,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
             StringAssert.Contains("export const SMOKE = \"" + WebGlBridge.SmokeReportGlobal + "\";", text);
             StringAssert.Contains("export const SCENE = \"" + WebGlBridge.SceneGlobal + "\";", text);
             StringAssert.Contains("export const THAI_SPIKE = \"" + WebGlBridge.ThaiSpikeGlobal + "\";", text);
+            StringAssert.Contains("export const PERSISTENCE = \"" + WebGlBridge.PersistenceGlobal + "\";", text);
         }
     }
 }

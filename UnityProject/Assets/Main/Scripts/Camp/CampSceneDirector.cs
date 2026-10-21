@@ -1,10 +1,14 @@
 using System;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using ProjectSurvive.Core.Application.Run;
+using ProjectSurvive.Core.Application.Text;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Shared;
 using ProjectSurvive.Game.Presentation.Camp;
 using ProjectSurvive.Game.Presentation.Flow;
 using ProjectSurvive.Game.Presentation.Web;
+using TMPro;
 using UnityEngine;
 using VContainer;
 
@@ -39,6 +43,9 @@ namespace ProjectSurvive.Game.Camp
         [SerializeField] private CampStatusBarView _status;
         [SerializeField] private CampTooltipView _tooltip;
 
+        [Tooltip("Shown when a checkpoint write failed (Stage 12).")]
+        [SerializeField] private TMP_Text _saveWarning;
+
         [Tooltip("Publish __projectSurviveCamp and __projectSurviveCampGeometry. Only a browser test reads them.")]
         [SerializeField] private bool _publishReport = true;
 
@@ -46,7 +53,14 @@ namespace ProjectSurvive.Game.Camp
         [SerializeField] private float _reportIntervalSeconds = 0.25f;
 
         private SceneLoader _loader;
+        private GameSave _save;
+        private LocalizationService _text;
+        private CancellationTokenSource _lifetime;
         private bool _departed;
+        private bool _saveDirty;
+        private bool _warningVisible;
+        private float _saveTimer;
+        private int _lastSaveKey;
 
         private int _lastKey;
         private int _lastWidth = -1;
@@ -96,6 +110,10 @@ namespace ProjectSurvive.Game.Camp
             Run = _scope.Container.Resolve<RunScopeOwner>().RequireRun();
             _loader = _scope.Container.Resolve<SceneLoader>();
             Presenter = _scope.Container.Resolve<CampPresenter>();
+            _save = _scope.Container.Resolve<GameSave>();
+            _text = _scope.Container.Resolve<LocalizationService>();
+            _lifetime = new CancellationTokenSource();
+            _lastSaveKey = -1;
 
             // A run that has already ended belongs on the summary screen, not in the camp. This is
             // the guard for a handover that lands here after the last floor (a `?scene=Camp`
@@ -183,6 +201,8 @@ namespace ProjectSurvive.Game.Camp
                 return;
             }
 
+            UpdateAutosave();
+
             // The departure is the camp's one way out: the presenter has already performed the
             // real RunSession.StartFloor (and the run holds the resulting setup), so all that is
             // left is the scene change. It is asked once — the loader refuses a second transition
@@ -190,12 +210,10 @@ namespace ProjectSurvive.Game.Camp
             // path instead of an error.
             if (!_departed && Presenter != null && Presenter.Departed)
             {
+                // Stage 12: the checkpoint that carries this floor's seed must be durable before
+                // the arena starts. The scene change waits for the write instead of racing it.
                 _departed = true;
-                if (_loader != null && !_loader.TryGo(SceneId.Battle))
-                {
-                    StartError = "the battle scene could not be entered: " + _loader.LastError;
-                    Debug.LogError(StartError, this);
-                }
+                DepartAsync(_lifetime.Token).Forget();
             }
 
             if (!_publishReport)
@@ -211,6 +229,103 @@ namespace ProjectSurvive.Game.Camp
 
             _reportTimer = 0f;
             Publish(false);
+        }
+
+        /// <summary>
+        /// Debounced autosave: a run change schedules a write half a second later, and a second
+        /// change before then simply moves the deadline. The key is the run's own state (bag,
+        /// purse, HP, slot flags), never the player's walking position.
+        /// </summary>
+        private void UpdateAutosave()
+        {
+            if (_save is null || Run is null)
+            {
+                return;
+            }
+
+            int key = SaveKey(Run);
+            if (key != _lastSaveKey)
+            {
+                _lastSaveKey = key;
+                _saveDirty = true;
+                _saveTimer = 0.5f;
+            }
+
+            if (_saveDirty)
+            {
+                _saveTimer -= Time.unscaledDeltaTime;
+                if (_saveTimer <= 0f)
+                {
+                    _saveDirty = false;
+                    _save.SaveAsync(Run, _lifetime.Token).Forget();
+                }
+            }
+
+            bool failed = _save.LastSaveFailed;
+            if (failed != _warningVisible)
+            {
+                _warningVisible = failed;
+                if (_saveWarning != null)
+                {
+                    _saveWarning.text = failed ? _text.Get("ui.save.failed") : string.Empty;
+                }
+
+                // The warning is not part of the run key, so the report would otherwise keep saying
+                // `saveFailed: false` after the write it is reporting on had failed. One forced
+                // publish, on the transition only — never in a loop.
+                Publish(true);
+            }
+        }
+
+        private async UniTaskVoid DepartAsync(CancellationToken token)
+        {
+            try
+            {
+                await _save.SaveAsync(Run, token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            if (_loader == null || !_loader.TryGo(SceneId.Battle))
+            {
+                StartError = "the battle scene could not be entered: " + (_loader == null ? "no loader" : _loader.LastError);
+                Debug.LogError(StartError, this);
+            }
+        }
+
+        /// <summary>A cheap fold of every run field a reload must restore (no allocations).</summary>
+        private static int SaveKey(RunSession run)
+        {
+            unchecked
+            {
+                int hash = run.Backpack.Revision;
+                hash = (hash * 397) ^ run.Wallet.Bia;
+                hash = (hash * 397) ^ run.Hp;
+                hash = (hash * 397) ^ run.FloorIndex;
+                hash = (hash * 397) ^ run.Stock.RefreshCount;
+                for (int i = 0; i < run.Stock.SlotCount; i++)
+                {
+                    hash = (hash * 397) ^ (run.Stock[i].OfferedId ?? string.Empty).GetHashCode();
+                    hash = (hash * 397) ^ (run.Stock[i].IsPurchased ? 1 : 0);
+                    hash = (hash * 397) ^ (run.Stock[i].IsLocked ? 2 : 0);
+                }
+
+                return hash;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (_lifetime is null)
+            {
+                return;
+            }
+
+            _lifetime.Cancel();
+            _lifetime.Dispose();
+            _lifetime = null;
         }
 
         /// <summary>
@@ -249,7 +364,11 @@ namespace ProjectSurvive.Game.Camp
             }
 
             _lastKey = key;
-            CampReport.PublishState(Run, Presenter, gameObject.scene.name, StartError, _player, _world);
+            CampReport.PublishState(
+                Run, Presenter, gameObject.scene.name, StartError, _player, _world,
+                _save != null && _save.LastSaveFailed,
+                _saveWarning != null ? _saveWarning.text : string.Empty,
+                _save != null ? _save.LastError : string.Empty);
         }
 
         private void PublishGeometry(bool force)

@@ -130,6 +130,41 @@ namespace ProjectSurvive.Core.Tests
         }
 
         [Fact]
+        public void Captured_stream_state_resumes_every_stream_where_it_stopped()
+        {
+            var original = new RandomStreams(20261021u);
+            for (int i = 0; i < 5; i++)
+            {
+                original.Shop.NextUInt();
+            }
+
+            original.Battle.NextUInt();
+            original.Visual.NextUInt();
+
+            RandomStreamsState state = original.CaptureState();
+
+            var restored = new RandomStreams(20261021u);
+            restored.RestoreState(state);
+
+            for (int i = 0; i < 128; i++)
+            {
+                Assert.Equal(original.Shop.NextUInt(), restored.Shop.NextUInt());
+                Assert.Equal(original.Battle.NextUInt(), restored.Battle.NextUInt());
+                Assert.Equal(original.Visual.NextUInt(), restored.Visual.NextUInt());
+            }
+
+        }
+
+        [Fact]
+        public void Stream_state_from_another_seed_is_refused()
+        {
+            RandomStreamsState state = new RandomStreams(1u).CaptureState();
+            var other = new RandomStreams(2u);
+
+            Assert.Throws<ArgumentException>(() => other.RestoreState(state));
+        }
+
+        [Fact]
         public void Master_seed_is_kept_for_diagnostics()
         {
             var streams = new RandomStreams(0xABCDEF01u);

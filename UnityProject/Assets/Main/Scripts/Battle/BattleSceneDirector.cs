@@ -1,4 +1,5 @@
 using System;
+using Cysharp.Threading.Tasks;
 using ProjectSurvive.Core.Application.Run;
 using ProjectSurvive.Core.Application.Text;
 using ProjectSurvive.Core.Domain.Combat.Battle;
@@ -55,6 +56,7 @@ namespace ProjectSurvive.Game.Battle
 
         private RunSession _run;
         private SceneLoader _loader;
+        private GameSave _save;
         private bool _settled;
         private bool _standalone;
         private SceneId? _leavingFor;
@@ -144,6 +146,7 @@ namespace ProjectSurvive.Game.Battle
             // camp is still playable, and shared with the camp otherwise.
             _run = _scope.Container.Resolve<RunScopeOwner>().RequireRun();
             _loader = _scope.Container.Resolve<SceneLoader>();
+            _save = _scope.Container.Resolve<GameSave>();
 
             if (!ResolveFloor(out BattleSetup setup, out int startingBia))
             {
@@ -171,7 +174,7 @@ namespace ProjectSurvive.Game.Battle
                 Config = _scope.Container.Resolve<IGameConfig>(),
                 HudState = _scope.Container.Resolve<BattleHudState>(),
                 Hud = _scope.Container.Resolve<BattleHudPresenter>(),
-                Speed = _scope.Container.Resolve<BattleSpeed>(),
+                Speed = StartingSpeed(),
 
                 // The bag the floor departed with: the mini bag draws this board, and the loadout
                 // inside `setup` was resolved from it (Stage 08c).
@@ -180,6 +183,14 @@ namespace ProjectSurvive.Game.Battle
 
             _runner.Begin(context);
             return true;
+        }
+
+        /// <summary>The battle speed the scene starts at, from the player's saved settings.</summary>
+        private BattleSpeed StartingSpeed()
+        {
+            BattleSpeed speed = _scope.Container.Resolve<BattleSpeed>();
+            speed.Set(_save is null ? 1f : _save.Settings.DefaultBattleSpeed);
+            return speed;
         }
 
         /// <summary>
@@ -248,6 +259,14 @@ namespace ProjectSurvive.Game.Battle
 
             FloorSettlement settlement = settled.Value;
             LastSettlement = settlement;
+
+            // Stage 12: a finished run's checkpoint is cleared here, and a cleared floor's new
+            // camp state is saved. The write is independent of the scene change; the checkpoint
+            // service ignores a stale save and the run's own phase decides whether this deletes.
+            if (_save != null)
+            {
+                _save.FlushRunEndAsync(_run).Forget();
+            }
 
             // Where the settlement leaves for: the summary screen when the run ended here (a floor
             // it did not clear, or its last one), the camp otherwise. Both are ordinary scene

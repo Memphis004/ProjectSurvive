@@ -92,13 +92,13 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
 | Item | Why blocked | What unblocks it |
 | --- | --- | --- |
 | **UI.MVP Lite package** | The GDD names `UI.MVP Lite` but **no repository/source has been supplied**. | Project owner provides the repo URL. Until then, ADR 0002 mandates a thin, project-owned MVP. |
-| **MessagePack Unity UPM variant version** | NuGet version is confirmed; the Unity-facing distribution (`com.cysharp.messagepack` / `MessagePack.Unity`) version is not. **Still open after Stage 01**, which introduced no save DTOs. | Confirm the Unity package name + version when the first checkpoint DTO lands (Stage 12). |
+| ~~**MessagePack Unity UPM variant version**~~ | **Resolved at Stage 12** — no UPM package is used. The checkpoint's DTOs compile against the same NuGetForUnity distribution as the rest of `lib/`: `MessagePack` / `MessagePack.Annotations` / `MessagePackAnalyzer` **3.1.12** (`UnityProject/Assets/packages.config`), with the source generator producing every formatter (asserted by `SettingsCodec.GeneratedFormatterIsPresent` and the checkpoint round-trip tests). | — |
 | ~~**EcsLite exact commit**~~ | **Resolved at Stage 01** — vendored at `d46f3b209ea163810823aeea7d2610d38ad6cdf8` (version string `2026.4.25`), recorded in `lib/third_party/ecslite/VENDOR.md` and `tools/versions.lock.json`, and asserted by a test. | — |
 | ~~**Luban CLI syntax**~~ | **Resolved at Stage 02** — the pinned 5.1.0 binary was driven directly (`--conf` / `-t` / `-c` / `-d` / `--strict` / `--errorFormat` / `-x key=value`) and the `__tables__.csv` registry format was read off its own loader; nothing was guessed. Recorded in `llmwiki/gotchas/luban-5-strict-and-tables.md`, asserted by twelve fixtures. | — |
 | **Firefox** | Not installed on this machine. | Install Firefox before the Stage 14 cross-browser run, or record Firefox as NOT RUN. |
 | ~~**IL2CPP stripping / AOT behaviour** (MessagePack, Protobuf, R3, VContainer)~~ | **Resolved at Stage 03** — all four round-trip in a real WebGL2 player (see the probes above), and the one real failure (VContainer's reflected constructors) is written down with its rule in `llmwiki/gotchas/il2cpp-di-and-reflection.md`. | — |
 | **Release-build performance** | Stage 03 built and shipped only a **Development** build; its numbers are not evidence of shipped performance. | A Release build (`WebBuildPipeline.BuildWebRelease`) before any timing claim (ADR 0003). |
-| **IndexedDB flush method on Unity 6.3** | Not yet checked against 6.3 docs. | Stage 12. |
+| ~~**IndexedDB flush method on Unity 6.3**~~ | **Resolved at Stage 12** — `Application.persistentDataPath` is an Emscripten IDBFS mount; the flush is `FS.syncfs(false, cb)` (`WebGLSupport/BuildTools/prejs/IdbFs.js` in 6000.3.9f1). The callback does **not** resume a Unity `Task` continuation, so the page records the result and the player polls it once per frame ([ADR 0033](../adr/0033-application-awaits-capture-the-caller-context.md)). | — |
 | **Performance numbers** | Never measured. | Stage 03+ with a real browser build. |
 
 ## 3. Transitive dependency notes
@@ -131,7 +131,9 @@ Measured by `tools/doctor.ps1` on 2026-10-13.
    **resolved at Stage 03** (see the probe results above and the two gotcha notes).
 3. The `UI.MVP Lite` package identity (project owner) — still open; ADR 0002
    mandates a project-owned thin MVP until it is supplied.
-4. MessagePack's Unity UPM package name/version (Stage 12 — no save DTO exists yet).
+4. ~~MessagePack's Unity UPM package name/version (Stage 12 — no save DTO exists yet)~~ —
+   **resolved at Stage 12**: no UPM package; NuGetForUnity 3.1.12 is what both the harness
+   and the Unity project compile the DTOs against.
 5. Whether `Xoshiro128` / `FixedTicker` behaviour is identical under WebGL's
    32-bit wasm heap and an x64 desktop CPU. Stage 03 proved the *shell* runs on
    WebGL2 and that the config hash matches between Editor and player, but no

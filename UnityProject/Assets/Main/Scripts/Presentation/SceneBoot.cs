@@ -1,6 +1,8 @@
 using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using ProjectSurvive.Core.Domain.Run;
+using ProjectSurvive.Game.Presentation.Flow;
 using ProjectSurvive.Game.Presentation.Smoke;
 using ProjectSurvive.Game.Presentation.Web;
 using UnityEngine;
@@ -97,6 +99,12 @@ namespace ProjectSurvive.Game.Presentation
                     return;
                 }
 
+                // Stage 12: settings first (so the title/camp speak the chosen language and the
+                // mixer is at the chosen volume), then the active checkpoint. A valid checkpoint
+                // resumes straight into the camp; a bad one is reported and the title is shown.
+                GameSave save = _scope.Container.Resolve<GameSave>();
+                await save.InitializeAsync(token);
+
                 SmokeRunner runner = _scope.Container.Resolve<SmokeRunner>();
                 SmokeReport report = await runner.RunAsync(token);
 
@@ -111,6 +119,22 @@ namespace ProjectSurvive.Game.Presentation
                 }
 
                 string nextScene = ResolveNextScene();
+
+                // A URL scene override is a diagnostic handover and must win over a resume;
+                // otherwise a live checkpoint is what the player expects to continue.
+                bool overridden = !string.IsNullOrEmpty(ParseQueryValue(ReadCurrentUrl(), "scene"));
+                if (!overridden && save.HasCheckpoint)
+                {
+                    if (save.TryResume(_scope.Container.Resolve<RunScopeOwner>()))
+                    {
+                        nextScene = SceneId.Camp.ToString();
+                    }
+                    else
+                    {
+                        Debug.LogWarning("The checkpoint could not be resumed: " + save.LastError);
+                    }
+                }
+
                 if (_continueToTitleScene && !string.IsNullOrEmpty(nextScene))
                 {
                     await SceneManager.LoadSceneAsync(nextScene).ToUniTask(cancellationToken: token);

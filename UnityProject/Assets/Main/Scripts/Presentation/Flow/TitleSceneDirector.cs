@@ -1,6 +1,7 @@
 using System;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Game.Presentation.Web;
+using R3;
 using UnityEngine;
 using VContainer;
 
@@ -52,6 +53,7 @@ namespace ProjectSurvive.Game.Presentation.Flow
         private int _publishedHeight = -1;
         private Vector2 _publishedPoint;
         private bool _hasPublishedPoint;
+        private IDisposable _languageSubscription;
 
         /// <summary>Why the last refusal was refused, or an empty string.</summary>
         private string _lastRefusal = string.Empty;
@@ -69,6 +71,12 @@ namespace ProjectSurvive.Game.Presentation.Flow
         public bool Departed => _departed;
 
         private void Start() => TryStart();
+
+        private void OnDestroy()
+        {
+            _languageSubscription?.Dispose();
+            _languageSubscription = null;
+        }
 
         /// <summary>
         /// Brings the screen up: writes the strings the player reads, says which scene is on screen and
@@ -92,6 +100,7 @@ namespace ProjectSurvive.Game.Presentation.Flow
 
             _presenter = _scope.Container.Resolve<TitlePresenter>();
             _loader = _scope.Container.Resolve<SceneLoader>();
+            UiState ui = _scope.Container.Resolve<UiState>();
 
             // Found once, like every other scene director does with its own views: `Update` compares the
             // control's position every frame, and a scene search per frame would be the expensive part.
@@ -100,6 +109,18 @@ namespace ProjectSurvive.Game.Presentation.Flow
             // The strings first: the report below is meant to carry what the player is about to read,
             // not the empty values the state starts with (the same order ResultSceneDirector uses).
             _presenter.Refresh();
+
+            // Stage 12: a language switch is immediate, and it reaches every label the title owns,
+            // not only the settings panel's. The presenter writes through UiState, whose properties
+            // the views mirror, so the title and its start caption change in the same call.
+            _languageSubscription = ui.Language.Subscribe(_ =>
+            {
+                _presenter.Refresh();
+                if (_started && _publishReport)
+                {
+                    PublishReport();
+                }
+            });
 
             // The scene marker, published by the scene that is on screen. Without it a handover into
             // the title is invisible to the log a bug report quotes, and to the browser suite.

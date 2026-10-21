@@ -98,6 +98,20 @@ namespace ProjectSurvive.Core.Domain.Shop
         internal void SetLocked(bool locked) => IsLocked = locked;
 
         /// <summary>
+        /// Restores this slot from a checkpoint's plain state (Stage 12). Unlike
+        /// <see cref="Fill"/> this also restores the two flags, because a camp checkpoint is
+        /// taken in the middle of a sala where a rent or a pin is part of what the player saw.
+        /// </summary>
+        internal void Restore(ShopSlotState state)
+        {
+            Kind = state.Kind;
+            OfferedId = state.OfferedId ?? string.Empty;
+            Price = state.Price < 0 ? 0 : state.Price;
+            IsPurchased = state.IsPurchased;
+            IsLocked = state.IsLocked;
+        }
+
+        /// <summary>
         /// Puts the slot back to "nothing offered, nothing rented, not pinned" for a camp
         /// the run has just entered. "ทุกการเข้าศาลาสร้าง stock ใหม่": a rental belongs to
         /// the sala it happened in, so <see cref="IsPurchased"/> must not survive into the

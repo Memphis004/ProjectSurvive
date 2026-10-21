@@ -62,7 +62,8 @@ namespace ProjectSurvive.Core.Tests
             // added the four charm/offering tooltip rows (camp.tooltip.charm_effect and the three
             // offering lines), taking it to 199. Stage 11c added `hud.possession`, the line the HUD
             // draws while a boss's possession has the stick turned around, taking it to 200.
-            Assert.Equal(200, config.Localization.Count);
+            // Stage 12 added the nine settings/save-warning rows, taking it to 209.
+            Assert.Equal(209, config.Localization.Count);
         }
 
         [Fact]

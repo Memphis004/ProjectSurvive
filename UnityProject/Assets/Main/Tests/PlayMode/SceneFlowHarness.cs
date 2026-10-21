@@ -1,4 +1,5 @@
 using System.Collections;
+using System.IO;
 using NUnit.Framework;
 using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Camp;
@@ -112,10 +113,38 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         public static IEnumerator BootShell()
         {
             ResetShell();
+            ClearPersistedCheckpoint();
             yield return null;
 
             SceneManager.LoadScene(BootSceneName, LoadSceneMode.Single);
             yield return WaitForScene(TitleSceneName);
+        }
+
+        /// <summary>
+        /// Removes the run checkpoint a previous PlayMode test (or a manual play session) left in
+        /// <c>Application.persistentDataPath</c>. Stage 12's Boot resumes a valid checkpoint before the
+        /// title, so without this a fixture that asserts "Boot stops at the title" would be reading the
+        /// previous test's run. Settings are deliberately not removed: they are the player's, and no
+        /// test here depends on the default language.
+        /// </summary>
+        public static void ClearPersistedCheckpoint()
+        {
+            string[] names = { "run-checkpoint", "run-checkpoint.bak", "run-checkpoint.tmp" };
+            for (int i = 0; i < names.Length; i++)
+            {
+                try
+                {
+                    string path = Path.Combine(Application.persistentDataPath, names[i]);
+                    if (File.Exists(path))
+                    {
+                        File.Delete(path);
+                    }
+                }
+                catch (IOException)
+                {
+                    // A locked file cannot be removed; the test's own assertion will say so.
+                }
+            }
         }
 
         /// <summary>Boots the shell and walks into the camp through the real scene loader.</summary>

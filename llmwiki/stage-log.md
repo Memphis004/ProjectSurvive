@@ -398,3 +398,17 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   Game View in `artifacts/ui/stage09l-*` (the `Tools/5` capture renders the panel-less frame, reported).
 - **Next:** 12 (save, resume, settings) — or give the L bag's drag ghost its real shape, which this
   stage left as the bounding box.
+
+## Stage 12 — save, resume and settings
+
+- **Did:** one MessagePack checkpoint envelope for a run (schema/config hash, seed + the three RNG
+  streams, floor, HP, bia, bag/chest, shop flags, refresh count) with a single serialized writer, a
+  camp debounce plus an awaited save before Battle, and a WebGL flush that is *polled* from `Update`
+  instead of completed from the browser callback of `FS.syncfs` ([ADR 0033](../docs/adr/0033-application-awaits-capture-the-caller-context.md));
+  the title screen gained volume / TH-EN / starting-speed settings.
+- **Result:** `dotnet` **591**, EditMode **172/172**, PlayMode **66/66 across the nine classes**,
+  WebGL build **OK**, Playwright **13 passed / 13 skipped** (persistence spec 3/3). The PlayMode suite
+  caught a real regression the browser could not: the new save-warning label swallowed shelf clicks
+  (`raycastTarget`), fixed in the camp builder — [report](../docs/stages/12-report.md).
+- **Next:** 13 (content complete and UX: 14 items, 5 floors, tutorial, audio) — or a real
+  crash-during-flush test for the `.bak` path.

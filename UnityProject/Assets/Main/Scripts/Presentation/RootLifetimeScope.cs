@@ -1,7 +1,10 @@
+using ProjectSurvive.Core.Application.Save;
+using ProjectSurvive.Core.Application.Settings;
 using ProjectSurvive.Core.Application.Text;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Infrastructure;
+using ProjectSurvive.Core.Infrastructure.Save;
 using ProjectSurvive.Core.Shared;
 using ProjectSurvive.Game.Infrastructure;
 using ProjectSurvive.Game.Presentation.Flow;
@@ -151,6 +154,45 @@ namespace ProjectSurvive.Game.Presentation
                 Lifetime.Singleton);
 
             builder.Register(_ => new UiState(), Lifetime.Singleton);
+
+            // Stage 12: one storage adapter for the checkpoint and the settings. The WebGL
+            // adapter is the same file store Unity backs with IndexedDB, plus an explicit
+            // flush; the desktop path is the engine-free file store.
+            builder.Register<ICheckpointStore>(
+                _ => new PersistentDataCheckpointStore(), Lifetime.Singleton);
+            builder.Register<IRunCheckpointCodec>(
+                _ => new MessagePackRunCheckpointCodec(), Lifetime.Singleton);
+            builder.Register<ISettingsCodec>(
+                _ => new MessagePackSettingsCodec(), Lifetime.Singleton);
+
+            builder.Register(
+                resolver => new CheckpointService(
+                    resolver.Resolve<IGameConfig>(),
+                    resolver.Resolve<IRunCheckpointCodec>(),
+                    resolver.Resolve<ICheckpointStore>()),
+                Lifetime.Singleton);
+
+            builder.Register(
+                resolver => new SettingsService(
+                    resolver.Resolve<ICheckpointStore>(),
+                    resolver.Resolve<ISettingsCodec>()),
+                Lifetime.Singleton);
+
+            builder.Register(
+                resolver => new GameSave(
+                    resolver.Resolve<CheckpointService>(),
+                    resolver.Resolve<SettingsService>(),
+                    resolver.Resolve<UiState>(),
+                    resolver.Resolve<LocalizationService>()),
+                Lifetime.Singleton);
+
+            builder.Register(
+                resolver => new SettingsPresenter(
+                    resolver.Resolve<SettingsService>(),
+                    resolver.Resolve<UiState>(),
+                    resolver.Resolve<LocalizationService>(),
+                    resolver.Resolve<GameSave>()),
+                Lifetime.Singleton);
 
             // The run is not a singleton of this scope: it has a lifetime of its own (one run,
             // disposed on the way back to the title), and RunScopeOwner is the only thing that

@@ -145,6 +145,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
             hash = Fold(hash, HashOf(presenter.StatusCode));
             hash = Fold(hash, presenter.Departed ? 1 : 0);
 
+            // The selection is drawn (the piece is painted in the selected colour), so the document
+            // has to follow it: a click that only selected a piece used to leave the report saying
+            // "nothing is selected", and a browser test cannot aim a key at a piece it cannot see.
+            hash = Fold(hash, (int)presenter.Selected.Kind);
+            hash = Fold(hash, presenter.Selected.InstanceId);
+
             CampCounters counters = presenter.Counters;
             hash = Fold(hash, counters.Rented);
             hash = Fold(hash, counters.Refreshes);
@@ -183,7 +189,8 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// </summary>
         public static string PublishState(
             RunSession run, CampPresenter presenter, string sceneName, string startError,
-            CampPlayerView player, CampWorldView world)
+            CampPlayerView player, CampWorldView world,
+            bool saveFailed = false, string saveWarning = "", string saveError = "")
         {
             var report = new JsonReportWriter();
             report.BeginObject();
@@ -224,6 +231,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
             report.Write("selectedPiece", presenter.Selected.ToString());
             report.Write("statusCode", presenter.StatusCode);
             report.Write("dragging", presenter.IsDragging);
+
+            // Stage 12: a failed write is visible on the screen and in the document, and it never
+            // reads as a success. The warning is the localized line the player sees.
+            report.Write("saveFailed", saveFailed);
+            report.Write("saveWarning", saveWarning ?? string.Empty);
+            report.Write("saveError", saveError ?? string.Empty);
 
             report.Write("departed", presenter.Departed);
             report.Write("departFloor", presenter.DepartFloor);

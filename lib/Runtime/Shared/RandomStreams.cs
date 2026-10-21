@@ -19,22 +19,63 @@ namespace ProjectSurvive.Core.Shared
         public RandomStreams(uint masterSeed)
         {
             MasterSeed = masterSeed;
-            Shop = new Xoshiro128(DeriveStreamSeed(masterSeed, RandomStreamKind.Shop));
-            Battle = new Xoshiro128(DeriveStreamSeed(masterSeed, RandomStreamKind.Battle));
-            Visual = new Xoshiro128(DeriveStreamSeed(masterSeed, RandomStreamKind.Visual));
+            _shop = new Xoshiro128(DeriveStreamSeed(masterSeed, RandomStreamKind.Shop));
+            _battle = new Xoshiro128(DeriveStreamSeed(masterSeed, RandomStreamKind.Battle));
+            _visual = new Xoshiro128(DeriveStreamSeed(masterSeed, RandomStreamKind.Visual));
         }
+
+        private readonly Xoshiro128 _shop;
+        private readonly Xoshiro128 _battle;
+        private readonly Xoshiro128 _visual;
 
         /// <summary>The run seed every stream was derived from.</summary>
         public uint MasterSeed { get; }
 
         /// <summary>Camp-side stream.</summary>
-        public IRandomSource Shop { get; }
+        public IRandomSource Shop => _shop;
 
         /// <summary>Combat stream.</summary>
-        public IRandomSource Battle { get; }
+        public IRandomSource Battle => _battle;
 
         /// <summary>Cosmetic stream.</summary>
-        public IRandomSource Visual { get; }
+        public IRandomSource Visual => _visual;
+
+        /// <summary>
+        /// Every stream's position, as plain values, for a checkpoint (Stage 12).
+        /// </summary>
+        /// <remarks>
+        /// The <b>position</b> is what matters, not only the seed: a shop stream that has
+        /// already rolled two camps must continue after the two rolls, or a reloaded run
+        /// would be offered the pieces the player already saw (and the acceptance test
+        /// "reload ไม่ทำให้สุ่มร้านใหม่" would be false).
+        /// </remarks>
+        public RandomStreamsState CaptureState() => new RandomStreamsState(
+            MasterSeed, _shop.ExportState(), _battle.ExportState(), _visual.ExportState());
+
+        /// <summary>
+        /// Restores every stream to a previously captured position. The master seed must
+        /// match this instance's seed: a state from another run is a corrupt checkpoint,
+        /// not a stream swap.
+        /// </summary>
+        /// <exception cref="ArgumentException">The master seed differs, or a stream state is all zero.</exception>
+        public void RestoreState(RandomStreamsState state)
+        {
+            if (state.MasterSeed != MasterSeed)
+            {
+                throw new ArgumentException(
+                    "Random stream state belongs to seed " + state.MasterSeed + ", not " + MasterSeed + ".",
+                    nameof(state));
+            }
+
+            if (state.Shop.IsZero || state.Battle.IsZero || state.Visual.IsZero)
+            {
+                throw new ArgumentException("A random stream state cannot be all zero.", nameof(state));
+            }
+
+            _shop.ImportState(state.Shop);
+            _battle.ImportState(state.Battle);
+            _visual.ImportState(state.Visual);
+        }
 
         /// <remarks>
         /// There is deliberately <b>no</b> <c>Upgrade</c> stream property: the upgrade
@@ -69,5 +110,57 @@ namespace ProjectSurvive.Core.Shared
                     throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown random stream.");
             }
         }
+    }
+
+    /// <summary>
+    /// The run's three random streams at one moment (Stage 12).
+    /// </summary>
+    /// <remarks>
+    /// The upgrade draw is deliberately absent: it is a pure function of the seed, so it
+    /// has no position to save (see <see cref="RandomStreams.DeriveStreamSeed"/>).
+    /// </remarks>
+    public readonly struct RandomStreamsState : IEquatable<RandomStreamsState>
+    {
+        /// <summary>Captures the master seed and all three stream positions.</summary>
+        public RandomStreamsState(
+            uint masterSeed, Xoshiro128State shop, Xoshiro128State battle, Xoshiro128State visual)
+        {
+            MasterSeed = masterSeed;
+            Shop = shop;
+            Battle = battle;
+            Visual = visual;
+        }
+
+        /// <summary>The seed this state belongs to.</summary>
+        public uint MasterSeed { get; }
+
+        /// <summary>Camp-side stream position.</summary>
+        public Xoshiro128State Shop { get; }
+
+        /// <summary>Combat stream position.</summary>
+        public Xoshiro128State Battle { get; }
+
+        /// <summary>Cosmetic stream position.</summary>
+        public Xoshiro128State Visual { get; }
+
+        /// <inheritdoc />
+        public bool Equals(RandomStreamsState other) =>
+            MasterSeed == other.MasterSeed && Shop == other.Shop && Battle == other.Battle
+            && Visual == other.Visual;
+
+        /// <inheritdoc />
+        public override bool Equals(object? obj) => obj is RandomStreamsState other && Equals(other);
+
+        /// <inheritdoc />
+        public override int GetHashCode() =>
+            (int)(MasterSeed * 397u) ^ Shop.GetHashCode() ^ (Battle.GetHashCode() * 17)
+            ^ (Visual.GetHashCode() * 31);
+
+        public static bool operator ==(RandomStreamsState left, RandomStreamsState right) => left.Equals(right);
+
+        public static bool operator !=(RandomStreamsState left, RandomStreamsState right) => !left.Equals(right);
+
+        /// <inheritdoc />
+        public override string ToString() => "streams(" + MasterSeed + ")";
     }
 }

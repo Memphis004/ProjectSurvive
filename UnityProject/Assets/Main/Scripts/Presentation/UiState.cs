@@ -47,6 +47,36 @@ namespace ProjectSurvive.Game.Presentation
         public ReactiveProperty<Language> Language { get; } =
             new ReactiveProperty<Language>(ProjectSurvive.Core.Domain.Config.Language.Th);
 
+        /// <summary>Master audio volume, 0..1 (Stage 12).</summary>
+        public ReactiveProperty<float> MasterVolume { get; } = new ReactiveProperty<float>(1f);
+
+        /// <summary>The battle speed a new floor starts at (1 or 2).</summary>
+        public ReactiveProperty<float> DefaultBattleSpeed { get; } = new ReactiveProperty<float>(1f);
+
+        /// <summary>
+        /// True when the last save failed; a screen draws a warning from this rather than
+        /// claiming the game is saved (Stage 12).
+        /// </summary>
+        public ReactiveProperty<bool> SaveFailed { get; } = new ReactiveProperty<bool>(false);
+
+        /// <summary>Settings panel heading (localized).</summary>
+        public ReactiveProperty<string> SettingsTitle { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>The volume row's caption with its current value (localized).</summary>
+        public ReactiveProperty<string> VolumeLabel { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>The language row's caption with its current value (localized).</summary>
+        public ReactiveProperty<string> LanguageLabel { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>The starting-speed row's caption with its current value (localized).</summary>
+        public ReactiveProperty<string> SpeedLabel { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>The settings panel's close caption (localized).</summary>
+        public ReactiveProperty<string> SettingsCloseLabel { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>The settings panel's open caption (localized).</summary>
+        public ReactiveProperty<string> SettingsOpenLabel { get; } = new ReactiveProperty<string>(string.Empty);
+
         /// <summary>True once the root scope has finished booting.</summary>
         public ReactiveProperty<bool> Ready { get; } = new ReactiveProperty<bool>(false);
 
@@ -56,6 +86,15 @@ namespace ProjectSurvive.Game.Presentation
             StartLabel.Dispose();
             Diagnostics.Dispose();
             Language.Dispose();
+            MasterVolume.Dispose();
+            DefaultBattleSpeed.Dispose();
+            SaveFailed.Dispose();
+            SettingsTitle.Dispose();
+            VolumeLabel.Dispose();
+            LanguageLabel.Dispose();
+            SpeedLabel.Dispose();
+            SettingsCloseLabel.Dispose();
+            SettingsOpenLabel.Dispose();
             Ready.Dispose();
         }
     }

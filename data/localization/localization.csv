@@ -199,3 +199,12 @@
 ,camp.tooltip.offering_bia.format,ได้เบี้ย {0} · ใช้ได้ {1} ครั้ง,Grants {0} bia · {1} use(s)
 ,camp.tooltip.offering_auto.format,ใช้เองเมื่อ HP เหลือ {0}% หรือน้อยกว่า,Used automatically at {0}% HP or less
 ,hud.possession,ถูกปอบสิง · ทิศควบคุมสลับ,Possessed · controls reversed
+,ui.settings.title,ตั้งค่า,Settings
+,ui.settings.open,ตั้งค่า,Settings
+,ui.settings.close,ปิด,Close
+,ui.settings.volume.format,เสียง {0}%,Volume {0}%
+,ui.settings.language.format,ภาษา: {0},Language: {0}
+,ui.settings.language.th,ไทย,Thai
+,ui.settings.language.en,อังกฤษ,English
+,ui.settings.speed.format,ความเร็วเริ่มต้น: {0},Starting speed: {0}
+,ui.save.failed,บันทึกไม่สำเร็จ,Could not save

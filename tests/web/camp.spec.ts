@@ -318,12 +318,16 @@ async function dragOnCanvas(page: Page, from: Point, to: Point): Promise<void> {
   await page.waitForTimeout(FRAME_PAUSE_MS);
 }
 
-async function clickOnCanvas(page: Page, point: Point): Promise<void> {
+async function clickOnCanvas(
+  page: Page,
+  point: Point,
+  button: "left" | "right" = "left",
+): Promise<void> {
   await page.mouse.move(point.x, point.y);
   await page.waitForTimeout(FRAME_PAUSE_MS);
-  await page.mouse.down();
+  await page.mouse.down({ button });
   await page.waitForTimeout(FRAME_PAUSE_MS);
-  await page.mouse.up();
+  await page.mouse.up({ button });
   await page.waitForTimeout(FRAME_PAUSE_MS);
 }
 
@@ -344,9 +348,10 @@ async function clickUntilPublished(
   target: Point,
   observed: () => Promise<boolean>,
   attempts = 3,
+  button: "left" | "right" = "left",
 ): Promise<void> {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    await clickOnCanvas(page, target);
+    await clickOnCanvas(page, target, button);
     if (await observed()) {
       return;
     }
@@ -789,8 +794,18 @@ test.describe("ProjectSurvive ศาลาพัก in the browser", () => {
     expect(placed?.y).toBe(target.row);
     expect(afterPlace.chestUsed).toBe(0);
 
-    // --- 5. หมุน: the keyboard, on the piece the drag left selected ----------------------------
-    await page.keyboard.press("r");
+    // --- 5. หมุน: the right button on the piece it landed on ------------------------------------
+    // A drop deliberately leaves nothing selected (Stage 09k: the click that ends a drag is
+    // swallowed so the gesture does not paint a selection the player never made). The right
+    // button is the screen's other rotate gesture ("หมุนด้วย R หรือคลิกขวา"): it selects the
+    // piece under the pointer and turns it in one press, with no selection to set up first.
+    await clickUntilPublished(
+      page,
+      toPage(box, opened, boardCell(opened, target.column, target.row)),
+      async () => (await state(page)).counters.rotated === 1,
+      4,
+      "right",
+    );
 
     await expect
       .poll(async () => (await counters(page)).rotated, { timeout: COMMAND_TIMEOUT_MS, polling: 250 })
@@ -1199,10 +1214,15 @@ test.describe("ProjectSurvive ศาลาพัก in the browser", () => {
     const backBox = await canvasBox(page);
     const closeTarget = toPage(backBox, back, control(back, "closeBag"));
 
+    // Five attempts rather than the default three: this press follows two canvas resizes, and the
+    // player's own click path is the one that occasionally lands while the WebGL input module is
+    // still rebuilding its pointer state (recorded since Stage 09l). A miss is retried, never
+    // treated as a refusal — the assertion below still has to see the panel close.
     await clickUntilPublished(
       page,
       closeTarget,
       async () => (await state(page)).bagVisible === false,
+      5,
     );
 
     await expect
