@@ -74,19 +74,25 @@ drawn over it — the camp's own canvas order is its hierarchy order, and the bo
   overlay's colour with it on (`artifacts/ui/camp-tooltip-*`). Placement is the pure
   `CampTooltipPlacement.Place` (flips at the edges, pinned inside the margin when the panel is larger
   than the canvas), and its five lines — ชื่อ / ระดับ / สถานะ / คำอธิบาย / คอมโบ — each hide when empty.
-- **A mark is chosen from the rule's own `synergy.kind`**, never invented here: the tome→weapon
-  same-line rule is the only one drawn as a **line** (from the ตำรา to each อาวุธอาคม it actually
-  empowers), the bag-area bonus is a corner **badge** on the receiving piece (a line from a bag would
-  claim the bag is a partner on the board), and the three adjacency rules (ตะกรุด↔ยันต์,
-  คุณไสย↔พระเครื่อง, น้ำแดง↔ภูติ) draw no permanent mark at all — they highlight on hover and during a
-  drag. Pairs come from Core's unchanged `SynergyEvaluator.Active`; `CampPresenter.DrawnLinks` only
-  decides the drawing.
-- **Since 09k a line joins two board cells, and only on a row.** `CampLink` carries the two cells the
-  presenter chose (the tome's rightmost cell and the weapon's leftmost one), so the view turns two
-  cells into two points and the stroke is level by construction; a pair that touches *vertically*
-  keeps its combo and its tooltip line but draws no mark. Names live in their own containers
-  (`PieceLabels`, `ChestLabels`), raised above the line container on every render, so a stroke that
-  passes through a cell's middle cannot cover the word.
+- **A mark is chosen from the rule's own tags since 09l**, never invented here: the rule whose two
+  tags are `tome` and `weapon` (read from `data/tables/synergy.csv`, either order) is the only one
+  drawn as a **line** — from the ตำรา to each อาวุธอาคม that touches it; the bag-area bonus is a
+  corner **badge** on the receiving piece (a line from a bag would claim the bag is a partner on the
+  board), and the other adjacency rules (ตะกรุด↔ยันต์, คุณไสย↔พระเครื่อง, น้ำแดง↔ภูติ) draw no
+  permanent mark at all — they highlight on hover and during a drag. Pairs come from Core's unchanged
+  `SynergyEvaluator.Active`; `CampPresenter.DrawnLinks` only decides the drawing. Choosing by `kind`
+  stopped working when the tome rule became `AdjacentPair` in 09k-data (three other rules share the
+  kind) — [ADR 0032](../../docs/adr/0032-a-touching-tome-draws-centre-to-centre.md).
+- **A line runs from one piece's middle to the other's.** `CampLink` carries only the pair and the
+  style; `CampBagScreenView.PlaceLine` reads the two drawn rectangles and draws between their
+  centres, so a pair above/below draws as readily as a pair side by side, and a 2×2 tome's end sits
+  on the cross of its four cells. The stroke therefore crosses the pieces it joins, which is why the
+  names live in containers (`PieceLabels`, `ChestLabels`) raised above the line container on every
+  render.
+- **A bag is drawn as the cells it covers (09l).** `CampPieceView` keeps one pooled square per cell
+  of a footprint with a hole (the L basket's four cells), and a box keeps its single rectangle; the
+  bag's own name is measured against its top row, not its bounding box. The shape comes from
+  `CampPieceModel.Shape` (already rotated by the presenter) — the view derives nothing.
 - **A drag's origin is not the cell under the pointer.** `DragStart(piece, rotation, grabbedCell)`
   records the pressed cell inside the piece's own footprint, and every move (and every turn during
   the drag) recomputes the origin as pointer − grabbed cell, turned with `FootprintRotation`. Without
@@ -108,7 +114,7 @@ node tools/serve-web.mjs --port 8080
 cd tests/web ; npx playwright test smoke.spec.ts battle.spec.ts camp.spec.ts
 ```
 
-Unity-side: the EditMode fixtures are `CampPresenterTests` (rules and the seam, 33 tests) and
+Unity-side: the EditMode fixtures are `CampPresenterTests` (rules and the seam, 32 tests) and
 `CampTooltipPlacementTests` (4, the placement rule with no scene); the PlayMode fixtures are
 `CampBagDragPlayModeTests` (16, real pointer events through the scene's own
 `InputSystemUIInputModule`, plus the tooltip's draw order, the two-name rule, the grab offset and the

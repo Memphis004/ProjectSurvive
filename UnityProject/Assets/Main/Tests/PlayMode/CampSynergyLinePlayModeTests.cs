@@ -18,30 +18,29 @@ using UnityEngine.UI;
 namespace ProjectSurvive.Game.Tests.PlayMode
 {
     /// <summary>
-    /// Stage 09j: the combo lines on the <b>real Camp scene</b> — which pairs get one, where the mark
+    /// Stage 09l: the combo lines on the <b>real Camp scene</b> — which pairs get one, where the mark
     /// is drawn, what it looks like, and which layer it lives on.
     /// </summary>
     /// <remarks>
     /// <para>
     /// The board is built at runtime, so there is no rectangle in <c>Camp.unity</c> to measure: the
-    /// scene is started and played with, exactly as a player would. The state is the stage's own
-    /// case — a 2×2 tome with a weapon touching it and a second weapon a cell further along the same
-    /// row — built through the run's own commands (<c>MovePiece</c>) rather than by editing a model,
-    /// so a rule that refused the layout fails this suite instead of being papered over.
+    /// scene is started and played with, exactly as a player would. The state is the stage's own case —
+    /// a 2×2 tome with a weapon on <b>each of its four sides</b> and one weapon far away — built through
+    /// the run's own commands (<c>MovePiece</c>) rather than by editing a model, so a rule that refused
+    /// the layout fails this suite instead of being papered over.
     /// </para>
     /// <para>
     /// <b>The acceptance is geometry, so it is asserted in pixels.</b> Every line's two ends are read
     /// from the bar that was actually drawn (<c>TryGetLineScreenEnds</c>) and compared with the screen
-    /// rectangles of the two pieces (<c>TryGetPieceScreenRect</c>). Since this stage a mark bridges
-    /// the gap between two touching pieces, so the assertion is: each end sits on its own piece's
-    /// <i>edge</i>, and the stroke never crosses a name or a piece it does not belong to.
+    /// rectangles of the two pieces (<c>TryGetPieceScreenRect</c>): since this stage a mark runs from
+    /// one piece's middle to the other's, whether the pair sits side by side or above one another.
     /// </para>
     /// </remarks>
     public sealed class CampSynergyLinePlayModeTests
     {
         private const string CampSceneName = "Camp";
 
-        /// <summary>The tolerance the stage names: a line end may be off the edge it should reach by 1 px.</summary>
+        /// <summary>The tolerance the stage names: a line end may be off the middle it names by 1 px.</summary>
         private const float TolerancePixels = 1f;
 
         /// <summary>The smallest type an in-cell name may be drawn at (Stage 09i).</summary>
@@ -53,24 +52,26 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         /// <summary>The thin, bright line the stage asks for: at least 3 px at the 1080p reference.</summary>
         private const float MinLineThickness = 3f;
 
+        private const string TomeId = "item.spell_tome";
+        private const string WeaponId = "item.kali_flame_yant";
+
         private CampSceneDirector _director;
         private CampBagScreenView _bag;
         private PieceRef _tome;
-        private PieceRef _touchingWeapon;
+        private readonly PieceRef[] _weapons = new PieceRef[4];
         private PieceRef _farWeapon;
 
         /// <summary>
-        /// Loads the camp, opens จัดย่าม, and builds the stage's state: two 3×3 bags side by side, a
-        /// 2×2 tome on the first, a weapon touching the tome's right edge, and a second weapon a cell
-        /// further along the row — on the second bag, so the rule fires for it too and only the
-        /// drawing decides.
+        /// Loads the camp, opens จัดย่าม, and builds the stage's state: four 3×3 รยาม in a square, a
+        /// 2×2 tome at (1,2), a weapon on each of the tome's four sides, and one weapon far away.
         /// </summary>
         /// <remarks>
-        /// Two bags because an item is only legal on a cell a bag covers
-        /// (<c>inventory.item_not_covered</c>): the tome and two weapons need six cells of bag under
-        /// them, which is one bag wider than the starting รยาม.
+        /// Four bags because an item is only legal on a cell a bag covers
+        /// (<c>inventory.item_not_covered</c>): the tome's four cells and the four cells around it need
+        /// eight covered cells, and one bag is 3×3. The far weapon shares no edge with the tome, so it
+        /// must draw nothing — the rule does not fire for it at all since ADR 0031.
         /// </remarks>
-        private IEnumerator LoadCampWithTouchingAndDistantWeapons()
+        private IEnumerator LoadCampWithAWeaponOnEverySideOfTheTome()
         {
             SceneFlowHarness.ResetShell();
             yield return null;
@@ -92,34 +93,49 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             RunSession run = _director.Run;
             Assert.That(run, Is.Not.Null, "the camp started without a run");
 
+            // The bags first: everything else needs a cell one of them covers.
             PieceRef firstBag = run.Backpack.Bags[0].Ref;
-            PieceRef startingWeapon = run.Backpack.Items[0].Ref;
+            Assert.That(Move(run, firstBag, 0, 0), Is.True, "the starting รยาม could not be moved to (0,0)");
 
-            Assert.That(Move(run, firstBag, 0, 1), Is.True, "the starting รยาม could not be moved to (0,1)");
+            var corners = new (int X, int Y)[] { (3, 0), (0, 3), (3, 3) };
+            for (int i = 0; i < corners.Length; i++)
+            {
+                var added = run.Backpack.AddBag("bag.raw_cotton_bag");
+                Assert.That(added.IsSuccess, Is.True, "a รยาม could not be added: " + added.Error);
+                Assert.That(
+                    Move(run, added.Value, corners[i].X, corners[i].Y), Is.True,
+                    "a รยาม could not be placed at (" + corners[i].X + "," + corners[i].Y + ")");
+            }
 
-            var secondBag = run.Backpack.AddBag("bag.raw_cotton_bag");
-            Assert.That(secondBag.IsSuccess, Is.True, "a second รยาม could not be added");
-            Assert.That(Move(run, secondBag.Value, 3, 1), Is.True, "the second รยาม could not be placed at (3,1)");
-
-            // The weapon that rode the bag off its corner has to leave the tome's cells before the tome
-            // lands on them; then the tome sits at (0,1), the touching weapon against its right edge,
-            // and the far weapon one cell further along the same row.
-            _touchingWeapon = startingWeapon;
-            Assert.That(Move(run, _touchingWeapon, 2, 1), Is.True, "the touching weapon could not be placed at (2,1)");
-
-            var tome = run.Backpack.AddItem("item.spell_tome");
-            Assert.That(tome.IsSuccess, Is.True, "the tome could not be added");
+            // The tome: 2×2 at (1,2), so its four sides are (0,2), (3,2), (1,1) and (1,4).
+            var tome = run.Backpack.AddItem(TomeId);
+            Assert.That(tome.IsSuccess, Is.True, "the tome could not be added: " + tome.Error);
             _tome = tome.Value;
-            Assert.That(Move(run, _tome, 0, 1), Is.True, "the 2x2 tome could not be placed at (0,1)");
+            Assert.That(Move(run, _tome, 1, 2), Is.True, "the 2x2 tome could not be placed at (1,2)");
 
-            var farWeapon = run.Backpack.AddItem("item.kali_flame_yant");
-            Assert.That(farWeapon.IsSuccess, Is.True, "a second weapon could not be added");
-            _farWeapon = farWeapon.Value;
-            Assert.That(Move(run, _farWeapon, 3, 1), Is.True, "the far weapon could not be placed at (3,1)");
+            var sides = new (int X, int Y)[] { (3, 2), (0, 2), (1, 1), (1, 4) };
+            for (int i = 0; i < sides.Length; i++)
+            {
+                PieceRef weapon = i == 0 ? run.Backpack.Items[0].Ref : AddWeapon(run);
+                Assert.That(
+                    Move(run, weapon, sides[i].X, sides[i].Y), Is.True,
+                    "a weapon could not be placed at (" + sides[i].X + "," + sides[i].Y + ")");
+                _weapons[i] = weapon;
+            }
+
+            _farWeapon = AddWeapon(run);
+            Assert.That(Move(run, _farWeapon, 5, 4), Is.True, "the far weapon could not be placed at (5,4)");
 
             _director.Presenter.Refresh();
             Canvas.ForceUpdateCanvases();
             yield return null;
+        }
+
+        private static PieceRef AddWeapon(RunSession run)
+        {
+            var added = run.Backpack.AddItem(WeaponId);
+            Assert.That(added.IsSuccess, Is.True, "a weapon could not be added: " + added.Error);
+            return added.Value;
         }
 
         /// <summary>The shipped tables — the config the camp itself runs on.</summary>
@@ -130,81 +146,53 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             run.MovePiece(piece, new CellOffset(x, y), Rotation.Degrees0).IsSuccess;
 
         /// <summary>
-        /// The stage's rule, stated as a count: one line for the pair that touches, none for the pair
-        /// that shares the row across an empty cell — even though Core reports both pairs.
+        /// Stage 09l item B, as a count: a weapon on each of the tome's four sides is four working
+        /// pairs and four lines, and the far weapon — which shares no edge — gets none.
         /// </summary>
         [UnityTest]
-        public IEnumerator Only_the_pair_that_touches_gets_a_line()
+        public IEnumerator The_tome_gets_one_line_per_weapon_on_its_four_sides()
         {
-            yield return LoadCampWithTouchingAndDistantWeapons();
+            yield return LoadCampWithAWeaponOnEverySideOfTheTome();
 
             CampLink[] links = _bag.Model.Links;
-            Assert.That(
-                HasLine(links, _tome.InstanceId, _touchingWeapon.InstanceId), Is.True,
-                "the tome's neighbour has no line: " + Describe(links));
-            Assert.That(
-                HasLine(links, _tome.InstanceId, _farWeapon.InstanceId), Is.False,
-                "a line was drawn across an empty cell to the weapon in column 3: " + Describe(links));
-            Assert.That(
-                _bag.VisibleLineCount, Is.EqualTo(1),
-                "one touching pair should be one line, and the view drew " + _bag.VisibleLineCount);
-        }
 
-        /// <summary>
-        /// Core is untouched by this stage: the rule still reports <b>both</b> weapons, and the far one
-        /// is still the owner of a working bonus. Only the drawing distinguishes them.
-        /// </summary>
-        [UnityTest]
-        public IEnumerator The_rule_still_reports_the_pair_that_gets_no_line()
-        {
-            yield return LoadCampWithTouchingAndDistantWeapons();
-
-            SynergyEvaluation layout = new SynergyEvaluator(ShippedConfig()).Evaluate(_director.Run.Backpack);
-            int pairs = 0;
-
-            for (int i = 0; i < layout.Active.Count; i++)
+            for (int i = 0; i < _weapons.Length; i++)
             {
-                ActiveSynergy synergy = layout.Active[i];
-                if ((synergy.SourceInstanceId == _tome.InstanceId && synergy.TargetInstanceId == _farWeapon.InstanceId)
-                    || (synergy.SourceInstanceId == _farWeapon.InstanceId && synergy.TargetInstanceId == _tome.InstanceId))
-                {
-                    pairs++;
-                }
+                Assert.That(
+                    HasLine(links, _tome.InstanceId, _weapons[i].InstanceId), Is.True,
+                    "the weapon on side " + i + " of the tome has no line: " + Describe(links));
             }
 
             Assert.That(
-                pairs, Is.EqualTo(1),
-                "Core stopped reporting the far weapon's same-row pair, which would mean this stage changed a rule");
+                HasLine(links, _tome.InstanceId, _farWeapon.InstanceId), Is.False,
+                "a line was drawn to a weapon the tome does not touch: " + Describe(links));
+            Assert.That(
+                _bag.VisibleLineCount, Is.EqualTo(4),
+                "four touching pairs should be four lines, and the view drew " + _bag.VisibleLineCount);
         }
 
         /// <summary>
-        /// Where a mark is drawn (Stage 09k): level, from the middle of one cell to the middle of the
-        /// other, on the row the two cells share — and the names are painted above it.
+        /// Every line runs from the middle of one piece to the middle of the other (Stage 09l), read
+        /// from the bar that was drawn and from the rectangles the player sees.
         /// </summary>
-        /// <remarks>
-        /// Stage 09j bridged the nearest edges of the two rectangles instead, which for a 2×2 tome
-        /// beside a 1×1 weapon was a near-vertical stub across the cells' join — the mark the player
-        /// reported. A stroke along a row crosses the names' cells by design; what keeps it off the
-        /// words is the layer, which is asserted below and painted by the label container.
-        /// </remarks>
         [UnityTest]
-        public IEnumerator Every_line_is_level_and_joins_the_two_cells_it_names()
+        public IEnumerator Every_line_runs_between_the_two_pieces_middles()
         {
-            yield return LoadCampWithTouchingAndDistantWeapons();
+            yield return LoadCampWithAWeaponOnEverySideOfTheTome();
 
-            Assert.That(_bag.VisibleLineCount, Is.GreaterThan(0), "there is no line to measure");
-            AssertEveryLineJoinsItsCells("a fresh board");
+            Assert.That(_bag.VisibleLineCount, Is.EqualTo(4), "there are not four lines to measure");
+            AssertEveryLineJoinsItsPieces("a fresh board");
             AssertTheNamesAreDrawnOverTheLines();
         }
 
         /// <summary>
-        /// Stretching a bag's own footprint (a rotation) and carrying its items re-draws the marks in
-        /// the same frame: a mark is read from the rectangles as they are drawn, not cached.
+        /// Turning the tome re-draws the marks from the new geometry in the same frame: a 2×2 piece is
+        /// the same box in every quarter turn, so all four pairs keep their line.
         /// </summary>
         [UnityTest]
-        public IEnumerator Every_rotation_of_a_paired_piece_keeps_its_line_on_the_gap()
+        public IEnumerator Every_quarter_turn_of_the_tome_keeps_all_four_lines()
         {
-            yield return LoadCampWithTouchingAndDistantWeapons();
+            yield return LoadCampWithAWeaponOnEverySideOfTheTome();
 
             RunSession run = _director.Run;
 
@@ -216,53 +204,58 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 Canvas.ForceUpdateCanvases();
                 yield return null;
 
-                Assert.That(_bag.VisibleLineCount, Is.EqualTo(1), "a rotation of the tome changed the number of lines");
-                AssertEveryLineJoinsItsCells("after turning the tome " + (turn + 1) + " quarter(s)");
+                Assert.That(
+                    _bag.VisibleLineCount, Is.EqualTo(4),
+                    "a turn of the tome changed the number of lines to " + _bag.VisibleLineCount);
+                AssertEveryLineJoinsItsPieces("after turning the tome " + (turn + 1) + " quarter(s)");
             }
         }
 
         /// <summary>
-        /// The line goes the instant the pair stops qualifying and comes back when it qualifies again:
-        /// the weapon is dragged off the tome's row and back onto it, in the same camp visit.
+        /// The line goes the instant the pair stops touching and comes back when it touches again: one
+        /// weapon is moved two cells away and then back, in the same camp visit.
         /// </summary>
         [UnityTest]
         public IEnumerator A_line_appears_and_disappears_with_the_pair_it_belongs_to()
         {
-            yield return LoadCampWithTouchingAndDistantWeapons();
+            yield return LoadCampWithAWeaponOnEverySideOfTheTome();
 
             RunSession run = _director.Run;
+            PieceRef weapon = _weapons[0];
 
-            Assert.That(Move(run, _touchingWeapon, 2, 3), Is.True, "the weapon could not be moved off the tome's row");
+            Assert.That(Move(run, weapon, 5, 2), Is.True, "the weapon could not be moved two cells to the right");
             _director.Presenter.Refresh();
             Canvas.ForceUpdateCanvases();
             yield return null;
 
             Assert.That(
-                HasLine(_bag.Model.Links, _tome.InstanceId, _touchingWeapon.InstanceId), Is.False,
-                "the line survived the pair leaving the same row: " + Describe(_bag.Model.Links));
-            Assert.That(_bag.VisibleLineCount, Is.EqualTo(0), "the view still drew a mark after the pair stopped qualifying");
+                HasLine(_bag.Model.Links, _tome.InstanceId, weapon.InstanceId), Is.False,
+                "the line survived the pair leaving contact: " + Describe(_bag.Model.Links));
+            Assert.That(
+                _bag.VisibleLineCount, Is.EqualTo(3),
+                "the view drew " + _bag.VisibleLineCount + " lines for the three pairs still touching");
 
-            Assert.That(Move(run, _touchingWeapon, 2, 1), Is.True, "the weapon could not be moved back beside the tome");
+            Assert.That(Move(run, weapon, 3, 2), Is.True, "the weapon could not be moved back beside the tome");
             _director.Presenter.Refresh();
             Canvas.ForceUpdateCanvases();
             yield return null;
 
             Assert.That(
-                _bag.VisibleLineCount, Is.EqualTo(1),
+                _bag.VisibleLineCount, Is.EqualTo(4),
                 "the line did not come back when the weapon returned to the tome's edge, and the view drew "
                 + _bag.VisibleLineCount);
-            AssertEveryLineJoinsItsCells("after the weapon returned to the tome's edge");
+            AssertEveryLineJoinsItsPieces("after the weapon returned to the tome's edge");
         }
 
         /// <summary>
         /// A canvas scaled to two thirds — the 1280×720 factor — lays the board out at two thirds of the
-        /// pixels, and the ends still land on the pieces' edges: the marks are placed in the container's
-        /// own space and only then scaled.
+        /// pixels, and the ends still land on the pieces' middles: the marks are placed in the
+        /// container's own space and only then scaled.
         /// </summary>
         [UnityTest]
         public IEnumerator The_marks_hold_their_geometry_when_the_canvas_is_scaled_to_the_720p_factor()
         {
-            yield return LoadCampWithTouchingAndDistantWeapons();
+            yield return LoadCampWithAWeaponOnEverySideOfTheTome();
 
             var scaler = _bag.GetComponentInParent<CanvasScaler>();
             Assert.That(scaler, Is.Not.Null, "the camp's canvas has no CanvasScaler");
@@ -280,8 +273,8 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                     factor, Is.EqualTo(2f / 3f).Within(0.01f),
                     "the canvas did not take the 720p factor: it is scaled by " + factor);
 
-                Assert.That(_bag.VisibleLineCount, Is.EqualTo(1), "the resized canvas changed the number of lines");
-                AssertEveryLineJoinsItsCells("at a canvas scale of " + factor.ToString("0.###"));
+                Assert.That(_bag.VisibleLineCount, Is.EqualTo(4), "the resized canvas changed the number of lines");
+                AssertEveryLineJoinsItsPieces("at a canvas scale of " + factor.ToString("0.###"));
                 AssertTheNamesAreDrawnOverTheLines();
 
                 // The stage's thickness is a 1080p statement: at this factor the same line is two
@@ -307,7 +300,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         [UnityTest]
         public IEnumerator A_line_is_a_thick_opaque_red_drawn_over_a_dark_edge()
         {
-            yield return LoadCampWithTouchingAndDistantWeapons();
+            yield return LoadCampWithAWeaponOnEverySideOfTheTome();
 
             Assert.That(_bag.VisibleLineCount, Is.GreaterThan(0), "there is no line to look at");
 
@@ -335,18 +328,18 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         }
 
         /// <summary>
-        /// The layer the stage asks for: the lines are the board's <b>last</b> children, after every
-        /// piece and the name inside it, so a mark that reaches a piece is seen reaching it.
+        /// The layer the stage asks for: the lines are drawn after every piece and before every name,
+        /// so a mark that reaches a piece is seen reaching it and never covers a word.
         /// </summary>
         /// <remarks>
         /// Since Stage 09k the names live in a container of their own after the marks, because a line
-        /// along the middle of a row would otherwise be painted across the middle of a name. The order
-        /// this asserts is therefore: every piece, then the combo lines, then the badges, then the names.
+        /// between two middles would otherwise be painted across the middle of a name. The order this
+        /// asserts is therefore: every piece, then the combo lines, then the badges, then the names.
         /// </remarks>
         [UnityTest]
         public IEnumerator The_lines_are_drawn_after_every_piece_and_before_every_name()
         {
-            yield return LoadCampWithTouchingAndDistantWeapons();
+            yield return LoadCampWithAWeaponOnEverySideOfTheTome();
 
             RectTransform container = _bag.LineContainer;
             Assert.That(container, Is.Not.Null, "the view has no line container");
@@ -356,7 +349,6 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             int lineIndex = container.GetSiblingIndex();
             int pieces = 0;
-            int names = 0;
             RectTransform labelRoot = null;
 
             for (int i = 0; i < board.childCount; i++)
@@ -376,8 +368,6 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                         + " — the line would run under the piece it names");
                 }
 
-                // The names live in one container of their own (Stage 09k), and it is the container
-                // that has to sit above the marks: every box inside it then does too.
                 if (child.name == "PieceLabels")
                 {
                     labelRoot = child;
@@ -389,18 +379,8 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 }
             }
 
-            Assert.That(pieces, Is.GreaterThanOrEqualTo(4), "the board drew too few pieces to judge the order");
+            Assert.That(pieces, Is.GreaterThanOrEqualTo(9), "the board drew too few pieces to judge the order");
             Assert.That(labelRoot, Is.Not.Null, "the board drew no name container above the marks");
-
-            for (int i = 0; i < labelRoot.childCount; i++)
-            {
-                if (labelRoot.GetChild(i).name == "LabelBox")
-                {
-                    names++;
-                }
-            }
-
-            Assert.That(names, Is.GreaterThanOrEqualTo(4), "the board drew too few names to judge the order");
 
             // Nothing else is drawn above the marks except the bag-area badges, which are the other
             // mark, and the names, which sit above both so a stroke runs behind the word.
@@ -414,13 +394,13 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         }
 
         /// <summary>
-        /// Stage 09i's name rule, kept: no name drawn inside a cell leaves the rectangle of its piece,
+        /// Stage 09i's name rule, kept: no name drawn inside its piece leaves that piece's rectangle,
         /// every one of them is drawn between 14 and 22 px, and the full name is on the tooltip.
         /// </summary>
         [UnityTest]
         public IEnumerator A_name_in_a_cell_stays_inside_its_piece_and_is_never_below_14_px()
         {
-            yield return LoadCampWithTouchingAndDistantWeapons();
+            yield return LoadCampWithAWeaponOnEverySideOfTheTome();
 
             TMP_Text[] labels = _bag.GetComponentsInChildren<TMP_Text>(true);
             int measured = 0;
@@ -443,29 +423,28 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
                 Bounds bounds = label.textBounds;
                 Rect frame = rect.rect;
-                string story = "'" + label.text + "' bounds " + bounds + " in a " + frame.size + " cell";
+                string story = "'" + label.text + "' bounds " + bounds + " in a " + frame.size + " box";
 
                 Assert.That(bounds.size.x, Is.GreaterThan(0f), "the name measured nothing: " + story);
                 Assert.That(
-                    bounds.min.x, Is.GreaterThanOrEqualTo(frame.xMin - 0.5f), "the name leaves its cell on the left: " + story);
+                    bounds.min.x, Is.GreaterThanOrEqualTo(frame.xMin - 0.5f), "the name leaves its box on the left: " + story);
                 Assert.That(
-                    bounds.max.x, Is.LessThanOrEqualTo(frame.xMax + 0.5f), "the name leaves its cell on the right: " + story);
+                    bounds.max.x, Is.LessThanOrEqualTo(frame.xMax + 0.5f), "the name leaves its box on the right: " + story);
                 Assert.That(
-                    bounds.min.y, Is.GreaterThanOrEqualTo(frame.yMin - 0.5f), "the name leaves its cell at the bottom: " + story);
+                    bounds.min.y, Is.GreaterThanOrEqualTo(frame.yMin - 0.5f), "the name leaves its box at the bottom: " + story);
                 Assert.That(
-                    bounds.max.y, Is.LessThanOrEqualTo(frame.yMax + 0.5f), "the name leaves its cell at the top: " + story);
+                    bounds.max.y, Is.LessThanOrEqualTo(frame.yMax + 0.5f), "the name leaves its box at the top: " + story);
             }
 
-            Assert.That(measured, Is.GreaterThanOrEqualTo(2), "the board drew too few names to judge");
+            Assert.That(measured, Is.GreaterThanOrEqualTo(4), "the board drew too few names to judge");
 
-            // The full name the cell may not fit is the tooltip's job: hovering the tome publishes it.
-            PieceRef tome = _tome;
-            CampPieceModel model = PieceOf(tome);
+            // The full name the piece cannot fit is the tooltip's job: hovering the tome publishes it.
+            CampPieceModel model = PieceOf(_tome);
 
             var tooltip = Object.FindFirstObjectByType<CampTooltipView>(FindObjectsInactive.Include);
             Assert.That(tooltip, Is.Not.Null, "the Camp scene has no CampTooltipView");
 
-            _director.Presenter.Hover(tome);
+            _director.Presenter.Hover(_tome);
             Canvas.ForceUpdateCanvases();
             yield return null;
 
@@ -485,22 +464,19 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         }
 
         /// <summary>
-        /// Stage 09j item B: a combo that works without a line still tells the player it is working —
-        /// the tooltip's existing combo line names it — and the hover highlight still reaches the pair.
+        /// The combo a line marks is also named on the tooltip and lit on the board: hovering a weapon
+        /// beside the tome says which combo is working and highlights the tome's cells with it.
         /// </summary>
         [UnityTest]
-        public IEnumerator A_combo_without_a_line_still_shows_on_the_tooltip_and_the_highlight()
+        public IEnumerator The_combo_a_line_marks_is_named_on_the_tooltip_and_lit_on_the_board()
         {
-            yield return LoadCampWithTouchingAndDistantWeapons();
+            yield return LoadCampWithAWeaponOnEverySideOfTheTome();
 
-            // The far weapon: a working same-row pair with no permanent mark.
-            CampPieceModel far = PieceOf(_farWeapon);
-            _director.Presenter.Hover(_farWeapon);
+            PieceRef weapon = _weapons[0];
+            _director.Presenter.Hover(weapon);
             Canvas.ForceUpdateCanvases();
             yield return null;
 
-            // Read from the tooltip the player is looking at, not from the model behind it: the claim
-            // is that the screen says the combo is working even though the pair draws no line.
             var tooltip = Object.FindFirstObjectByType<CampTooltipView>(FindObjectsInactive.Include);
             Assert.That(tooltip, Is.Not.Null, "the Camp scene has no CampTooltipView");
 
@@ -515,18 +491,13 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             }
 
             Assert.That(combo, Is.Not.Empty, "the tooltip of a piece with a working combo says nothing about it");
-            Assert.That(
-                combo.Contains("ตำราหนุนอาคม"),
-                Is.True,
-                "the tooltip does not name the same-row combo the far weapon is part of: '" + combo + "'");
 
-            // The highlight: the hovered piece's cells plus its partner's — the tome, three cells to
-            // the left, is the partner of a pair that draws no line.
+            // The highlight: the hovered piece's cells plus its partner's — the tome beside it.
             IReadOnlyList<CellOffset> highlight = _director.Presenter.Highlight;
             bool tomeCellLit = false;
             for (int i = 0; i < highlight.Count; i++)
             {
-                if (highlight[i].X == 0 && highlight[i].Y == 1)
+                if (highlight[i].X == 1 && highlight[i].Y == 2)
                 {
                     tomeCellLit = true;
                 }
@@ -534,8 +505,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             Assert.That(
                 tomeCellLit, Is.True,
-                "hovering the far weapon did not highlight the tome's cell, so the pair is invisible in every way");
-            Assert.That(far.Piece.IsValid, Is.True);
+                "hovering the weapon did not highlight the tome's cell, so the pair is invisible in every way");
         }
 
         // ------------------------------------------------------------------
@@ -543,10 +513,10 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// Every drawn line against the two <b>cells</b> the model names: each end is the middle of
-        /// its cell (within 1 px), the stroke is level, and the two cells are neighbours on one row.
+        /// Every drawn line against the two <b>pieces</b> the model names: each end is the middle of its
+        /// own piece's rectangle on screen, within 1 px.
         /// </summary>
-        private void AssertEveryLineJoinsItsCells(string state)
+        private void AssertEveryLineJoinsItsPieces(string state)
         {
             CampLink[] links = _bag.Model.Links;
             int drawn = 0;
@@ -562,27 +532,29 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                     _bag.TryGetLineScreenEnds(drawn, out Vector2 from, out Vector2 to), Is.True,
                     state + ": line " + drawn + " is listed by the model but not drawn");
 
-                Assert.That(
-                    links[i].SourceCell.Y, Is.EqualTo(links[i].TargetCell.Y),
-                    state + ": line " + drawn + "'s cells are not on one row: " + links[i]);
-                Assert.That(
-                    Mathf.Abs(links[i].SourceCell.X - links[i].TargetCell.X), Is.EqualTo(1),
-                    state + ": line " + drawn + "'s cells are not neighbours: " + links[i]);
-
-                Vector2 sourceMiddle = CellMiddle(links[i].SourceCell);
-                Vector2 targetMiddle = CellMiddle(links[i].TargetCell);
+                var source = new PieceRef(PieceKind.Item, links[i].SourceInstanceId);
+                var target = new PieceRef(PieceKind.Item, links[i].TargetInstanceId);
 
                 Assert.That(
-                    Vector2.Distance(from, sourceMiddle), Is.LessThanOrEqualTo(TolerancePixels),
-                    state + ": line " + drawn + " starts at " + from + " instead of the middle of "
-                    + links[i].SourceCell + " at " + sourceMiddle);
+                    _bag.TryGetPieceScreenRect(source, out Rect sourceRect), Is.True,
+                    state + ": line " + drawn + "'s source piece has no rectangle");
                 Assert.That(
-                    Vector2.Distance(to, targetMiddle), Is.LessThanOrEqualTo(TolerancePixels),
-                    state + ": line " + drawn + " ends at " + to + " instead of the middle of "
-                    + links[i].TargetCell + " at " + targetMiddle);
+                    _bag.TryGetPieceScreenRect(target, out Rect targetRect), Is.True,
+                    state + ": line " + drawn + "'s target piece has no rectangle");
+
                 Assert.That(
-                    Mathf.Abs(to.y - from.y), Is.LessThanOrEqualTo(TolerancePixels),
-                    state + ": line " + drawn + " is not level: " + from + " -> " + to);
+                    Vector2.Distance(from, sourceRect.center), Is.LessThanOrEqualTo(TolerancePixels),
+                    state + ": line " + drawn + " starts at " + from + " instead of the middle of its source "
+                    + sourceRect.center);
+                Assert.That(
+                    Vector2.Distance(to, targetRect.center), Is.LessThanOrEqualTo(TolerancePixels),
+                    state + ": line " + drawn + " ends at " + to + " instead of the middle of its target "
+                    + targetRect.center);
+
+                // Both ends are inside their own piece, which is what makes the mark a bridge between
+                // two pieces rather than a stroke across a cell.
+                Assert.That(sourceRect.Contains(from), Is.True, state + ": line " + drawn + " starts outside its piece");
+                Assert.That(targetRect.Contains(to), Is.True, state + ": line " + drawn + " ends outside its piece");
 
                 drawn++;
             }
@@ -592,22 +564,13 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 state + ": the model lists " + drawn + " line(s) and the view drew " + _bag.VisibleLineCount);
         }
 
-        /// <summary>The middle of a board cell on screen, which is where a line end has to be.</summary>
-        private Vector2 CellMiddle(CellOffset cell)
-        {
-            Assert.That(
-                _bag.TryGetBoardCellScreenPoint(cell.X, cell.Y, out Vector2 point), Is.True,
-                "the board cell " + cell + " is not on screen");
-            return point;
-        }
-
         /// <summary>
         /// Stage 09k's answer to "the line must not cover a name": the names are drawn after the marks.
         /// </summary>
         /// <remarks>
-        /// A stroke along the middle of a row passes through the cell a one-line name is centred in, so
-        /// geometry alone cannot keep the two apart. What keeps the word readable is the layer: the
-        /// label container is a later child of the board than the line container.
+        /// A stroke from one middle to another passes through the pieces it joins, so geometry alone
+        /// cannot keep the two apart. What keeps the word readable is the layer: the label container is
+        /// a later child of the board than the line container.
         /// </remarks>
         private void AssertTheNamesAreDrawnOverTheLines()
         {

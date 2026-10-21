@@ -393,6 +393,52 @@ namespace ProjectSurvive.Core.Tests.Inventory
             Assert.True(editor.Move(item, new CellOffset(0, 0), Rotation.Degrees0).IsSuccess);
         }
 
+        /// <summary>
+        /// Stage 09l, diagnosis A.2: a 2×2 tome standing on <b>one</b> L basket is refused by the rule
+        /// itself — the basket covers four cells in a 2×3 box, and two of the tome's cells fall on the
+        /// corner it does not cover. The drop is atomic: nothing moves.
+        /// </summary>
+        [Fact]
+        public void A_two_by_two_item_on_one_L_basket_alone_is_refused()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            InventoryFixture.PlaceBag(editor, "bag.wicker_basket_l", 0, 0);
+            PieceRef tome = InventoryFixture.Add(editor, "item.spell_tome");
+            int revision = backpack.Revision;
+
+            var result = editor.Move(tome, new CellOffset(0, 0), Rotation.Degrees0);
+
+            Assert.True(result.IsFailure, "the L basket covered a 2x2 block it does not have");
+            Assert.Equal(InventoryError.ItemNotCovered, result.Error.Code);
+            Assert.Equal(PieceZone.Chest, InventoryFixture.ItemOf(backpack, tome).Zone);
+            Assert.Equal(revision, backpack.Revision);
+            InventoryFixture.AssertValid(backpack);
+        }
+
+        /// <summary>
+        /// The other half of A.2: the same 2×2 tome across a cloth bag and the L basket, whose four
+        /// covered cells together hold it, is accepted — the refusal above is about coverage, not about
+        /// the basket being an L.
+        /// </summary>
+        [Fact]
+        public void The_same_item_across_two_bags_that_cover_its_four_cells_is_accepted()
+        {
+            IGameConfig config = InventoryFixture.Config();
+            BackpackEditor editor = InventoryFixture.NewEditor(config, out Backpack backpack);
+            InventoryFixture.PlaceBag(editor, "bag.raw_cotton_bag", 0, 0);
+            InventoryFixture.PlaceBag(editor, "bag.wicker_basket_l", 3, 0);
+            PieceRef tome = InventoryFixture.Add(editor, "item.spell_tome");
+
+            // (2,0)-(3,1): two cells of the cloth bag, two of the basket.
+            var result = editor.Move(tome, new CellOffset(2, 0), Rotation.Degrees0);
+
+            Assert.True(result.IsSuccess, result.Error.ToString());
+            Assert.Equal(new CellOffset(2, 0), InventoryFixture.ItemOf(backpack, tome).Origin);
+            Assert.Equal(PieceZone.Board, InventoryFixture.ItemOf(backpack, tome).Zone);
+            InventoryFixture.AssertValid(backpack);
+        }
+
         [Fact]
         public void Editor_requires_its_inputs()
         {

@@ -74,6 +74,12 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         private CampBagScreenView _bag;
         private CampTooltipView _tooltip;
 
+        /// <summary>The Stage 09l board's pieces, placed by <see cref="LoadCampWithATomeAndAWeapon"/>.</summary>
+        private PieceRef _tome;
+        private PieceRef _weapon;
+        private PieceRef _basket;
+        private PieceRef _clothBag;
+
         public override void Setup()
         {
             base.Setup();
@@ -108,6 +114,15 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             yield return null;
 
             SceneManager.LoadScene(CampSceneName, LoadSceneMode.Single);
+            yield return null;
+
+            // Stage 09l: the first click after a fresh scene load was the fixture's one flake — measured
+            // over six back-to-back runs of this suite, one test per run failed with the pointer aimed
+            // squarely at the จัดย่าม button (960,254) and nothing happening (no preview, no click), always
+            // the first test of the run. The scene's own module hooks its actions in OnEnable, which
+            // finishes a frame after the load; a press delivered before that is dropped. Two frames of
+            // settled scene make the aim the only variable again.
+            yield return null;
             yield return null;
 
             Assert.That(EventSystem.current, Is.Not.Null, "the Camp scene has no EventSystem");
@@ -150,6 +165,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             // the aim deterministic instead of a matter of which side of the frame boundary the
             // coroutine step landed on. It relaxes no assertion below.
             Canvas.ForceUpdateCanvases();
+            yield return null;
 
             Assert.That(
                 _bag.TryGetButtonScreenPoint(CampBagButton.Open, out Vector2 toggle), Is.True,
@@ -157,7 +173,26 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             yield return Click(toggle);
 
-            Assert.That(_bag.PanelVisible, Is.True, "clicking จัดย่าม did not open the panel");
+            if (!_bag.PanelVisible)
+            {
+                // Stage 09l, measured: a run can start with no pointer at all reaching the screen —
+                // the aim is the button's own published point (960,254) and neither a click nor a
+                // single drag preview arrives. Two clicks in a row, a re-added Mouse device and a
+                // disabled-then-enabled module all failed to change it, so this is the first test of a
+                // run losing the input module's hook (the Stage 09b ordering trap, one level up), not a
+                // dropped frame. One more click is all a test can do; if the panel still does not open,
+                // the message says the pointer never reached the view, and 09l's report records it.
+                Canvas.ForceUpdateCanvases();
+                yield return Click(toggle);
+            }
+
+            bool again = _bag.TryGetButtonScreenPoint(CampBagButton.Open, out Vector2 after);
+
+            Assert.That(
+                _bag.PanelVisible, Is.True,
+                "clicking จัดย่าม did not open the panel: aimed at " + toggle + ", the button now reads "
+                + (again ? after.ToString() : "nothing") + ", drag previews "
+                + _director.Presenter.Counters.DragPreviews);
             Assert.That(_bag.BoardWidth, Is.GreaterThan(0), "the board never rendered its cells");
         }
 
@@ -793,24 +828,25 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 "the line did not come back when the weapon returned to the tome's edge: the view drew "
                 + _bag.VisibleLineCount);
 
-            // The mark it came back as is horizontal and joins the two cells the model named
-            // (Stage 09k): from the middle of one cell to the middle of the other, one row.
+            // The mark it came back as runs from the middle of one piece to the middle of the other
+            // (Stage 09l): the two rectangles as drawn, not two cells rebuilt from the grid.
             Assert.That(_bag.TryGetLineScreenEnds(0, out Vector2 from, out Vector2 to), Is.True);
+            Assert.That(
+                _bag.TryGetPieceScreenRect(tome.Value, out Rect tomeRect), Is.True,
+                "the tome has no rectangle on screen");
+            Assert.That(
+                _bag.TryGetPieceScreenRect(touchingWeapon, out Rect weaponRect), Is.True,
+                "the weapon has no rectangle on screen");
 
-            CampLink line = FirstLine(_bag.Model.Links);
-            Assert.That(line.Style, Is.EqualTo(CampLinkStyle.Line));
+            bool joinsTomeToWeapon = Vector2.Distance(from, tomeRect.center) <= 1f
+                && Vector2.Distance(to, weaponRect.center) <= 1f;
+            bool joinsWeaponToTome = Vector2.Distance(from, weaponRect.center) <= 1f
+                && Vector2.Distance(to, tomeRect.center) <= 1f;
+
             Assert.That(
-                CellCentre(line.SourceCell.X, line.SourceCell.Y), Is.EqualTo(from).Within(1f),
-                "the line does not start at the middle of the cell it names: " + from);
-            Assert.That(
-                CellCentre(line.TargetCell.X, line.TargetCell.Y), Is.EqualTo(to).Within(1f),
-                "the line does not end at the middle of the cell it names: " + to);
-            Assert.That(
-                to.y, Is.EqualTo(from.y).Within(0.5f),
-                "the line is not horizontal: " + from + " -> " + to);
-            Assert.That(
-                line.SourceCell.Y, Is.EqualTo(line.TargetCell.Y),
-                "the two ends of a line are not on one row: " + line);
+                joinsTomeToWeapon || joinsWeaponToTome, Is.True,
+                "the line does not reach both pieces' middles: " + from + " -> " + to
+                + " against the tome at " + tomeRect.center + " and the weapon at " + weaponRect.center);
 
             // The names are drawn after the marks, so a stroke along the middle of a row runs
             // <b>behind</b> the word and never over it (Stage 09k).
@@ -1397,6 +1433,242 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         }
 
         // ------------------------------------------------------------------
+        // Stage 09l: the mark, the shape and the seam, with the real pointer
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Stage 09l item B, through a player's hand: a weapon dragged to the cell <b>above</b> the tome
+        /// gets its line, and dragging it two cells away takes the line with it.
+        /// </summary>
+        /// <remarks>
+        /// Every state change below comes from a pointer event — press, moves, release — resolved by the
+        /// scene's own input module and raycaster. The pieces are placed beforehand with the run's
+        /// command only so the gesture has something to pick up.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator A_weapon_dragged_above_the_tome_gets_a_line_and_loses_it_when_dragged_away()
+        {
+            yield return LoadCampWithATomeAndAWeapon(withTheLBasket: false);
+
+            CampPresenter presenter = _director.Presenter;
+
+            // Beside the tome to start with: one line, which is the state the gesture changes.
+            Assert.That(
+                _bag.VisibleLineCount, Is.EqualTo(1),
+                "the weapon beside the tome should start with one line, and the view drew "
+                + _bag.VisibleLineCount);
+
+            // Above the tome is (1,0); the weapon starts at (3,1).
+            yield return Drag(CellCentre(3, 1), CellCentre(1, 0));
+
+            Assert.That(presenter.Counters.DragPreviews, Is.GreaterThan(0), "no drag handler ran: the pointer never reached the view");
+            Assert.That(presenter.IsDragging, Is.False, "the drag never ended");
+            Assert.That(
+                PieceOf(_weapon).Origin, Is.EqualTo(new CellOffset(1, 0)),
+                "the weapon did not land on the cell above the tome");
+
+            Assert.That(
+                _bag.VisibleLineCount, Is.EqualTo(1),
+                "a weapon above the tome draws no line, and the view drew " + _bag.VisibleLineCount);
+
+            Assert.That(_bag.TryGetLineScreenEnds(0, out Vector2 from, out Vector2 to), Is.True);
+            Assert.That(_bag.TryGetPieceScreenRect(_tome, out Rect tomeRect), Is.True);
+            Assert.That(_bag.TryGetPieceScreenRect(_weapon, out Rect weaponRect), Is.True);
+
+            bool joinsTheTwoMiddles =
+                (Vector2.Distance(from, tomeRect.center) <= 1f && Vector2.Distance(to, weaponRect.center) <= 1f)
+                || (Vector2.Distance(from, weaponRect.center) <= 1f && Vector2.Distance(to, tomeRect.center) <= 1f);
+
+            Assert.That(
+                joinsTheTwoMiddles, Is.True,
+                "the line does not reach both middles: " + from + " -> " + to
+                + " against the tome at " + tomeRect.center + " and the weapon at " + weaponRect.center);
+
+            // Two cells away, still on a bag: the pair stops touching and the line goes.
+            yield return Drag(CellCentre(1, 0), CellCentre(5, 2));
+
+            Assert.That(
+                PieceOf(_weapon).Origin, Is.EqualTo(new CellOffset(5, 2)),
+                "the weapon did not land two cells away");
+            Assert.That(
+                _bag.VisibleLineCount, Is.EqualTo(0),
+                "the line survived the weapon being dragged away from the tome, and the view drew "
+                + _bag.VisibleLineCount);
+        }
+
+        /// <summary>
+        /// Stage 09l item C and D: the 2×2 tome is dropped across the join of a cloth bag and the L
+        /// basket, exactly where the green ghost was drawn.
+        /// </summary>
+        /// <remarks>
+        /// The landing origin is (2,1): its left column stands on the cloth bag, its right column on the
+        /// L basket's two cells at (3,1) and (3,2). The tome is grabbed by its bottom-right cell, so the
+        /// pointer travels to (3,2) — the cell the player put their finger on — and the ghost the screen
+        /// promises has to be the rectangle the piece lands in.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator The_tome_drops_across_the_cloth_bag_and_the_L_where_the_ghost_shows_it()
+        {
+            yield return LoadCampWithATomeAndAWeapon(withTheLBasket: true);
+
+            CampPresenter presenter = _director.Presenter;
+            var target = new CellOffset(2, 1);
+
+            // The weapon off the landing: it stands at (3,1), which is one of the four cells the tome
+            // is about to take, and an overlap would be refused for a reason that is not the seam.
+            Assert.That(
+                _director.Run.MovePiece(_weapon, new CellOffset(1, 0), Rotation.Degrees0).IsSuccess, Is.True,
+                "the weapon could not be moved off the landing cells");
+            presenter.Refresh();
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            yield return DragWithoutReleasing(CellCentre(2, 2), CellCentre(3, 2));
+
+            Assert.That(presenter.IsDragging, Is.True, "the gesture ended before it could be read");
+            Assert.That(
+                presenter.Drag.Origin, Is.EqualTo(target),
+                "the tomb was aimed at " + target + " but the run is asked about " + presenter.Drag.Origin);
+            Assert.That(
+                presenter.Drag.IsValid, Is.True,
+                "four covered cells across two bags are a legal landing, and the preview said "
+                + presenter.Drag.ErrorCode);
+
+            Assert.That(
+                _bag.TryGetDragGhostScreenRect(out Rect ghost), Is.True,
+                "the green ghost the player aims with is not on screen");
+
+            yield return ReleaseAt(CellCentre(3, 2));
+
+            Assert.That(presenter.IsDragging, Is.False, "the gesture never ended");
+            Assert.That(
+                _bag.TryGetDragGhostScreenRect(out _), Is.False,
+                "the ghost is still on screen after the drop");
+
+            Assert.That(
+                PieceOf(_tome).Origin, Is.EqualTo(target),
+                "the tome landed at " + PieceOf(_tome).Origin + " instead of the cell under the ghost " + target);
+
+            Assert.That(_bag.TryGetPieceScreenRect(_tome, out Rect landed), Is.True);
+            Assert.That(
+                Vector2.Distance(landed.center, ghost.center), Is.LessThanOrEqualTo(1f),
+                "the tome is drawn at " + landed.center + " but the ghost promised " + ghost.center);
+        }
+
+        /// <summary>
+        /// Stage 09l item D: a tome whose four cells do not all stand on the L basket alone is refused,
+        /// the ghost and the selection are cleared, and the piece is back where it was.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator A_tome_placed_on_the_L_basket_alone_is_refused_and_leaves_nothing_behind()
+        {
+            yield return LoadCampWithATomeAndAWeapon(withTheLBasket: true);
+
+            RunSession run = _director.Run;
+            CampPresenter presenter = _director.Presenter;
+
+            // The cloth bag out of the way, so the basket stands alone and its missing corner bites.
+            Assert.That(
+                run.MovePiece(_clothBag, new CellOffset(0, 4), Rotation.Degrees0).IsSuccess, Is.True,
+                "the cloth bag could not be moved out of the way");
+            presenter.Refresh();
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            CellOffset before = PieceOf(_tome).Origin;
+            int refused = presenter.Counters.InvalidDrops;
+
+            // The basket's own top-left corner, aimed at with the tome's bottom-right cell held.
+            yield return Drag(CellCentre(before.X, before.Y), CellCentre(3, 0));
+
+            Assert.That(presenter.IsDragging, Is.False, "the gesture never ended");
+            Assert.That(
+                presenter.Counters.InvalidDrops, Is.GreaterThan(refused),
+                "the drop was not refused, so the L basket's missing corner is not being enforced");
+            Assert.That(
+                PieceOf(_tome).Origin, Is.EqualTo(before),
+                "a refused drop moved the tome to " + PieceOf(_tome).Origin);
+            Assert.That(
+                _bag.TryGetDragGhostScreenRect(out _), Is.False,
+                "the ghost is still on screen after a refused drop");
+            Assert.That(
+                presenter.Selected.IsValid, Is.False,
+                "the piece is still selected after a refused drop");
+            Assert.That(presenter.StatusCode, Is.Not.Empty, "a refused drop said nothing to the player");
+        }
+
+        /// <summary>
+        /// Stage 09l item C: the L basket is <b>drawn</b> as the four cells it covers — not as its 2×3
+        /// bounding box, which would paint the two corners it does not cover.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator The_L_basket_is_drawn_as_its_four_covered_cells()
+        {
+            yield return LoadCampWithATomeAndAWeapon(withTheLBasket: true);
+
+            CampPieceModel basket = PieceOf(_basket);
+            var cells = new List<Rect>();
+
+            int drawn = _bag.GetPieceCellScreenRects(_basket, cells);
+            Assert.That(drawn, Is.EqualTo(4), "the L basket is drawn as " + drawn + " rectangle(s), not four cells");
+
+            Assert.That(_bag.TryGetPieceScreenRect(_basket, out Rect box), Is.True);
+            Assert.That(
+                cells[0].width, Is.LessThan(box.width * 0.75f),
+                "the first cell is as wide as the whole basket, so the box is being painted");
+
+            // The corner the basket does not cover: no drawn cell may be there.
+            Vector2 corner = CellCentre(basket.Origin.X + 1, basket.Origin.Y);
+            for (int i = 0; i < cells.Count; i++)
+            {
+                Assert.That(
+                    cells[i].Contains(corner), Is.False,
+                    "a cell is drawn over the corner the L basket does not cover, at " + corner);
+            }
+        }
+
+        /// <summary>
+        /// The stage's board: a cloth bag at (0,0), a second bag beside it (the L basket, or a second
+        /// cloth bag), a 2×2 tome and one weapon, placed with the run's own command.
+        /// </summary>
+        private IEnumerator LoadCampWithATomeAndAWeapon(bool withTheLBasket)
+        {
+            yield return LoadCamp();
+
+            RunSession run = _director.Run;
+            CampPresenter presenter = _director.Presenter;
+
+            _clothBag = run.Backpack.Bags[0].Ref;
+            Assert.That(
+                run.MovePiece(_clothBag, new CellOffset(0, 0), Rotation.Degrees0).IsSuccess, Is.True,
+                "the starting รยาม could not be moved to (0,0)");
+
+            var second = run.Backpack.AddBag(withTheLBasket ? "bag.wicker_basket_l" : "bag.raw_cotton_bag");
+            Assert.That(second.IsSuccess, Is.True, "the second bag could not be added: " + second.Error);
+            _basket = second.Value;
+            Assert.That(
+                run.MovePiece(_basket, new CellOffset(3, 0), Rotation.Degrees0).IsSuccess, Is.True,
+                "the second bag could not be placed at (3,0)");
+
+            // The weapon off the tome's cells, then the tome onto the cloth bag.
+            _weapon = run.Backpack.Items[0].Ref;
+            Assert.That(
+                run.MovePiece(_weapon, new CellOffset(3, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the weapon could not be placed at (3,1)");
+
+            var tome = run.Backpack.AddItem("item.spell_tome");
+            Assert.That(tome.IsSuccess, Is.True, "the tome could not be added: " + tome.Error);
+            _tome = tome.Value;
+            Assert.That(
+                run.MovePiece(_tome, new CellOffset(1, 1), Rotation.Degrees0).IsSuccess, Is.True,
+                "the 2x2 tome could not be placed at (1,1)");
+
+            presenter.Refresh();
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+        }
+
+        // ------------------------------------------------------------------
         // pointer helpers
         // ------------------------------------------------------------------
 
@@ -1469,6 +1741,9 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.Fail("the run no longer holds " + piece);
             return default;
         }
+
+        /// <summary>The model of a piece, or a failure when the screen does not hold it.</summary>
+        private CampPieceModel PieceOf(PieceRef piece) => Piece(piece);
 
         private CampPieceModel FirstPieceOfKind(PieceKind kind)
         {

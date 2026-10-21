@@ -828,7 +828,6 @@ namespace ProjectSurvive.Game.Tests.EditMode
         [Test]
         public void A_bag_turn_takes_the_combo_line_with_the_items_that_ride()
         {
-            PointTheTomeRuleAtASameRow();
             Screen ui = ScreenAtFirstCamp();
             RunSession run = ui.Run;
             Backpack backpack = run.Backpack;
@@ -867,13 +866,13 @@ namespace ProjectSurvive.Game.Tests.EditMode
             CampPieceModel weaponModel = PieceOf(ui.Presenter.Bag, weapon);
 
             Assert.That(
-                ShareARow(tomeModel, weaponModel),
+                Touches(tomeModel, tomeModel.Origin, weaponModel),
                 Is.True,
-                "the fixture could not arrange the pair on one row, so the line cannot be checked");
+                "the fixture could not put the pair side by side, so the line cannot be checked");
             Assert.That(
                 HasLine(ui.Presenter.Bag.Links, tome.InstanceId, weapon.InstanceId),
                 Is.True,
-                "the pair shares a row but the screen drew no line for it");
+                "the pair touches but the screen drew no line for it");
 
             int revision = backpack.Revision;
             ui.Presenter.SelectOnly(bag);
@@ -886,29 +885,17 @@ namespace ProjectSurvive.Game.Tests.EditMode
             tomeModel = PieceOf(ui.Presenter.Bag, tome);
             weaponModel = PieceOf(ui.Presenter.Bag, weapon);
 
-            Assert.That(
-                ShareARow(tomeModel, weaponModel),
-                Is.False,
-                "the turn left the pair on one row, so a missing line would prove nothing");
+            // Since ADR 0031 the mark follows the pieces, not a row: whatever the turn did to their
+            // cells, the line is there exactly when the two still touch. A stale cache shows up as a
+            // line for a pair that no longer touches (or none for a pair that does).
             Assert.That(
                 HasLine(ui.Presenter.Bag.Links, tome.InstanceId, weapon.InstanceId),
-                Is.False,
-                "a line survived the pair leaving the same row");
+                Is.EqualTo(Touches(tomeModel, tomeModel.Origin, weaponModel)),
+                "the line does not match where the turn left the two pieces: " + Links(ui));
             Assert.That(
                 HasBadgeFromBag(ui.Presenter.Bag.Links, bag.InstanceId),
                 Is.True,
                 "the bag-area bonus is a badge and must not go with the line");
-        }
-
-        /// <summary>True when the two pieces cover a common board row — the same-line rule's relation.</summary>
-        private static bool ShareARow(CampPieceModel first, CampPieceModel second)
-        {
-            int firstTop = first.Origin.Y;
-            int firstBottom = first.Origin.Y + (first.Shape == null ? 1 : first.Shape.Height) - 1;
-            int secondTop = second.Origin.Y;
-            int secondBottom = second.Origin.Y + (second.Shape == null ? 1 : second.Shape.Height) - 1;
-
-            return firstTop <= secondBottom && secondTop <= firstBottom;
         }
 
         /// <summary>True when a line is drawn from <paramref name="source"/> to <paramref name="target"/>.</summary>
@@ -1196,8 +1183,8 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         /// <summary>
-        /// The stage's line rule: a line is drawn for a ตำรา–อาวุธอาคม pair on the same row, for
-        /// nothing else, and it is gone the moment the pair stops qualifying.
+        /// The stage's line rule: a line is drawn for a ตำรา that touches an อาวุธอาคม, for nothing
+        /// else, and it is gone the moment the pair stops touching (Stage 09l, ADR 0032).
         /// </summary>
         /// <remarks>
         /// The pairs come from <c>SynergyEvaluator</c>; what is under test is the <b>classification</b>
@@ -1209,14 +1196,13 @@ namespace ProjectSurvive.Game.Tests.EditMode
         [Test]
         public void Only_the_tome_to_weapon_rule_is_drawn_as_a_line_and_the_bag_bonus_is_not()
         {
-            // The screen's line drawing is the subject, so the rule it draws for is supplied: since
-            // ADR 0031 no shipped row is a same-line rule (the tome is a touching rule, drawn by
-            // Stage 09l), and `Kind` is drawing input, never a balance number.
+            // The shipped tables, exactly as they are: since Stage 09k the tome's rule is an
+            // AdjacentPair, and the screen's answer to that is to look at the rule's own two tags.
             IGameConfig config = _config;
-            SynergyConfig lineRule = PointTheTomeRuleAtASameRow();
+            const string tomeTag = "tome";
 
-            uint seed = SeedOffering(lineRule.TagA, out int slot);
-            Assert.That(slot, Is.GreaterThanOrEqualTo(0), "no seed in range offered a '" + lineRule.TagA + "' piece in any camp of its run");
+            uint seed = SeedOffering(tomeTag, out int slot);
+            Assert.That(slot, Is.GreaterThanOrEqualTo(0), "no seed in range offered a '" + tomeTag + "' piece in any camp of its run");
 
             var run = new RunSession(config, _codec, seed);
             Assert.That(run.StartRun().IsSuccess, Is.True);
@@ -1225,9 +1211,9 @@ namespace ProjectSurvive.Game.Tests.EditMode
             // made the way the game makes it: win the floors in front of it. Nothing synthesises a
             // camp, and no floor number is written into the test.
             int slotReached = 0;
-            while (run.FlowState == RunFlowState.Camp && (slotReached = SlotOfferingTag(run, lineRule.TagA)) < 0)
+            while (run.FlowState == RunFlowState.Camp && (slotReached = SlotOfferingTag(run, tomeTag)) < 0)
             {
-                Assert.That(WinOneFloor(run), Is.True, "the run could not reach the camp that offers a '" + lineRule.TagA + "' piece");
+                Assert.That(WinOneFloor(run), Is.True, "the run could not reach the camp that offers a '" + tomeTag + "' piece");
             }
 
             Assert.That(slotReached, Is.GreaterThanOrEqualTo(0), "the searched camp stopped offering the piece it was found for");
@@ -1244,16 +1230,15 @@ namespace ProjectSurvive.Game.Tests.EditMode
             CampPieceModel weapon = FirstBoardItem(presenter.Bag);
             Assert.That(weapon.Kind, Is.EqualTo(PieceKind.Item));
 
-            // Place the tome on a cell that shares a row with the weapon <b>and touches it</b>: since
-            // Stage 09j a line needs both (the rule's condition, plus the two pieces being neighbours),
-            // so that is the arrangement the line has to appear in.
+            // Place the tome where it <b>touches</b> the weapon: that is the rule's whole condition since
+            // Stage 09k, and the arrangement the line has to appear in.
             CellOffset placed = PlaceTouchingTheWeapon(presenter, tome, weapon, out bool rowsOverlap);
 
-            Assert.That(rowsOverlap, Is.True, "the fixture could not put the tome on the weapon's row, touching it");
+            Assert.That(rowsOverlap, Is.True, "the fixture could not put the tome against the weapon");
             Assert.That(placed.X, Is.GreaterThanOrEqualTo(0), "the bag has no free 2x2 block left for the tome");
 
             CampLink[] links = presenter.Bag.Links;
-            Assert.That(links.Length, Is.GreaterThan(0), "the same-row rule is working but the screen draws nothing for it");
+            Assert.That(links.Length, Is.GreaterThan(0), "the touching rule is working but the screen draws nothing for it");
 
             int lines = 0;
             for (int i = 0; i < links.Length; i++)
@@ -1277,7 +1262,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
                     "the only arcane weapon on the board is the one a line should reach");
             }
 
-            Assert.That(lines, Is.GreaterThan(0), "the tome shares the weapon's row but no line was drawn for it");
+            Assert.That(lines, Is.EqualTo(1), "one touching pair is one line, and the screen drew " + lines);
 
             // The bag-area bonus is every item the bag's own rule reached: a badge, never a line.
             int badges = 0;
@@ -1296,43 +1281,34 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
             Assert.That(badges, Is.GreaterThan(0), "the starting kit puts an item inside a bag, so the area rule fired");
 
-            // Move the tome to a row the weapon is not on: the pair stops qualifying, so the line
-            // has to be gone from the very next picture the screen publishes.
-            CellOffset away = PlaceOffEveryRow(presenter, tome, weapon, out bool movedAway);
-            Assert.That(movedAway, Is.True, "no free 2x2 block exists off the weapon's row, so the drop cannot be checked");
-            Assert.That(away, Is.Not.EqualTo(placed), "the tome has to leave the weapon's row for the line to go");
+            // Move the tome where it no longer touches the weapon: the pair stops qualifying, so the
+            // line has to be gone from the very next picture the screen publishes.
+            CellOffset away = PlaceAwayFromTheWeapon(presenter, tome, weapon, out bool movedAway);
+            Assert.That(movedAway, Is.True, "no free 2x2 block exists away from the weapon, so the drop cannot be checked");
+            Assert.That(away, Is.Not.EqualTo(placed), "the tome has to leave the weapon's side for the line to go");
+            Assert.That(
+                OriginOf(run, tome), Is.EqualTo(away),
+                "the tome did not land on the cell the scan chose: it is at " + OriginOf(run, tome));
+            CampPieceModel tomeAfter = PieceOf(presenter.Bag, tome);
+            CampPieceModel weaponAfter = PieceOf(presenter.Bag, weapon.Piece);
+
+            Assert.That(
+                Touches(tomeAfter, tomeAfter.Origin, weaponAfter),
+                Is.False,
+                "the fixture left the pair touching at " + OriginOf(run, tome) + " and " + OriginOf(run, weapon.Piece));
 
             links = presenter.Bag.Links;
             for (int i = 0; i < links.Length; i++)
             {
                 Assert.That(
                     links[i].Style, Is.Not.EqualTo(CampLinkStyle.Line),
-                    "a line survived the pair going off the same row: " + links[i]);
+                    "a line survived the pair stopping touching: " + links[i]);
             }
         }
 
         // -------------------------------------------------------------------
         // the line's adjacency condition (Stage 09j)
         // -------------------------------------------------------------------
-
-        /// <summary>
-        /// The drawing rule still works: a same-line rule from a 2×2 tome to a weapon it touches gets a
-        /// line. The shipped data no longer has such a rule (ADR 0031), so this test supplies the kind —
-        /// what is under test is `CampPresenter.DrawnLinks`, not which kind `data/` happens to ship.
-        /// </summary>
-        [Test]
-        public void A_tome_touching_a_weapon_along_an_edge_draws_a_line_for_a_same_line_rule()
-        {
-            PointTheTomeRuleAtASameRow();
-            Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
-
-            Assert.That(MoveTo(run, tome, 0, 1), Is.True, "the tome could not be placed beside the weapon's cell");
-            ui.Presenter.Refresh();
-
-            Assert.That(
-                HasLineBetween(ui.Presenter.Bag.Links, tome.InstanceId, weapon.InstanceId), Is.True,
-                "a tome touching a weapon draws no line: " + Links(ui));
-        }
 
         /// <summary>
         /// ADR 0031: the row is not the condition any more. A weapon one cell further along the same row
@@ -1401,12 +1377,11 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
         /// <summary>
         /// One tome can touch two weapons — its right edge spans two cells, so one partner per row —
-        /// and a same-line rule draws each of them its own line, because each is its own working pair.
+        /// and each of them draws its own line, because each is its own working pair (Stage 09l).
         /// </summary>
         [Test]
         public void A_tome_that_touches_two_weapons_draws_two_lines()
         {
-            PointTheTomeRuleAtASameRow();
             Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
 
             var secondWeapon = run.Backpack.AddItem("item.kali_flame_yant");
@@ -1435,30 +1410,6 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 HasLineBetween(links, tome.InstanceId, secondWeapon.Value.InstanceId), Is.True,
                 "the tome's second neighbour has no line: " + Links(ui));
             Assert.That(lines, Is.EqualTo(2), "two touching pairs should be two lines, not " + lines);
-
-            // Stage 09k: each mark is horizontal and sits on the row its own pair shares, so the
-            // two weapons beside a 2x2 tome get one line each, one row apart.
-            int[] rows = new int[2];
-            int seen = 0;
-
-            for (int i = 0; i < links.Length; i++)
-            {
-                if (links[i].Style != CampLinkStyle.Line)
-                {
-                    continue;
-                }
-
-                Assert.That(
-                    links[i].TargetCell.Y, Is.EqualTo(links[i].SourceCell.Y),
-                    "a line's two ends are not on one row: " + links[i]);
-                Assert.That(
-                    Math.Abs(links[i].TargetCell.X - links[i].SourceCell.X), Is.EqualTo(1),
-                    "a line's two cells are not neighbours: " + links[i]);
-
-                rows[seen++] = links[i].TargetCell.Y;
-            }
-
-            Assert.That(rows[0], Is.Not.EqualTo(rows[1]), "both weapons sit on the tome's right edge, on two different rows");
         }
 
         // -------------------------------------------------------------------
@@ -1605,62 +1556,50 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         // -------------------------------------------------------------------
-        // the line's cells (Stage 09k)
+        // the line's four directions (Stage 09l)
         // -------------------------------------------------------------------
 
         /// <summary>
-        /// A tome with a weapon against its right edge draws <b>one horizontal line</b>, from the
-        /// middle of the weapon's cell to the middle of the tome's cell on the row they share.
+        /// Stage 09l item B: a weapon on <b>any</b> of the tome's four sides gets its own line — left,
+        /// right, above and below — because since ADR 0031 the rule is a touch on any edge.
         /// </summary>
+        /// <remarks>
+        /// Each direction gets its own board: four weapons on one board would make "one line per pair"
+        /// impossible to tell apart from "one line per direction". The board is four 3×3 รยาม in a
+        /// square, so the tome's four cells and a cell on every side of it are covered — an item is only
+        /// legal on a cell a bag covers, which is what makes the arrangement a real one.
+        /// </remarks>
         [Test]
-        public void A_tome_with_a_weapon_on_its_right_draws_one_level_line_between_the_two_cells()
+        public void A_weapon_on_each_of_the_tomes_four_sides_draws_one_line_per_pair()
         {
-            PointTheTomeRuleAtASameRow();
-            Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
-            Assert.That(MoveTo(run, tome, 0, 1), Is.True, "the tome could not be placed at (0,1)");
-            ui.Presenter.Refresh();
+            var sides = new (int X, int Y, string Name)[]
+            {
+                (X: 3, Y: 2, Name: "right of"),
+                (X: 0, Y: 2, Name: "left of"),
+                (X: 1, Y: 4, Name: "below"),
+                (X: 1, Y: 1, Name: "above"),
+            };
 
-            CampLink[] links = ui.Presenter.Bag.Links;
-            Assert.That(
-                CountLines(links), Is.EqualTo(1),
-                "one touching pair should be one line: " + Links(ui));
+            for (int i = 0; i < sides.Length; i++)
+            {
+                Screen ui = CampWithRoomAroundTheTome(
+                    out RunSession run, out PieceRef weapon, out PieceRef tome);
 
-            CampLink line = FirstLine(links);
-            Assert.That(
-                line.SourceCell.Y, Is.EqualTo(line.TargetCell.Y),
-                "the two ends of the line are not on one row: " + line);
-            Assert.That(
-                Math.Abs(line.SourceCell.X - line.TargetCell.X), Is.EqualTo(1),
-                "the line does not join the two neighbouring cells: " + line);
+                Assert.That(
+                    MoveTo(run, weapon, sides[i].X, sides[i].Y), Is.True,
+                    "the weapon could not be placed " + sides[i].Name + " the tome at (" + sides[i].X + "," + sides[i].Y + ")");
+                ui.Presenter.Refresh();
 
-            // The cells are the tome's right-hand cell and the weapon's own cell.
-            int tomeId = tome.InstanceId;
-            CellOffset tomeCell = line.SourceInstanceId == tomeId ? line.SourceCell : line.TargetCell;
-            CellOffset weaponCell = line.SourceInstanceId == tomeId ? line.TargetCell : line.SourceCell;
+                CampLink[] links = ui.Presenter.Bag.Links;
 
-            Assert.That(tomeCell, Is.EqualTo(new CellOffset(1, 1)), "the line reaches the wrong tome cell: " + tomeCell);
-            Assert.That(weaponCell, Is.EqualTo(OriginOf(run, weapon)), "the line reaches the wrong weapon cell: " + weaponCell);
-        }
-
-        /// <summary>A weapon against the tome's left edge gets the same horizontal mark.</summary>
-        [Test]
-        public void A_tome_with_a_weapon_on_its_left_draws_the_same_level_line()
-        {
-            PointTheTomeRuleAtASameRow();
-            Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
-
-            Assert.That(MoveTo(run, weapon, 0, 1), Is.True, "the weapon could not be moved to (0,1)");
-            Assert.That(MoveTo(run, tome, 1, 1), Is.True, "the tome could not be placed at (1,1)");
-            ui.Presenter.Refresh();
-
-            CampLink[] links = ui.Presenter.Bag.Links;
-            Assert.That(CountLines(links), Is.EqualTo(1), "one touching pair should be one line: " + Links(ui));
-
-            CampLink line = FirstLine(links);
-            Assert.That(line.SourceCell.Y, Is.EqualTo(line.TargetCell.Y), "the line is not level: " + line);
-            Assert.That(
-                Math.Abs(line.SourceCell.X - line.TargetCell.X), Is.EqualTo(1),
-                "the line does not join the two neighbouring cells: " + line);
+                Assert.That(
+                    HasLineBetween(links, tome.InstanceId, weapon.InstanceId), Is.True,
+                    "a weapon " + sides[i].Name + " the tome draws no line: " + Links(ui));
+                Assert.That(
+                    CountLines(links), Is.EqualTo(1),
+                    "one touching pair is one line, and a weapon " + sides[i].Name
+                    + " the tome got " + CountLines(links) + ": " + Links(ui));
+            }
         }
 
         /// <summary>How many lines a mark set holds.</summary>
@@ -1818,38 +1757,12 @@ namespace ProjectSurvive.Game.Tests.EditMode
         // -------------------------------------------------------------------
 
         /// <summary>
-        /// Re-points the shipped tome rule at <c>SameRow</c> and returns it: the screen's line drawing
-        /// is what the cases below check, and since ADR 0031 no shipped row is a same-line rule, so the
-        /// test supplies the kind. Which kind a rule has is drawing input, not a balance number.
-        /// </summary>
-        /// <remarks>
-        /// Must be called <b>before</b> the presenter is built: <c>CampPresenter</c> reads the kind when
-        /// it rebuilds its marks, and a kind changed under a cached revision is not what this exercises.
-        /// </remarks>
-        private SynergyConfig PointTheTomeRuleAtASameRow()
-        {
-            for (int i = 0; i < _config.Synergies.Count; i++)
-            {
-                SynergyConfig rule = _config.Synergies[i];
-                if (string.Equals(rule.Id, "synergy.tome_row_damage", StringComparison.Ordinal))
-                {
-                    rule.Kind = SynergyKind.SameRow;
-                    return rule;
-                }
-            }
-
-            Assert.Fail("the shipped tables have no 'synergy.tome_row_damage' rule");
-            return null;
-        }
-
-        /// <summary>
-        /// Stage 09k-data: with the rule as the data ships it, a touching tome–weapon pair is a working
-        /// combo that the screen draws <b>no permanent mark</b> for, because the mark is chosen from
-        /// `synergy.kind` and the shipped kind is <c>AdjacentPair</c>. This is the state Stage 09l has
-        /// to change, so it is pinned rather than left to a screenshot.
+        /// Stage 09l: with the rule as the data ships it (<c>AdjacentPair</c>, tags ตำรา/อาวุธ), a
+        /// touching tome–weapon pair is a working combo <b>and</b> draws exactly one line — the state
+        /// Stage 09k report §5 handed to this stage.
         /// </summary>
         [Test]
-        public void With_the_shipped_touching_rule_the_pair_is_a_combo_and_draws_no_permanent_mark()
+        public void With_the_shipped_touching_rule_the_pair_draws_exactly_one_line()
         {
             Screen ui = CampWithATome(out RunSession run, out _, out PieceRef weapon, out PieceRef tome);
 
@@ -1872,13 +1785,13 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(pairIsActive, Is.True, "Core does not report the touching pair, so the rule is not a touch rule");
 
             CampLink[] links = ui.Presenter.Bag.Links;
-            for (int i = 0; i < links.Length; i++)
-            {
-                Assert.That(
-                    links[i].Style, Is.Not.EqualTo(CampLinkStyle.Line),
-                    "a permanent line is drawn for the touching rule already — Stage 09l's note is stale: "
-                    + links[i]);
-            }
+
+            Assert.That(
+                HasLineBetween(links, tome.InstanceId, weapon.InstanceId), Is.True,
+                "the shipped touching rule draws no line for the pair it reports: " + Links(ui));
+            Assert.That(
+                CountLines(links), Is.EqualTo(1),
+                "one touching pair is one line, and the screen drew " + CountLines(links) + ": " + Links(ui));
 
             Assert.That(
                 HasBadgeFromBag(links, run.Backpack.Bags[0].InstanceId), Is.True,
@@ -2136,8 +2049,15 @@ namespace ProjectSurvive.Game.Tests.EditMode
             return sideBySide || stacked;
         }
 
-        /// <summary>The opposite: drops the piece where it shares no row with the weapon.</summary>
-        private static CellOffset PlaceOffEveryRow(
+        /// <summary>
+        /// The opposite: drops the piece where it does <b>not touch</b> the weapon (Stage 09l).
+        /// </summary>
+        /// <remarks>
+        /// Since ADR 0031 the condition is contact on an edge, not a shared row: a 2×2 tome whose rows
+        /// sit above the weapon's is a working pair while it touches, so "shares no row" would no longer
+        /// be "not a pair".
+        /// </remarks>
+        private static CellOffset PlaceAwayFromTheWeapon(
             CampPresenter presenter, PieceRef piece, CampPieceModel weapon, out bool found)
         {
             found = false;
@@ -2155,7 +2075,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
                     presenter.DragMove(BagDropZone.Board, cell);
 
                     if (!presenter.Drag.IsValid || presenter.Drag.Action != BagDropAction.Place
-                        || SharesARow(model, cell, weapon))
+                        || Touches(model, cell, weapon))
                     {
                         continue;
                     }
@@ -2374,6 +2294,50 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Result<PieceRef> added = run.Backpack.AddItem("item.spell_tome");
             Assert.That(added.IsSuccess, Is.True, "the run could not take a tome: " + added.Error);
             tome = added.Value;
+
+            ui.Presenter.Refresh();
+            return ui;
+        }
+
+        /// <summary>
+        /// The run with room on every side of its tome (Stage 09l): four 3×3 รยาม in a square, and a
+        /// 2×2 tome at (1,2) with a covered cell to its left, right, above and below.
+        /// </summary>
+        /// <remarks>
+        /// Four bags because an item is only legal on a cell a bag covers: the tome's four cells and the
+        /// four cells around it need eight covered cells, and one bag is 3×3.
+        /// </remarks>
+        private Screen CampWithRoomAroundTheTome(
+            out RunSession run, out PieceRef weapon, out PieceRef tome)
+        {
+            Screen ui = ScreenAtFirstCamp();
+            run = ui.Run;
+
+            PieceRef first = run.Backpack.Bags[0].Ref;
+            Assert.That(MoveTo(run, first, 0, 0), Is.True, "the starting รยาม could not be moved to (0,0)");
+
+            var corners = new (int X, int Y)[] { (3, 0), (0, 3), (3, 3) };
+            for (int i = 0; i < corners.Length; i++)
+            {
+                var added = run.Backpack.AddBag("bag.raw_cotton_bag");
+                Assert.That(added.IsSuccess, Is.True, "a bags could not be added: " + added.Error);
+                Assert.That(
+                    MoveTo(run, added.Value, corners[i].X, corners[i].Y), Is.True,
+                    "a รยาม could not be placed at (" + corners[i].X + "," + corners[i].Y + ")");
+            }
+
+            weapon = run.Backpack.Items[0].Ref;
+
+            var addedTome = run.Backpack.AddItem("item.spell_tome");
+            Assert.That(addedTome.IsSuccess, Is.True, "the run could not take a tome: " + addedTome.Error);
+            tome = addedTome.Value;
+
+            Assert.That(MoveTo(run, tome, 1, 2), Is.True, "the 2x2 tome could not be placed at (1,2)");
+
+            // The weapon stands aside until the test says which side of the tome it goes.
+            Assert.That(
+                MoveTo(run, weapon, 1, 0), Is.True,
+                "the weapon could not be put out of the tome's four cells");
 
             ui.Presenter.Refresh();
             return ui;

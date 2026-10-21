@@ -1289,23 +1289,31 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <para>
         /// The pairs are Core's: <c>SynergyEvaluator.Active</c> already resolved which piece
         /// provided a condition and which one received the effect, and this method does not add to
-        /// that or re-derive it (AGENTS rule 10). What it decides is the <i>drawing</i>: the
-        /// stage's rule is one line style — the same-line rule from a ตำรา to each อาวุธอาคม — a
+        /// that or re-derive it (AGENTS rule 10). What it decides is the <i>drawing</i>: one line
+        /// style — the ตำรา-to-อาวุธอาคม rule, whose two ends are the two pieces' own middles — a
         /// badge for the bag-area bonus (never a line from a bag to an item), and nothing permanent
-        /// for the adjacency rules, which are shown by the hover highlight instead.
+        /// for the other adjacency rules, which are shown by the hover highlight instead.
         /// </para>
         /// <para>
-        /// Which style a rule gets comes from its own <c>synergy.kind</c> row, so a same-line rule
-        /// added to <c>data/</c> arrives with a line and no code change, and an adjacency rule
-        /// arrives with no mark at all. Since Stage 09j a same-line rule draws its line only when the
-        /// two pieces it connects also touch along an edge: a line is a bridge between two pieces,
-        /// not a stripe across the board to a partner three cells away.
+        /// Stage 09k made the tome's rule <c>AdjacentPair</c> (left, right, above or below), so the
+        /// mark can no longer be "the same-line rule gets a line": the kind now names four other
+        /// rules too, and three of them must stay unlined. The line therefore belongs to the rule
+        /// whose two tags are the ตำรา and the อาวุธ — read from <c>synergy.csv</c>, never from an id
+        /// in code — and the geometry comes from Core, which only reports a pair that touches
+        /// (ADR 0032). A rule authored next to it in <c>data/</c> still arrives with the mark its
+        /// tags deserve and no code change.
         /// </para>
         /// <para>
         /// Rebuilt only when the layout was rebuilt (a command moved the bag) and cached otherwise,
         /// so a pointer move over the board pays nothing for it.
         /// </para>
         /// </remarks>
+        /// <summary>The item tag the ตำรา carries in <c>data/tables/item.csv</c>.</summary>
+        private const string TomeTag = "tome";
+
+        /// <summary>The item tag an อาวุธอาคม carries — the only pieces a ตำรา empowers.</summary>
+        private const string WeaponTag = "weapon";
+
         private CampLink[] DrawnLinks()
         {
             // The layout is asked for first, always: it is the thing that knows whether the bag moved,
@@ -1336,31 +1344,19 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
                 switch (kind)
                 {
-                    case SynergyKind.SameRow:
-                        // Stage 09k: the rule reaches any partner on the same row, however far away;
-                        // the *line* is drawn for a tome and a weapon that touch left-to-right and
-                        // share a row, and it is always horizontal — from the middle of the weapon's
-                        // cell to the middle of the tome's cell in that row. Stage 09j bridged the
-                        // two nearest rectangle edges instead, which for a 2x2 tome beside a 1x1
-                        // weapon drew a near-vertical stub across the cells' join; and a rule that
-                        // reaches a partner with a gap between them still draws nothing permanent
-                        // (it is shown by the hover and the tooltip).
-                        if (!TryHorizontalPairCells(synergy.SourceInstanceId, synergy.TargetInstanceId,
-                                out CellOffset sourceCell, out CellOffset targetCell))
+                    case SynergyKind.AdjacentPair:
+                        // Both ends of a line are pieces' middles, so a pair that touches above or
+                        // below needs no separate case: the stroke is as long as the two middles
+                        // are apart. Only the ตำรา–อาวุธ rule draws one; the other adjacency rules
+                        // (ตะกรุด–ยันต์, คุณไสย–พระเครื่อง, น้ำแดง–ภูติ) stay highlight-only, which
+                        // is what keeps "a line means a tome feeding a weapon" true.
+                        if (!IsTomeAndWeaponRule(synergy.RuleId))
                         {
                             break;
                         }
 
                         _linkScratch.Add(new CampLink(
-                            synergy.SourceInstanceId, synergy.TargetInstanceId, CampLinkStyle.Line,
-                            sourceCell, targetCell));
-                        break;
-
-                    case SynergyKind.SameColumn:
-                        // The same-line idea along a column has no horizontal mark: a line between
-                        // two pieces above one another would run through the cells between them and
-                        // through their own names. Such a pair is shown by the hover highlight and
-                        // named on the tooltip, like any other pair without a permanent mark.
+                            synergy.SourceInstanceId, synergy.TargetInstanceId, CampLinkStyle.Line));
                         break;
 
                     case SynergyKind.BagArea:
@@ -1371,7 +1367,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
                         break;
 
                     default:
-                        // AdjacentPair: highlighted while the pointer is on one of the pair.
+                        // A same-line rule reaching across empty cells draws nothing permanent: a
+                        // stripe across the board to a partner three cells away is not a bridge
+                        // between two pieces. It is shown by the highlight and the tooltip.
                         break;
                 }
             }
@@ -1382,65 +1380,32 @@ namespace ProjectSurvive.Game.Presentation.Camp
         }
 
         /// <summary>
-        /// The two <b>cells</b> a same-row tome–weapon pair's line joins, or false when the pair does
-        /// not touch left-to-right on a shared row (Stage 09k).
+        /// Whether a rule is the one the screen draws a line for: the ตำรา that empowers an อาวุธ.
         /// </summary>
         /// <remarks>
-        /// <para>
-        /// The cells are found from the run's own pieces: no distance is invented here, and a pair with
-        /// a gap between it — or a diagonal pair, or a pair touching above/below — has no cell pair and
-        /// therefore no line. The row is the <i>topmost</i> one the two pieces share <b>and touch on</b>,
-        /// which is the stage's "แถวร่วมแถวบนสุด": a vertical weapon beside a 2×2 tome can share two
-        /// rows, and the mark belongs on the upper one.
-        /// </para>
-        /// <para>
-        /// Both cells lie in the same row, so the view's stroke between their middles is horizontal by
-        /// construction, and because the cells are neighbours nothing stands between them — the line
-        /// cannot cross a third item.
-        /// </para>
+        /// Read from the rule's own two tags in <c>data/tables/synergy.csv</c>, in either order, so the
+        /// policy survives a renamed id and a rule added beside it. Every other <c>AdjacentPair</c>
+        /// rule is a different kind of charm pair and is shown by the highlight and the tooltip, which
+        /// is the whole reason the drawing is decided per rule instead of per kind (ADR 0032).
         /// </remarks>
-        private bool TryHorizontalPairCells(
-            int sourceInstanceId, int targetInstanceId, out CellOffset sourceCell, out CellOffset targetCell)
+        private bool IsTomeAndWeaponRule(string ruleId)
         {
-            sourceCell = default;
-            targetCell = default;
-
-            if (!_run.Backpack.TryGetItem(sourceInstanceId, out ItemInstance source) || source == null
-                || !_run.Backpack.TryGetItem(targetInstanceId, out ItemInstance target) || target == null)
+            for (int i = 0; i < _config.Synergies.Count; i++)
             {
-                return false;
-            }
+                SynergyConfig rule = _config.Synergies[i];
 
-            int row = int.MaxValue;
-
-            for (int i = 0; i < source.CellCount; i++)
-            {
-                CellOffset a = source.CellAt(i);
-
-                if (a.Y > row)
+                if (!string.Equals(rule.Id, ruleId, StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                for (int j = 0; j < target.CellCount; j++)
-                {
-                    CellOffset b = target.CellAt(j);
-
-                    // Same row and side by side: left/right contact only, never a diagonal and never
-                    // a pair stacked above one another.
-                    if (b.Y != a.Y || Math.Abs(a.X - b.X) != 1)
-                    {
-                        continue;
-                    }
-
-                    row = a.Y;
-                    sourceCell = a;
-                    targetCell = b;
-                    break;
-                }
+                return (string.Equals(rule.TagA, TomeTag, StringComparison.Ordinal)
+                        && string.Equals(rule.TagB, WeaponTag, StringComparison.Ordinal))
+                    || (string.Equals(rule.TagA, WeaponTag, StringComparison.Ordinal)
+                        && string.Equals(rule.TagB, TomeTag, StringComparison.Ordinal));
             }
 
-            return row != int.MaxValue;
+            return false;
         }
 
         /// <summary>The kind of a rule the screen is drawing, or false when the config has no such row.</summary>

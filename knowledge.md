@@ -37,6 +37,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **10t** | **Shared generic buffers and per-scene builders (template groundwork)** | **DONE** — see [`docs/stages/10t-report.md`](docs/stages/10t-report.md), [ADR 0024](docs/adr/0024-shared-generic-buffers.md) |
 | **09h** | **The tooltip's numbers follow the upgrade** | **DONE** — see [`docs/stages/09h-report.md`](docs/stages/09h-report.md) |
 | **09k-data** | **A tome empowers the weapon it touches (`AdjacentPair`, not `SameRow`)** | **DONE** — see [`docs/stages/09k-data-report.md`](docs/stages/09k-data-report.md), [ADR 0031](docs/adr/0031-a-tome-touches-its-weapon.md) (supersedes ADR 0015's shipping choice) |
+| **09l** | **จัดย่าม: the tome's line (four sides, middle to middle), bags drawn as their real shape, drag diagnosis** | **DONE** — see [`docs/stages/09l-report.md`](docs/stages/09l-report.md), [ADR 0032](docs/adr/0032-a-touching-tome-draws-centre-to-centre.md) |
 | **10e** | **LLM wiki (Karpathy-style): generated content, SCHEMA, INGEST, link/id lint** | **DONE** — see [`docs/stages/10e-report.md`](docs/stages/10e-report.md), [`llmwiki/SCHEMA.md`](llmwiki/SCHEMA.md) |
 | **11a** | **Item-local effects and the status table (data, Domain, Simulation)** | **DONE** — see [ADR 0028](docs/adr/0028-item-effects-and-status-table.md) (the report was never written; the behaviour is covered by the 11a tests and the stage log) |
 | **11b** | **Krasue and Nang Tani, with telegraphs (Simulation + Presentation)** | **DONE** — see [`docs/stages/11b-report.md`](docs/stages/11b-report.md), [ADR 0029](docs/adr/0029-enemy-telegraphed-attacks.md) |
@@ -51,8 +52,9 @@ This file is the fast on-ramp. Read it first, then follow the links.
 **Current state:** Stages 00–10, plus **09k-data** (one word in `data/`: the tome combo is
 `AdjacentPair`, so a weapon takes +20 % from a tome it **touches** on any of its four edges — never
 across an empty cell, never diagonally — with the same id and numbers; [ADR 0031](docs/adr/0031-a-tome-touches-its-weapon.md)
-supersedes ADR 0015's shipping choice, `SameRow`/`SameColumn` stay as unshipped kinds, and the camp
-screen draws no permanent line for this rule until 09l), **09h** (the camp tooltip no longer reads a `skill` row: it quotes
+supersedes ADR 0015's shipping choice, `SameRow`/`SameColumn` stay as unshipped kinds), **09l** (the
+camp screen draws that rule as one line per touching weapon, from the tome's middle to the weapon's,
+chosen by the rule's own tags, and draws a bag as the cells it covers — [ADR 0032](docs/adr/0032-a-touching-tome-draws-centre-to-centre.md)), **09h** (the camp tooltip no longer reads a `skill` row: it quotes
 an Application read model, `RunSession.ExplainPiece` → `LoadoutResolver.TryExplain` → `PieceReadout`,
 which copies the resolved numbers out of the very `WeaponLoadout` the next floor receives — so a 3/3
 piece prints 15 damage / 0.77 s cooldown beside its base 10 / 0.9, one line per confirmed upgrade

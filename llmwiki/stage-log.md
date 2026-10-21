@@ -384,3 +384,17 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   line the tome rule used to get from the `SameRow` case is gone) and rewrites
   `CampSynergyLinePlayModeTests` + the two line cases in `CampBagDragPlayModeTests`, which describe
   the old "touching vs one cell away" shape.
+
+## Stage 09l — the จัดย่าม screen: the tome's line, the bag's real shape, the drag
+
+- **Did:** chose the line by the rule's own two tags (`tome`+`weapon`) instead of `synergy.kind`, drew it
+  between the two pieces' drawn middles (`CampLink` lost its cells), and drew a bag as the cells its
+  footprint covers (the L basket's four cells, pooled per view); diagnosis in the report: the grab
+  offset already existed (09k) and the L-basket refusal is Core's `inventory.item_not_covered`, so no
+  drag code changed — [ADR 0032](../docs/adr/0032-a-touching-tome-draws-centre-to-centre.md).
+- **Result:** `-Suite Fast` PASS with dotnet **573** and EditMode **167/167**; PlayMode camp suites run
+  through the open Editor: `CampSynergyLinePlayModeTests` **9/9**, `CampBagDragPlayModeTests` **20/20**
+  (a first-test-of-run input flake remains, 1 run in 3 — recorded in the report); pictures from the real
+  Game View in `artifacts/ui/stage09l-*` (the `Tools/5` capture renders the panel-less frame, reported).
+- **Next:** 12 (save, resume, settings) — or give the L bag's drag ghost its real shape, which this
+  stage left as the bounding box.

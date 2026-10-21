@@ -503,6 +503,37 @@ namespace ProjectSurvive.Game.Presentation.Camp
             return false;
         }
 
+        /// <summary>
+        /// The cells a piece's picture is actually made of, as screen rectangles — one for a box, one
+        /// per covered cell for a footprint with a corner missing (Stage 09l).
+        /// </summary>
+        /// <remarks>
+        /// A test reads this to state "the L basket is drawn as four cells, not as its 2×3 box": the
+        /// rectangles come from the images that were laid out, not from the footprint again, so a view
+        /// that painted the box and a view that painted the cells are different answers.
+        /// </remarks>
+        public int GetPieceCellScreenRects(PieceRef piece, List<Rect> into, Camera camera = null)
+        {
+            if (into == null)
+            {
+                return 0;
+            }
+
+            into.Clear();
+
+            for (int i = 0; i < _painted.Count; i++)
+            {
+                if (_painted[i].Piece != piece || i >= _pieceViews.Count)
+                {
+                    continue;
+                }
+
+                return _pieceViews[i].GetCellScreenRects(into, camera);
+            }
+
+            return 0;
+        }
+
         /// <summary>Resolves the screen's services and starts rendering. Public and idempotent.</summary>
         public void Bind()
         {
@@ -1407,19 +1438,25 @@ namespace ProjectSurvive.Game.Presentation.Camp
         }
 
         /// <summary>
-        /// Draws a combo line: horizontally from the middle of the weapon's cell to the middle of the
-        /// tome's cell on the row they share (Stage 09k).
+        /// Draws a combo line from the <b>middle of the ตำรา</b> to the <b>middle of the อาวุธ</b>
+        /// (Stage 09l).
         /// </summary>
         /// <remarks>
         /// <para>
-        /// The two cells are the presenter's, not the view's: a line only exists for a pair the run
-        /// says touches left-to-right, and the presenter has already picked the row and the cells. This
-        /// method turns those two cells into their middles and decides nothing else, which is why the
-        /// stroke is horizontal by construction — the two cells have the same row, and the y of the
-        /// second end is the y of the first even if a pixel of canvas scaling rounds them differently.
+        /// The pair is the presenter's, and it only exists for a piece the run says touches a tome on
+        /// one of its four sides, so this method decides no rule. What it reads is the two rectangles
+        /// as they are drawn — the same rectangles the names and the hit test use — so a stroke from
+        /// one middle to the other is right for a pair above/below as well as beside, and for a 2×2
+        /// tome whose middle sits on the join of its four cells (the slight slant the stage allows).
         /// </para>
         /// <para>
-        /// A line whose two cells are not drawn (its piece is being dragged) is skipped rather than
+        /// Stage 09k drew a level stroke between two <i>cells</i>, which is why a pair stacked
+        /// vertically had no mark at all and a pair side by side was forced level even when a 2×2's
+        /// middle was a cell and a half away. The cells are no longer needed: Core's answer is the
+        /// adjacency, and the geometry is the picture's.
+        /// </para>
+        /// <para>
+        /// A line whose pieces are not drawn (one of them is being dragged) is skipped rather than
         /// drawn somewhere else. The names are painted above this mark (see <see cref="LabelRootFor"/>),
         /// so the stroke runs behind them and never over a word.
         /// </para>
@@ -1427,16 +1464,18 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <returns>False when the mark has nowhere to go, so the caller draws nothing.</returns>
         private bool PlaceLine(int index, CampLink link)
         {
-            if (!TryCellCentre(link.SourceCell, out Vector2 from)
-                || !TryCellCentre(link.TargetCell, out Vector2 to))
+            if (!TryFindPiece(link.SourceInstanceId, out CampPieceModel source)
+                || !TryFindPiece(link.TargetInstanceId, out CampPieceModel target)
+                || !TryGetDrawnRect(source.Piece, out Rect sourceRect)
+                || !TryGetDrawnRect(target.Piece, out Rect targetRect))
             {
                 return false;
             }
 
-            // Same row on purpose: the row's own middle is one height, so the stroke is level.
-            to.y = from.y;
+            Vector2 from = sourceRect.center;
+            Vector2 to = targetRect.center;
 
-            float length = Mathf.Abs(to.x - from.x);
+            float length = Vector2.Distance(from, to);
             if (length < 0.5f)
             {
                 return false;
@@ -1666,11 +1705,11 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// The strip of a bag a name may be drawn in: its top edge, inset from both sides — the strip
         /// <see cref="CampPieceView.SetLabel"/> gives the name, in the container's own space.
         /// </summary>
-        private static Rect LabelStrip(Rect bagRect) =>
+        private static Rect LabelStrip(Rect bagRect, float width) =>
             new Rect(
                 bagRect.x + 4f,
                 bagRect.yMax - BagLabelHeight,
-                Mathf.Max(bagRect.width - 8f, 1f),
+                Mathf.Max((width > 0f ? width : bagRect.width) - 8f, 1f),
                 BagLabelHeight);
 
         /// <summary>
@@ -1699,7 +1738,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
                 if (TryGetDrawnRect(piece.Piece, out Rect bagRect))
                 {
-                    Rect strip = LabelStrip(bagRect);
+                    // The strip is the name's own box, which for an L basket is its top row only:
+                    // a name measured against the bounding box would hang over the empty corner.
+                    Rect strip = LabelStrip(bagRect, _pieceViews[i].LabelBoxWidth);
 
                     for (int j = 0; j < _painted.Count && !covered; j++)
                     {
@@ -2729,9 +2770,22 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>One pooled piece rectangle: a tinted box and its localized name.</summary>
         private sealed class CampPieceView
         {
+            /// <summary>
+            /// The most cells one footprint has (the 3×3 รยาม). Four more of the board's cells are
+            /// drawn by this piece when its footprint is not a box — the L basket's two empty corners
+            /// must stay empty — and the images are pooled here so a drag never creates one.
+            /// </summary>
+            private const int ShapeCellCapacity = 9;
+
             private RectTransform _rect;
             private Image _image;
             private TMP_Text _label;
+
+            /// <summary>One pooled square per cell of a non-rectangular footprint.</summary>
+            private Image[] _shapeCells;
+
+            /// <summary>How many of <see cref="_shapeCells"/> are on screen for the piece drawn now.</summary>
+            private int _drawnCells;
 
             /// <summary>
             /// The piece's name lives in a box of its own, under the label container and the same shape
@@ -2740,8 +2794,43 @@ namespace ProjectSurvive.Game.Presentation.Camp
             /// </summary>
             private RectTransform _labelBox;
 
+            /// <summary>
+            /// The rectangles this piece is painted with, read from the images themselves: the single
+            /// box, or the squares of a non-rectangular footprint.
+            /// </summary>
+            public int GetCellScreenRects(List<Rect> into, Camera camera)
+            {
+                into.Clear();
+
+                if (_image != null && _image.enabled && CampScreenRects.TryOf(_rect, camera, out Rect box))
+                {
+                    into.Add(box);
+                    return into.Count;
+                }
+
+                if (_shapeCells == null)
+                {
+                    return 0;
+                }
+
+                for (int i = 0; i < _shapeCells.Length; i++)
+                {
+                    if (_shapeCells[i] != null && _shapeCells[i].gameObject.activeSelf
+                        && CampScreenRects.TryOf(_shapeCells[i].rectTransform, camera, out Rect cell))
+                    {
+                        into.Add(cell);
+                    }
+                }
+
+                return into.Count;
+            }
+
             /// <summary>The piece's own rectangle, for the label rules.</summary>
             public RectTransform Rect => _rect;
+
+            /// <summary>The width of the box the name is drawn in (its own top row, for an L basket).</summary>
+            public float LabelBoxWidth =>
+                _labelBox != null && _labelBox.gameObject.activeSelf ? _labelBox.sizeDelta.x : 0f;
 
             /// <summary>The name's own rectangle; null before <see cref="Create"/> has run.</summary>
             public RectTransform LabelRect => _label == null ? null : (RectTransform)_label.transform;
@@ -2786,13 +2875,33 @@ namespace ProjectSurvive.Game.Presentation.Camp
                     label.font = font;
                 }
 
+                var cells = new Image[ShapeCellCapacity];
+                for (int i = 0; i < cells.Length; i++)
+                {
+                    var cellObject = new GameObject("ShapeCell" + i, typeof(RectTransform));
+                    var cellRect = (RectTransform)cellObject.transform;
+                    cellRect.SetParent(rect, false);
+                    cellRect.anchorMin = new Vector2(0f, 1f);
+                    cellRect.anchorMax = new Vector2(0f, 1f);
+                    cellRect.pivot = new Vector2(0f, 1f);
+
+                    var cell = cellObject.AddComponent<Image>();
+                    cell.raycastTarget = false;
+                    cellObject.SetActive(false);
+                    cells[i] = cell;
+                }
+
                 return new CampPieceView
                 {
                     _rect = rect,
                     _image = image,
                     _label = label,
+                    _shapeCells = cells,
                 };
             }
+
+            /// <summary>How many cells this piece's picture is made of (1 for a box — the common case).</summary>
+            public int DrawnCellCount => _drawnCells;
 
             public void Show(CampPieceModel piece, CampBagScreenView owner)
             {
@@ -2821,21 +2930,124 @@ namespace ProjectSurvive.Game.Presentation.Camp
                     _rect.sizeDelta = new Vector2(owner._chestCellSize, owner._chestCellSize);
                 }
 
-                if (owner.SelectedPiece == piece.Piece)
-                {
-                    _image.color = owner._selectedPieceColor;
-                }
-                else
-                {
-                    _image.color = piece.IsBag ? owner._bagPiece : owner._itemPiece;
-                }
+                Color colour = owner.SelectedPiece == piece.Piece
+                    ? owner._selectedPieceColor
+                    : (piece.IsBag ? owner._bagPiece : owner._itemPiece);
 
-                AttachLabelBox(owner, piece.IsOnBoard);
+                PaintShape(piece, owner, colour);
+
+                AttachLabelBox(owner, piece.IsOnBoard, LabelWidthFor(piece, owner));
                 _label.text = piece.Label;
             }
 
+            /// <summary>
+            /// Draws the footprint the piece actually covers (Stage 09l): a box is one rectangle, and a
+            /// footprint with a corner missing — the L basket — is one square per cell, so the cells it
+            /// does not cover stay the board's own empty cells.
+            /// </summary>
+            /// <remarks>
+            /// The shape is <see cref="CampPieceModel.Shape"/>, already rotated by the presenter from the
+            /// run's own <c>FootprintRotation</c>, so nothing is re-derived here (AGENTS rule 1: the view
+            /// has no rules). A box keeps the single rectangle it always had — that is also what a name
+            /// is measured against — and only a footprint with a hole switches to squares. Every square
+            /// is the board's own cell size at the board's own pitch, so the picture and the cells the
+            /// hit test works on are the same rectangles.
+            /// </remarks>
+            private void PaintShape(CampPieceModel piece, CampBagScreenView owner, Color colour)
+            {
+                Footprint shape = piece.IsOnBoard ? piece.Shape : null;
+                bool box = shape == null || shape.CellCount == shape.Width * shape.Height;
+
+                _image.enabled = box;
+
+                if (box)
+                {
+                    _image.color = colour;
+
+                    for (int i = 0; i < _shapeCells.Length; i++)
+                    {
+                        if (_shapeCells[i].gameObject.activeSelf)
+                        {
+                            _shapeCells[i].gameObject.SetActive(false);
+                        }
+                    }
+
+                    _drawnCells = 1;
+                    return;
+                }
+
+                int drawn = 0;
+                float pitch = owner.CellPitch;
+
+                for (int i = 0; i < shape.CellCount && drawn < _shapeCells.Length; i++)
+                {
+                    CellOffset cell = shape.CellAt(i);
+                    Image square = _shapeCells[drawn];
+
+                    square.gameObject.SetActive(true);
+                    square.color = colour;
+                    square.rectTransform.anchoredPosition = new Vector2(cell.X * pitch, -cell.Y * pitch);
+                    square.rectTransform.sizeDelta = new Vector2(owner._cellSize, owner._cellSize);
+                    drawn++;
+                }
+
+                for (int i = drawn; i < _shapeCells.Length; i++)
+                {
+                    if (_shapeCells[i].gameObject.activeSelf)
+                    {
+                        _shapeCells[i].gameObject.SetActive(false);
+                    }
+                }
+
+                _drawnCells = drawn;
+            }
+
+            /// <summary>
+            /// The width the bag's name is drawn in: the run of covered cells along its own top row.
+            /// </summary>
+            /// <remarks>
+            /// An L basket's bounding box is two cells wide at the top but only one of them is covered,
+            /// so a name measured against the box would hang over the empty corner. The run is read from
+            /// the same footprint the squares are drawn from.
+            /// </remarks>
+            private float LabelWidthFor(CampPieceModel piece, CampBagScreenView owner)
+            {
+                Footprint shape = piece.Shape;
+
+                if (!piece.IsOnBoard || shape == null || shape.CellCount == shape.Width * shape.Height)
+                {
+                    return _rect.sizeDelta.x;
+                }
+
+                int first = int.MaxValue;
+                int last = int.MinValue;
+
+                for (int i = 0; i < shape.CellCount; i++)
+                {
+                    CellOffset cell = shape.CellAt(i);
+                    if (cell.Y != 0)
+                    {
+                        continue;
+                    }
+
+                    if (cell.X < first)
+                    {
+                        first = cell.X;
+                    }
+
+                    if (cell.X > last)
+                    {
+                        last = cell.X;
+                    }
+                }
+
+                return first == int.MaxValue
+                    ? _rect.sizeDelta.x
+                    : ((last - first + 1) * owner.CellPitch) - owner._cellGap;
+            }
+
             /// <summary>Puts the name's box on the piece's own rectangle, in the label container.</summary>
-            private void AttachLabelBox(CampBagScreenView owner, bool onBoard)
+            private void AttachLabelBox(CampBagScreenView owner, bool onBoard, float width)
             {
                 if (_labelBox == null)
                 {
@@ -2856,7 +3068,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 }
 
                 _labelBox.anchoredPosition = _rect.anchoredPosition;
-                _labelBox.sizeDelta = _rect.sizeDelta;
+                _labelBox.sizeDelta = new Vector2(width, _rect.sizeDelta.y);
                 _labelBox.gameObject.SetActive(true);
             }
 

@@ -3124,6 +3124,7 @@ namespace ProjectSurvive.Game.Editor
             private CampSceneDirector _director;
             private CampBagScreenView _bag;
             private PieceRef _secondBag;
+            private PieceRef _tome;
 
             private enum Step
             {
@@ -3131,6 +3132,10 @@ namespace ProjectSurvive.Game.Editor
                 StartCamp,
                 OpenPanel,
                 ShootFresh,
+                BuildTheBasket,
+                ShootMidDrag,
+                DropTheTome,
+                ShootDropped,
                 MoveBag,
                 Settle,
                 ShootMoved,
@@ -3259,7 +3264,63 @@ namespace ProjectSurvive.Game.Editor
                         }
 
                         case Step.ShootFresh:
-                            ShootBothSizes("camp-synergy", "a tome and two weapons in one row");
+                            ShootBothSizes("camp-synergy", "a weapon on each of the tome's four sides");
+                            Advance(Step.BuildTheBasket);
+                            return;
+
+                        case Step.BuildTheBasket:
+                        {
+                            RunSession run = _director.Run;
+
+                            // An L basket beside the second cloth bag: a 2×2 tome at (5,1) then stands
+                            // on (5,1)-(6,2), two cells of each bag — the seam the stage's drop is about.
+                            var basket = run.Backpack.AddBag("bag.wicker_basket_l");
+                            if (basket.IsFailure || !Place(run, basket.Value, 6, 1))
+                            {
+                                Fail("the L basket could not be added at (6,1): " + basket.Error);
+                                Finish();
+                                return;
+                            }
+
+                            _director.Presenter.Refresh();
+                            Canvas.ForceUpdateCanvases();
+                            _bag.ShowPanel(true);
+
+                            // The ghost is the picture's promise, so it is on screen for the shot.
+                            _director.Presenter.DragStart(_tome, Rotation.Degrees0);
+                            _director.Presenter.DragMove(BagDropZone.Board, new CellOffset(5, 1));
+                            Canvas.ForceUpdateCanvases();
+
+                            if (!_director.Presenter.Drag.IsValid)
+                            {
+                                Fail(
+                                    "four covered cells across the two bags were refused: "
+                                    + _director.Presenter.Drag.ErrorCode);
+                                Finish();
+                                return;
+                            }
+
+                            _report.Notes.Add(
+                                "the mid-drag shot is the tome aimed at (5,1), over the cloth bag's columns "
+                                + "5 and the L basket's column 6, with the ghost at the cell it would land on");
+
+                            Advance(Step.ShootMidDrag);
+                            return;
+                        }
+
+                        case Step.ShootMidDrag:
+                            ShootBothSizes("camp-synergy-l", "the tome over the cloth bag and the L basket, mid-drag");
+                            Advance(Step.DropTheTome);
+                            return;
+
+                        case Step.DropTheTome:
+                            _director.Presenter.Drop();
+                            Canvas.ForceUpdateCanvases();
+                            Advance(Step.ShootDropped);
+                            return;
+
+                        case Step.ShootDropped:
+                            ShootBothSizes("camp-synergy-l-dropped", "the tome landed across the two bags");
                             Advance(Step.MoveBag);
                             return;
 
@@ -3274,6 +3335,7 @@ namespace ProjectSurvive.Game.Editor
                                 Finish();
                                 return;
                             }
+
 
                             _director.Presenter.Refresh();
                             Canvas.ForceUpdateCanvases();
@@ -3331,12 +3393,13 @@ namespace ProjectSurvive.Game.Editor
             private void Fail(string reason) => _report.Failures.Add("combo lines: " + reason);
 
             /// <summary>
-            /// Builds the state the stage reports on, through the run's own commands: two 3×3 รยาม side
-            /// by side, a 2×2 tome on the first and a 1×1 ยันต์เพลิงกาลี on each, all in one board row.
+            /// Builds the state the stage reports on, through the run's own commands (Stage 09l): four
+            /// 3×3 รยาม in a square, a 2×2 tome at (1,2), and a 1×1 ยันต์เพลิงกาลี on <b>each of its
+            /// four sides</b>.
             /// </summary>
             /// <remarks>
-            /// An item is only legal on a cell a รยาม covers, which is why the tome and two weapons
-            /// sharing a row need two bags: one bag is three cells wide.
+            /// An item is only legal on a cell a รยาม covers, which is why the tome's four cells plus the
+            /// four cells around it need eight covered cells: one bag is 3×3, so four bags in a square.
             /// </remarks>
             private bool BuildState()
             {
@@ -3370,31 +3433,62 @@ namespace ProjectSurvive.Game.Editor
 
                 _secondBag = secondBag.Value;
 
-                if (!Place(run, weapon, 2, 1))
+                var lowerLeft = run.Backpack.AddBag("bag.raw_cotton_bag");
+                if (lowerLeft.IsFailure || !Place(run, lowerLeft.Value, 0, 4))
                 {
+                    Fail("a third รยาม could not be added at (0,4)");
+                    return false;
+                }
+
+                var lowerRight = run.Backpack.AddBag("bag.raw_cotton_bag");
+                if (lowerRight.IsFailure || !Place(run, lowerRight.Value, 3, 4))
+                {
+                    Fail("a fourth รยาม could not be added at (3,4)");
                     return false;
                 }
 
                 var tome = run.Backpack.AddItem("item.spell_tome");
-                if (tome.IsFailure || !Place(run, tome.Value, 0, 1))
+                if (tome.IsFailure || !Place(run, tome.Value, 1, 2))
                 {
-                    Fail("the tome could not be added at (0,1)");
+                    Fail("the 2x2 tome could not be added at (1,2)");
                     return false;
                 }
 
-                var secondWeapon = run.Backpack.AddItem("item.kali_flame_yant");
-                if (secondWeapon.IsFailure || !Place(run, secondWeapon.Value, 3, 1))
+                _tome = tome.Value;
+
+                var sides = new int[4, 2] { { 3, 2 }, { 0, 2 }, { 1, 1 }, { 1, 4 } };
+                for (int i = 0; i < 4; i++)
                 {
-                    Fail("the second weapon could not be added at (3,1)");
-                    return false;
+                    PieceRef side;
+                    if (i == 0)
+                    {
+                        side = weapon;
+                    }
+                    else
+                    {
+                        var added = run.Backpack.AddItem("item.kali_flame_yant");
+                        if (added.IsFailure)
+                        {
+                            Fail("a weapon could not be added: " + added.Error);
+                            return false;
+                        }
+
+                        side = added.Value;
+                    }
+
+                    if (!Place(run, side, sides[i, 0], sides[i, 1]))
+                    {
+                        return false;
+                    }
                 }
 
                 _director.Presenter.Refresh();
                 Canvas.ForceUpdateCanvases();
 
                 _report.Notes.Add(
-                    "the board is the stage's own case, built through the run's commands: a 2×2 tomb at "
-                    + "(0,1) and two 1×1 weapons at (2,1) and (3,1), all in row 1, on two 3×3 bags");
+                    "the board is the stage's own case, built through the run's commands: four 3×3 bags "
+                    + "in a square, a 2×2 tome at (1,2), and a weapon at (3,2), (0,2), (1,1) and (1,4) — "
+                    + "left, right, above and below it");
                 return true;
             }
 
