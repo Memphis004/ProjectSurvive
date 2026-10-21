@@ -30,7 +30,14 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private static readonly Vector3[] Corners = new Vector3[4];
 
         /// <summary>The screen rectangle of a transform, or false when there is none.</summary>
-        public static bool TryOf(RectTransform rect, out Rect screen)
+        public static bool TryOf(RectTransform rect, out Rect screen) => TryOf(rect, null, out screen);
+
+        /// <summary>
+        /// The same rectangle, in the pixels of <paramref name="camera"/>'s target. The Editor's capture
+        /// tool borrows the canvas into camera mode and renders into a texture of its own, where the
+        /// screen points are that camera's pixels rather than the window's.
+        /// </summary>
+        public static bool TryOf(RectTransform rect, Camera camera, out Rect screen)
         {
             screen = default;
 
@@ -41,8 +48,8 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             rect.GetWorldCorners(Corners);
 
-            Vector2 min = RectTransformUtility.WorldToScreenPoint(null, Corners[0]);
-            Vector2 max = RectTransformUtility.WorldToScreenPoint(null, Corners[2]);
+            Vector2 min = RectTransformUtility.WorldToScreenPoint(camera, Corners[0]);
+            Vector2 max = RectTransformUtility.WorldToScreenPoint(camera, Corners[2]);
 
             screen = Rect.MinMaxRect(
                 Mathf.Min(min.x, max.x), Mathf.Min(min.y, max.y),

@@ -52,6 +52,12 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         private const float MinimumFontSize = 22f;
 
         /// <summary>
+        /// The floor for the one exception Stage 09i adds: a name drawn inside a piece's own cell may
+        /// shrink to fit that rectangle, but never below 14 px at 1080p.
+        /// </summary>
+        private const float CellLabelFloor = 14f;
+
+        /// <summary>
         /// Regions that are allowed to overlap because one is drawn inside the other. The chest's
         /// slot grid is a child of the chest panel; everything else has to be disjoint.
         /// </summary>
@@ -434,6 +440,23 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             foreach (TMP_Text label in labels)
             {
+                // Stage 09i: the name inside a piece's own cell autosizes to the rectangle it may not
+                // leave, so its floor is the 14 px the stage allows rather than the panel's 22 px.
+                // That it really does fit is `CampSynergyLinePlayModeTests`' name test, which measures
+                // the laid-out text bounds rather than the setting.
+                if (label.enableAutoSizing)
+                {
+                    Assert.That(
+                        label.fontSizeMin, Is.GreaterThanOrEqualTo(CellLabelFloor),
+                        "'" + label.name + "' shrinks to " + label.fontSizeMin
+                        + " px, below the " + CellLabelFloor + " px floor");
+                    Assert.That(
+                        label.fontSizeMax, Is.LessThanOrEqualTo(MinimumFontSize),
+                        "'" + label.name + "' grows to " + label.fontSizeMax
+                        + " px, above the " + MinimumFontSize + " px ceiling");
+                    continue;
+                }
+
                 Assert.That(
                     label.fontSize, Is.GreaterThanOrEqualTo(MinimumFontSize),
                     "'" + label.name + "' is " + label.fontSize + " px, below the " + MinimumFontSize + " px floor");

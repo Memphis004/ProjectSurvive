@@ -3083,6 +3083,551 @@ namespace ProjectSurvive.Game.Editor
             }
         }
 
+        /// <summary>
+        /// Shoots the combo lines in Play Mode at both GDD sizes: the state Stage 09i diagnoses (a 2×2
+        /// tome with two 1×1 weapons in one row) and the same board after a รยาม has been moved.
+        /// </summary>
+        /// <remarks>
+        /// Play Mode because the board is built at runtime — the state the stage is about does not exist
+        /// in <c>Camp.unity</c>. Every line's two ends are measured against the rectangles of the pieces
+        /// they connect, at the size being shot, and the picture is then read back to prove a red line is
+        /// painted along that segment: a test can agree with a formula that draws in the wrong place,
+        /// and the picture cannot.
+        /// </remarks>
+        [MenuItem("ProjectSurvive/Tools/5. Capture the combo lines in Play Mode (Camp)", priority = 134)]
+        private static void CaptureSynergyFromMenu() => SynergyCaptureRun.Start();
+
+        private sealed class SynergyCaptureRun
+        {
+            private const int FrameBudget = 1200;
+            private const int SettleFrames = 2;
+
+            /// <summary>
+            /// Session marker for "a capture is waiting for Play Mode". Entering Play Mode reloads the
+            /// script domain in this project (<c>EditorSettings.enterPlayModeOptions</c> is <c>None</c>),
+            /// which drops both the static run and its update handler — so the run is re-created from
+            /// this flag after the reload, the way the tooltip capture does it.
+            /// </summary>
+            private const string PendingKey = "ProjectSurvive.SynergyCapture.Pending";
+
+            private static SynergyCaptureRun sRunning;
+
+            private readonly CaptureReport _report = new CaptureReport();
+            private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+            private readonly string _startedIn = SceneManager.GetActiveScene().path;
+            private readonly List<Vector2> _probes = new List<Vector2>(12);
+
+            private Step _step = Step.Prepare;
+            private int _frames;
+            private int _waited;
+
+            private CampSceneDirector _director;
+            private CampBagScreenView _bag;
+            private PieceRef _secondBag;
+
+            private enum Step
+            {
+                Prepare,
+                StartCamp,
+                OpenPanel,
+                ShootFresh,
+                MoveBag,
+                Settle,
+                ShootMoved,
+                Done,
+            }
+
+            internal static void Start()
+            {
+                if (sRunning != null)
+                {
+                    Debug.LogWarning("[ProjectSurvive] the combo-line capture is already running.");
+                    return;
+                }
+
+                if (EditorApplication.isPlaying)
+                {
+                    Debug.LogWarning(
+                        "[ProjectSurvive] the combo-line capture starts from edit mode: leave play "
+                        + "mode, then run the menu item again.");
+                    return;
+                }
+
+                sRunning = new SynergyCaptureRun(Step.Prepare);
+                SessionState.SetBool(PendingKey, true);
+                EditorApplication.update += sRunning.Tick;
+            }
+
+            private SynergyCaptureRun(Step start)
+            {
+                _step = start;
+            }
+
+            /// <summary>
+            /// Picks the run back up after the domain reload that entering Play Mode causes. A no-op
+            /// when no capture was waiting.
+            /// </summary>
+            [InitializeOnLoadMethod]
+            private static void ResumeAfterReload()
+            {
+                if (!SessionState.GetBool(PendingKey, false) || sRunning != null)
+                {
+                    return;
+                }
+
+                sRunning = new SynergyCaptureRun(Step.StartCamp);
+                EditorApplication.update += sRunning.Tick;
+            }
+
+            private void Tick()
+            {
+                _frames++;
+                _waited++;
+
+                if (_frames > FrameBudget)
+                {
+                    Fail("the run did not finish within " + FrameBudget + " frames");
+                    Finish();
+                }
+
+                try
+                {
+                    switch (_step)
+                    {
+                        case Step.Prepare:
+                            if (!EnsureOpen(CampScenePath, _report))
+                            {
+                                _report.Notes.Add("the camp scene could not be opened, so nothing was shot");
+                                Finish();
+                                return;
+                            }
+
+                            EditorApplication.isPlaying = true;
+                            Advance(Step.StartCamp);
+                            return;
+
+                        case Step.StartCamp:
+                        {
+                            if (!EditorApplication.isPlaying || EditorApplication.isCompiling)
+                            {
+                                return;
+                            }
+
+                            if (SceneManager.GetActiveScene().name != CampSceneName)
+                            {
+                                return;
+                            }
+
+                            _director = Object.FindFirstObjectByType<CampSceneDirector>();
+                            if (_director == null)
+                            {
+                                return;
+                            }
+
+                            if (!_director.TryStart())
+                            {
+                                Fail("the camp did not start: " + _director.StartError);
+                                Finish();
+                                return;
+                            }
+
+                            Advance(Step.OpenPanel);
+                            return;
+                        }
+
+                        case Step.OpenPanel:
+                        {
+                            _bag = Object.FindFirstObjectByType<CampBagScreenView>(FindObjectsInactive.Include);
+                            if (_bag == null)
+                            {
+                                Fail("the Camp scene has no CampBagScreenView");
+                                Finish();
+                                return;
+                            }
+
+                            _bag.ShowPanel(true);
+                            Canvas.ForceUpdateCanvases();
+
+                            if (!BuildState())
+                            {
+                                Finish();
+                                return;
+                            }
+
+                            Advance(Step.ShootFresh);
+                            return;
+                        }
+
+                        case Step.ShootFresh:
+                            ShootBothSizes("camp-synergy", "a tome and two weapons in one row");
+                            Advance(Step.MoveBag);
+                            return;
+
+                        case Step.MoveBag:
+                        {
+                            RunSession run = _director.Run;
+
+                            if (!run.MovePiece(
+                                    _secondBag, new CellOffset(6, 4), Rotation.Degrees0).IsSuccess)
+                            {
+                                Fail("the second รยาม could not be moved to (6,4)");
+                                Finish();
+                                return;
+                            }
+
+                            _director.Presenter.Refresh();
+                            Canvas.ForceUpdateCanvases();
+                            Advance(Step.Settle);
+                            return;
+                        }
+
+                        case Step.Settle:
+                            if (_waited < SettleFrames)
+                            {
+                                return;
+                            }
+
+                            Advance(Step.ShootMoved);
+                            return;
+
+                        case Step.ShootMoved:
+                            ShootBothSizes("camp-synergy-moved", "after the second รยาม moved to (6,4)");
+                            Advance(Step.Done);
+                            return;
+
+                        case Step.Done:
+                            if (EditorApplication.isPlaying || _waited < SettleFrames)
+                            {
+                                return;
+                            }
+
+                            Complete();
+                            return;
+
+                        default:
+                            return;
+                    }
+                }
+                catch (Exception error)
+                {
+                    Fail(error.GetType().Name + ": " + error.Message);
+                    Finish();
+                }
+            }
+
+            private void Advance(Step next)
+            {
+                _step = next;
+                _waited = 0;
+            }
+
+            private void Finish()
+            {
+                EditorApplication.isPlaying = false;
+                _step = Step.Done;
+                _waited = 0;
+            }
+
+            private void Fail(string reason) => _report.Failures.Add("combo lines: " + reason);
+
+            /// <summary>
+            /// Builds the state the stage reports on, through the run's own commands: two 3×3 รยาม side
+            /// by side, a 2×2 tome on the first and a 1×1 ยันต์เพลิงกาลี on each, all in one board row.
+            /// </summary>
+            /// <remarks>
+            /// An item is only legal on a cell a รยาม covers, which is why the tome and two weapons
+            /// sharing a row need two bags: one bag is three cells wide.
+            /// </remarks>
+            private bool BuildState()
+            {
+                RunSession run = _director.Run;
+                if (run == null)
+                {
+                    Fail("the camp started without a run");
+                    return false;
+                }
+
+                if (run.Backpack.Bags.Count == 0 || run.Backpack.Items.Count == 0)
+                {
+                    Fail("the starting kit is empty, so there is nothing to build the state from");
+                    return false;
+                }
+
+                PieceRef firstBag = run.Backpack.Bags[0].Ref;
+                PieceRef weapon = run.Backpack.Items[0].Ref;
+
+                if (!Place(run, firstBag, 0, 1))
+                {
+                    return false;
+                }
+
+                var secondBag = run.Backpack.AddBag("bag.raw_cotton_bag");
+                if (secondBag.IsFailure || !Place(run, secondBag.Value, 3, 1))
+                {
+                    Fail("a second รยาม could not be added at (3,1)");
+                    return false;
+                }
+
+                _secondBag = secondBag.Value;
+
+                if (!Place(run, weapon, 2, 1))
+                {
+                    return false;
+                }
+
+                var tome = run.Backpack.AddItem("item.spell_tome");
+                if (tome.IsFailure || !Place(run, tome.Value, 0, 1))
+                {
+                    Fail("the tome could not be added at (0,1)");
+                    return false;
+                }
+
+                var secondWeapon = run.Backpack.AddItem("item.kali_flame_yant");
+                if (secondWeapon.IsFailure || !Place(run, secondWeapon.Value, 3, 1))
+                {
+                    Fail("the second weapon could not be added at (3,1)");
+                    return false;
+                }
+
+                _director.Presenter.Refresh();
+                Canvas.ForceUpdateCanvases();
+
+                _report.Notes.Add(
+                    "the board is the stage's own case, built through the run's commands: a 2×2 tomb at "
+                    + "(0,1) and two 1×1 weapons at (2,1) and (3,1), all in row 1, on two 3×3 bags");
+                return true;
+            }
+
+            private bool Place(RunSession run, PieceRef piece, int x, int y)
+            {
+                ProjectSurvive.Core.Shared.Result moved =
+                    run.MovePiece(piece, new CellOffset(x, y), Rotation.Degrees0);
+                if (moved.IsFailure)
+                {
+                    Fail(piece + " could not be placed at (" + x + "," + y + "): " + moved.Error.Code);
+                    return false;
+                }
+
+                return true;
+            }
+
+            /// <summary>One state at both GDD sizes, each shot measured and then read back in pixels.</summary>
+            private void ShootBothSizes(string slug, string state)
+            {
+                Camera camera = Camera.main;
+                if (camera == null)
+                {
+                    Fail("the Camp scene has no MainCamera");
+                    return;
+                }
+
+                RectTransform board = BoardRect();
+                if (board == null)
+                {
+                    Fail("the bag screen has no board to measure");
+                    return;
+                }
+
+                var regions = new List<(string Name, UiRegionKind Kind, RectTransform Rect)>
+                {
+                    ("Board", UiRegionKind.Surface, board),
+                };
+
+                var sizes = new List<Vector2Int>(CapturedSizes);
+                for (int i = 0; i < sizes.Count; i++)
+                {
+                    Vector2Int size = sizes[i];
+                    _probes.Clear();
+
+                    string fileName = slug + "-" + size.x + "x" + size.y + ".png";
+                    Capture(
+                        SceneKind.Camp, state, slug, camera, size, regions, _report,
+                        afterLayout: () => MeasurePicture(camera, size, state));
+
+                    ProveTheLineIsPainted(fileName, size, state);
+                }
+            }
+
+            /// <summary>
+            /// The stage's acceptance as numbers: every drawn line's two ends against the rectangles of
+            /// the pieces they connect, at the size being shot.
+            /// </summary>
+            /// <remarks>
+            /// This runs inside the shot, while the canvases are borrowed into camera mode, because that
+            /// is the layout the picture contains — and it is read through the camera for the same
+            /// reason (<c>TryGetLineScreenEnds(index, camera, …)</c>).
+            /// </remarks>
+            private void MeasurePicture(Camera camera, Vector2Int size, string state)
+            {
+                if (_bag.Model == null)
+                {
+                    Fail("the bag screen has no model to measure");
+                    return;
+                }
+
+                CampLink[] links = _bag.Model.Links;
+                int index = 0;
+
+                for (int i = 0; i < links.Length; i++)
+                {
+                    if (links[i].Style != CampLinkStyle.Line)
+                    {
+                        continue;
+                    }
+
+                    if (!_bag.TryGetLineScreenEnds(index, camera, out Vector2 from, out Vector2 to))
+                    {
+                        Fail(state + " " + size.x + "x" + size.y + ": line " + index + " is listed but not drawn");
+                        index++;
+                        continue;
+                    }
+
+                    var source = new PieceRef(PieceKind.Item, links[i].SourceInstanceId);
+                    var target = new PieceRef(PieceKind.Item, links[i].TargetInstanceId);
+
+                    if (!_bag.TryGetPieceScreenRect(source, camera, out Rect sourceRect)
+                        || !_bag.TryGetPieceScreenRect(target, camera, out Rect targetRect))
+                    {
+                        Fail(state + " " + size.x + "x" + size.y + ": a paired piece has no rectangle");
+                        index++;
+                        continue;
+                    }
+
+                    JudgeEnd(state, size, index, "source", from, sourceRect);
+                    JudgeEnd(state, size, index, "target", to, targetRect);
+
+                    _report.Notes.Add(
+                        state + " " + size.x + "x" + size.y + ": line " + index + " from "
+                        + Describe(from) + " to " + Describe(to) + "; the source piece is "
+                        + Describe(sourceRect) + " (centre " + Describe(sourceRect.center) + "), the target "
+                        + Describe(targetRect) + " (centre " + Describe(targetRect.center) + ")");
+
+                    _probes.Add(Vector2.Lerp(from, to, 0.25f));
+                    _probes.Add(Vector2.Lerp(from, to, 0.5f));
+                    _probes.Add(Vector2.Lerp(from, to, 0.75f));
+                    index++;
+                }
+
+                if (index != _bag.VisibleLineCount)
+                {
+                    Fail(
+                        state + " " + size.x + "x" + size.y + ": the model lists " + index
+                        + " line(s) and the view drew " + _bag.VisibleLineCount);
+                }
+            }
+
+            private void JudgeEnd(
+                string state, Vector2Int size, int line, string end, Vector2 point, Rect piece)
+            {
+                string where = state + " " + size.x + "x" + size.y + ": line " + line + "'s " + end + " end";
+
+                if (!piece.Contains(point))
+                {
+                    Fail(where + " " + Describe(point) + " is outside the piece " + Describe(piece));
+                }
+
+                float off = Vector2.Distance(point, piece.center);
+                if (off > 1f)
+                {
+                    Fail(
+                        where + " is " + off.ToString("0.##") + " px from the piece's middle "
+                        + Describe(piece.center) + " (it is at " + Describe(point) + ")");
+                }
+            }
+
+            /// <summary>
+            /// Reads the shot back: three points along each measured segment have to be the line's red,
+            /// which is the half of the acceptance a rectangle cannot prove — that the mark is drawn
+            /// where its numbers say, and that it is visible on the board behind it.
+            /// </summary>
+            private void ProveTheLineIsPainted(string fileName, Vector2Int size, string state)
+            {
+                if (_probes.Count == 0)
+                {
+                    _report.Notes.Add(state + " " + size.x + "x" + size.y + ": no line to read back");
+                    return;
+                }
+
+                string path = Path.Combine(OutputDirectory, fileName);
+                if (!File.Exists(path))
+                {
+                    Fail("the shot " + fileName + " was not written, so its pixels cannot be read");
+                    return;
+                }
+
+                var image = new Texture2D(2, 2);
+                try
+                {
+                    image.LoadImage(File.ReadAllBytes(path));
+
+                    int red = 0;
+                    var story = new StringBuilder();
+
+                    for (int i = 0; i < _probes.Count; i++)
+                    {
+                        int x = Mathf.Clamp(Mathf.RoundToInt(_probes[i].x), 0, image.width - 1);
+                        int y = Mathf.Clamp(Mathf.RoundToInt(_probes[i].y), 0, image.height - 1);
+                        Color pixel = image.GetPixel(x, y);
+
+                        bool isRed = pixel.r > 0.45f && pixel.r > pixel.g * 1.8f && pixel.r > pixel.b * 1.8f;
+                        if (isRed)
+                        {
+                            red++;
+                        }
+
+                        story.Append(i == 0 ? string.Empty : ", ");
+                        story.Append(Describe(_probes[i])).Append(" is ").Append(pixel.ToString("F2"));
+                    }
+
+                    _report.Notes.Add(
+                        state + " " + size.x + "x" + size.y + ": " + red + " of " + _probes.Count
+                        + " points along the drawn segments are the line's red (" + story + ")");
+
+                    if (red * 2 < _probes.Count)
+                    {
+                        Fail(
+                            state + " " + size.x + "x" + size.y + ": only " + red + " of "
+                            + _probes.Count + " points along the segments are red, so the lines are not "
+                            + "painted where they say they are");
+                    }
+                }
+                finally
+                {
+                    Object.DestroyImmediate(image);
+                }
+            }
+
+            /// <summary>The board's rectangle, read from the view's own serialized field.</summary>
+            private RectTransform BoardRect()
+            {
+                var fields = new SerializedObject(_bag);
+                return fields.FindProperty("_boardRect")?.objectReferenceValue as RectTransform;
+            }
+
+            private static string Describe(Vector2 point) =>
+                "(" + point.x.ToString("0.#", CultureInfo.InvariantCulture) + ","
+                + point.y.ToString("0.#", CultureInfo.InvariantCulture) + ")";
+
+            private static string Describe(Rect rect) =>
+                Describe(new Vector2(rect.x, rect.y)) + " "
+                + rect.width.ToString("0.#", CultureInfo.InvariantCulture) + "×"
+                + rect.height.ToString("0.#", CultureInfo.InvariantCulture);
+
+            private void Complete()
+            {
+                EditorApplication.update -= Tick;
+                sRunning = null;
+                SessionState.EraseBool(PendingKey);
+
+                RestoreScene(_startedIn, _report);
+
+                WriteReports(
+                    _report, _clock.ElapsedMilliseconds, "-synergy",
+                    "`ProjectSurvive/Tools/5. Capture the combo lines in Play Mode (Camp)`",
+                    "the combo lines, in Play Mode (a tome with two weapons in one row, then after a รยาม moved)");
+            }
+        }
+
         private enum SceneKind
         {
             Title,

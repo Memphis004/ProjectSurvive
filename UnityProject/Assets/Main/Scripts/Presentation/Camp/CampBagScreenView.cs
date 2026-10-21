@@ -145,11 +145,50 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>The side of a bag-area bonus badge, in canvas units.</summary>
         private const float BadgeSize = 18f;
 
+        /// <summary>
+        /// The synergy line's own thickness, in canvas units (Stage 09i: at the 1920×1080 reference
+        /// resolution one canvas unit is one screen pixel, so this is 4 px — above the 3 px the stage
+        /// asks for and thick enough to read from the board's viewing distance).
+        /// </summary>
+        private const float SynergyLineThickness = 4f;
+
+        /// <summary>
+        /// How much wider the dark edge under a line is than the line itself, per side. The edge is
+        /// what lets a bright line sit on a bag's green without disappearing into it.
+        /// </summary>
+        private const float SynergyLineEdgeBleed = 3f;
+
+        /// <summary>
+        /// The line itself: a vivid red, opaque enough to be the strongest thing on the board
+        /// (Stage 09i: "สีแดงสด … ความทึบ ≥ 0.9"). The previous amber at 0.85 on a green bag was the
+        /// defect the stage names.
+        /// </summary>
+        private static readonly Color SynergyLineCore = new Color(0.95f, 0.12f, 0.10f, 0.95f);
+
+        /// <summary>The dark edge the line is drawn over, so it cuts against whatever is behind it.</summary>
+        private static readonly Color SynergyLineEdge = new Color(0f, 0f, 0f, 0.85f);
+
+        /// <summary>
+        /// The smallest type an in-cell name may shrink to (Stage 09i: "ห้ามเล็กกว่า 14 px ที่
+        /// 1080p"). The 22 px floor is the default; a name that has to fit a 1×1 cell is the one
+        /// exception, and it gives way to the rectangle rather than leaving it.
+        /// </summary>
+        private const float MinCellLabelSize = 14f;
+
+        /// <summary>
+        /// The name its own rectangle may not leave is called this, so a test can tell it from the
+        /// panel's authored labels (whose floor is the full 22 px).
+        /// </summary>
+        public const string CellLabelName = "CellLabel";
+
+        /// <summary>The four corners of a rectangle, reused so a render allocates nothing.</summary>
+        private static readonly Vector3[] Corners = new Vector3[4];
+
         private readonly List<Image> _boardCells = new List<Image>(64);
         private readonly List<Image> _chestCells = new List<Image>(16);
         private readonly List<CampPieceView> _pieceViews = new List<CampPieceView>(32);
         private readonly List<CampPieceModel> _painted = new List<CampPieceModel>(32);
-        private readonly List<Image> _synergyLines = new List<Image>(16);
+        private readonly List<SynergyLineMark> _synergyLines = new List<SynergyLineMark>(16);
         private readonly List<Image> _badges = new List<Image>(16);
 
         /// <summary>
@@ -259,6 +298,78 @@ namespace ProjectSurvive.Game.Presentation.Camp
         public int VisibleBadgeCount { get; private set; }
 
         /// <summary>
+        /// The container the combo lines are drawn in (null before the first render). A test reads it
+        /// to state the draw order as a fact: the lines are the board's last children, after every
+        /// piece and its name.
+        /// </summary>
+        public RectTransform LineContainer => _linkRoot;
+
+        /// <summary>
+        /// Where line <paramref name="index"/> actually starts and ends, in screen pixels — read from
+        /// the drawn bar's own two ends rather than from the numbers it was placed with.
+        /// </summary>
+        /// <remarks>
+        /// A test compares these with the screen rectangles of the two pieces, which is the stage's
+        /// acceptance stated as geometry: the mark must reach the middle of the rectangle the player
+        /// sees, not a point rebuilt from the cell grid.
+        /// </remarks>
+        public bool TryGetLineScreenEnds(int index, out Vector2 source, out Vector2 target) =>
+            TryGetLineScreenEnds(index, null, out source, out target);
+
+        /// <summary>
+        /// The same two ends, read through <paramref name="camera"/>: the Editor's capture tool renders
+        /// the camp into a texture of its own, where "the screen" is that camera's target.
+        /// </summary>
+        public bool TryGetLineScreenEnds(
+            int index, Camera camera, out Vector2 source, out Vector2 target)
+        {
+            source = default;
+            target = default;
+
+            if (index < 0 || index >= _synergyLines.Count)
+            {
+                return false;
+            }
+
+            SynergyLineMark line = _synergyLines[index];
+            if (!line.Visible)
+            {
+                return false;
+            }
+
+            RectTransform rect = line.Rect;
+            float half = rect.rect.width * 0.5f;
+
+            source = RectTransformUtility.WorldToScreenPoint(
+                camera, rect.TransformPoint(new Vector3(-half, 0f, 0f)));
+            target = RectTransformUtility.WorldToScreenPoint(
+                camera, rect.TransformPoint(new Vector3(half, 0f, 0f)));
+            return true;
+        }
+
+        /// <summary>
+        /// The line's own paint: the bright core, the dark edge under it, and the core's thickness in
+        /// <b>canvas units</b> (at the 1920×1080 reference resolution one unit is one pixel).
+        /// </summary>
+        public bool TryGetLineStyle(int index, out Color core, out Color edge, out float thickness)
+        {
+            core = default;
+            edge = default;
+            thickness = 0f;
+
+            if (index < 0 || index >= _synergyLines.Count || !_synergyLines[index].Visible)
+            {
+                return false;
+            }
+
+            SynergyLineMark line = _synergyLines[index];
+            core = line.Core.color;
+            edge = line.Edge.color;
+            thickness = line.Core.rectTransform.rect.height;
+            return true;
+        }
+
+        /// <summary>
         /// How many item ghosts are drawn right now — the items that would ride with the dragged bag.
         /// </summary>
         public int VisibleCarryGhostCount { get; private set; }
@@ -353,7 +464,14 @@ namespace ProjectSurvive.Game.Presentation.Camp
         }
 
         /// <summary>The screen rectangle of a piece's rectangle (not its name), or false when it is not drawn.</summary>
-        public bool TryGetPieceScreenRect(PieceRef piece, out Rect rect)
+        public bool TryGetPieceScreenRect(PieceRef piece, out Rect rect) =>
+            TryGetPieceScreenRect(piece, null, out rect);
+
+        /// <summary>
+        /// The same rectangle, read through <paramref name="camera"/> — the capture tool renders into a
+        /// target texture rather than to the screen.
+        /// </summary>
+        public bool TryGetPieceScreenRect(PieceRef piece, Camera camera, out Rect rect)
         {
             rect = default;
 
@@ -361,7 +479,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             {
                 if (_painted[i].Piece == piece && i < _pieceViews.Count)
                 {
-                    return CampScreenRects.TryOf(_pieceViews[i].Rect, out rect);
+                    return CampScreenRects.TryOf(_pieceViews[i].Rect, camera, out rect);
                 }
             }
 
@@ -1176,9 +1294,11 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// mark on the same render that dropped it.
         /// </summary>
         /// <remarks>
-        /// Lines are drawn <b>under</b> the pieces and their names: a line through a name is a line
-        /// the player cannot read the board through, so the marks sit directly above the cells and
-        /// below the text.
+        /// Lines are drawn <b>over</b> the pieces and their names (Stage 09i): a mark that runs under
+        /// the piece it names is a mark the player can only see in the gutter between cells, and the
+        /// defect the stage reports was exactly that — a line that entered a piece and never arrived
+        /// at its middle. They are still <i>under</i> the tooltip, the drag ghost and the merge window,
+        /// which live on a later canvas or a later sibling of the whole panel.
         /// </remarks>
         private void RenderLinks(CampLink[] links)
         {
@@ -1191,7 +1311,6 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             EnsureLinkRoots();
 
-            float pitch = CellPitch;
             int lineIdx = 0;
             int badgeIdx = 0;
 
@@ -1210,18 +1329,21 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
                     if (link.Style == CampLinkStyle.Badge)
                     {
-                        PlaceBadge(badgeIdx++, target, pitch);
+                        if (PlaceBadge(badgeIdx, target))
+                        {
+                            badgeIdx++;
+                        }
                     }
-                    else
+                    else if (PlaceLine(lineIdx, source, target))
                     {
-                        PlaceLine(lineIdx++, source, target, pitch);
+                        lineIdx++;
                     }
                 }
             }
 
             for (int i = lineIdx; i < _synergyLines.Count; i++)
             {
-                _synergyLines[i].gameObject.SetActive(false);
+                _synergyLines[i].Hide();
             }
 
             for (int i = badgeIdx; i < _badges.Count; i++)
@@ -1249,21 +1371,41 @@ namespace ProjectSurvive.Game.Presentation.Camp
             return false;
         }
 
-        /// <summary>Lays a line from the centre of one piece to the centre of another.</summary>
-        private void PlaceLine(int index, CampPieceModel source, CampPieceModel target, float pitch)
+        /// <summary>
+        /// Lays a line from the centre of one piece to the centre of another, both read from the
+        /// <b>rectangles the pieces are drawn in</b>.
+        /// </summary>
+        /// <remarks>
+        /// The previous version rebuilt a rectangle from the cell grid and took its
+        /// <c>top + height / 2</c> as the middle. Board space is y-<b>down</b>, so that point is a
+        /// whole piece-height <i>above</i> the piece: both ends of every line started at the tome's
+        /// top edge and arrived one weapon-height above each weapon (Stage 09i's diagnosis). Reading
+        /// the drawn <c>RectTransform</c> and converting its corners into the container's own space
+        /// removes the second formula entirely — there is one rectangle, the one on screen.
+        /// </remarks>
+        /// <returns>False when a piece has no rectangle on the board (it is being dragged), so the
+        /// caller draws nothing rather than pointing at a place the piece is not.</returns>
+        private bool PlaceLine(int index, CampPieceModel source, CampPieceModel target)
         {
-            Vector2 from = CentreOf(source, pitch, _cellGap);
-            Vector2 to = CentreOf(target, pitch, _cellGap);
+            if (!TryGetDrawnRect(source.Piece, out Rect sourceRect)
+                || !TryGetDrawnRect(target.Piece, out Rect targetRect))
+            {
+                return false;
+            }
 
-            Image line = GetOrCreateLine(index);
-            line.gameObject.SetActive(true);
-            line.color = new Color(1f, 0.82f, 0.25f, 0.85f);
-
-            RectTransform rect = line.rectTransform;
+            Vector2 from = sourceRect.center;
+            Vector2 to = targetRect.center;
             Vector2 direction = to - from;
-            rect.anchoredPosition = (from + to) * 0.5f;
-            rect.sizeDelta = new Vector2(direction.magnitude, 4f);
-            rect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
+            float length = direction.magnitude;
+
+            if (length < 1f)
+            {
+                return false;
+            }
+
+            SynergyLineMark line = GetOrCreateLine(index);
+            line.Show(from, to, length);
+            return true;
         }
 
         /// <summary>
@@ -1271,23 +1413,78 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// cells a bag covers, so the mark belongs to what was covered, and a line from the bag would
         /// say the bag is a partner on the board.
         /// </summary>
-        private void PlaceBadge(int index, CampPieceModel target, float pitch)
+        /// <remarks>Same rectangle the piece is drawn in, for the same reason the lines use it.</remarks>
+        private bool PlaceBadge(int index, CampPieceModel target)
         {
-            Rect piece = PieceRect(target, pitch, _cellGap);
+            if (!TryGetDrawnRect(target.Piece, out Rect piece))
+            {
+                return false;
+            }
 
             Image badge = GetOrCreateBadge(index);
             badge.gameObject.SetActive(true);
 
-            RectTransform rect = badge.rectTransform;
-            rect.anchoredPosition = new Vector2(piece.xMax - BadgeSize - 2f, piece.yMin - 2f);
+            // The badge's pivot is its centre, so the corner it sits in is inset by half of its own
+            // side: the mark lands inside the piece's bottom-right corner instead of hanging off it.
+            float half = BadgeSize * 0.5f;
+            badge.rectTransform.anchoredPosition = new Vector2(piece.xMax - half - 2f, piece.yMin + half + 2f);
+            return true;
         }
 
         /// <summary>
-        /// The two roots the marks live in, kept directly above the cells and below every piece.
+        /// A piece's <b>drawn</b> rectangle, in the line container's own space.
+        /// </summary>
+        /// <remarks>
+        /// The corners are taken in world space and read back through the container's transform, so
+        /// the answer holds whatever the canvas' scale factor is (1920×1080 and 1280×720 lay the same
+        /// board out at two different pixel scales) and whatever the board's own transform does.
+        /// </remarks>
+        private bool TryGetDrawnRect(PieceRef piece, out Rect local)
+        {
+            local = default;
+
+            if (_linkRoot == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < _painted.Count; i++)
+            {
+                if (_painted[i].Piece != piece || i >= _pieceViews.Count)
+                {
+                    continue;
+                }
+
+                RectTransform rect = _pieceViews[i].Rect;
+                if (rect == null || !rect.gameObject.activeInHierarchy)
+                {
+                    return false;
+                }
+
+                rect.GetWorldCorners(Corners);
+
+                Vector3 min = _linkRoot.InverseTransformPoint(Corners[0]);
+                Vector3 max = _linkRoot.InverseTransformPoint(Corners[2]);
+
+                local = Rect.MinMaxRect(
+                    Mathf.Min(min.x, max.x), Mathf.Min(min.y, max.y),
+                    Mathf.Max(min.x, max.x), Mathf.Max(min.y, max.y));
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// The two roots the marks live in, kept <b>above every piece and its name</b>.
         /// </summary>
         /// <remarks>
         /// Their sibling index is reset on every render because pieces are created lazily and each new
-        /// one is appended: without this a piece added later would be drawn under the existing lines.
+        /// one is appended: without this a piece added later would be drawn over the existing lines, and
+        /// a line under a piece is invisible where it matters most — where it enters the piece.
+        /// The drag ghost and the rider ghosts call <c>SetAsLastSibling</c> when they appear, so a
+        /// gesture is still drawn over the marks; the merge window and the tooltip are above the whole
+        /// panel and above the canvas respectively.
         /// </remarks>
         private void EnsureLinkRoots()
         {
@@ -1301,16 +1498,8 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 _badgeRoot = CreateOverlayRoot("BagBonusBadges");
             }
 
-            int cells = _boardCells.Count;
-            if (cells > _boardRect.childCount - 1)
-            {
-                cells = _boardRect.childCount - 1;
-            }
-
-            _linkRoot.SetSiblingIndex(cells < 0 ? 0 : cells);
-
-            int badgeIndex = cells + 1;
-            _badgeRoot.SetSiblingIndex(badgeIndex > _boardRect.childCount - 1 ? _boardRect.childCount - 1 : badgeIndex);
+            _linkRoot.SetAsLastSibling();
+            _badgeRoot.SetAsLastSibling();
         }
 
         private RectTransform CreateOverlayRoot(string name)
@@ -1326,14 +1515,14 @@ namespace ProjectSurvive.Game.Presentation.Camp
             return root;
         }
 
-        private Image GetOrCreateLine(int index)
+        private SynergyLineMark GetOrCreateLine(int index)
         {
             if (index < _synergyLines.Count)
             {
                 return _synergyLines[index];
             }
 
-            Image line = CreateMark(_linkRoot, "SynLine" + index, 4f);
+            SynergyLineMark line = SynergyLineMark.Create(_linkRoot, "SynLine" + index);
             _synergyLines.Add(line);
             return line;
         }
@@ -1366,28 +1555,16 @@ namespace ProjectSurvive.Game.Presentation.Camp
             return image;
         }
 
-        /// <summary>The centre of a piece in board-local units, which is where a line ends.</summary>
-        private static Vector2 CentreOf(CampPieceModel piece, float pitch, float gap)
-        {
-            Rect rect = PieceRect(piece, pitch, gap);
-            return new Vector2(rect.x + (rect.width * 0.5f), rect.y + (rect.height * 0.5f));
-        }
-
         /// <summary>
-        /// A piece's rectangle in board-local units, built the way <see cref="CampPieceView.Show"/>
-        /// places it: x right, y <b>down</b> from the board's top-left corner, both in cell pitches.
+        /// The strip of a bag a name may be drawn in: its top edge, inset from both sides — the strip
+        /// <see cref="CampPieceView.SetLabel"/> gives the name, in the container's own space.
         /// </summary>
-        private static Rect PieceRect(CampPieceModel piece, float pitch, float gap)
-        {
-            int width = piece.Shape == null ? 1 : piece.Shape.Width;
-            int height = piece.Shape == null ? 1 : piece.Shape.Height;
-
-            return new Rect(
-                piece.Origin.X * pitch,
-                -(piece.Origin.Y * pitch),
-                (width * pitch) - gap,
-                (height * pitch) - gap);
-        }
+        private static Rect LabelStrip(Rect bagRect) =>
+            new Rect(
+                bagRect.x + 4f,
+                bagRect.yMax - BagLabelHeight,
+                Mathf.Max(bagRect.width - 8f, 1f),
+                BagLabelHeight);
 
         /// <summary>
         /// Shows or hides each bag's own name.
@@ -1401,8 +1578,6 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// </remarks>
         private void LayoutPieceLabels()
         {
-            float pitch = CellPitch;
-
             for (int i = 0; i < _painted.Count; i++)
             {
                 CampPieceModel piece = _painted[i];
@@ -1413,32 +1588,31 @@ namespace ProjectSurvive.Game.Presentation.Camp
                     continue;
                 }
 
-                Rect strip = BagLabelStrip(piece, pitch, _cellGap);
                 bool covered = false;
 
-                for (int j = 0; j < _painted.Count && !covered; j++)
+                if (TryGetDrawnRect(piece.Piece, out Rect bagRect))
                 {
-                    CampPieceModel other = _painted[j];
+                    Rect strip = LabelStrip(bagRect);
 
-                    if (other.IsBag || !other.IsOnBoard)
+                    for (int j = 0; j < _painted.Count && !covered; j++)
                     {
-                        continue;
-                    }
+                        CampPieceModel other = _painted[j];
 
-                    Rect rect = PieceRect(other, pitch, _cellGap);
-                    covered = strip.xMin < rect.xMax && rect.xMin < strip.xMax
-                        && strip.yMin < rect.yMax && rect.yMin < strip.yMax;
+                        if (other.IsBag || !other.IsOnBoard)
+                        {
+                            continue;
+                        }
+
+                        if (TryGetDrawnRect(other.Piece, out Rect rect))
+                        {
+                            covered = strip.xMin < rect.xMax && rect.xMin < strip.xMax
+                                && strip.yMin < rect.yMax && rect.yMin < strip.yMax;
+                        }
+                    }
                 }
 
                 _pieceViews[i].SetLabel(!covered, secondary: true);
             }
-        }
-
-        /// <summary>The strip of a bag a name may be drawn in: its top edge, inset from both sides.</summary>
-        private static Rect BagLabelStrip(CampPieceModel bag, float pitch, float gap)
-        {
-            Rect rect = PieceRect(bag, pitch, gap);
-            return new Rect(rect.x + 4f, rect.y, Mathf.Max(rect.width - 8f, 1f), BagLabelHeight);
         }
 
 
@@ -2284,6 +2458,81 @@ namespace ProjectSurvive.Game.Presentation.Camp
             public void Hide() => Root.gameObject.SetActive(false);
         }
 
+        /// <summary>
+        /// One pooled combo line: a dark edge with a bright core drawn along it (Stage 09i).
+        /// </summary>
+        /// <remarks>
+        /// Two images rather than a <c>Shadow</c>/<c>Outline</c> effect, because the edge is a real
+        /// rectangle the report and the tests can measure: the core is a fixed 4 canvas units tall and
+        /// the edge is 3 units of bleed on each side, so what is drawn is what was asked for.
+        /// </remarks>
+        private sealed class SynergyLineMark
+        {
+            private RectTransform _root;
+            private Image _edge;
+            private Image _core;
+
+            /// <summary>The bar itself: its width is the distance between the two centres.</summary>
+            public RectTransform Rect => _root;
+
+            /// <summary>The dark rectangle the line is drawn over.</summary>
+            public Image Edge => _edge;
+
+            /// <summary>The bright line.</summary>
+            public Image Core => _core;
+
+            /// <summary>True while the mark is on screen.</summary>
+            public bool Visible => _root != null && _root.gameObject.activeSelf;
+
+            public static SynergyLineMark Create(RectTransform parent, string name)
+            {
+                var rootObject = new GameObject(name, typeof(RectTransform));
+                var root = (RectTransform)rootObject.transform;
+                root.SetParent(parent, false);
+                root.anchorMin = new Vector2(0f, 1f);
+                root.anchorMax = new Vector2(0f, 1f);
+                root.pivot = new Vector2(0.5f, 0.5f);
+
+                var edge = rootObject.AddComponent<Image>();
+                edge.raycastTarget = false;
+                edge.color = SynergyLineEdge;
+
+                var coreObject = new GameObject("Core", typeof(RectTransform));
+                var coreRect = (RectTransform)coreObject.transform;
+                coreRect.SetParent(root, false);
+                coreRect.anchorMin = new Vector2(0f, 0.5f);
+                coreRect.anchorMax = new Vector2(1f, 0.5f);
+                coreRect.pivot = new Vector2(0.5f, 0.5f);
+                coreRect.anchoredPosition = Vector2.zero;
+                coreRect.sizeDelta = new Vector2(0f, SynergyLineThickness);
+
+                var core = coreObject.AddComponent<Image>();
+                core.raycastTarget = false;
+                core.color = SynergyLineCore;
+
+                return new SynergyLineMark
+                {
+                    _root = root,
+                    _edge = edge,
+                    _core = core,
+                };
+            }
+
+            /// <summary>Lays the bar between two points of the container's own space.</summary>
+            public void Show(Vector2 from, Vector2 to, float length)
+            {
+                _root.gameObject.SetActive(true);
+                _root.anchoredPosition = (from + to) * 0.5f;
+                _root.sizeDelta = new Vector2(length, SynergyLineThickness + (SynergyLineEdgeBleed * 2f));
+
+                Vector2 direction = to - from;
+                _root.localRotation = Quaternion.Euler(
+                    0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
+            }
+
+            public void Hide() => _root.gameObject.SetActive(false);
+        }
+
         /// <summary>One pooled piece rectangle: a tinted box and its localized name.</summary>
         private sealed class CampPieceView
         {
@@ -2309,7 +2558,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 var image = gameObject.AddComponent<Image>();
                 image.raycastTarget = false;
 
-                var labelObject = new GameObject("Label", typeof(RectTransform));
+                var labelObject = new GameObject(CellLabelName, typeof(RectTransform));
                 var labelRect = (RectTransform)labelObject.transform;
                 labelRect.SetParent(rect, false);
                 labelRect.anchorMin = Vector2.zero;
@@ -2319,7 +2568,18 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
                 var label = labelObject.AddComponent<TextMeshProUGUI>();
                 label.raycastTarget = false;
+
+                // Stage 09i: a name may not leave the rectangle it is drawn in. It starts at the 22 px
+                // floor's size and shrinks — never below 14 px at the 1080p reference — and what is
+                // still too long for the cell is cut with an ellipsis instead of spilling over the
+                // neighbouring piece. The full name is the tooltip's job.
+                label.enableAutoSizing = true;
                 label.fontSize = 22f;
+                label.fontSizeMin = MinCellLabelSize;
+                label.fontSizeMax = 22f;
+                label.overflowMode = TextOverflowModes.Ellipsis;
+                label.textWrappingMode = TextWrappingModes.Normal;
+                label.margin = new Vector4(4f, 4f, 2f, 2f);
                 label.alignment = TextAlignmentOptions.Center;
                 if (font != null)
                 {
@@ -2403,6 +2663,10 @@ namespace ProjectSurvive.Game.Presentation.Camp
                     rect.anchoredPosition = new Vector2(0f, -2f);
                     _label.alignment = TextAlignmentOptions.TopLeft;
                     _label.color = new Color(1f, 1f, 1f, 0.85f);
+
+                    // A bag's name is one line in a strip at the top edge: wrapping it would draw a
+                    // second line outside the strip that was measured for it.
+                    _label.textWrappingMode = TextWrappingModes.NoWrap;
                 }
                 else
                 {
@@ -2413,6 +2677,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
                     rect.offsetMax = Vector2.zero;
                     _label.alignment = TextAlignmentOptions.Center;
                     _label.color = Color.white;
+                    _label.textWrappingMode = TextWrappingModes.Normal;
                 }
             }
 
