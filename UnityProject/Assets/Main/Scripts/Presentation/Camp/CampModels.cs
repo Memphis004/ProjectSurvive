@@ -1,7 +1,9 @@
 using System;
+using System.Globalization;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Domain.Run;
+using UnityEngine;
 
 namespace ProjectSurvive.Game.Presentation.Camp
 {
@@ -140,6 +142,44 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         /// <inheritdoc />
         public override string ToString() => Name + " t" + Tier + " (" + Piece + ")";
+    }
+
+    /// <summary>
+    /// One <c>Image</c> a piece is painted with, as it is painted right now (Stage 09m).
+    /// </summary>
+    /// <remarks>
+    /// Published so the stage's own question — "what colour is this piece?" — can be answered with
+    /// the value the graphic really holds instead of with the palette field it was supposed to come
+    /// from. A view that leaves an old tint on a pooled image is exactly the defect a comparison of
+    /// these values across a gesture finds, and it is invisible in a screenshot that only shows the
+    /// piece's own rectangle.
+    /// </remarks>
+    public readonly struct CampPiecePaint
+    {
+        /// <summary>Captures one image.</summary>
+        public CampPiecePaint(string surface, Color color, bool enabled)
+        {
+            Surface = surface ?? string.Empty;
+            Color = color;
+            Enabled = enabled;
+        }
+
+        /// <summary>The name of the object the image is on (<c>Piece</c>, <c>ShapeCell0</c>, …).</summary>
+        public string Surface { get; }
+
+        /// <summary>The colour the image holds.</summary>
+        public Color Color { get; }
+
+        /// <summary>Whether the image is drawn at all.</summary>
+        public bool Enabled { get; }
+
+        /// <inheritdoc />
+        public override string ToString() =>
+            Surface + (Enabled ? " " : " (off) ")
+            + "(" + Color.r.ToString("F3", CultureInfo.InvariantCulture)
+            + ", " + Color.g.ToString("F3", CultureInfo.InvariantCulture)
+            + ", " + Color.b.ToString("F3", CultureInfo.InvariantCulture)
+            + ", " + Color.a.ToString("F3", CultureInfo.InvariantCulture) + ")";
     }
 
     /// <summary>One of the four shop slots as the panel draws it.</summary>

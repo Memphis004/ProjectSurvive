@@ -11,6 +11,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
@@ -69,7 +70,10 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         /// <summary>The opacity the tooltip's own background has to reach (Stage 09d, item 2).</summary>
         private const float TooltipAlphaFloor = 0.92f;
 
+        private readonly List<CampPiecePaint> _paints = new List<CampPiecePaint>(10);
+
         private Mouse _mouse;
+        private Keyboard _keyboard;
         private CampSceneDirector _director;
         private CampBagScreenView _bag;
         private CampTooltipView _tooltip;
@@ -84,6 +88,10 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         {
             base.Setup();
             _mouse = InputSystem.AddDevice<Mouse>();
+
+            // Stage 09m: Escape is one of the gestures a colour must survive, and the screen reads it
+            // through <c>Keyboard.current</c>, so the fixture needs a device to press.
+            _keyboard = InputSystem.AddDevice<Keyboard>();
         }
 
         /// <summary>
@@ -237,6 +245,282 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 Piece(bag.Piece).Origin, Is.EqualTo(bag.Origin),
                 "the bag moved: the drag picked the bag up instead of the item under the pointer");
             Assert.That(counters.Placed, Is.GreaterThan(0), "no placement command ran, so nothing was dropped");
+        }
+
+        // ------------------------------------------------------------------
+        // Stage 09m: a piece's colour is a function of the state on screen
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Stage 09m: an item that has just been moved is drawn in its category colour, not in the
+        /// colour of the gesture that moved it.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This is the test the stage was written for, and it prints the RGBA of every image of the
+        /// piece at each step — before the grab, while the pointer is down, straight after the drop and
+        /// after the pointer has left — so the report can quote the values rather than describe them.
+        /// It fails on the old code at the fourth line: the piece was painted
+        /// <c>(0.950, 0.850, 0.300, 1.000)</c> (the selection colour) instead of its own
+        /// <c>(0.620, 0.460, 0.240, 0.950)</c>, and stayed that way until the pointer happened to move
+        /// over a different piece.
+        /// </para>
+        /// <para>
+        /// The colour is compared against the one the same piece had at load, so the test does not know
+        /// the palette: what it states is "the category colour this piece started with", which is the
+        /// stage's own wording. Mid-drag the piece has no picture at all — the ghost stands in for it.
+        /// </para>
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator An_item_keeps_its_category_colour_across_a_successful_drop()
+        {
+            yield return LoadCamp();
+
+            CampPieceModel item = FirstPieceOfKind(PieceKind.Item);
+            CampPieceModel bag = FirstPieceOfKind(PieceKind.Bag);
+            Color itemColour = DrawnColourOf(item.Piece);
+            Color bagColour = DrawnColourOf(bag.Piece);
+
+            Assert.That(
+                itemColour, Is.Not.EqualTo(bagColour),
+                "an item and a bag share a colour, so this suite could not tell the two categories apart");
+
+            CellOffset from = item.Origin;
+            CellOffset to = FarthestFreeCellCoveredByABag(from);
+            Assert.That(to.X, Is.GreaterThanOrEqualTo(0), "the fixture found no free bag cell to drag to");
+
+            // The pointer starts on the piece, as a player's does before a grab.
+            Set(_mouse.position, CellCentre(from.X, from.Y));
+            yield return null;
+            yield return null;
+            LogPaints("[09m] before the grab", item.Piece);
+            AssertSameColour(itemColour, DrawnColourOf(item.Piece), "before the grab, hovered");
+
+            yield return DragWithoutReleasing(CellCentre(from.X, from.Y), CellCentre(to.X, to.Y));
+            LogPaints("[09m] during the drag", item.Piece);
+
+            // Mid-gesture the piece keeps the category colour it had: nothing repaints it, and the
+            // ghost on the cells is what follows the pointer.
+            AssertSameColour(itemColour, DrawnColourOf(item.Piece), "while the pointer is down");
+
+            yield return ReleaseAt(CellCentre(to.X, to.Y));
+            LogPaints("[09m] after the drop", item.Piece);
+
+            Assert.That(Piece(item.Piece).Origin, Is.EqualTo(to), "the item did not move, so nothing was dropped");
+            AssertSameColour(itemColour, DrawnColourOf(item.Piece), "straight after a successful drop");
+
+            // And it stays right when the hover it was dropped under goes away.
+            Set(_mouse.position, CellCentre(_bag.BoardWidth - 1, _bag.BoardHeight - 1));
+            yield return null;
+            yield return null;
+            LogPaints("[09m] after the pointer left", item.Piece);
+            AssertSameColour(itemColour, DrawnColourOf(item.Piece), "after the pointer has left the piece");
+        }
+
+        /// <summary>
+        /// Stage 09m: a drop the rules refuse leaves the piece exactly as it was — position
+        /// <b>and</b> colour.
+        /// </summary>
+        /// <remarks>
+        /// The item is dropped on an empty board cell, which no bag covers: the run answers
+        /// <c>inventory.item_not_covered</c> and the piece goes back where it was. A refusal used to
+        /// paint the piece in the selection colour and leave it there, because the repaint the refusal
+        /// performed read a selection the view had not cleared yet.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator A_refused_drop_leaves_the_piece_in_its_category_colour()
+        {
+            yield return LoadCamp();
+
+            CampPieceModel item = FirstPieceOfKind(PieceKind.Item);
+            Color itemColour = DrawnColourOf(item.Piece);
+            CellOffset from = item.Origin;
+            var to = new CellOffset(_bag.BoardWidth - 1, _bag.BoardHeight - 1);
+
+            RunSession run = _director.Run;
+            Assert.That(run.PreviewDrop(item.Piece, BagDropZone.Board, to, Rotation.Degrees0).IsValid, Is.False,
+                "the far corner is a legal place for an item, so this test proves nothing");
+
+            yield return Drag(CellCentre(from.X, from.Y), CellCentre(to.X, to.Y));
+            LogPaints("[09m] after a refused drop", item.Piece);
+
+            Assert.That(_director.Presenter.Counters.InvalidDrops, Is.GreaterThan(0), "the drop was not refused");
+            Assert.That(Piece(item.Piece).Origin, Is.EqualTo(from), "a refused drop moved the piece anyway");
+            AssertSameColour(itemColour, DrawnColourOf(item.Piece), "after a refused drop");
+        }
+
+        /// <summary>
+        /// Stage 09m: Escape ends the gesture, so the piece the gesture had selected goes back to its
+        /// category colour without waiting for the pointer to move.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Escape_puts_the_dragged_piece_back_in_its_category_colour()
+        {
+            yield return LoadCamp();
+
+            CampPieceModel item = FirstPieceOfKind(PieceKind.Item);
+            Color itemColour = DrawnColourOf(item.Piece);
+            CellOffset from = item.Origin;
+            CellOffset to = FarthestFreeCellCoveredByABag(from);
+
+            yield return DragWithoutReleasing(CellCentre(from.X, from.Y), CellCentre(to.X, to.Y));
+            Assert.That(_director.Presenter.IsDragging, Is.True, "the press never started a drag");
+
+            yield return PressKey(_keyboard.escapeKey);
+            yield return WaitUntil(() => !_director.Presenter.IsDragging, "Escape did not end the drag");
+
+            LogPaints("[09m] after Escape", item.Piece);
+
+            Assert.That(_director.Presenter.Counters.DragCancels, Is.EqualTo(1), "the cancel was not counted");
+            Assert.That(Piece(item.Piece).Origin, Is.EqualTo(from), "Escape moved the piece");
+            Assert.That(_bag.SelectedPiece, Is.EqualTo(PieceRef.None), "Escape left the piece selected");
+            AssertSameColour(itemColour, DrawnColourOf(item.Piece), "after Escape");
+        }
+
+        /// <summary>
+        /// Stage 09m: a piece carried out of the chest is drawn in its category colour once it is on
+        /// the board — the case where a piece changes container, and therefore the pool slot it is
+        /// painted in, in the middle of a gesture.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator A_piece_moved_out_of_the_chest_keeps_its_category_colour()
+        {
+            yield return LoadCamp();
+
+            RunSession run = _director.Run;
+            CampPresenter presenter = _director.Presenter;
+
+            var added = run.Backpack.AddItem("item.phra_amulet");
+            Assert.That(added.IsSuccess, Is.True, "the amulet could not be added: " + added.Error);
+
+            presenter.Refresh();
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            CampPieceModel chestPiece = Piece(added.Value);
+            Assert.That(chestPiece.IsOnBoard, Is.False, "the amulet did not start in the chest");
+
+            Color amuletColour = DrawnColourOf(chestPiece.Piece);
+            CellOffset to = FarthestFreeCellCoveredByABag(new CellOffset(0, 0));
+            Assert.That(to.X, Is.GreaterThanOrEqualTo(0), "the fixture found no free bag cell to drop on");
+
+            Assert.That(
+                _bag.TryGetChestSlotScreenPoint(chestPiece.ChestSlot, out Vector2 chestPoint), Is.True,
+                "the chest slot the amulet sits in is not on screen");
+
+            yield return Drag(chestPoint, CellCentre(to.X, to.Y));
+            LogPaints("[09m] after chest -> board", chestPiece.Piece);
+
+            CampPieceModel landed = Piece(chestPiece.Piece);
+            Assert.That(landed.IsOnBoard, Is.True, "the amulet did not leave the chest");
+            Assert.That(landed.Origin, Is.EqualTo(to), "the amulet did not land on the cell it was dropped on");
+            AssertSameColour(amuletColour, DrawnColourOf(chestPiece.Piece), "after a move out of the chest");
+        }
+
+        /// <summary>
+        /// Stage 09m: an item moved from one bag to another is drawn in its category colour, so a
+        /// piece that was standing on a green bag is not left wearing the bag's colour.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator A_piece_moved_across_two_bags_keeps_its_category_colour()
+        {
+            yield return LoadCampWithATomeAndAWeapon(withTheLBasket: false);
+
+            CampPieceModel weapon = Piece(_weapon);
+            Color weaponColour = DrawnColourOf(_weapon);
+            Color bagColour = DrawnColourOf(_clothBag);
+
+            Assert.That(weaponColour, Is.Not.EqualTo(bagColour), "the weapon is painted in the bag's colour");
+
+            // (3,1) is on the second bag; (0,2) is on the first, so this really is bag -> bag.
+            var from = weapon.Origin;
+            var to = new CellOffset(0, 2);
+
+            Assert.That(
+                _director.Run.PreviewDrop(_weapon, BagDropZone.Board, to, Rotation.Degrees0).IsValid, Is.True,
+                "(0,2) is not a legal place for the weapon, so this gesture would prove nothing");
+
+            yield return Drag(CellCentre(from.X, from.Y), CellCentre(to.X, to.Y));
+            LogPaints("[09m] after bag -> bag", _weapon);
+
+            Assert.That(Piece(_weapon).Origin, Is.EqualTo(to), "the weapon did not move across the bags");
+            AssertSameColour(weaponColour, DrawnColourOf(_weapon), "after a move across two bags");
+        }
+
+        /// <summary>
+        /// The colour of the image a piece is actually drawn with right now, asserted to be drawn.
+        /// </summary>
+        private Color DrawnColourOf(PieceRef piece)
+        {
+            int count = _bag.GetPiecePaints(piece, _paints);
+
+            for (int i = 0; i < count; i++)
+            {
+                if (_paints[i].Enabled)
+                {
+                    return _paints[i].Color;
+                }
+            }
+
+            Assert.Fail("the piece " + piece + " has no image drawn: " + LogPaints("[09m] ", piece));
+            return default;
+        }
+
+        private static void AssertSameColour(Color expected, Color actual, string when)
+        {
+            string detail = when + ": expected " + expected + " but the piece reads " + actual;
+
+            Assert.That(actual.r, Is.EqualTo(expected.r).Within(0.001f), detail);
+            Assert.That(actual.g, Is.EqualTo(expected.g).Within(0.001f), detail);
+            Assert.That(actual.b, Is.EqualTo(expected.b).Within(0.001f), detail);
+            Assert.That(actual.a, Is.EqualTo(expected.a).Within(0.001f), detail);
+        }
+
+        /// <summary>Prints every image of a piece, with the colour it holds right now.</summary>
+        private string LogPaints(string label, PieceRef piece)
+        {
+            var line = new System.Text.StringBuilder(label);
+            line.Append(" ").Append(piece).Append(": ");
+
+            int count = _bag.GetPiecePaints(piece, _paints);
+
+            if (count == 0)
+            {
+                line.Append("(not drawn)");
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                if (i > 0)
+                {
+                    line.Append(" | ");
+                }
+
+                line.Append(_paints[i]);
+            }
+
+            Debug.Log(line.ToString());
+            return line.ToString();
+        }
+
+        /// <summary>Presses one key for a frame, which is what the screen's own key handling sees.</summary>
+        private IEnumerator PressKey(KeyControl key)
+        {
+            Press(key);
+            yield return null;
+            Release(key);
+            yield return null;
+        }
+
+        /// <summary>Advances frames until <paramref name="condition"/> holds, then asserts it.</summary>
+        private IEnumerator WaitUntil(System.Func<bool> condition, string what, int frames = 12)
+        {
+            for (int i = 0; i < frames && !condition(); i++)
+            {
+                yield return null;
+            }
+
+            Assert.That(condition(), Is.True, what);
         }
 
         /// <summary>

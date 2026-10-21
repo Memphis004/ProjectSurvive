@@ -296,6 +296,42 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>The currently selected piece (for click-to-move).</summary>
         public PieceRef SelectedPiece => _selectedPiece;
 
+        /// <summary>
+        /// The colour a piece is painted with, decided from the panel's state <b>as it is at this
+        /// render</b> (Stage 09m).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// One function for the whole picture: the click-to-move selection, otherwise the piece's own
+        /// category. Nothing here is remembered from an earlier render, so a piece that stops being
+        /// selected — or one whose image was pooled by another piece a frame ago — is always the
+        /// colour its state says, and a repaint is all it takes to get back to the category colour.
+        /// </para>
+        /// <para>
+        /// The colour of a <i>hovered</i> piece is not its own: a hover paints the board cells the
+        /// combo reaches (<see cref="PaintHighlight"/>) and the tooltip, and leaves the piece's
+        /// rectangle alone — which is why a hover can never leave a tint on a piece.
+        /// </para>
+        /// </remarks>
+        public Color PaintFor(CampPieceModel piece) =>
+            _selectedPiece == piece.Piece
+                ? _selectedPieceColor
+                : (piece.IsBag ? _bagPiece : _itemPiece);
+
+        /// <summary>
+        /// Ends the click-to-move selection, <b>before</b> the command that follows publishes the
+        /// board (Stage 09m).
+        /// </summary>
+        /// <remarks>
+        /// The order is the fix. A drop, a cancel or a click-to-place publishes the bag from inside
+        /// the command, and <see cref="RenderBag"/> paints every piece from the selection it finds at
+        /// that moment. Clearing the selection afterwards left the piece that was moved painted in
+        /// the selection colour with no gesture left to explain it — measured, after a released drag:
+        /// <c>(0.950, 0.850, 0.300, 1.000)</c> instead of the item's <c>(0.620, 0.460, 0.240, 0.950)</c>,
+        /// held until the pointer happened to move over a different piece.
+        /// </remarks>
+        private void ClearSelection() => _selectedPiece = PieceRef.None;
+
         /// <summary>The bag screen's current model, or null before <see cref="Bind"/>.</summary>
         public CampBagScreen Model { get; private set; }
 
@@ -534,6 +570,36 @@ namespace ProjectSurvive.Game.Presentation.Camp
             return 0;
         }
 
+        /// <summary>
+        /// Every image a piece is painted with, in the state it is in right now (Stage 09m).
+        /// </summary>
+        /// <remarks>
+        /// The stage's question is "which images of this piece hold a colour, and which of them was
+        /// set by the last render?" — answered from the graphics themselves. A piece that is being
+        /// dragged has no view of its own (the ghost stands in for it), so this returns 0 for it.
+        /// </remarks>
+        public int GetPiecePaints(PieceRef piece, List<CampPiecePaint> into)
+        {
+            if (into == null)
+            {
+                return 0;
+            }
+
+            into.Clear();
+
+            for (int i = 0; i < _painted.Count; i++)
+            {
+                if (_painted[i].Piece != piece || i >= _pieceViews.Count)
+                {
+                    continue;
+                }
+
+                return _pieceViews[i].CollectPaints(into);
+            }
+
+            return 0;
+        }
+
         /// <summary>Resolves the screen's services and starts rendering. Public and idempotent.</summary>
         public void Bind()
         {
@@ -570,6 +636,14 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>Shows or hides the whole จัดย่าม panel.</summary>
         public void ShowPanel(bool visible)
         {
+            // A closed panel is not a selected board: the gesture that selected a piece ended when the
+            // panel went away, and the repaint below the close reports it (Stage 09m). The clear comes
+            // first for the same reason it does at the end of a drag — the repaint reads it.
+            if (!visible)
+            {
+                ClearSelection();
+            }
+
             if (_panelRoot != null)
             {
                 _panelRoot.SetActive(visible);
@@ -601,7 +675,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 _presenter.CancelMergeChooser();
             }
 
-            _selectedPiece = PieceRef.None;
+            // Opened again, the board is repainted from the model the run holds now: nothing that was
+            // on the graphics before the panel was hidden survives the visit (Stage 09m).
+            if (visible && Model != null)
+            {
+                RenderBag(Model);
+            }
         }
 
         /// <summary>Opens the panel when it is closed and closes it when it is open.</summary>
@@ -873,14 +952,16 @@ namespace ProjectSurvive.Game.Presentation.Camp
         {
             _pointerDown = false;
 
+            // Whatever the drop answers, the gesture leaves nothing behind: no ghost, no highlight
+            // (the bag repaint clears it) and no selection. The selection is cleared first because
+            // the drop repaints the board from inside the call (Stage 09m).
+            ClearSelection();
+
             if (_presenter != null && _presenter.IsDragging)
             {
                 _presenter.Drop();
             }
 
-            // Whatever the drop answered, the gesture leaves nothing behind: no ghost, no highlight
-            // (the bag repaint clears it) and no selection.
-            _selectedPiece = PieceRef.None;
             HideGhost();
         }
 
@@ -962,11 +1043,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 }
                 else
                 {
-                    // Destination clicked: perform move / merge / transfer / recycle
-                    _presenter.DragStart(_selectedPiece, RotationFor(_selectedPiece));
+                    // Destination clicked: perform move / merge / transfer / recycle. The selection
+                    // is cleared before the drop repaints the board (Stage 09m).
+                    PieceRef moving = _selectedPiece;
+                    ClearSelection();
+                    _presenter.DragStart(moving, RotationFor(moving));
                     _presenter.DragMove(zone, cell);
                     _presenter.Drop();
-                    _selectedPiece = PieceRef.None;
                     _presenter.SelectOnly(PieceRef.None);
                 }
             }
@@ -1037,8 +1120,11 @@ namespace ProjectSurvive.Game.Presentation.Camp
             if (_pointerDown && !held)
             {
                 _pointerDown = false;
+
+                // Same order as <see cref="OnEndDrag"/>: the selection is gone before the command
+                // repaints the board (Stage 09m).
+                ClearSelection();
                 _presenter.Drop();
-                _selectedPiece = PieceRef.None;
                 HideGhost();
             }
         }
@@ -1085,6 +1171,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
             {
                 if (_presenter.IsDragging)
                 {
+                    // Escape ends the gesture, so it also ends the selection that gesture made: the
+                    // cancel repaints the board from inside the call (Stage 09m).
+                    ClearSelection();
                     _presenter.CancelDrag();
                     HideGhost();
                 }
@@ -2903,6 +2992,41 @@ namespace ProjectSurvive.Game.Presentation.Camp
             /// <summary>How many cells this piece's picture is made of (1 for a box — the common case).</summary>
             public int DrawnCellCount => _drawnCells;
 
+            /// <summary>
+            /// Reads back the colour of every image this piece is painted with (Stage 09m).
+            /// </summary>
+            /// <remarks>
+            /// The single box is <see cref="_image"/>; a footprint with a hole is one square per
+            /// covered cell. Both are reported, whether or not they are drawn, so a square left over
+            /// from a previous piece is visible as a value rather than as a guess.
+            /// </remarks>
+            public int CollectPaints(List<CampPiecePaint> into)
+            {
+                int before = into.Count;
+
+                if (_image != null)
+                {
+                    into.Add(new CampPiecePaint(_image.name, _image.color, _image.enabled));
+                }
+
+                if (_shapeCells != null)
+                {
+                    for (int i = 0; i < _shapeCells.Length; i++)
+                    {
+                        Image cell = _shapeCells[i];
+
+                        if (cell == null)
+                        {
+                            continue;
+                        }
+
+                        into.Add(new CampPiecePaint(cell.name, cell.color, cell.gameObject.activeSelf));
+                    }
+                }
+
+                return into.Count - before;
+            }
+
             public void Show(CampPieceModel piece, CampBagScreenView owner)
             {
                 _rect.gameObject.SetActive(true);
@@ -2930,11 +3054,10 @@ namespace ProjectSurvive.Game.Presentation.Camp
                     _rect.sizeDelta = new Vector2(owner._chestCellSize, owner._chestCellSize);
                 }
 
-                Color colour = owner.SelectedPiece == piece.Piece
-                    ? owner._selectedPieceColor
-                    : (piece.IsBag ? owner._bagPiece : owner._itemPiece);
-
-                PaintShape(piece, owner, colour);
+                // The colour is asked for on every paint, from the state the panel is in now — it
+                // is never carried over on the image from the piece this one replaced in the pool
+                // (Stage 09m).
+                PaintShape(piece, owner, owner.PaintFor(piece));
 
                 AttachLabelBox(owner, piece.IsOnBoard, LabelWidthFor(piece, owner));
                 _label.text = piece.Label;

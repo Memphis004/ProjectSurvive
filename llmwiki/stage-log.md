@@ -412,3 +412,15 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   (`raycastTarget`), fixed in the camp builder — [report](../docs/stages/12-report.md).
 - **Next:** 13 (content complete and UX: 14 items, 5 floors, tutorial, audio) — or a real
   crash-during-flush test for the `.bak` path.
+
+## Stage 09m — a piece's colour after a move (bug fix)
+
+- **Did:** measured the จัดย่าม piece colours with a real pointer drag (PlayMode) and found the cause in
+  `CampBagScreenView`: the drop repaints the board from inside the call while `_selectedPiece` still names
+  the piece, so the moved piece was painted `(0.950, 0.850, 0.300, 1.000)` (selection) instead of its
+  category colour. One function now decides a piece's colour at paint time and the selection is cleared
+  *before* every command that publishes the board (drop, Escape, click-to-place, closing the panel).
+- **Result:** five new PlayMode colour cases, `CampBagDragPlayModeTests` **25/25** (and the first one fails
+  on the old order, with the old colour in the message); Fast suite PASS (dotnet **591**, EditMode
+  **172/172**); 1920x1080 before/after shots in `artifacts/ui/stage09m-*` — [report](../docs/stages/09m-report.md).
+- **Next:** 13 (content complete and UX) — or give the L bag's drag ghost its real shape, still open from 09l.

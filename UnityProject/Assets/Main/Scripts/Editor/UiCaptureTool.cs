@@ -3787,6 +3787,598 @@ namespace ProjectSurvive.Game.Editor
             }
         }
 
+        /// <summary>
+        /// Stage 09m's evidence: one 1920x1080 shot of the same item before and after a move, with the
+        /// colour of every image of that piece written into the report and the pixel under its middle
+        /// read back from the PNG.
+        /// </summary>
+        /// <remarks>
+        /// Play Mode because the board is built at runtime, and the move is a <b>click-to-move through
+        /// the view's own handlers</b>: the piece is repainted by the command exactly as it is in the
+        /// game. Calling the presenter would skip the view state this stage is about — the selection
+        /// the panel keeps while a gesture is in flight.
+        /// </remarks>
+        [MenuItem(
+            "ProjectSurvive/Tools/6. Capture a moved piece's colour in Play Mode (Camp)", priority = 135)]
+        private static void CapturePieceColourFromMenu() => PieceColourCaptureRun.Start();
+
+        private sealed class PieceColourCaptureRun
+        {
+            private const int FrameBudget = 1200;
+            private const int SettleFrames = 2;
+
+            /// <summary>Session marker for "a capture is waiting for Play Mode" (see Stage 09i's run).</summary>
+            private const string PendingKey = "ProjectSurvive.PieceColourCapture.Pending";
+
+            private static PieceColourCaptureRun sRunning;
+
+            private readonly CaptureReport _report = new CaptureReport();
+            private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+            private readonly string _startedIn = SceneManager.GetActiveScene().path;
+            private readonly List<CampPiecePaint> _paints = new List<CampPiecePaint>(10);
+
+            private Step _step = Step.Prepare;
+            private int _frames;
+            private int _waited;
+
+            private CampSceneDirector _director;
+            private CampBagScreenView _bag;
+            private PieceRef _item;
+            private CellOffset _from;
+            private CellOffset _to;
+            private Rect _pieceRect;
+            private string _pendingSlug;
+            private string _pendingState;
+            private Rect _pendingRect;
+
+            private enum Step
+            {
+                Prepare,
+                StartCamp,
+                OpenPanel,
+                SettleBefore,
+                ShootBefore,
+                MoveTheItem,
+                Settle,
+                ShootAfter,
+                Done,
+                Closed,
+            }
+
+            internal static void Start()
+            {
+                if (EditorApplication.isPlaying)
+                {
+                    Debug.LogWarning(
+                        "[ProjectSurvive] the piece-colour capture starts from edit mode: leave play "
+                        + "mode, then run the menu item again.");
+                    return;
+                }
+
+                // A run left behind by an interrupted session (a stopped Play Mode, a reload in the
+                // middle of a step) would otherwise make every later run refuse to start. The menu
+                // item is the player's instruction: it replaces whatever was still ticking.
+                if (sRunning != null)
+                {
+                    Debug.LogWarning("[ProjectSurvive] the piece-colour capture was still running; restarting it.");
+                    EditorApplication.update -= sRunning.Tick;
+                    sRunning = null;
+                }
+
+                sRunning = new PieceColourCaptureRun(Step.Prepare);
+                SessionState.SetBool(PendingKey, true);
+                EditorApplication.update += sRunning.Tick;
+            }
+
+            private PieceColourCaptureRun(Step start)
+            {
+                _step = start;
+            }
+
+            /// <summary>Picks the run back up after the domain reload that entering Play Mode causes.</summary>
+            /// <remarks>
+            /// Which step it resumes at depends on what the reload was: a reload caused by entering Play
+            /// Mode leaves the scene already playing, so the camp is started from there; any other reload
+            /// (a script change, a stopped session) has to open the scene and enter Play Mode again, or
+            /// the run would wait in <c>StartCamp</c> for a Play Mode nobody started.
+            /// </remarks>
+            [InitializeOnLoadMethod]
+            private static void ResumeAfterReload()
+            {
+                if (!SessionState.GetBool(PendingKey, false) || sRunning != null)
+                {
+                    return;
+                }
+
+                sRunning = new PieceColourCaptureRun(
+                    EditorApplication.isPlaying ? Step.StartCamp : Step.Prepare);
+                EditorApplication.update += sRunning.Tick;
+            }
+
+            private void Tick()
+            {
+                _frames++;
+                _waited++;
+
+                if (_frames > FrameBudget)
+                {
+                    Fail("the run did not finish within " + FrameBudget + " frames");
+                    Finish();
+                }
+
+                try
+                {
+                    switch (_step)
+                    {
+                        case Step.Prepare:
+                            if (!EnsureOpen(CampScenePath, _report))
+                            {
+                                _report.Notes.Add("the camp scene could not be opened, so nothing was shot");
+                                Finish();
+                                return;
+                            }
+
+                            EditorApplication.isPlaying = true;
+                            Advance(Step.StartCamp);
+                            return;
+
+                        case Step.StartCamp:
+                        {
+                            if (!EditorApplication.isPlaying || EditorApplication.isCompiling)
+                            {
+                                return;
+                            }
+
+                            if (SceneManager.GetActiveScene().name != CampSceneName)
+                            {
+                                return;
+                            }
+
+                            _director = Object.FindFirstObjectByType<CampSceneDirector>();
+                            if (_director == null)
+                            {
+                                return;
+                            }
+
+                            if (!_director.TryStart())
+                            {
+                                Fail("the camp did not start: " + _director.StartError);
+                                Finish();
+                                return;
+                            }
+
+                            Advance(Step.OpenPanel);
+                            return;
+                        }
+
+                        case Step.OpenPanel:
+                        {
+                            _bag = Object.FindFirstObjectByType<CampBagScreenView>(FindObjectsInactive.Include);
+                            if (_bag == null)
+                            {
+                                Fail("the Camp scene has no CampBagScreenView");
+                                Finish();
+                                return;
+                            }
+
+                            _bag.ShowPanel(true);
+                            Canvas.ForceUpdateCanvases();
+
+                            if (!BuildState())
+                            {
+                                Finish();
+                                return;
+                            }
+
+                            Advance(Step.SettleBefore);
+                            return;
+                        }
+
+                        case Step.SettleBefore:
+                            // The panel's canvas is rebuilt at the end of the frame it was shown on:
+                            // shot before that and the image is the sala with no panel on it — the
+                            // defect Stage 09l recorded for this tool, and this is what causes it.
+                            if (_waited < SettleFrames + 2)
+                            {
+                                return;
+                            }
+
+                            Advance(Step.ShootBefore);
+                            return;
+
+                        case Step.ShootBefore:
+                            Shoot("stage09m-before", "before the move");
+                            Advance(Step.MoveTheItem);
+                            return;
+
+                        case Step.MoveTheItem:
+                            MoveTheItemThroughTheView();
+                            Advance(Step.Settle);
+                            return;
+
+                        case Step.Settle:
+                            if (_waited < SettleFrames)
+                            {
+                                return;
+                            }
+
+                            Advance(Step.ShootAfter);
+                            return;
+
+                        case Step.ShootAfter:
+                            Shoot("stage09m-after", "after the move");
+                            Advance(Step.Done);
+                            return;
+
+                        case Step.Done:
+                            if (_waited < SettleFrames)
+                            {
+                                return;
+                            }
+
+                            // The evidence is written and logged while Play Mode is still running:
+                            // leaving it reloads the script domain, which would drop this run before
+                            // it could report (the trap Stage 09i's run documents).
+                            Complete();
+                            Advance(Step.Closed);
+                            return;
+
+                        case Step.Closed:
+                            if (EditorApplication.isPlaying)
+                            {
+                                return;
+                            }
+
+                            RestoreScene(_startedIn, _report);
+                            EditorApplication.update -= Tick;
+                            sRunning = null;
+                            return;
+
+                        default:
+                            return;
+                    }
+                }
+                catch (Exception error)
+                {
+                    Fail(error.GetType().Name + ": " + error.Message);
+                    Finish();
+                }
+            }
+
+            private void Advance(Step next)
+            {
+                _step = next;
+                _waited = 0;
+            }
+
+            private void Finish()
+            {
+                EditorApplication.isPlaying = false;
+                _step = Step.Done;
+                _waited = 0;
+            }
+
+            private void Fail(string reason) => _report.Failures.Add("piece colour: " + reason);
+
+            /// <summary>
+            /// One 3x3 รยาม at (0,0) with the starting weapon on it, and a destination far enough away
+            /// that the move is a real one.
+            /// </summary>
+            private bool BuildState()
+            {
+                RunSession run = _director.Run;
+                if (run == null || run.Backpack.Bags.Count == 0 || run.Backpack.Items.Count == 0)
+                {
+                    Fail("the starting kit is empty, so there is nothing to move");
+                    return false;
+                }
+
+                PieceRef bag = run.Backpack.Bags[0].Ref;
+                var placed = run.MovePiece(bag, new CellOffset(0, 0), Rotation.Degrees0);
+                if (placed.IsFailure)
+                {
+                    Fail("the starting รยาม could not be moved to (0,0): " + placed.Error.Code);
+                    return false;
+                }
+
+                _director.Presenter.Refresh();
+                _bag.ShowPanel(true);
+                Canvas.ForceUpdateCanvases();
+
+                _item = run.Backpack.Items[0].Ref;
+
+                CampPieceModel? model = ModelOf(_item);
+                if (model == null)
+                {
+                    Fail("the screen does not hold the starting weapon");
+                    return false;
+                }
+
+                _from = model.Value.Origin;
+                _to = FarBagCell(model.Value);
+
+                if (_to.X < 0)
+                {
+                    Fail("no free รยาม cell to move the weapon to");
+                    return false;
+                }
+
+                _report.Notes.Add(
+                    "the weapon at " + _from + " is moved to " + _to + " with a drag through the "
+                    + "view's own handlers (press, move, release)");
+                return true;
+            }
+
+            /// <summary>The furthest board cell a bag covers that holds no item, or (-1,-1).</summary>
+            private CellOffset FarBagCell(CampPieceModel item)
+            {
+                CampPieceModel[] pieces = _bag.Pieces;
+                var best = new CellOffset(-1, -1);
+                float bestDistance = -1f;
+
+                for (int row = 0; row < _bag.BoardHeight; row++)
+                {
+                    for (int column = 0; column < _bag.BoardWidth; column++)
+                    {
+                        var cell = new CellOffset(column, row);
+                        bool covered = false;
+                        bool taken = false;
+
+                        for (int i = 0; i < pieces.Length; i++)
+                        {
+                            if (pieces[i].Shape == null || !pieces[i].IsOnBoard)
+                            {
+                                continue;
+                            }
+
+                            bool contains = pieces[i].Shape.Contains(
+                                new CellOffset(cell.X - pieces[i].Origin.X, cell.Y - pieces[i].Origin.Y));
+
+                            covered |= pieces[i].IsBag && contains;
+                            taken |= pieces[i].Kind == PieceKind.Item && contains;
+                        }
+
+                        if (!covered || taken)
+                        {
+                            continue;
+                        }
+
+                        float distance = Vector2.Distance(
+                            new Vector2(item.Origin.X, item.Origin.Y), new Vector2(column, row));
+
+                        if (distance > bestDistance)
+                        {
+                            bestDistance = distance;
+                            best = cell;
+                        }
+                    }
+                }
+
+                return best;
+            }
+
+            private CampPieceModel? ModelOf(PieceRef piece)
+            {
+                CampPieceModel[] pieces = _bag.Pieces;
+                for (int i = 0; i < pieces.Length; i++)
+                {
+                    if (pieces[i].Piece == piece)
+                    {
+                        return pieces[i];
+                    }
+                }
+
+                return null;
+            }
+
+            /// <summary>
+            /// The gesture a player makes with the mouse: press on the piece, move across the board,
+            /// release — handed to the very handlers the EventSystem calls.
+            /// </summary>
+            /// <remarks>
+            /// A drag and not a click-to-move, on purpose: the click path repaints the board once more
+            /// after its command, so it is the drag's release that shows what the panel holds after a
+            /// move — and that is the state the stage reports on.
+            /// </remarks>
+            private void MoveTheItemThroughTheView()
+            {
+                var pointer = new UnityEngine.EventSystems.PointerEventData(
+                    UnityEngine.EventSystems.EventSystem.current)
+                {
+                    button = UnityEngine.EventSystems.PointerEventData.InputButton.Left,
+                };
+
+                if (!_bag.TryGetBoardCellScreenPoint(_from.X, _from.Y, out Vector2 press))
+                {
+                    Fail("the item's own cell is not on screen");
+                    return;
+                }
+
+                if (!_bag.TryGetBoardCellScreenPoint(_to.X, _to.Y, out Vector2 drop))
+                {
+                    Fail("the destination cell is not on screen");
+                    return;
+                }
+
+                pointer.pressPosition = press;
+                pointer.position = press;
+                _bag.OnPointerDown(pointer);
+                _bag.OnBeginDrag(pointer);
+
+                if (!_director.Presenter.IsDragging)
+                {
+                    Fail("pressing the item did not start a drag");
+                    return;
+                }
+
+                pointer.position = Vector2.Lerp(press, drop, 0.5f);
+                _bag.OnDrag(pointer);
+
+                pointer.position = drop;
+                _bag.OnDrag(pointer);
+                _bag.OnEndDrag(pointer);
+
+                CampPieceModel? moved = ModelOf(_item);
+                if (moved == null || moved.Value.Origin != _to)
+                {
+                    Fail("the drag did not place the item at " + _to + ": " + _director.Presenter.StatusCode);
+                }
+            }
+
+            /// <summary>
+            /// One 1920x1080 shot of what the player sees, with the colour of every image of the piece
+            /// written beside it.
+            /// </summary>
+            /// <remarks>
+            /// A Game View capture, not the off-screen render <see cref="Capture"/> performs: measured, that
+            /// path loses the whole จัดย่าม panel in Play Mode (the image comes back identical to Stage 09l's
+            /// panel-less shot), because the panel's canvas is not a root overlay canvas once the shell
+            /// scope persists across scenes. Capturing the game view is the picture the player gets, and
+            /// the numbers come from the images themselves rather than from the pixels.
+            /// </remarks>
+            private void Shoot(string slug, string state)
+            {
+                FlushReadBack();
+
+                Camera camera = Camera.main;
+                if (camera == null)
+                {
+                    Fail("the Camp scene has no MainCamera");
+                    return;
+                }
+
+                DescribeThePiece(state);
+
+                _pendingSlug = slug;
+                _pendingState = state;
+                _pendingRect = _pieceRect;
+
+                ScreenCapture.CaptureScreenshot(Path.Combine(OutputDirectory, slug + "-1920x1080.png"));
+            }
+
+            /// <summary>Reads the previous shot back once its file is on disk, and says what size it is.</summary>
+            private void FlushReadBack()
+            {
+                if (_pendingSlug == null)
+                {
+                    return;
+                }
+
+                string path = Path.Combine(OutputDirectory, _pendingSlug + "-1920x1080.png");
+                if (!File.Exists(path))
+                {
+                    return;
+                }
+
+                ReadBackThePixel(path, _pendingState, _pendingRect);
+                _pendingSlug = null;
+            }
+
+            /// <summary>The piece's own numbers: what colour each of its images holds at this instant.</summary>
+            /// <remarks>
+            /// The rectangle is read the way the screen's own hit test reads it — with the canvas left in
+            /// <c>Screen Space - Overlay</c>, where a screen point is a game-view pixel. Passing the camera
+            /// here (as the off-screen renderer needs) answers in that camera's units and lands thousands
+            /// of pixels away, which is what the first run of this capture measured.
+            /// </remarks>
+            private void DescribeThePiece(string state)
+            {
+                if (!_bag.TryGetPieceScreenRect(_item, out Rect rect))
+                {
+                    Fail(state + ": the item is not drawn, so its colour cannot be read");
+                    return;
+                }
+
+                _pieceRect = rect;
+
+                int count = _bag.GetPiecePaints(_item, _paints);
+                var story = new StringBuilder();
+
+                for (int i = 0; i < count; i++)
+                {
+                    if (i > 0)
+                    {
+                        story.Append(" | ");
+                    }
+
+                    story.Append(_paints[i]);
+                }
+
+                _report.Notes.Add(state + ": " + Describe(rect) + " — " + story);
+            }
+
+            /// <summary>
+            /// What the picture actually holds at the middle of the piece — the half a colour value
+            /// cannot prove, because a piece can be painted correctly under something else.
+            /// </summary>
+            private void ReadBackThePixel(string path, string state, Rect pieceRect)
+            {
+                var image = new Texture2D(2, 2);
+                try
+                {
+                    image.LoadImage(File.ReadAllBytes(path));
+
+                    _report.Notes.Add(
+                        state + ": the shot is " + image.width + "x" + image.height + " px");
+
+                    // Ten pixels below the piece's top edge, in its middle: inside the piece's own
+                    // rectangle but clear of the name, which is centred — a sample on a glyph would
+                    // describe the font, not the piece.
+                    var sample = new Vector2(pieceRect.center.x, pieceRect.yMax - 10f);
+
+                    int x = Mathf.Clamp(Mathf.RoundToInt(sample.x), 0, image.width - 1);
+                    int y = Mathf.Clamp(Mathf.RoundToInt(sample.y), 0, image.height - 1);
+                    Color pixel = image.GetPixel(x, y);
+
+                    _report.Notes.Add(
+                        state + ": the pixel inside the piece " + Describe(sample)
+                        + " (10 px below its top edge) is RGBA(" + pixel.r.ToString("F3", CultureInfo.InvariantCulture)
+                        + ", " + pixel.g.ToString("F3", CultureInfo.InvariantCulture)
+                        + ", " + pixel.b.ToString("F3", CultureInfo.InvariantCulture)
+                        + ", " + pixel.a.ToString("F3", CultureInfo.InvariantCulture) + ")");
+                }
+                finally
+                {
+                    Object.DestroyImmediate(image);
+                }
+            }
+
+            private static string Describe(Vector2 point) =>
+                "(" + point.x.ToString("0.#", CultureInfo.InvariantCulture) + ","
+                + point.y.ToString("0.#", CultureInfo.InvariantCulture) + ")";
+
+            private static string Describe(Rect rect) =>
+                Describe(new Vector2(rect.x, rect.y)) + " "
+                + rect.width.ToString("0.#", CultureInfo.InvariantCulture) + "x"
+                + rect.height.ToString("0.#", CultureInfo.InvariantCulture);
+
+            private void Complete()
+            {
+                FlushReadBack();
+
+                SessionState.EraseBool(PendingKey);
+
+                WriteReports(
+                    _report, _clock.ElapsedMilliseconds, "-piece-colour",
+                    "`ProjectSurvive/Tools/6. Capture a moved piece's colour in Play Mode (Camp)`",
+                    "one item's colour before and after a move, in Play Mode (Stage 09m)");
+
+                // Every note is also a log line: a run whose Play Mode exit reloads the domain still
+                // leaves the numbers in the console, and a failing run leaves them there too.
+                for (int i = 0; i < _report.Notes.Count; i++)
+                {
+                    Debug.Log("[09m-capture] " + _report.Notes[i]);
+                }
+
+                for (int i = 0; i < _report.Failures.Count; i++)
+                {
+                    Debug.LogError("[09m-capture] " + _report.Failures[i]);
+                }
+
+                EditorApplication.isPlaying = false;
+            }
+        }
+
         private enum SceneKind
         {
             Title,
