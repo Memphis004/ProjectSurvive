@@ -116,17 +116,22 @@ namespace ProjectSurvive.Game.Editor
                 canvasRect, "SettingsButton", new Vector2(0f, -260f), new Vector2(300f, 56f), tmpFont,
                 out _, anchor: new Vector2(0.5f, 0.5f));
 
-            // Stage 12 settings overlay: built as one panel with three rows (volume, language,
-            // starting speed) and a close control. It is inactive until the settings button is
-            // pressed, so the title screen still shows one obvious action on arrival.
-            // 600 px tall, not 520: the nine controls need the extra 80 px, because a close control
-            // that clears the speed row while staying inside the panel did not fit in 520. At the
-            // 1280×720 size this is 400 px, still 160 px clear of each canvas edge.
+            // Stage 12 settings overlay: one panel with five rows (master, music, effects,
+            // language, starting speed) and a close control. It is inactive until the settings
+            // button is pressed, so the title screen still shows one obvious action on arrival.
+            //
+            // 820 px tall, not 600: Stage 13c-2a added the two bus rows, and every row is a
+            // 48 px caption above a 50-56 px control. At the 1080 reference height the panel is
+            // 76 % of the screen; at 960×600 the canvas is scaled by half, so it is 410 px — still
+            // clear of each edge, and the panel is ten px inside itself top and bottom.
             RectTransform panelRect = ProjectSetup.CreateUiRect(
                 canvasRect, "SettingsPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(760f, 600f));
+                Vector2.zero, new Vector2(760f, 820f));
             var panelImage = panelRect.gameObject.AddComponent<Image>();
-            panelImage.color = new Color(0.08f, 0.09f, 0.12f, 0.96f);
+            // Fully opaque, not 0.96: the panel covers the title label and the start control, and at
+            // 0.96 the white title showed through it as a grey ghost (measured in the browser capture,
+            // Stage 13c-2a). A modal surface in front of text is not a place for partial alpha.
+            panelImage.color = new Color(0.08f, 0.09f, 0.12f, 1f);
 
             // The labels sit 20 px inside each edge rather than sharing the panel's exact width:
             // a full-width box puts its left edge on the panel's own boundary, where a sub-pixel
@@ -145,25 +150,46 @@ namespace ProjectSurvive.Game.Editor
             Button volumeUp = ProjectSetup.CreateUiButton(
                 panelRect, "VolumeUp", new Vector2(420f, -178f), new Vector2(120f, 50f), tmpFont, out _);
 
+            // Stage 13c-2a: the two buses, directly under the master. The rows are identical in
+            // shape on purpose — the same 120×50 pair at x = 180 and x = 420 — so a player learns
+            // one row and the other two look the same.
+            TMP_Text musicLabel = ProjectSetup.CreateUiText(
+                panelRect, "MusicLabel", new Vector2(20f, -252f), new Vector2(720f, 48f), 28f, tmpFont,
+                TextAlignmentOptions.Center);
+
+            Button musicDown = ProjectSetup.CreateUiButton(
+                panelRect, "MusicDown", new Vector2(180f, -318f), new Vector2(120f, 50f), tmpFont, out _);
+            Button musicUp = ProjectSetup.CreateUiButton(
+                panelRect, "MusicUp", new Vector2(420f, -318f), new Vector2(120f, 50f), tmpFont, out _);
+
+            TMP_Text sfxLabel = ProjectSetup.CreateUiText(
+                panelRect, "SfxLabel", new Vector2(20f, -388f), new Vector2(720f, 48f), 28f, tmpFont,
+                TextAlignmentOptions.Center);
+
+            Button sfxDown = ProjectSetup.CreateUiButton(
+                panelRect, "SfxDown", new Vector2(180f, -454f), new Vector2(120f, 50f), tmpFont, out _);
+            Button sfxUp = ProjectSetup.CreateUiButton(
+                panelRect, "SfxUp", new Vector2(420f, -454f), new Vector2(120f, 50f), tmpFont, out _);
+
             TMP_Text languageLabel = ProjectSetup.CreateUiText(
-                panelRect, "LanguageLabel", new Vector2(20f, -252f), new Vector2(720f, 48f), 28f, tmpFont,
+                panelRect, "LanguageLabel", new Vector2(20f, -522f), new Vector2(720f, 48f), 28f, tmpFont,
                 TextAlignmentOptions.Center);
 
             Button languageButton = ProjectSetup.CreateUiButton(
-                panelRect, "LanguageButton", new Vector2(100f, -306f), new Vector2(560f, 56f), tmpFont, out _);
+                panelRect, "LanguageButton", new Vector2(100f, -566f), new Vector2(560f, 56f), tmpFont, out _);
 
             TMP_Text speedLabel = ProjectSetup.CreateUiText(
-                panelRect, "SpeedLabel", new Vector2(20f, -378f), new Vector2(720f, 48f), 28f, tmpFont,
+                panelRect, "SpeedLabel", new Vector2(20f, -642f), new Vector2(720f, 48f), 28f, tmpFont,
                 TextAlignmentOptions.Center);
 
             Button speedButton = ProjectSetup.CreateUiButton(
-                panelRect, "SpeedButton", new Vector2(100f, -432f), new Vector2(560f, 56f), tmpFont, out _);
+                panelRect, "SpeedButton", new Vector2(100f, -686f), new Vector2(560f, 56f), tmpFont, out _);
 
-            // -540, not -496: the old value put the control's lower 26 px below the panel's own
-            // bottom edge (the capture tool measured 254..304 against a panel starting at 280).
-            // This one sits 10 px inside the 600 px panel and clears the speed row above it.
+            // -756, not -496: with five rows the old value would have put the control's lower half
+            // below the panel's own bottom edge. This one sits 14 px inside the 820 px panel and
+            // clears the speed row above it by the same margin the rows use.
             Button closeButton = ProjectSetup.CreateUiButton(
-                panelRect, "CloseButton", new Vector2(230f, -540f), new Vector2(300f, 50f), tmpFont, out _);
+                panelRect, "CloseButton", new Vector2(230f, -756f), new Vector2(300f, 50f), tmpFont, out _);
 
             panelRect.gameObject.SetActive(false);
 
@@ -172,12 +198,18 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(settingsView, "_panel", panelRect.gameObject);
             ProjectSetup.SetObjectReference(settingsView, "_titleLabel", settingsTitle);
             ProjectSetup.SetObjectReference(settingsView, "_volumeLabel", volumeLabel);
+            ProjectSetup.SetObjectReference(settingsView, "_musicLabel", musicLabel);
+            ProjectSetup.SetObjectReference(settingsView, "_sfxLabel", sfxLabel);
             ProjectSetup.SetObjectReference(settingsView, "_languageLabel", languageLabel);
             ProjectSetup.SetObjectReference(settingsView, "_speedLabel", speedLabel);
             ProjectSetup.SetObjectReference(settingsView, "_openButton", settingsButton);
             ProjectSetup.SetObjectReference(settingsView, "_closeButton", closeButton);
             ProjectSetup.SetObjectReference(settingsView, "_volumeDownButton", volumeDown);
             ProjectSetup.SetObjectReference(settingsView, "_volumeUpButton", volumeUp);
+            ProjectSetup.SetObjectReference(settingsView, "_musicDownButton", musicDown);
+            ProjectSetup.SetObjectReference(settingsView, "_musicUpButton", musicUp);
+            ProjectSetup.SetObjectReference(settingsView, "_sfxDownButton", sfxDown);
+            ProjectSetup.SetObjectReference(settingsView, "_sfxUpButton", sfxUp);
             ProjectSetup.SetObjectReference(settingsView, "_languageButton", languageButton);
             ProjectSetup.SetObjectReference(settingsView, "_speedButton", speedButton);
 

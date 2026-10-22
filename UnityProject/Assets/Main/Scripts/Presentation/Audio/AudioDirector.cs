@@ -1,4 +1,5 @@
 using System;
+using ProjectSurvive.Core.Application.Settings;
 using ProjectSurvive.Game.Presentation.Web;
 using R3;
 using UnityEngine;
@@ -45,11 +46,9 @@ namespace ProjectSurvive.Game.Presentation.Audio
         [Tooltip("Simultaneous effect voices. Placeholder sounds are short; eight is plenty.")]
         [SerializeField, Range(1, 32)] private int _voices = 8;
 
-        [Tooltip("Effects level (the master volume is AudioListener.volume, applied once).")]
-        [SerializeField, Range(0f, 1f)] private float _sfxVolume = 1f;
-
-        [Tooltip("Music level, relative to the master volume.")]
-        [SerializeField, Range(0f, 1f)] private float _musicVolume = 0.55f;
+        // The two bus levels are settings, not scene data (Stage 13c-2a): UiState carries them, the
+        // settings panel writes them, and this device only multiplies its sources by them. The
+        // master volume is AudioListener.volume and is applied once, by the settings side.
 
         [Tooltip(
             "Minimum seconds between two plays of the same cue. A floor-1 wave lands dozens of " +
@@ -64,11 +63,18 @@ namespace ProjectSurvive.Game.Presentation.Audio
 
         private AudioSource[] _voiceSources;
         private AudioSource _music;
+        private UiState _ui;
+        private IDisposable _cueSubscription;
+        private IDisposable _musicLevelSubscription;
+        private IDisposable _sfxLevelSubscription;
         private readonly int[] _counts = new int[AudioCueTable.Count];
         private readonly float[] _lastPlayTime = new float[AudioCueTable.Count];
         private AudioCue? _musicCue;
-        private UiState _ui;
-        private IDisposable _cueSubscription;
+        // Not serialised: they are settings, and a scene that carried its own copy would be a
+        // second source of truth for the mix. These defaults only cover the window before the
+        // settings state arrives (which replays its current value on subscribe).
+        private float _musicLevel = GameSettings.DefaultMusicVolume;
+        private float _sfxLevel = GameSettings.DefaultSfxVolume;
         private long _totalPlays;
         private long _stolen;
         private long _throttled;
@@ -169,13 +175,51 @@ namespace ProjectSurvive.Game.Presentation.Audio
             // scope: without it the only visible member is Subscribe(Observer<T>), which a
             // lambda cannot satisfy (Stage 13c-1).
             _cueSubscription = _ui.Cues.Subscribe(cue => Play(cue));
+
+            // A ReactiveProperty replays its current value on subscribe, so a level the settings
+            // file restored before this scene came up is applied here rather than on the first press.
+            _musicLevelSubscription = _ui.MusicVolume.Subscribe(SetMusicLevel);
+            _sfxLevelSubscription = _ui.SfxVolume.Subscribe(SetSfxLevel);
+        }
+
+        /// <summary>Applies a music bus level to the music source (0..1, relative to the master).</summary>
+        public void SetMusicLevel(float level)
+        {
+            _musicLevel = Mathf.Clamp01(level);
+
+            if (_music is not null)
+            {
+                _music.volume = _musicLevel;
+            }
+
+            _dirty = true;
+        }
+
+        /// <summary>Applies an effects bus level; voices already playing are retuned too.</summary>
+        public void SetSfxLevel(float level)
+        {
+            _sfxLevel = Mathf.Clamp01(level);
+
+            if (_voiceSources is not null)
+            {
+                for (int i = 0; i < _voiceSources.Length; i++)
+                {
+                    _voiceSources[i].volume = _sfxLevel;
+                }
+            }
+
+            _dirty = true;
         }
 
         private void OnDestroy()
         {
             SceneManager.sceneLoaded -= OnSceneLoaded;
             _cueSubscription?.Dispose();
+            _musicLevelSubscription?.Dispose();
+            _sfxLevelSubscription?.Dispose();
             _cueSubscription = null;
+            _musicLevelSubscription = null;
+            _sfxLevelSubscription = null;
             _ui = null;
 
             if (Instance == this)
@@ -246,7 +290,7 @@ namespace ProjectSurvive.Game.Presentation.Audio
 
             voice.Stop();
             voice.clip = clip;
-            voice.volume = _sfxVolume;
+            voice.volume = _sfxLevel;
             voice.loop = false;
             voice.Play();
 
@@ -284,7 +328,7 @@ namespace ProjectSurvive.Game.Presentation.Audio
             _music.Stop();
             _music.clip = clip;
             _music.loop = true;
-            _music.volume = _musicVolume;
+            _music.volume = _musicLevel;
             _music.Play();
 
             _dirty = true;
@@ -315,8 +359,8 @@ namespace ProjectSurvive.Game.Presentation.Audio
                 .Write("missingClips", _missing)
                 .Write("musicPlaying", IsMusicPlaying)
                 .Write("musicCue", _musicCue is null ? string.Empty : _musicCue.Value.ToString())
-                .Write("sfxVolume", _sfxVolume)
-                .Write("musicVolume", _musicVolume);
+                .Write("sfxVolume", _sfxLevel)
+                .Write("musicVolume", _musicLevel);
 
             writer.BeginObjectProperty("cueCounts");
             for (int i = 0; i < _counts.Length; i++)
@@ -365,7 +409,7 @@ namespace ProjectSurvive.Game.Presentation.Audio
                 source.playOnAwake = false;
                 source.loop = false;
                 source.spatialBlend = 0f;          // 2D: a placeholder cue is a UI sound.
-                source.volume = _sfxVolume;
+                source.volume = _sfxLevel;
                 _voiceSources[i] = source;
             }
 
@@ -376,7 +420,7 @@ namespace ProjectSurvive.Game.Presentation.Audio
             _music.playOnAwake = false;
             _music.loop = true;
             _music.spatialBlend = 0f;
-            _music.volume = _musicVolume;
+            _music.volume = _musicLevel;
         }
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)

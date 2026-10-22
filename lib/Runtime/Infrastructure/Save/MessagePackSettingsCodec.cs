@@ -28,6 +28,8 @@ namespace ProjectSurvive.Core.Infrastructure.Save
                 Language = (int)settings.Language,
                 DefaultSpeed = settings.DefaultBattleSpeed,
                 TutorialCompleted = settings.TutorialCompleted,
+                MusicVolume = settings.MusicVolume,
+                SfxVolume = settings.SfxVolume,
             });
         }
 
@@ -40,7 +42,8 @@ namespace ProjectSurvive.Core.Infrastructure.Save
             }
 
             SettingsDto dto = SettingsCodec.Deserialize(bytes);
-            if (dto.SchemaVersion != SettingsService.SchemaVersion)
+            if (dto.SchemaVersion != SettingsService.SchemaVersion
+                && dto.SchemaVersion != SettingsService.OldestReadableSchemaVersion)
             {
                 throw new InvalidOperationException("Unsupported settings schema: " + dto.SchemaVersion);
             }
@@ -49,6 +52,20 @@ namespace ProjectSurvive.Core.Infrastructure.Save
                 || dto.MasterVolume > GameSettings.MaxVolume)
             {
                 throw new InvalidOperationException("Settings carry an invalid volume.");
+            }
+
+            // Schema 1 has no bus keys, so its zeros mean "not written", never "muted".
+            bool hasBuses = dto.SchemaVersion >= 2;
+            float musicVolume = hasBuses ? dto.MusicVolume : GameSettings.DefaultMusicVolume;
+            float sfxVolume = hasBuses ? dto.SfxVolume : GameSettings.DefaultSfxVolume;
+
+            if (hasBuses
+                && (float.IsNaN(musicVolume) || musicVolume < GameSettings.MinVolume
+                    || musicVolume > GameSettings.MaxVolume
+                    || float.IsNaN(sfxVolume) || sfxVolume < GameSettings.MinVolume
+                    || sfxVolume > GameSettings.MaxVolume))
+            {
+                throw new InvalidOperationException("Settings carry an invalid bus volume.");
             }
 
             if (dto.DefaultSpeed != 1f && dto.DefaultSpeed != 2f)
@@ -65,6 +82,8 @@ namespace ProjectSurvive.Core.Infrastructure.Save
 
             var settings = new GameSettings();
             settings.SetVolume(dto.MasterVolume);
+            settings.SetMusicVolume(musicVolume);
+            settings.SetSfxVolume(sfxVolume);
             settings.SetLanguage(language);
             settings.SetDefaultBattleSpeed(dto.DefaultSpeed);
             settings.SetTutorialCompleted(dto.TutorialCompleted);

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { SCENE, SMOKE } from "./globals.mjs";
+import { AUDIO, PERSISTENCE, SCENE, SETTINGS, SMOKE } from "./globals.mjs";
 import { expectTextFits } from "./textfit.mjs";
 
 /**
@@ -58,6 +58,33 @@ interface CampReport {
   hp: number;
   bia: number;
   canDepart: boolean;
+}
+
+/** How long a press may take to reach the published report. */
+const COMMAND_TIMEOUT_MS = 20_000;
+
+/** `__projectSurviveSettings` (Stage 13c-2a). */
+interface SettingsReport {
+  open: boolean;
+  canvasWidth: number;
+  canvasHeight: number;
+  volume: number;
+  music: number;
+  sfx: number;
+  labels: { volume: string; music: string; sfx: string; language: string; speed: string };
+  buttons: Control[];
+}
+
+/** ``__projectSurvivePersistence`` — only the fields this spec reads. */
+interface PersistenceReport {
+  musicVolume: number;
+  sfxVolume: number;
+}
+
+/** ``__projectSurviveAudio`` — only what proves the device took the level. */
+interface AudioReport {
+  musicVolume: number;
+  sfxVolume: number;
 }
 
 interface Box {
@@ -262,6 +289,131 @@ test.describe("ProjectSurvive's title screen in the browser", () => {
     expect(camp.bia).toBeGreaterThan(0);
 
     await page.screenshot({ path: "test-results/web-title-camp.png", fullPage: false });
+
+    expect(pageErrors, `the page reported errors:\n${pageErrors.join("\n")}`).toEqual([]);
+  });
+
+  test("opens the settings panel and moves the music and effects buses", async ({ page }) => {
+    test.setTimeout(330_000);
+    const pageErrors = collectPageErrors(page);
+
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await waitForGlobal(page, SCENE);
+    await expect
+      .poll(() => readGlobal<string>(page, SCENE), { timeout: PLAYER_BOOT_TIMEOUT_MS, polling: 500 })
+      .toBe("Title");
+
+    await waitForGlobal(page, SETTINGS);
+
+    const closed = await readGlobal<SettingsReport>(page, SETTINGS);
+    console.log("settings report (closed):", JSON.stringify(closed));
+
+    // The panel is shut on arrival and only the control that opens it is pressable.
+    expect(closed.open).toBe(false);
+    expect(closed.buttons.map((button) => button.name)).toEqual(["open"]);
+    expect(closed.music).toBeGreaterThan(0);
+    expect(closed.music).toBeLessThanOrEqual(1);
+    expect(closed.sfx).toBeGreaterThan(0);
+
+    // Labelled with the localized formats the presenter fills, not with a value the view invented.
+    for (const key of ["volume", "music", "sfx"] as const) {
+      expect(closed.labels[key], `the '${key}' row has no label`).toContain("%");
+    }
+    expect(closed.labels.music).toMatch(/[\u0E00-\u0E7F]/);
+
+    const canvas = await page.locator("canvas").boundingBox();
+    expect(canvas, "the player has no canvas element").not.toBeNull();
+
+    // Report pixels are Unity screen pixels with the origin at the bottom-left; the page's are CSS
+    // pixels with the origin at the top-left. Every click below converts through the report's own
+    // canvas size and the canvas element's box — never a coordinate guessed from a screenshot.
+    const clickControl = async (report: SettingsReport, name: string) => {
+      const control = report.buttons.find((candidate) => candidate.name === name);
+      expect(control, `the report has no '${name}' control`).toBeDefined();
+      await page.mouse.click(
+        canvas!.x + (control!.x / report.canvasWidth) * canvas!.width,
+        canvas!.y + ((report.canvasHeight - control!.y) / report.canvasHeight) * canvas!.height,
+      );
+    };
+
+    await clickControl(closed, "open");
+
+    await expect
+      .poll(async () => (await readGlobal<SettingsReport>(page, SETTINGS)).open, {
+        timeout: COMMAND_TIMEOUT_MS,
+        polling: 250,
+      })
+      .toBe(true);
+
+    const opened = await readGlobal<SettingsReport>(page, SETTINGS);
+    console.log("settings report (open):", JSON.stringify(opened));
+
+    const rows = ["close", "volumeDown", "volumeUp", "musicDown", "musicUp", "sfxDown", "sfxUp"];
+    for (const name of rows) {
+      expect(opened.buttons.map((button) => button.name), `no '${name}' control was published`).toContain(name);
+    }
+
+    // A step down on the music bus. The report is polled rather than assumed, because the press
+    // reaches the game on the next frame and the number is the game's own.
+    await clickControl(opened, "musicDown");
+    await expect
+      .poll(async () => (await readGlobal<SettingsReport>(page, SETTINGS)).music, {
+        timeout: COMMAND_TIMEOUT_MS,
+        polling: 250,
+      })
+      .toBeLessThan(opened.music);
+
+    const afterMusic = await readGlobal<SettingsReport>(page, SETTINGS);
+    expect(afterMusic.sfx, "the effects bus must not move with the music").toBe(opened.sfx);
+    expect(afterMusic.volume, "the master must not move with a bus").toBe(opened.volume);
+
+    // The device took the level: the audio document's music volume follows the panel's. Polled, because
+    // the director publishes its document on its own quarter-second beat.
+    await waitForGlobal(page, AUDIO);
+    await expect
+      .poll(
+        async () => Math.abs((await readGlobal<AudioReport>(page, AUDIO)).musicVolume - afterMusic.music) < 0.001,
+        { timeout: COMMAND_TIMEOUT_MS, polling: 250 },
+      )
+      .toBe(true);
+
+    // One step down on the effects bus, then storage, which is the only thing that survives a reload.
+    await clickControl(afterMusic, "sfxDown");
+    await expect
+      .poll(async () => (await readGlobal<SettingsReport>(page, SETTINGS)).sfx, {
+        timeout: COMMAND_TIMEOUT_MS,
+        polling: 250,
+      })
+      .toBeLessThan(afterMusic.sfx);
+
+    const afterSfx = await readGlobal<SettingsReport>(page, SETTINGS);
+    await waitForGlobal(page, PERSISTENCE);
+    await expect
+      .poll(
+        async () => {
+          const persisted = await readGlobal<PersistenceReport>(page, PERSISTENCE);
+          return (
+            Math.abs(persisted.musicVolume - afterSfx.music) < 0.001 &&
+            Math.abs(persisted.sfxVolume - afterSfx.sfx) < 0.001
+          );
+        },
+        { timeout: COMMAND_TIMEOUT_MS, polling: 250 },
+      )
+      .toBe(true);
+
+    await page.screenshot({ path: "test-results/web-title-settings.png", fullPage: false });
+
+    // Closing hides the rows again, so a click there would land on whatever is behind the panel.
+    await clickControl(afterSfx, "close");
+    await expect
+      .poll(async () => (await readGlobal<SettingsReport>(page, SETTINGS)).open, {
+        timeout: COMMAND_TIMEOUT_MS,
+        polling: 250,
+      })
+      .toBe(false);
+
+    const reclosed = await readGlobal<SettingsReport>(page, SETTINGS);
+    expect(reclosed.buttons.map((button) => button.name)).toEqual(["open"]);
 
     expect(pageErrors, `the page reported errors:\n${pageErrors.join("\n")}`).toEqual([]);
   });

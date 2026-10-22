@@ -25,8 +25,16 @@ namespace ProjectSurvive.Core.Application.Settings
     /// </remarks>
     public sealed class SettingsService
     {
-        /// <summary>The schema this build writes and reads.</summary>
-        public const int SchemaVersion = 1;
+        /// <summary>The schema this build writes.</summary>
+        /// <remarks>
+        /// 2 added the music and effects buses (Stage 13c-2a). A build still reads 1, because the
+        /// two new keys are absent there and decode as 0, which is a legal volume: the version is
+        /// what tells the codec to fill in the defaults instead of muting an existing player.
+        /// </remarks>
+        public const int SchemaVersion = 2;
+
+        /// <summary>The oldest schema this build still reads.</summary>
+        public const int OldestReadableSchemaVersion = 1;
 
         private readonly ICheckpointStore _store;
         private readonly ISettingsCodec _codec;
@@ -44,7 +52,7 @@ namespace ProjectSurvive.Core.Application.Settings
         public GameSettings Current => _current.Clone();
 
         /// <summary>
-        /// Reads the stored settings. Missing, corrupt and older/newer settings fall back
+        /// Reads the stored settings. Missing, corrupt and unreadable-version settings fall back
         /// to the defaults; storage being unavailable is reported so a screen can warn.
         /// </summary>
         public async Task<SettingsLoad> LoadAsync(CancellationToken cancellationToken = default)

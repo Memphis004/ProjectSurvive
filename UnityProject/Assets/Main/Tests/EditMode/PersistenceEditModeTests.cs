@@ -153,6 +153,56 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         [Test]
+        public void Settings_move_each_bus_on_its_own_and_persist_both()
+        {
+            IGameConfig config = ResourcesGameConfigLoader.Load();
+            var store = new FileCheckpointStore(_root);
+            var checkpoints = new CheckpointService(config, new MessagePackRunCheckpointCodec(), store);
+            var settings = new SettingsService(store, new MessagePackSettingsCodec());
+            var ui = new UiState();
+            var text = new LocalizationService(config);
+            var save = new GameSave(checkpoints, settings, ui, text);
+            var presenter = new SettingsPresenter(settings, ui, text, save);
+
+            try
+            {
+                // The panel opens on the levels the profile has, which are the ones 13c-1 shipped.
+                Assert.AreEqual(GameSettings.DefaultMusicVolume, ui.MusicVolume.Value, 0.0001f);
+                Assert.AreEqual(GameSettings.DefaultSfxVolume, ui.SfxVolume.Value, 0.0001f);
+                StringAssert.Contains("%", ui.MusicLabel.Value);
+                StringAssert.Contains("%", ui.SfxLabel.Value);
+
+                presenter.AdjustMusic(-0.1f);
+                Assert.AreEqual(GameSettings.DefaultMusicVolume - 0.1f, ui.MusicVolume.Value, 0.0001f);
+
+                // Moving one bus leaves the other and the master alone: three independent levels.
+                Assert.AreEqual(GameSettings.DefaultSfxVolume, ui.SfxVolume.Value, 0.0001f);
+                Assert.AreEqual(1f, ui.MasterVolume.Value, 0.0001f);
+
+                presenter.AdjustSfx(-10f);
+                Assert.AreEqual(GameSettings.MinVolume, ui.SfxVolume.Value, 0.0001f);
+                StringAssert.Contains("0%", ui.SfxLabel.Value, "the row must read the level it just set");
+
+                presenter.AdjustMusic(10f);
+                Assert.AreEqual(GameSettings.MaxVolume, ui.MusicVolume.Value, 0.0001f);
+            }
+            finally
+            {
+                presenter.Dispose();
+                ui.Dispose();
+            }
+
+            Assert.IsTrue(settings.SaveAsync(CancellationToken.None).GetAwaiter().GetResult().IsSuccess);
+
+            var reloaded = new SettingsService(store, new MessagePackSettingsCodec());
+            SettingsLoad load = reloaded.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Assert.IsTrue(load.IsSuccess, load.ErrorCode);
+            Assert.AreEqual(GameSettings.MaxVolume, load.Settings.MusicVolume, 0.0001f);
+            Assert.AreEqual(GameSettings.MinVolume, load.Settings.SfxVolume, 0.0001f);
+            Assert.IsTrue(load.Settings.IsValid);
+        }
+
+        [Test]
         public void Unavailable_storage_reports_failure_instead_of_success()
         {
             IGameConfig config = ResourcesGameConfigLoader.Load();

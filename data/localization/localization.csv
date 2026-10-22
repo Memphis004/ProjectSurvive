@@ -209,7 +209,11 @@
 ,ui.settings.title,ตั้งค่า,Settings
 ,ui.settings.open,ตั้งค่า,Settings
 ,ui.settings.close,ปิด,Close
+,ui.settings.decrease,-,-
+,ui.settings.increase,+,+
 ,ui.settings.volume.format,เสียง {0}%,Volume {0}%
+,ui.settings.music.format,เพลง {0}%,Music {0}%
+,ui.settings.sfx.format,เอฟเฟกต์ {0}%,Effects {0}%
 ,ui.settings.language.format,ภาษา: {0},Language: {0}
 ,ui.settings.language.th,ไทย,Thai
 ,ui.settings.language.en,อังกฤษ,English

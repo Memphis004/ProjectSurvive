@@ -52,6 +52,9 @@ namespace ProjectSurvive.Game.Presentation.Web
         /// <summary>The audio director's play counts and music state (Stage 13c-1).</summary>
         public const string AudioGlobal = "__projectSurviveAudio";
 
+        /// <summary>The settings panel's values, labels and control points (Stage 13c-2a).</summary>
+        public const string SettingsGlobal = "__projectSurviveSettings";
+
         /// <summary>Event dispatched after a smoke report is published.</summary>
         public const string SmokeReportEvent = "projectsurvive:smoke";
 

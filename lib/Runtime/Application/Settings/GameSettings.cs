@@ -4,8 +4,8 @@ using ProjectSurvive.Core.Domain.Config;
 namespace ProjectSurvive.Core.Application.Settings
 {
     /// <summary>
-    /// The player's three settings (Stage 12): master volume, language and the battle
-    /// speed a new floor starts at.
+    /// The player's settings: master volume, the music and effects buses (Stage 13c-2a), language
+    /// and the battle speed a new floor starts at.
     /// </summary>
     /// <remarks>
     /// Plain values, validated on every setter. The UI layer mirrors them into R3; this
@@ -20,13 +20,33 @@ namespace ProjectSurvive.Core.Application.Settings
         /// <summary>Highest selectable volume.</summary>
         public const float MaxVolume = 1f;
 
+        /// <summary>
+        /// Music level a profile starts with. Chosen to match what Stage 13c-1 shipped as the
+        /// director's own level, so a player who has never opened the panel hears the same mix.
+        /// </summary>
+        public const float DefaultMusicVolume = 0.55f;
+
+        /// <summary>Effects level a profile starts with (full; a hit should be unmistakable).</summary>
+        public const float DefaultSfxVolume = 1f;
+
         private float _masterVolume = 1f;
+        private float _musicVolume = DefaultMusicVolume;
+        private float _sfxVolume = DefaultSfxVolume;
         private Language _language = Language.Th;
         private float _defaultBattleSpeed = 1f;
         private bool _tutorialCompleted;
 
         /// <summary>Master audio volume, clamped to <see cref="MinVolume"/>..<see cref="MaxVolume"/>.</summary>
         public float MasterVolume => _masterVolume;
+
+        /// <summary>
+        /// The music bus, relative to the master. A bus level is not a second master: the engine's
+        /// listener volume is the master, and the sources multiply by this.
+        /// </summary>
+        public float MusicVolume => _musicVolume;
+
+        /// <summary>The effects bus, relative to the master.</summary>
+        public float SfxVolume => _sfxVolume;
 
         /// <summary>The language player-facing text is resolved in.</summary>
         public Language Language => _language;
@@ -42,15 +62,24 @@ namespace ProjectSurvive.Core.Application.Settings
         public bool TutorialCompleted => _tutorialCompleted;
 
         /// <summary>Sets the volume, clamped rather than refused: a slider's endpoints are honest.</summary>
-        public void SetVolume(float value)
+        public void SetVolume(float value) => _masterVolume = Clamp(value, _masterVolume);
+
+        /// <summary>Clamps to the selectable range; NaN keeps the value it already had.</summary>
+        private static float Clamp(float value, float fallback)
         {
             if (float.IsNaN(value))
             {
-                return;
+                return fallback;
             }
 
-            _masterVolume = value < MinVolume ? MinVolume : value > MaxVolume ? MaxVolume : value;
+            return value < MinVolume ? MinVolume : value > MaxVolume ? MaxVolume : value;
         }
+
+        /// <summary>Sets the music level, clamped like the master.</summary>
+        public void SetMusicVolume(float value) => _musicVolume = Clamp(value, _musicVolume);
+
+        /// <summary>Sets the effects level, clamped like the master.</summary>
+        public void SetSfxVolume(float value) => _sfxVolume = Clamp(value, _sfxVolume);
 
         /// <summary>Sets the language to one the localization table has.</summary>
         public void SetLanguage(Language language)
@@ -80,6 +109,8 @@ namespace ProjectSurvive.Core.Application.Settings
         public GameSettings Clone() => new GameSettings
         {
             _masterVolume = _masterVolume,
+            _musicVolume = _musicVolume,
+            _sfxVolume = _sfxVolume,
             _language = _language,
             _defaultBattleSpeed = _defaultBattleSpeed,
             _tutorialCompleted = _tutorialCompleted,
@@ -88,13 +119,20 @@ namespace ProjectSurvive.Core.Application.Settings
         /// <inheritdoc />
         public override string ToString() =>
             "volume " + _masterVolume.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)
+            + " music " + _musicVolume.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)
+            + " sfx " + _sfxVolume.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)
             + " language " + _language + " speed " + _defaultBattleSpeed
             + " tutorial " + (_tutorialCompleted ? "done" : "pending");
 
         /// <summary>True when the values are inside their documented ranges.</summary>
         public bool IsValid =>
-            !float.IsNaN(_masterVolume) && _masterVolume >= MinVolume && _masterVolume <= MaxVolume
+            InRange(_masterVolume)
+            && InRange(_musicVolume)
+            && InRange(_sfxVolume)
             && _language is Language.Th or Language.En
             && (_defaultBattleSpeed == 1f || _defaultBattleSpeed == 2f);
+
+        private static bool InRange(float value) =>
+            !float.IsNaN(value) && value >= MinVolume && value <= MaxVolume;
     }
 }

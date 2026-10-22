@@ -17,6 +17,7 @@
  *   __projectSurviveThaiSpike    the Thai text spike measurement (`ThaiSpikeReporter`)
  *   __projectSurvivePersistence  the checkpoint/settings storage verdict (`GameSave`)
  *   __projectSurviveAudio       play counts, voice stealing and music state (`AudioDirector`)
+ *   __projectSurviveSettings    the settings panel's bus levels, labels and control points (`SettingsReport`)
  *   __projectSurviveTextFit      every label's rect, needed size and missing glyphs (`UiTextFitReport`)
  */
 export const SMOKE = "__projectSurviveSmoke";
@@ -24,4 +25,5 @@ export const SCENE = "__projectSurviveScene";
 export const THAI_SPIKE = "__projectSurviveThaiSpike";
 export const PERSISTENCE = "__projectSurvivePersistence";
 export const AUDIO = "__projectSurviveAudio";
+export const SETTINGS = "__projectSurviveSettings";
 export const TEXT_FIT = "__projectSurviveTextFit";

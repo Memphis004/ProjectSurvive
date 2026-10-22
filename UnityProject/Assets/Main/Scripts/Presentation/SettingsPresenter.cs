@@ -11,7 +11,8 @@ using UnityEngine;
 namespace ProjectSurvive.Game.Presentation
 {
     /// <summary>
-    /// The settings screen's logic: volume, language and the battle's starting speed.
+    /// The settings screen's logic: the three volume levels (master, music, effects), language and
+    /// the battle's starting speed.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -51,6 +52,24 @@ namespace ProjectSurvive.Game.Presentation
         {
             float value = Mathf.Clamp01(_settings.Current.MasterVolume + delta);
             _settings.Apply(settings => settings.SetVolume(value));
+            ApplyToUi(_settings.Current);
+            RequestSave();
+        }
+
+        /// <summary>Changes the music bus by <paramref name="delta"/> and saves it (Stage 13c-2a).</summary>
+        public void AdjustMusic(float delta)
+        {
+            float value = Mathf.Clamp01(_settings.Current.MusicVolume + delta);
+            _settings.Apply(settings => settings.SetMusicVolume(value));
+            ApplyToUi(_settings.Current);
+            RequestSave();
+        }
+
+        /// <summary>Changes the effects bus by <paramref name="delta"/> and saves it.</summary>
+        public void AdjustSfx(float delta)
+        {
+            float value = Mathf.Clamp01(_settings.Current.SfxVolume + delta);
+            _settings.Apply(settings => settings.SetSfxVolume(value));
             ApplyToUi(_settings.Current);
             RequestSave();
         }
@@ -102,6 +121,8 @@ namespace ProjectSurvive.Game.Presentation
         private void ApplyToUi(GameSettings settings)
         {
             _ui.MasterVolume.Value = settings.MasterVolume;
+            _ui.MusicVolume.Value = settings.MusicVolume;
+            _ui.SfxVolume.Value = settings.SfxVolume;
             _ui.Language.Value = settings.Language;
             _ui.DefaultBattleSpeed.Value = settings.DefaultBattleSpeed;
             _text.Language = settings.Language;
@@ -110,10 +131,12 @@ namespace ProjectSurvive.Game.Presentation
             _ui.SettingsTitle.Value = _text.Get("ui.settings.title");
             _ui.SettingsOpenLabel.Value = _text.Get("ui.settings.open");
             _ui.SettingsCloseLabel.Value = _text.Get("ui.settings.close");
+            _ui.DecreaseLabel.Value = _text.Get("ui.settings.decrease");
+            _ui.IncreaseLabel.Value = _text.Get("ui.settings.increase");
 
-            int percent = (int)Math.Round(settings.MasterVolume * 100f, MidpointRounding.AwayFromZero);
-            _ui.VolumeLabel.Value = string.Format(
-                CultureInfo.InvariantCulture, _text.Get("ui.settings.volume.format"), percent);
+            _ui.VolumeLabel.Value = Percent("ui.settings.volume.format", settings.MasterVolume);
+            _ui.MusicLabel.Value = Percent("ui.settings.music.format", settings.MusicVolume);
+            _ui.SfxLabel.Value = Percent("ui.settings.sfx.format", settings.SfxVolume);
 
             string language = _text.Get(
                 settings.Language == Language.Th ? "ui.settings.language.th" : "ui.settings.language.en");
@@ -123,6 +146,16 @@ namespace ProjectSurvive.Game.Presentation
             string speed = settings.DefaultBattleSpeed == 1f ? "1x" : "2x";
             _ui.SpeedLabel.Value = string.Format(
                 CultureInfo.InvariantCulture, _text.Get("ui.settings.speed.format"), speed);
+        }
+
+        /// <summary>
+        /// One volume row's caption: the localized format with a whole percent. Rounded away from
+        /// zero so a level just above silence shows 1 %, never 0 %.
+        /// </summary>
+        private string Percent(string key, float value)
+        {
+            int percent = (int)Math.Round(value * 100f, MidpointRounding.AwayFromZero);
+            return string.Format(CultureInfo.InvariantCulture, _text.Get(key), percent);
         }
 
         /// <inheritdoc />

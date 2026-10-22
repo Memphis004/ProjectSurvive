@@ -3,8 +3,8 @@ using MessagePack;
 namespace ProjectSurvive.Core.Contracts.Save
 {
     /// <summary>
-    /// Player settings on the wire (Stage 12): master volume, language and the battle
-    /// speed a new floor starts at.
+    /// Player settings on the wire (Stage 12): master volume, the music and effects buses
+    /// (Stage 13c-2a), language and the battle speed a new floor starts at.
     /// </summary>
     /// <remarks>
     /// Settings are not part of a run, so they have their own key and envelope. The
@@ -32,6 +32,16 @@ namespace ProjectSurvive.Core.Contracts.Save
         /// checklist once — which is the point of it.
         /// </summary>
         [Key(4)] public bool TutorialCompleted { get; set; }
+
+        /// <summary>
+        /// The music bus, 0..1. Absent on a <see cref="SchemaVersion"/> 1 file, where MessagePack
+        /// leaves it at 0 — which is why the codec reads these two through the schema version and
+        /// not through the value (0 is a legal volume a player may choose).
+        /// </summary>
+        [Key(5)] public float MusicVolume { get; set; }
+
+        /// <summary>The effects bus, 0..1. Absent on a schema 1 file, as above.</summary>
+        [Key(6)] public float SfxVolume { get; set; }
     }
 
     /// <summary>Serialization entry point for <see cref="SettingsDto"/>.</summary>

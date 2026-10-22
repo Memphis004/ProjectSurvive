@@ -240,6 +240,10 @@ namespace ProjectSurvive.Game.Presentation.Flow
                 .Write("error", LastError)
                 .Write("language", _ui.Language.Value.ToString())
                 .Write("volume", _ui.MasterVolume.Value)
+                // Stage 13c-2a: the two buses, so a browser test can see that a press reached
+                // storage rather than only the R3 mirror.
+                .Write("musicVolume", _ui.MusicVolume.Value)
+                .Write("sfxVolume", _ui.SfxVolume.Value)
                 .Write("defaultSpeed", _ui.DefaultBattleSpeed.Value)
                 // Stage 13b: the camp's first-run checklist flag, as the settings file now carries
                 // it. Published so a browser test can see that finishing the checklist reached
@@ -253,6 +257,8 @@ namespace ProjectSurvive.Game.Presentation.Flow
         private void Apply(GameSettings settings)
         {
             _ui.MasterVolume.Value = settings.MasterVolume;
+            _ui.MusicVolume.Value = settings.MusicVolume;
+            _ui.SfxVolume.Value = settings.SfxVolume;
             _ui.Language.Value = settings.Language;
             _ui.DefaultBattleSpeed.Value = settings.DefaultBattleSpeed;
             _text.Language = settings.Language;

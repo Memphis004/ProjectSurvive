@@ -51,6 +51,21 @@ namespace ProjectSurvive.Game.Presentation
         /// <summary>Master audio volume, 0..1 (Stage 12).</summary>
         public ReactiveProperty<float> MasterVolume { get; } = new ReactiveProperty<float>(1f);
 
+        /// <summary>
+        /// Music bus level, 0..1, relative to the master (Stage 13c-2a).
+        /// </summary>
+        /// <remarks>
+        /// The <see cref="MasterVolume"/> is the engine listener's volume; this is what the music
+        /// source multiplies by it. Two levels rather than one because a player who wants the
+        /// ambience quieter should not also make the hits unhearable.
+        /// </remarks>
+        public ReactiveProperty<float> MusicVolume { get; } =
+            new ReactiveProperty<float>(ProjectSurvive.Core.Application.Settings.GameSettings.DefaultMusicVolume);
+
+        /// <summary>Effects bus level, 0..1, relative to the master (Stage 13c-2a).</summary>
+        public ReactiveProperty<float> SfxVolume { get; } =
+            new ReactiveProperty<float>(ProjectSurvive.Core.Application.Settings.GameSettings.DefaultSfxVolume);
+
         /// <summary>The battle speed a new floor starts at (1 or 2).</summary>
         public ReactiveProperty<float> DefaultBattleSpeed { get; } = new ReactiveProperty<float>(1f);
 
@@ -66,6 +81,12 @@ namespace ProjectSurvive.Game.Presentation
         /// <summary>The volume row's caption with its current value (localized).</summary>
         public ReactiveProperty<string> VolumeLabel { get; } = new ReactiveProperty<string>(string.Empty);
 
+        /// <summary>The music row's caption with its current value (localized, Stage 13c-2a).</summary>
+        public ReactiveProperty<string> MusicLabel { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>The effects row's caption with its current value (localized, Stage 13c-2a).</summary>
+        public ReactiveProperty<string> SfxLabel { get; } = new ReactiveProperty<string>(string.Empty);
+
         /// <summary>The language row's caption with its current value (localized).</summary>
         public ReactiveProperty<string> LanguageLabel { get; } = new ReactiveProperty<string>(string.Empty);
 
@@ -77,6 +98,16 @@ namespace ProjectSurvive.Game.Presentation
 
         /// <summary>The settings panel's open caption (localized).</summary>
         public ReactiveProperty<string> SettingsOpenLabel { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>
+        /// Captions of the "lower this level" and "raise this level" controls, shared by every row
+        /// (Stage 13c-2a). Symbols, but still localization keys: AGENTS rule 5 does not carve out
+        /// punctuation, and the glyph audit then measures them like any other label.
+        /// </summary>
+        public ReactiveProperty<string> DecreaseLabel { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>Caption of the "raise this level" control.</summary>
+        public ReactiveProperty<string> IncreaseLabel { get; } = new ReactiveProperty<string>(string.Empty);
 
         /// <summary>
         /// Sound cues a screen wants played, as UI-level events (Stage 13c-1).
@@ -99,14 +130,20 @@ namespace ProjectSurvive.Game.Presentation
             Diagnostics.Dispose();
             Language.Dispose();
             MasterVolume.Dispose();
+            MusicVolume.Dispose();
+            SfxVolume.Dispose();
             DefaultBattleSpeed.Dispose();
             SaveFailed.Dispose();
             SettingsTitle.Dispose();
             VolumeLabel.Dispose();
+            MusicLabel.Dispose();
+            SfxLabel.Dispose();
             LanguageLabel.Dispose();
             SpeedLabel.Dispose();
             SettingsCloseLabel.Dispose();
             SettingsOpenLabel.Dispose();
+            DecreaseLabel.Dispose();
+            IncreaseLabel.Dispose();
             Cues.Dispose();
             Ready.Dispose();
         }

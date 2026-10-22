@@ -50,7 +50,8 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **13a** | **Content complete, text fit, attribution (the audit half of 13)** | **DONE** — see [`docs/stages/13a-report.md`](docs/stages/13a-report.md), [`ATTRIBUTION.md`](ATTRIBUTION.md) |
 | **13b** | **Tutorial: rent → place → rotate → read the tooltip → depart (the first-run checklist)** | **CODE DONE** — the human playtest it exists for is **NOT RUN**: see [`docs/stages/13b-report.md`](docs/stages/13b-report.md) |
 | **13c-1** | **Audio: generated CC0 clips, cue channels, the one audio device, Web autoplay + import settings** | **DONE** — see [`docs/stages/13c-1-report.md`](docs/stages/13c-1-report.md), [`llmwiki/systems/audio.md`](llmwiki/systems/audio.md) |
-| **13c-2** | **Pause and the audio settings panel** | not started |
+| **13c-2a** | **Audio settings: music and effects buses, persisted, with a schema-2 read path** | **DONE** — see [`docs/stages/13c-2a-report.md`](docs/stages/13c-2a-report.md), [ADR 0034](docs/adr/0034-settings-schema-and-per-bus-volume.md) |
+| **13c-2b** | **Pause overlay: freeze the floor, resume, or leave for the camp** | not started |
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
@@ -329,6 +330,20 @@ WebGL Development build with 0 C# errors and **16 passed / 13 skipped / 0 failed
 **PlayMode did not re-run** after the last two line edits (the Editor bridge was lost), so the stage
 is code-complete but not closed as PASS. Pause and the audio settings panel are **13c-2**. See
 [`llmwiki/systems/audio.md`](llmwiki/systems/audio.md) and the [report](docs/stages/13c-1-report.md).
+
+**13c-2a** split the mix into three numbers. The title's settings panel now has **music** and
+**effects** rows beside the master, written through `SettingsPresenter.AdjustMusic/AdjustSfx` and
+persisted; `AudioDirector` no longer serialises its own levels but multiplies its sources by
+`UiState.MusicVolume`/`SfxVolume`, so a press moves the device in the same frame. Because a missing
+MessagePack float decodes as 0 — a legal volume — `SettingsService.SchemaVersion` went to **2** with
+`OldestReadableSchemaVersion = 1`, and the codec, not the DTO, fills the two buses from the defaults
+for a schema 1 file ([ADR 0034](docs/adr/0034-settings-schema-and-per-bus-volume.md)). The panel
+publishes itself (`__projectSurviveSettings`: open, the three levels, five labels, ten control points)
+so the browser test opens it, presses a row and reads both the panel and `__projectSurvivePersistence`.
+Four new localization rows (the `%` formats and the `-`/`+` captions). The first capture found two
+defects no test could see — the title showed through the 96 %-opaque panel, and the `±` controls were
+blank — both fixed in `TitleSceneBuilder` and re-captured. Pause is **13c-2b**. See the
+[report](docs/stages/13c-2a-report.md).
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
 `tools/gen.ps1` (Luban 5.1.0 + protoc 33.6) → generated C# + `.bytes` →

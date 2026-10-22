@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using ProjectSurvive.Core.Application.Run;
 using ProjectSurvive.Core.Application.Save;
 using ProjectSurvive.Core.Application.Settings;
+using ProjectSurvive.Core.Contracts.Save;
 using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
@@ -303,6 +304,8 @@ namespace ProjectSurvive.Core.Tests.Run
             settings.SetLanguage(Language.En);
             settings.SetDefaultBattleSpeed(2f);
             settings.SetTutorialCompleted(true);
+            settings.SetMusicVolume(0.25f);
+            settings.SetSfxVolume(0.75f);
 
             GameSettings decoded = codec.Decode(codec.Encode(settings));
 
@@ -310,6 +313,8 @@ namespace ProjectSurvive.Core.Tests.Run
             Assert.Equal(Language.En, decoded.Language);
             Assert.Equal(2f, decoded.DefaultBattleSpeed);
             Assert.True(decoded.TutorialCompleted, "the first-run flag survives the round trip");
+            Assert.Equal(0.25f, decoded.MusicVolume, 4);
+            Assert.Equal(0.75f, decoded.SfxVolume, 4);
             Assert.True(decoded.IsValid);
 
             // Stage 13b appended the flag at key 4; settings written before it are still readable
@@ -320,6 +325,58 @@ namespace ProjectSurvive.Core.Tests.Run
             Assert.Equal(GameSettings.MaxVolume, settings.MasterVolume);
             settings.SetDefaultBattleSpeed(3f);
             Assert.Equal(2f, settings.DefaultBattleSpeed);
+
+            settings.SetMusicVolume(-1f);
+            Assert.Equal(GameSettings.MinVolume, settings.MusicVolume);
+            settings.SetSfxVolume(4f);
+            Assert.Equal(GameSettings.MaxVolume, settings.SfxVolume);
+        }
+
+        [Fact]
+        public void Settings_written_before_the_buses_existed_keep_the_default_mix()
+        {
+            // What a build before Stage 13c-2a wrote: no bus keys at all.
+            byte[] old = SettingsCodec.Serialize(new SettingsDto
+            {
+                SchemaVersion = 1,
+                MasterVolume = 0.4f,
+                Language = (int)Language.Th,
+                DefaultSpeed = 1f,
+                TutorialCompleted = true,
+            });
+
+            GameSettings decoded = new MessagePackSettingsCodec().Decode(old);
+
+            // The two absent keys decode as 0. A naive read would mute the game for exactly the
+            // players who had a settings file already, which is why the version decides.
+            Assert.Equal(GameSettings.DefaultMusicVolume, decoded.MusicVolume, 4);
+            Assert.Equal(GameSettings.DefaultSfxVolume, decoded.SfxVolume, 4);
+            Assert.Equal(0.4f, decoded.MasterVolume, 4);
+            Assert.True(decoded.TutorialCompleted);
+            Assert.True(decoded.IsValid);
+
+            // And a zero the player did choose is still a zero once the file carries the keys.
+            var silent = new GameSettings();
+            silent.SetMusicVolume(0f);
+            GameSettings readBack = new MessagePackSettingsCodec().Decode(
+                new MessagePackSettingsCodec().Encode(silent));
+            Assert.Equal(0f, readBack.MusicVolume, 4);
+        }
+
+        [Fact]
+        public void An_out_of_range_bus_volume_is_refused()
+        {
+            byte[] broken = SettingsCodec.Serialize(new SettingsDto
+            {
+                SchemaVersion = SettingsService.SchemaVersion,
+                MasterVolume = 1f,
+                Language = (int)Language.Th,
+                DefaultSpeed = 1f,
+                MusicVolume = 1.5f,
+                SfxVolume = 1f,
+            });
+
+            Assert.Throws<InvalidOperationException>(() => new MessagePackSettingsCodec().Decode(broken));
         }
 
         private static async Task<CheckpointLoad> LoadWith(

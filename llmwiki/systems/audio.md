@@ -79,7 +79,34 @@ Import settings otherwise: mono (a cue is a UI sound, `forceToMono` and
 0.5 for music and PCM for effects, and no per-platform override — Unity transcodes the
 Web build to AAC itself (Unity 6.3 manual, "Audio in Web").
 
-## 5. Adding a sound
+## 5. The mix is three numbers (Stage 13c-2a)
+
+The engine listener's volume is the **master** (`AudioListener.volume`, written by
+`SettingsPresenter` and `GameSave`). The **music** and **effects** buses are levels `AudioDirector`
+multiplies its sources by, carried on `UiState.MusicVolume` / `SfxVolume` and changed by the title's
+settings panel. The director does not serialise either level: a scene with its own copy would be a
+second source of truth for the mix, and the first capture of the panel was a reminder of how easily
+the picture and the numbers disagree.
+
+They persist in the settings file, which made **schema 2** necessary: a MessagePack key that did not
+exist decodes as `0`, and `0` is a legal volume, so the codec reads the version and fills the defaults
+for a schema 1 file ([ADR 0034](../../docs/adr/0034-settings-schema-and-per-bus-volume.md)).
+`OldestReadableSchemaVersion = 1` is the only migration; anything else falls back to the defaults
+without failing the boot.
+
+The panel publishes itself as `__projectSurviveSettings`: `open`, `canvasWidth`/`canvasHeight`, the
+three levels, five labels and the centre of each control that is currently pressable (a row inside a
+closed panel is not published — it is not a place a click can land). `tests/web/title.spec.ts` opens
+it from that point, presses a row and compares the panel's value with
+`__projectSurvivePersistence` and `__projectSurviveAudio.musicVolume`, which is the only way to prove
+the press reached the device rather than a label.
+
+**Two traps paid for here.** A modal surface at `0.96` alpha let the title text show through as grey
+ghosts — measured in the capture, not by a test — and the `-`/`+` controls were blank because
+`CreateUiButton` makes a label and nobody filled it. Captions come from
+`ui.settings.decrease`/`.increase` like every other player-facing string.
+
+## 6. Adding a sound
 
 1. Add a function to `tools/gen-audio.py`'s `CLIPS` dict; run it. Deterministic by
    construction (seeded LCG, never `random`), so a diff in the `.wav` means somebody

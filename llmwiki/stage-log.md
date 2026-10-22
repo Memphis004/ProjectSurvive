@@ -483,3 +483,17 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   [report](../docs/stages/13c-1-report.md), [system note](systems/audio.md).
 - **Next:** 13c-2 (pause + the audio settings panel), a PlayMode re-run, and the Stage 13 human playtest
   with headphones, still **NOT RUN**.
+
+## Stage 13c-2a — the audio settings panel (2026-10-22)
+
+- **Did:** the title's settings panel gained music and effects rows beside the master, persisted and
+  applied live (`AudioDirector` reads `UiState.MusicVolume`/`SfxVolume` instead of serialised levels);
+  the settings file went to schema 2 with a declared read path for schema 1, because an absent
+  MessagePack float decodes as 0 and 0 is a legal volume ([ADR 0034](../docs/adr/0034-settings-schema-and-per-bus-volume.md)).
+- **Result:** 603/603 xUnit, **194/194** EditMode, WebGL Development build (0 C# errors) + **17 passed /
+  13 skipped / 0 failed** browser tests, including a spec that opens the panel, presses a bus and reads
+  both the panel's document and storage. The first capture showed the title bleeding through the 96 %-opaque
+  panel and blank ± controls; both fixed in `TitleSceneBuilder` and re-captured
+  ([screenshot](../artifacts/stage13c-2a/web-title-settings.png)). PlayMode still cannot run (Editor
+  bridge), so the stage is code-complete, not PASS.
+- **Next:** 13c-2b (pause overlay), a PlayMode re-run, and the Stage 13 human playtest with headphones.
