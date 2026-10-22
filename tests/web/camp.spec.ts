@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { SCENE } from "./globals.mjs";
+import { expectTextFits } from "./textfit.mjs";
 
 /**
  * Stage 09 acceptance in the browser: "ซื้อ → วาง → หมุน → รวม → ถวายคืน → คืนสภาพ ผ่าน UI แล้ว
@@ -537,6 +538,10 @@ test.describe("ProjectSurvive ศาลาพัก in the browser", () => {
     const pageErrors = collectPageErrors(page);
 
     const { box, layout, first } = await enterCamp(page);
+
+    // Stage 13: the camp's Thai text, measured in the player with the shipped font — every label
+    // that has been drawn, the hidden จัดย่าม panel's included, fits the box it was authored into.
+    await expectTextFits(page, "Camp");
 
     // The run the screen is editing: the starting kit on the board, the purse, and the gate.
     expect(first.floor).toBe(1);

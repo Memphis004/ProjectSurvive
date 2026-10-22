@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { SCENE } from "./globals.mjs";
+import { expectTextFits } from "./textfit.mjs";
 
 /**
  * Stage 08 acceptance in the browser: "เล่นชั้น 1 จนชนะหรือแพ้ได้ใน Web".
@@ -122,6 +123,9 @@ test.describe("ProjectSurvive floor 1 in the browser", () => {
     expect(started.poolCapacity).toBeGreaterThan(1000);
     expect(started.timelineMarkers).toBe(1);
     expect(Number(started.stepsRun)).toBe(0);
+
+    // Stage 13: the battle HUD's labels, measured by the player.
+    await expectTextFits(page, "Battle");
 
     // Play the floor out. The player stands still, which is a real playthrough: the
     // floor is survived or it is not, and either outcome is the acceptance.

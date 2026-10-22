@@ -47,7 +47,9 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **11d** | **Balance pass: 200 seeds, four bot builds, data only** | **DONE** — see [`docs/stages/11d-report.md`](docs/stages/11d-report.md) |
 | 11 | Thai ghost AI, Pob boss, balance (11a–11d all landed) | **DONE** — [`11a`](docs/adr/0028-item-effects-and-status-table.md), [`11b`](docs/stages/11b-report.md), [`11c`](docs/stages/11c-report.md), [`11d`](docs/stages/11d-report.md) |
 | **12** | **Save, resume, settings (checkpoint, IndexedDB flush, TH/EN, volume, starting speed)** | **DONE** — see [`docs/stages/12-report.md`](docs/stages/12-report.md), [ADR 0033](docs/adr/0033-application-awaits-capture-the-caller-context.md) |
-| 13 | Content complete & UX | not started |
+| **13a** | **Content complete, text fit, attribution (the audit half of 13)** | **DONE** — see [`docs/stages/13a-report.md`](docs/stages/13a-report.md), [`ATTRIBUTION.md`](ATTRIBUTION.md) |
+| **13b** | **Tutorial: buy → place → rotate → combo → depart** | not started |
+| **13c** | **Audio (CC0 synthesized), pause, audio settings** | not started |
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
@@ -276,6 +278,25 @@ rent → place → rotate → merge → give back → restore against the real U
 [`llmwiki/systems/camp.md`](llmwiki/systems/camp.md) and the [report](docs/stages/09-report.md).
 
 
+**Stage 13 was split into 13a/13b/13c** (Core + Unity + UI + Web tests in one stage is the AGENTS
+split trigger). **13a** landed the audit: the GDD content is pinned by
+`ConfigLoadTests.Gdd_prototype_content_is_complete_and_nothing_more` (14 pieces in the six authored
+categories, every piece merging to tier 3, three ghosts with distinct behaviours plus the two-phase
+Pob, five floors with the GDD's escalation and 60 s / 90 s boss, five combo rules); the last two
+player-facing strings in code moved into `data/localization/localization.csv` (`camp.chest.title.format`,
+`camp.status.hpmp.format`, table now **218** rows) and two architecture tests refuse a Thai literal or
+a label handed a literal (`Runtime_sources_embed_no_player_facing_text`,
+`Every_localization_key_the_runtime_asks_for_exists`); every screen now publishes
+`window.__projectSurviveTextFit` (`UiTextFitReport`) — per label its rect, needed size, rendered size
+and missing glyphs — which `tests/web/textfit.mjs` asserts in the title/camp/battle/result specs
+(Title 9 labels, Camp 35, Battle 30, Result 7; 0 overflow, 0 missing glyphs in the real WebGL player).
+It found a **real HUD defect**: the MP caption needed 89 px in a 58 px box, wrapped to two lines and
+clipped; nine other battle labels were 0.6 px shorter than 22 px Sarabun's line box. All fixed in
+`BattleSceneBuilder` (boxes ≥ 30 px, the MP row widened 104 px with its value moved right, the bars
+shifted to keep 2 px gaps), and [`ATTRIBUTION.md`](ATTRIBUTION.md) records every asset licence — with
+`THSarabunPSK` flagged (unused, non-OFL SIPA licence, still shipping from `Resources/`) as a Stage 15
+must-remove. The human playtest acceptance is **NOT RUN**: it needs 13b's tutorial.
+
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
 `tools/gen.ps1` (Luban 5.1.0 + protoc 33.6) → generated C# + `.bytes` →
 `IGameConfig`. See [`llmwiki/systems/data-schema.md`](llmwiki/systems/data-schema.md).
@@ -446,6 +467,7 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
 | Document | Purpose |
 | --- | --- |
 | [`AGENTS.md`](AGENTS.md) | Master Prompt + permanent rules for every stage |
+| [`ATTRIBUTION.md`](ATTRIBUTION.md) | **Asset and dependency licences** (Stage 13a audit) |
 | [`docs/gdd/prototype-v0.3.md`](docs/gdd/prototype-v0.3.md) | **Canonical GDD** (v0.3 combined) |
 | [`docs/architecture/overview.md`](docs/architecture/overview.md) | Layers, data lifetimes, command/event flow |
 | [`docs/architecture/dependencies.md`](docs/architecture/dependencies.md) | Dependency matrix (Verified / Proposed / Blocked) |

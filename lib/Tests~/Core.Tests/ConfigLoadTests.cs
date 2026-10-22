@@ -64,8 +64,132 @@ namespace ProjectSurvive.Core.Tests
             // draws while a boss's possession has the stick turned around, taking it to 200.
             // Stage 12 added the nine settings/save-warning rows, taking it to 209. Stage 09n
             // added the seven shelf-offer tooltip rows (ราคา, เช่าได้, weight, the combos header, its
-            // row format, "อีก N ชิ้น" and the empty listing), taking it to 216.
-            Assert.Equal(216, config.Localization.Count);
+            // row format, "อีก N ชิ้น" and the empty listing), taking it to 216. Stage 13 moved the
+            // last two player-facing literals out of the UI code into this table — the chest
+            // panel's heading (`camp.chest.title.format`) and the camp status bar's combined
+            // HP/MP line (`camp.status.hpmp.format`) — taking it to 218.
+            Assert.Equal(218, config.Localization.Count);
+        }
+
+        /// <summary>
+        /// Stage 13 acceptance: the shipped content is the GDD v0.3 prototype and nothing more.
+        /// </summary>
+        /// <remarks>
+        /// The counts above prove the tables loaded; this case proves they are the *designed*
+        /// content: the GDD's six categories at their stated counts, three ghosts with distinct
+        /// roles plus the two-phase Pob boss, five floors whose escalation names the GDD's ghosts,
+        /// and the five combo rules. "Approximately 14 items" is pinned as 14 exactly, and a later
+        /// stage that wants a fifteenth piece has to say so here — which is the point: Stage 13's
+        /// scope is content complete, not content growth.
+        /// </remarks>
+        [Fact]
+        public void Gdd_prototype_content_is_complete_and_nothing_more()
+        {
+            IGameConfig config = ConfigFixture.Load();
+
+            // 14 pieces: 3 bags (GDD "ย่าม 3") + 11 items
+            // (4 arcane weapons, 3 charms, 1 spell tome, 2 offerings, 1 familiar).
+            Assert.Equal(3, config.Bags.Count);
+            Assert.Equal(4, config.Items.Count(i => i.Category == ItemCategory.ArcaneWeapon));
+            Assert.Equal(3, config.Items.Count(i => i.Category == ItemCategory.Charm));
+            Assert.Equal(1, config.Items.Count(i => i.Category == ItemCategory.SpellTome));
+            Assert.Equal(2, config.Items.Count(i => i.Category == ItemCategory.Offering));
+            Assert.Equal(1, config.Items.Count(i => i.Category == ItemCategory.Familiar));
+            Assert.Equal(14, config.Bags.Count + config.Items.Count);
+
+            // Every piece merges to the max tier: a ladder missing a rung is what the data
+            // validator refuses, and this asserts the shipped data actually carries all 14.
+            foreach (ItemConfig item in config.Items)
+            {
+                for (int tier = item.Tier; tier < config.Constant.MaxTier; tier++)
+                {
+                    int from = tier;
+                    Assert.Contains(
+                        config.MergeRecipes,
+                        r => r.ItemId == item.Id && r.FromTier == from && r.ToTier == from + 1);
+                }
+            }
+
+            foreach (BagConfig bag in config.Bags)
+            {
+                for (int tier = bag.Tier; tier < config.Constant.MaxTier; tier++)
+                {
+                    int from = tier;
+                    Assert.Contains(
+                        config.MergeRecipes,
+                        r => r.BagId == bag.Id && r.FromTier == from && r.ToTier == from + 1);
+                }
+            }
+
+            // Three ghosts with three distinct behaviours plus one boss (GDD "ผีไทยใน Prototype").
+            EnemyConfig filler = ConfigFixture.Enemy(config, "enemy.wandering_spirit");
+            Assert.Equal(EnemyRole.Filler, filler.Role);
+            Assert.Equal(MovePattern.Chase, filler.MovePattern);
+
+            EnemyConfig krasue = ConfigFixture.Enemy(config, "enemy.krasue");
+            Assert.Equal(EnemyRole.Fast, krasue.Role);
+            Assert.Equal(EnemyAttackPattern.DashDrain, krasue.AttackPattern);
+            Assert.True(krasue.RetreatSeconds > 0f, "a krasue bites and leaves");
+
+            EnemyConfig tani = ConfigFixture.Enemy(config, "enemy.nang_tani");
+            Assert.Equal(EnemyRole.Elite, tani.Role);
+            Assert.True(tani.IsElite, "นางตานี is the prototype's elite");
+            Assert.Equal(MovePattern.Stationary, tani.MovePattern);
+
+            EnemyConfig pob = ConfigFixture.Enemy(config, "enemy.pob");
+            Assert.Equal(EnemyRole.Boss, pob.Role);
+            Assert.True(pob.IsBoss, "ปอบ is the boss");
+            Assert.InRange(pob.BossPhase2HpPercent, 1f, 99f);
+            Assert.True(pob.BossCorpseHeal > 0, "the boss eats corpses to heal");
+            Assert.True(pob.BossPossessSeconds > 0f, "the boss possesses the player");
+            Assert.Equal(4, config.Enemies.Count);
+
+            // Five floors: 1–4 are timed normal floors, 5 is the 90-second boss floor (GDD).
+            Assert.Equal(5, config.Floors.Count);
+            Assert.Equal(new[] { 1, 2, 3, 4, 5 }, config.Floors.Select(f => f.Index).OrderBy(i => i));
+            foreach (FloorConfig floor in config.Floors)
+            {
+                if (floor.Index == 5)
+                {
+                    Assert.True(floor.IsBoss, "floor 5 is the boss floor");
+                    Assert.Equal("enemy.pob", floor.BossEnemyId);
+                    Assert.Equal(90f, floor.DurationSeconds);
+                }
+                else
+                {
+                    Assert.False(floor.IsBoss, "floor " + floor.Index + " is a normal floor");
+                    Assert.Equal(string.Empty, floor.BossEnemyId);
+                    Assert.Equal(60f, floor.DurationSeconds);
+                }
+            }
+
+            // The GDD's escalation: 1 filler only, 2 adds krasue, 3 the elite, 4 all three.
+            Assert.Equal(new[] { "enemy.wandering_spirit" }, GhostsOnFloor(config, "floor.forest_1"));
+            Assert.Equal(
+                new[] { "enemy.krasue", "enemy.wandering_spirit" },
+                GhostsOnFloor(config, "floor.forest_2"));
+            Assert.Equal(
+                new[] { "enemy.krasue", "enemy.nang_tani" },
+                GhostsOnFloor(config, "floor.forest_3"));
+            Assert.Equal(
+                new[] { "enemy.krasue", "enemy.nang_tani", "enemy.wandering_spirit" },
+                GhostsOnFloor(config, "floor.forest_4"));
+            Assert.Contains("enemy.pob", GhostsOnFloor(config, "floor.forest_5"));
+
+            // Five combo rules, matching the GDD's table: four tag pairs and the bag-area bonus.
+            Assert.Equal(5, config.Synergies.Count);
+            Assert.Equal(4, config.Synergies.Count(s => s.Kind == SynergyKind.AdjacentPair));
+            Assert.Equal(1, config.Synergies.Count(s => s.Kind == SynergyKind.BagArea));
+        }
+
+        private static string[] GhostsOnFloor(IGameConfig config, string floorId)
+        {
+            return config.Waves
+                .Where(w => w.FloorId == floorId)
+                .Select(w => w.EnemyId)
+                .Distinct()
+                .OrderBy(id => id, StringComparer.Ordinal)
+                .ToArray();
         }
 
         [Fact]

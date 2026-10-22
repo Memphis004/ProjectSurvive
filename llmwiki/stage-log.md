@@ -437,3 +437,19 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   `UiLayoutCheck` PASS at 1920×1080 and 1280×720; four Game View shots in `artifacts/ui/stage09n-*`
   (weapon, charm, bag, "เบี้ยไม่พอ") — [report](../docs/stages/09n-report.md).
 - **Next:** 13 (content complete and UX) — or the still-open world-label legibility at 1280×720.
+
+## Stage 13a — content complete, text fit and attribution
+
+- **Did:** pinned the GDD's prototype content with a test (14 pieces in six categories, every piece
+  merging to tier 3, three ghosts + two-phase Pob, five floors and their escalation, five combos);
+  moved the last two player-facing literals into localization and added two architecture guards for
+  embedded text and unknown keys; added `UiTextFitReport` (`__projectSurviveTextFit`) that measures
+  every label in the player (rect, needed size, rendered size, missing glyphs) and asserted it from
+  Playwright on all four screens; wrote `ATTRIBUTION.md`.
+- **Result:** Fast suite **PASS 11 | 0 | 3** (601 xUnit, 178/178 EditMode); WebGL rebuild and **13/13**
+  browser tests green with Title 9 / Camp 35 / Battle 30 / Result 7 labels, **0 overflow, 0 missing
+  glyphs**; the audit found and fixed a clipped MP caption and nine too-short HUD boxes (Editor capture
+  0 overlaps at both sizes); `THSarabunPSK` flagged as a Stage 15 must-remove (non-OFL, unused) —
+  [report](../docs/stages/13a-report.md).
+- **Next:** 13b (tutorial buy → place → rotate → combo → depart) and then 13c (CC0 audio, pause,
+  audio settings); the human playtest acceptance waits for 13b.

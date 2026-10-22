@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { SCENE, SMOKE } from "./globals.mjs";
+import { expectTextFits } from "./textfit.mjs";
 
 /**
  * Stage 10d's first leg, in a built player: **the title screen and its start control**.
@@ -134,6 +135,10 @@ test.describe("ProjectSurvive's title screen in the browser", () => {
     expect(title.scene).toBe("Title");
     expect(title.startError).toBe("");
     expect(title.ready).toBe(true);
+
+    // Stage 13: every label on this screen — the settings panel's included — fits its rectangle
+    // and is drawn by the shipped font. The player measured it; this reads its document.
+    await expectTextFits(page, "Title");
 
     // The two strings the screen draws are the localization table's, and both are Thai: the caption is
     // the one the player presses, so "it rendered" is a real assertion here (Stage 09d's Thai floor).

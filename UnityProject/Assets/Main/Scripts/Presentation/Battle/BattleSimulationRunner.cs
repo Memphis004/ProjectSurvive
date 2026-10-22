@@ -333,6 +333,10 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
             _report.EndObject();
             WebGlBridge.Publish(BattleReportGlobal, _report.ToString());
+
+            // Stage 13: the battle HUD's labels, measured in the player. The report throttles
+            // itself to one pass a second, so this costs nothing on a frame path.
+            UiTextFitReport.Publish(gameObject.scene.name);
         }
     }
 }

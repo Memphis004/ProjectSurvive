@@ -215,3 +215,5 @@
 ,ui.settings.language.en,อังกฤษ,English
 ,ui.settings.speed.format,ความเร็วเริ่มต้น: {0},Starting speed: {0}
 ,ui.save.failed,บันทึกไม่สำเร็จ,Could not save
+,camp.chest.title.format,หีบสัมภาระ ({0}),Chest ({0})
+,camp.status.hpmp.format,ชีวิต {0}  พลังอาคม {1},HP {0}  MP {1}

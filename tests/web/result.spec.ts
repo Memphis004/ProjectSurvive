@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { SCENE } from "./globals.mjs";
+import { expectTextFits } from "./textfit.mjs";
 
 /**
  * Stage 10's last leg, in a built player: **the summary screen**.
@@ -257,6 +258,9 @@ test.describe("ProjectSurvive's summary screen in the browser", () => {
     expect(summary.scene).toBe("Result");
     expect(summary.startError).toBe("");
     expect(summary.finished).toBe(true);
+
+    // Stage 13: the summary screen's Thai text fits and the font can draw it.
+    await expectTextFits(page, "Result");
     expect(summary.outcome).toBe("Defeat");
     expect(summary.victory).toBe(false);
     expect(summary.floor).toBe(1);

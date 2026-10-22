@@ -717,7 +717,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             // The panel carries no run stat of its own: น้ำหนัก/สมาธิ/หีบ/เบี้ย/HP/MP live on the
             // bottom bar, which is under the panel and never hidden by it, and a second copy here was
             // the duplication Stage 09e work item 1 removes.
-            Subscribe(_state.ChestValue, _chestTitleLabel, format: "หีบสัมภาระ ({0})");
+            Subscribe(_state.ChestTitle, _chestTitleLabel);
             Subscribe(_state.DepartReason, _departReasonLabel);
 
             _subscriptions.Add(_state.CanReset.Subscribe(value => SetInteractable(_resetButton, value)));

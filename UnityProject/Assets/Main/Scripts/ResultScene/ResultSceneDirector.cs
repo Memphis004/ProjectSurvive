@@ -149,6 +149,9 @@ namespace ProjectSurvive.Game.ResultScene
             ResultReport.Publish(
                 Summary, _scope.Container.Resolve<ResultUiState>(), view, gameObject.scene.name,
                 StartError);
+
+            // Stage 13: the summary screen's labels, measured for the browser suite.
+            UiTextFitReport.Publish(gameObject.scene.name);
         }
 
         private void Update()

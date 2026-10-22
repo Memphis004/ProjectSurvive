@@ -369,6 +369,10 @@ namespace ProjectSurvive.Game.Camp
                 _save != null && _save.LastSaveFailed,
                 _saveWarning != null ? _saveWarning.text : string.Empty,
                 _save != null ? _save.LastError : string.Empty);
+
+            // Stage 13: every label on the camp screen, measured in the player with the shipped
+            // font (the จัดย่าม panel included, because the scan visits inactive children too).
+            UiTextFitReport.Publish(gameObject.scene.name);
         }
 
         private void PublishGeometry(bool force)

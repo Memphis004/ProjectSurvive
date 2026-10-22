@@ -347,10 +347,10 @@ namespace ProjectSurvive.Game.Editor
             TMP_Text biaValue = ProjectSetup.CreateUiText(resourcePanel, "BiaValue", new Vector2(0f, -40f), new Vector2(200f, 40f), 30f, font);
             TMP_Text timeCaption = ProjectSetup.CreateUiText(resourcePanel, "TimeCaption", new Vector2(220f, -8f), new Vector2(160f, 30f), ProjectSetup.UiFontSize, font);
             TMP_Text timeValue = ProjectSetup.CreateUiText(resourcePanel, "TimeValue", new Vector2(220f, -40f), new Vector2(200f, 40f), 30f, font);
-            TMP_Text waveCaption = ProjectSetup.CreateUiText(resourcePanel, "WaveCaption", new Vector2(0f, -86f), new Vector2(160f, 28f), ProjectSetup.UiFontSize, font);
-            TMP_Text waveValue = ProjectSetup.CreateUiText(resourcePanel, "WaveValue", new Vector2(220f, -86f), new Vector2(200f, 28f), ProjectSetup.UiFontSize, font);
-            TMP_Text killsCaption = ProjectSetup.CreateUiText(resourcePanel, "KillsCaption", new Vector2(0f, -120f), new Vector2(200f, 28f), ProjectSetup.UiFontSize, font);
-            TMP_Text killsValue = ProjectSetup.CreateUiText(resourcePanel, "KillsValue", new Vector2(220f, -120f), new Vector2(200f, 28f), ProjectSetup.UiFontSize, font);
+            TMP_Text waveCaption = ProjectSetup.CreateUiText(resourcePanel, "WaveCaption", new Vector2(0f, -86f), new Vector2(160f, 30f), ProjectSetup.UiFontSize, font);
+            TMP_Text waveValue = ProjectSetup.CreateUiText(resourcePanel, "WaveValue", new Vector2(220f, -86f), new Vector2(200f, 30f), ProjectSetup.UiFontSize, font);
+            TMP_Text killsCaption = ProjectSetup.CreateUiText(resourcePanel, "KillsCaption", new Vector2(0f, -120f), new Vector2(200f, 30f), ProjectSetup.UiFontSize, font);
+            TMP_Text killsValue = ProjectSetup.CreateUiText(resourcePanel, "KillsValue", new Vector2(220f, -120f), new Vector2(200f, 30f), ProjectSetup.UiFontSize, font);
 
             // The boss bar appears only on a boss floor; the presenter tells the view when. It is a
             // band inside the resource panel, never a panel of its own — the layout check holds a
@@ -384,8 +384,11 @@ namespace ProjectSurvive.Game.Editor
             // starts 46 px below the panel's top for exactly that reason — as first authored, the two
             // shared their top-right corner and the capture command reported
             // "Portrait overlaps StatusCaption".
+            // Stage 13 measured every label in the player (`UiTextFitReport`): 22 px Sarabun needs
+            // 28.61 px of line box, so a 28 px rectangle is 0.6 px short — the boxes here are 30 px,
+            // and the two the audit caught wrapping are widened below.
             TMP_Text statusCaption = ProjectSetup.CreateUiText(
-                statusPanel, "StatusCaption", new Vector2(10f, -8f), new Vector2(200f, 28f), ProjectSetup.UiFontSize, font);
+                statusPanel, "StatusCaption", new Vector2(10f, -8f), new Vector2(200f, 30f), ProjectSetup.UiFontSize, font);
 
             RectTransform portraitObject = ProjectSetup.CreateUiRect(
                 statusPanel, "Portrait", new Vector2(0f, 1f), new Vector2(0f, 1f),
@@ -397,16 +400,20 @@ namespace ProjectSurvive.Game.Editor
             // A caption and its value are two boxes with 2 px between them (116..174 and 176..284):
             // sharing an edge exactly is what makes a tangent pair read as a collision once the canvas
             // scalar has rounded both sides differently.
-            TMP_Text hpCaption = ProjectSetup.CreateUiText(statusPanel, "HpCaption", new Vector2(92f, -50f), new Vector2(58f, 26f), ProjectSetup.UiFontSize, font);
-            TMP_Text hpValue = ProjectSetup.CreateUiText(statusPanel, "HpValue", new Vector2(152f, -50f), new Vector2(108f, 26f), ProjectSetup.UiFontSize, font);
+            TMP_Text hpCaption = ProjectSetup.CreateUiText(statusPanel, "HpCaption", new Vector2(92f, -46f), new Vector2(58f, 30f), ProjectSetup.UiFontSize, font);
+            TMP_Text hpValue = ProjectSetup.CreateUiText(statusPanel, "HpValue", new Vector2(152f, -46f), new Vector2(108f, 30f), ProjectSetup.UiFontSize, font);
             RectTransform hpBar = ProjectSetup.StretchUiBar(
                 statusPanel, "HpBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
                 new Vector2(92f, -92f), new Vector2(-10f, -78f), new Color(0.85f, 0.28f, 0.30f, 1f));
-            TMP_Text manaCaption = ProjectSetup.CreateUiText(statusPanel, "ManaCaption", new Vector2(92f, -100f), new Vector2(58f, 24f), ProjectSetup.UiFontSize, font);
-            TMP_Text manaValue = ProjectSetup.CreateUiText(statusPanel, "ManaValue", new Vector2(152f, -100f), new Vector2(108f, 24f), ProjectSetup.UiFontSize, font);
+
+            // Stage 13: "พลังอาคม" (MP) needs 89 px and the caption's box was 58, so it wrapped onto
+            // a second line inside a 24 px box — the one genuinely clipped label the audit found.
+            // The caption takes 104 px and the value moves right to clear it.
+            TMP_Text manaCaption = ProjectSetup.CreateUiText(statusPanel, "ManaCaption", new Vector2(92f, -96f), new Vector2(104f, 30f), ProjectSetup.UiFontSize, font);
+            TMP_Text manaValue = ProjectSetup.CreateUiText(statusPanel, "ManaValue", new Vector2(200f, -96f), new Vector2(100f, 30f), ProjectSetup.UiFontSize, font);
             RectTransform manaBar = ProjectSetup.StretchUiBar(
                 statusPanel, "ManaBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(92f, -140f), new Vector2(-10f, -126f), new Color(0.42f, 0.72f, 0.95f, 1f));
+                new Vector2(92f, -144f), new Vector2(-10f, -130f), new Color(0.42f, 0.72f, 0.95f, 1f));
 
             // Stage 11c: the one line the status panel gains — a boss's possession has the movement
             // input reversed, and the player has to be told in words. It is authored empty rather than

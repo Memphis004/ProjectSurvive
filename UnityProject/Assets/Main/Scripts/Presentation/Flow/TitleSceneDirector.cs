@@ -181,7 +181,17 @@ namespace ProjectSurvive.Game.Presentation.Flow
             }
 
             TitleReport.Publish(_scope.Container.Resolve<UiState>(), _view, gameObject.scene.name, StartError);
+
+            // Stage 13: the label audit is deferred to the next frame. The report above carries the
+            // strings the presenter just wrote, but the labels mirror them through their own
+            // subscriptions, which are installed in the view's OnEnable — a text scan here reads a
+            // scene of empty labels (measured: labelCount 0). One frame later the screen is what
+            // the player sees.
+            _textFitPending = true;
         }
+
+        /// <summary>Set when a report was published and its labels have not been measured yet.</summary>
+        private bool _textFitPending;
 
         private void Update()
         {
@@ -206,6 +216,15 @@ namespace ProjectSurvive.Game.Presentation.Flow
             if (_publishReport && (_hasStaleSize || HasMovedSincePublish()))
             {
                 PublishReport();
+            }
+
+            if (_textFitPending)
+            {
+                // Deferred from PublishReport: by this frame every label has received the state it
+                // mirrors. The scan is throttled internally, so the language-change path and this
+                // one sharing a frame cost a single pass.
+                _textFitPending = false;
+                UiTextFitReport.Publish(gameObject.scene.name);
             }
 
             if (_departed)

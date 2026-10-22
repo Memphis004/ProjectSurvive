@@ -80,6 +80,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         public ReactiveProperty<string> ChestValue { get; } = new ReactiveProperty<string>(string.Empty);
 
+        /// <summary>The chest panel's heading, the count folded into the localized format.</summary>
+        public ReactiveProperty<string> ChestTitle { get; } = new ReactiveProperty<string>(string.Empty);
+
         public ReactiveProperty<string> BiaValue { get; } = new ReactiveProperty<string>(string.Empty);
 
         public ReactiveProperty<string> RefreshCostValue { get; } = new ReactiveProperty<string>(string.Empty);
@@ -292,6 +295,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             WeightValue.Dispose();
             FocusValue.Dispose();
             ChestValue.Dispose();
+            ChestTitle.Dispose();
             BiaValue.Dispose();
             RefreshCostValue.Dispose();
             FloorValue.Dispose();

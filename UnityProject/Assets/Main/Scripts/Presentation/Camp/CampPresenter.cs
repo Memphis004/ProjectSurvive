@@ -1271,7 +1271,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
             int maxMp = _config.Constant.MaxMp;
             CampUiState.Set(_state.HpValue, $"{_run.Hp}/{_run.MaxHp}");
             CampUiState.Set(_state.MpValue, $"{maxMp}/{maxMp}");
-            CampUiState.Set(_state.HpMpValue, $"HP {_run.Hp}/{_run.MaxHp}  MP {maxMp}/{maxMp}");
+            CampUiState.Set(
+                _state.HpMpValue,
+                Format(
+                    "camp.status.hpmp.format",
+                    $"{_run.Hp}/{_run.MaxHp}",
+                    $"{maxMp}/{maxMp}"));
             CampUiState.Set(
                 _state.WeightValue,
                 Format("camp.weight.format", _run.BagWeight, _run.BagWeightPenaltyPercent));
@@ -1283,6 +1288,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             CampUiState.Set(_state.FocusValue, Format("camp.focus.format", _run.FocusPerSecond));
             CampUiState.Set(_state.ChestValue, Format("camp.chest.format", _run.ChestUsed, _run.ChestSlots));
+            CampUiState.Set(
+                _state.ChestTitle,
+                Format("camp.chest.title.format", Format("camp.chest.format", _run.ChestUsed, _run.ChestSlots)));
             CampUiState.Set(_state.BiaValue, Number(_run.Wallet.Bia));
             CampUiState.Set(_state.RefreshCostValue, Number(_run.RefreshPrice));
             CampUiState.Set(_state.RefreshButtonLabel, Format("camp.refresh.format", _run.RefreshPrice));

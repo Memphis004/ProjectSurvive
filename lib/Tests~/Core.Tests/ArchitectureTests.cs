@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using ProjectSurvive.Core.Domain.Config;
 using Xunit;
 
 namespace ProjectSurvive.Core.Tests
@@ -816,6 +817,174 @@ namespace ProjectSurvive.Core.Tests
             }
 
             Assert.Empty(offenders);
+        }
+
+        /// <summary>
+        /// Stage 13 acceptance: "ไม่มีข้อความผู้เล่นฝังในโค้ด" — every string a player reads
+        /// is a localization row, read by key.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The runtime Unity scripts (not the Editor tooling, not the tests) are scanned for
+        /// string literals that carry Thai text, and for the places a label is handed a literal
+        /// directly (a <c>.text = "…"</c> assignment, a <c>format:</c> argument, an initial
+        /// <c>ReactiveProperty</c> value). Either shape means a phrase exists only in code, where
+        /// the Thai/English switch cannot reach it and no one can proofread it beside its siblings.
+        /// </para>
+        /// <para>
+        /// The dev menu is the one deliberate exception and its presenter documents why: it is
+        /// developer diagnostics in a panel that does not exist in a release build. Its file is
+        /// named here rather than the labels being moved into the player's table.
+        /// </para>
+        /// </remarks>
+        [Fact]
+        public void Runtime_sources_embed_no_player_facing_text()
+        {
+            const string devMenu = "Presentation/Battle/DevMenuPresenter.cs";
+            var offenders = new List<string>();
+
+            foreach (string file in UnityRuntimeSources().Concat(LibSourceFiles("Runtime")))
+            {
+                string relative = RelativePath(file);
+                if (relative.EndsWith(devMenu, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                string code = StripComments(File.ReadAllText(file));
+
+                // Inspector attributes are developer-facing (the Editor's tooltips and headers),
+                // not text the player reads; their Thai is allowed and is what makes the
+                // component pair/documentable in the Inspector.
+                code = Regex.Replace(
+                    code, "\\[(?:Tooltip|Header)\\s*\\(\\s*\"[^\"]*\"\\s*\\)\\]", string.Empty);
+
+                foreach (string literal in StringLiterals(code))
+                {
+                    if (ContainsThai(literal))
+                    {
+                        offenders.Add(relative + " embeds Thai text: \"" + literal + "\"");
+                        break;
+                    }
+                }
+
+                if (Regex.IsMatch(code, "\\.text\\s*=\\s*\""))
+                {
+                    offenders.Add(relative + " assigns a literal to a label");
+                }
+
+                if (Regex.IsMatch(code, "\\bformat\\s*:\\s*\""))
+                {
+                    offenders.Add(relative + " passes a literal format to a label");
+                }
+            }
+
+            Assert.Empty(offenders);
+        }
+
+        /// <summary>
+        /// Every localization key a runtime script asks for is a row in the shipped table.
+        /// </summary>
+        /// <remarks>
+        /// A typo or a deleted row would otherwise print the presentation's missing-key fallback
+        /// in a corner of one screen and nowhere else. Keys built by concatenation (`error.` + a
+        /// code) cannot be seen by this test; the data validator's cross-table rule covers the
+        /// item/enemy/floor name keys, and this covers the hand-written UI keys.
+        /// </remarks>
+        [Fact]
+        public void Every_localization_key_the_runtime_asks_for_exists()
+        {
+            IGameConfig config = ConfigFixture.Load();
+            var keys = new SortedSet<string>(StringComparer.Ordinal);
+            var offenders = new List<string>();
+
+            foreach (string file in UnityRuntimeSources())
+            {
+                string code = StripComments(File.ReadAllText(file));
+
+                foreach (Match match in Regex.Matches(code, "(?:Lookup|Format|\\.Get)\\(\\s*\"([a-z][a-z0-9_.]*)\""))
+                {
+                    keys.Add(match.Groups[1].Value);
+                }
+            }
+
+            Assert.NotEmpty(keys);
+
+            foreach (string key in keys)
+            {
+                if (key.EndsWith(".", StringComparison.Ordinal))
+                {
+                    // A prefix the code completes (`"error." + code`), not a key of its own.
+                    continue;
+                }
+
+                if (!config.TryGetLocalization(key, out _))
+                {
+                    offenders.Add("no localization row for " + key);
+                }
+            }
+
+            Assert.Empty(offenders);
+        }
+
+        /// <summary>
+        /// The hand-written runtime Unity sources: the scenes' own code, not the Editor tooling
+        /// and not the tests (which legitimately speak Thai in their assertion messages).
+        /// </summary>
+        private static IEnumerable<string> UnityRuntimeSources()
+        {
+            foreach (string file in UnitySourceFiles("Scripts"))
+            {
+                string relative = RelativePath(file);
+                if (relative.Contains("/Editor/", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                yield return file;
+            }
+        }
+
+        private static IEnumerable<string> StringLiterals(string code)
+        {
+            for (int i = 0; i < code.Length; i++)
+            {
+                if (code[i] != '"')
+                {
+                    continue;
+                }
+
+                var builder = new System.Text.StringBuilder();
+                int cursor = i + 1;
+                while (cursor < code.Length && code[cursor] != '"')
+                {
+                    if (code[cursor] == '\\' && cursor + 1 < code.Length)
+                    {
+                        builder.Append(code[cursor + 1]);
+                        cursor += 2;
+                        continue;
+                    }
+
+                    builder.Append(code[cursor]);
+                    cursor++;
+                }
+
+                yield return builder.ToString();
+                i = cursor;
+            }
+        }
+
+        private static bool ContainsThai(string text)
+        {
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (text[i] >= '\u0E00' && text[i] <= '\u0E7F')
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static void CollectForbiddenReferences(
