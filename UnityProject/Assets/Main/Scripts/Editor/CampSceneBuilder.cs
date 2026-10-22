@@ -188,7 +188,13 @@ namespace ProjectSurvive.Game.Editor
                 panel, "LockRestoreToggle", new Vector2(250f, -72f), new Vector2(30f, 30f), font,
                 new Vector2(292f, -72f), new Vector2(400f, 34f), out TMP_Text lockRestoreLabel);
 
-            // --- Top-right (y 20..180): the instruction scroll, four numbered steps --------------
+            // --- Top-right (y 20..180): the instruction scroll ----------------------------------
+            //
+            // Five rows, not four: the block also carries the first-run checklist (Stage 13b), and
+            // its five steps must print in full. The rows stay 28 px tall — 26 was measured as an
+            // overflow by the player's own text audit (a 22 px Thai line needs 28.61) — so the
+            // heading moves up 4 px and the rows sit 28 apart, the last ending at -174 inside the
+            // 176-tall panel. The chest panel below keeps its y.
             RectTransform instr = ProjectSetup.CreateUiRect(
                 panel, "Instructions", new Vector2(1f, 1f), new Vector2(1f, 1f),
                 new Vector2(-40f, -20f), new Vector2(776f, 176f));
@@ -196,13 +202,14 @@ namespace ProjectSurvive.Game.Editor
             instrImage.color = new Color(0.12f, 0.14f, 0.18f, 0.85f);
             instrImage.raycastTarget = false;
 
-            TMP_Text instrTitle = ProjectSetup.CreateUiText(instr, "InstrTitle", new Vector2(12f, -8f), new Vector2(752f, 28f), ProjectSetup.UiFontSize, font);
+            TMP_Text instrTitle = ProjectSetup.CreateUiText(instr, "InstrTitle", new Vector2(12f, -4f), new Vector2(752f, 28f), ProjectSetup.UiFontSize, font);
             instrTitle.color = new Color(1f, 0.82f, 0.35f, 1f);
 
-            TMP_Text step1 = ProjectSetup.CreateUiText(instr, "Step1", new Vector2(12f, -40f), new Vector2(752f, 28f), ProjectSetup.UiFontSize, font);
-            TMP_Text step2 = ProjectSetup.CreateUiText(instr, "Step2", new Vector2(12f, -72f), new Vector2(752f, 28f), ProjectSetup.UiFontSize, font);
-            TMP_Text step3 = ProjectSetup.CreateUiText(instr, "Step3", new Vector2(12f, -104f), new Vector2(752f, 28f), ProjectSetup.UiFontSize, font);
-            TMP_Text step4 = ProjectSetup.CreateUiText(instr, "Step4", new Vector2(12f, -136f), new Vector2(752f, 28f), ProjectSetup.UiFontSize, font);
+            TMP_Text step1 = ProjectSetup.CreateUiText(instr, "Step1", new Vector2(12f, -34f), new Vector2(752f, 28f), ProjectSetup.UiFontSize, font);
+            TMP_Text step2 = ProjectSetup.CreateUiText(instr, "Step2", new Vector2(12f, -62f), new Vector2(752f, 28f), ProjectSetup.UiFontSize, font);
+            TMP_Text step3 = ProjectSetup.CreateUiText(instr, "Step3", new Vector2(12f, -90f), new Vector2(752f, 28f), ProjectSetup.UiFontSize, font);
+            TMP_Text step4 = ProjectSetup.CreateUiText(instr, "Step4", new Vector2(12f, -118f), new Vector2(752f, 28f), ProjectSetup.UiFontSize, font);
+            TMP_Text step5 = ProjectSetup.CreateUiText(instr, "Step5", new Vector2(12f, -146f), new Vector2(752f, 28f), ProjectSetup.UiFontSize, font);
 
             // --- Left column (y 140..720 from the top): the board. Nine columns of 78 + a 4 gap =
             //     734 wide, seven rows = 574 tall -----------------------------------------------
@@ -309,6 +316,7 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(view, "_instructionStep2Label", step2);
             ProjectSetup.SetObjectReference(view, "_instructionStep3Label", step3);
             ProjectSetup.SetObjectReference(view, "_instructionStep4Label", step4);
+            ProjectSetup.SetObjectReference(view, "_instructionStep5Label", step5);
             return view;
         }
 

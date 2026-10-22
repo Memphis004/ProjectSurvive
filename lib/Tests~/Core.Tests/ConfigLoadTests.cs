@@ -67,8 +67,10 @@ namespace ProjectSurvive.Core.Tests
             // row format, "อีก N ชิ้น" and the empty listing), taking it to 216. Stage 13 moved the
             // last two player-facing literals out of the UI code into this table — the chest
             // panel's heading (`camp.chest.title.format`) and the camp status bar's combined
-            // HP/MP line (`camp.status.hpmp.format`) — taking it to 218.
-            Assert.Equal(218, config.Localization.Count);
+            // HP/MP line (`camp.status.hpmp.format`) — taking it to 218. Stage 13b added the
+            // ten step's checklist rows (a title, five steps, the "step N/5" line and the three
+            // row states), taking it to 228.
+            Assert.Equal(228, config.Localization.Count);
         }
 
         /// <summary>

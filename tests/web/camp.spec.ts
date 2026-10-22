@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { SCENE } from "./globals.mjs";
+import { PERSISTENCE, SCENE } from "./globals.mjs";
 import { expectTextFits } from "./textfit.mjs";
 
 /**
@@ -1034,6 +1034,147 @@ test.describe("ProjectSurvive ศาลาพัก in the browser", () => {
     console.log("camp report (after walking and pressing E):", JSON.stringify(after));
 
     await page.screenshot({ path: "test-results/web-camp-rented-walking.png", fullPage: false });
+
+    expect(pageErrors, `the page reported errors:\n${pageErrors.join("\n")}`).toEqual([]);
+  });
+
+  test("a new profile is walked through the checklist and finishing it reaches the settings file", async ({ page }) => {
+    test.setTimeout(330_000);
+    const pageErrors = collectPageErrors(page);
+
+    const { box, layout, first } = await enterCamp(page);
+
+    // A browser context with empty storage is a new profile, so the camp explains itself: the
+    // first-run checklist is on, at step one, with nothing ticked (Stage 13b).
+    expect(first.tutorialActive, "a new profile must be given the checklist").toBe(true);
+    expect(first.tutorialComplete).toBe(false);
+    expect(first.tutorialStep, "the first step is the rent").toBe(1);
+    expect(first.tutorialDone).toBe(0);
+
+    // --- the panel prints the checklist in the instruction block -------------------------------
+    // The text audit is read before the panel is opened, the way every camp spec reads it: a label
+    // inside the hidden panel is measured by the player's own report, and opening the panel is a
+    // separate concern (its own layout test). The strings are published either way — the presenter
+    // fills the block at Begin.
+    const text = await expectTextFits(page, "Camp", { timeout: COMMAND_TIMEOUT_MS });
+    const rowText = (step: number): string => {
+      const label = (text.labels ?? []).find((entry: { name: string }) => entry.name.includes(`/Step${step} (`));
+      expect(label, `the panel drew no checklist row ${step}`).toBeDefined();
+      return label.text;
+    };
+
+    // Five rows, all of them filled — the static instructions leave the fifth one empty, so a
+    // checklist that never replaced the block would fail here.
+    for (let step = 1; step <= 5; step += 1) {
+      expect(rowText(step).length, `checklist row ${step} is empty`).toBeGreaterThan(2);
+    }
+
+    expect(rowText(1), "the first row is the rent step the player is on").toContain("เช่า");
+    expect(rowText(5), "the last row is the departure").toContain("ออกเดินทาง");
+
+    console.log("camp checklist:", JSON.stringify([1, 2, 3, 4, 5].map(rowText)));
+
+    await openBagPanel(page, box, layout);
+
+    await page.screenshot({ path: "test-results/web-camp-checklist.png", fullPage: false });
+
+    // --- 1. the rent ticks the first step -------------------------------------------------------
+    // Back to the sala: the panel is not what a player rents from (Stage 09c).
+    await clickOnCanvas(page, toPage(box, layout, control(await geometry(page), "closeBag")));
+
+    await expect
+      .poll(async () => (await state(page)).bagVisible, { timeout: COMMAND_TIMEOUT_MS, polling: 250 })
+      .toBe(false);
+
+    const offer = first.shop.find(
+      (slot) => !slot.empty && !slot.purchased && slot.pieceId.startsWith("item.") && slot.affordable,
+    );
+    expect(offer, "the shop must offer an affordable item for the place step").toBeDefined();
+
+    await clickOnCanvas(page, toPage(box, layout, control(layout, `rent${offer!.index}`)));
+
+    await expect
+      .poll(async () => (await counters(page)).rented, { timeout: COMMAND_TIMEOUT_MS, polling: 250 })
+      .toBe(1);
+
+    await expect
+      .poll(async () => (await state(page)).tutorialDone, { timeout: COMMAND_TIMEOUT_MS, polling: 250 })
+      .toBe(1);
+
+    const afterRent = await state(page);
+    expect(afterRent.tutorialStep, "the pointer moved to the placement").toBe(2);
+
+    const rented = afterRent.pieces.find((piece) => piece.zone === "Chest");
+    expect(rented, "the rented item is carried in the chest").toBeDefined();
+
+    // --- 2. placing, turning and reading the tooltip tick steps 2, 3 and 4 --------------------
+    await openBagPanel(page, box, layout);
+    const opened = await geometry(page);
+
+    const boardItem = afterRent.pieces.find((piece) => piece.kind === "Item" && piece.zone === "Board");
+    expect(boardItem, "the starting kit must carry an item on the board").toBeDefined();
+
+    // One cell to the right of the starting item: inside the starting bag, so a legal placement.
+    const target = { column: boardItem!.x + 1, row: boardItem!.y };
+
+    await dragOnCanvas(
+      page,
+      toPage(box, opened, chestSlot(opened, rented!.chestSlot)),
+      toPage(box, opened, boardCell(opened, target.column, target.row)),
+    );
+
+    await expect
+      .poll(async () => (await state(page)).tutorialDone, { timeout: COMMAND_TIMEOUT_MS, polling: 250 })
+      .toBeGreaterThanOrEqual(2);
+
+    // The right button turns the piece it is over: the checklist's rotate step.
+    await clickUntilPublished(
+      page,
+      toPage(box, opened, boardCell(opened, target.column, target.row)),
+      async () => (await state(page)).tutorialDone >= 3,
+      4,
+      "right",
+    );
+
+    // Reading the tooltip: the pointer rests on the piece, no button needed.
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(FRAME_PAUSE_MS);
+    await page.mouse.move(
+      toPage(box, opened, boardCell(opened, target.column, target.row)).x,
+      toPage(box, opened, boardCell(opened, target.column, target.row)).y,
+      { steps: 6 },
+    );
+
+    await expect
+      .poll(async () => (await state(page)).tutorialDone, { timeout: COMMAND_TIMEOUT_MS, polling: 250 })
+      .toBeGreaterThanOrEqual(4);
+
+    const beforeDepart = await state(page);
+    expect(beforeDepart.tutorialStep, "only the departure is left").toBe(5);
+    expect(beforeDepart.tutorialActive).toBe(true);
+
+    // --- 3. departing finishes it, and the fact is written --------------------------------------
+    const depart = control(await geometry(page), "depart");
+    await clickOnCanvas(page, toPage(box, opened, depart));
+
+    await expect
+      .poll(async () => (await counters(page)).departures, { timeout: COMMAND_TIMEOUT_MS, polling: 250 })
+      .toBe(1);
+
+    const finished = await state(page);
+    expect(finished.tutorialComplete, "the fifth step must finish the checklist").toBe(true);
+    expect(finished.tutorialActive).toBe(false);
+
+    // The settings document is what the scene director writes after the last step; the player
+    // would meet the checklist again on the next visit if this stayed false.
+    const persistence = await readGlobal<{ tutorialCompleted: boolean }>(page, PERSISTENCE);
+    expect(persistence, "the settings report was never published").toBeDefined();
+    expect(
+      persistence.tutorialCompleted,
+      "finishing the checklist must reach the settings file, or it comes back next run",
+    ).toBe(true);
+
+    console.log("camp report (checklist finished):", JSON.stringify(finished));
 
     expect(pageErrors, `the page reported errors:\n${pageErrors.join("\n")}`).toEqual([]);
   });

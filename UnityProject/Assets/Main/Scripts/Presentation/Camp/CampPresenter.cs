@@ -114,8 +114,26 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private int _altarOffer = -1;
         private bool _disposed;
 
-        /// <summary>Creates a presenter over one run and one screen state.</summary>
-        public CampPresenter(RunSession run, IGameConfig config, LocalizationService text, CampUiState state)
+        /// <summary>
+        /// The first-run checklist (Stage 13b). Guidance only: no command consults it, and a player
+        /// who ignores it plays exactly the same game.
+        /// </summary>
+        private readonly CampTutorial _tutorial = new CampTutorial();
+
+        /// <summary>Set when the checklist was finished this frame and the caller should persist it.</summary>
+        private bool _tutorialCompletionPending;
+
+        /// <summary>
+        /// Creates a presenter over one run and one screen state.
+        /// </summary>
+        /// <param name="tutorialCompleted">
+        /// The persisted first-run flag. Defaults to <c>true</c> so a caller that does not know
+        /// about onboarding (the older tests, a harness) gets the screen without it — the shipping
+        /// camp scope passes the settings value.
+        /// </param>
+        public CampPresenter(
+            RunSession run, IGameConfig config, LocalizationService text, CampUiState state,
+            bool tutorialCompleted = true)
         {
             _run = run ?? throw new ArgumentNullException(nameof(run));
             _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -123,6 +141,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             _state = state ?? throw new ArgumentNullException(nameof(state));
 
             _shop = new CampShopSlotModel[run.Stock.SlotCount];
+            _tutorial.Begin(tutorialCompleted);
         }
 
         /// <summary>The run every command goes through.</summary>
@@ -130,6 +149,24 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         /// <summary>How many times each command was accepted (the browser report's numbers).</summary>
         public CampCounters Counters { get; } = new CampCounters();
+
+        /// <summary>The first-run checklist, for the report and for a test.</summary>
+        public CampTutorial Tutorial => _tutorial;
+
+        /// <summary>
+        /// True once, on the call after the checklist's last step was ticked. The camp director reads
+        /// it, writes the settings flag and lets it go; a read clears it, so the write happens once.
+        /// </summary>
+        public bool TakeTutorialCompletion()
+        {
+            if (!_tutorialCompletionPending)
+            {
+                return false;
+            }
+
+            _tutorialCompletionPending = false;
+            return true;
+        }
 
         /// <summary>True while a piece is being dragged.</summary>
         public bool IsDragging => _drag.IsActive;
@@ -214,10 +251,84 @@ namespace ProjectSurvive.Game.Presentation.Camp
             PublishBag();
             PublishDepart();
             PublishTooltip();
+            PublishTutorial();
 
             // The shelf the player is standing at may have just been rented or re-rolled; its board
             // must not keep describing what is no longer there (Stage 09n).
             PublishFocusedShelf();
+        }
+
+        // ------------------------------------------------------------------
+        // first-run checklist (Stage 13b)
+        // ------------------------------------------------------------------
+
+        /// <summary>The five step keys, in <see cref="CampTutorialAction"/> order.</summary>
+        private static readonly string[] TutorialKeys =
+        {
+            "camp.tutorial.1", "camp.tutorial.2", "camp.tutorial.3", "camp.tutorial.4",
+            "camp.tutorial.5",
+        };
+
+        /// <summary>Records one finished step; the last one arms the settings write.</summary>
+        private void ObserveTutorial(CampTutorialAction action)
+        {
+            if (_tutorial.Observe(action))
+            {
+                _tutorialCompletionPending = true;
+            }
+        }
+
+        /// <summary>
+        /// Prints the checklist into the bag screen's instruction block and the next step into the
+        /// status bar's hint line. Once the checklist is finished, the block goes back to the static
+        /// instructions and the hint line to the controls list; a completed checklist never comes
+        /// back, because the fact was written to settings when the last step landed.
+        /// </summary>
+        private void PublishTutorial()
+        {
+            if (_tutorial.IsComplete)
+            {
+                CampUiState.Set(_state.InstructionsTitle, Lookup("camp.instructions.title"));
+                CampUiState.Set(_state.Instruction1, Lookup("camp.instructions.1"));
+                CampUiState.Set(_state.Instruction2, Lookup("camp.instructions.2"));
+                CampUiState.Set(_state.Instruction3, Lookup("camp.instructions.3"));
+                CampUiState.Set(_state.Instruction4, Lookup("camp.instructions.4"));
+                CampUiState.Set(_state.Instruction5, string.Empty);
+                CampUiState.Set(_state.HintCaption, Lookup("camp.world.hint"));
+                return;
+            }
+
+            CampUiState.Set(_state.InstructionsTitle, Lookup("camp.tutorial.title"));
+            CampUiState.Set(_state.Instruction1, TutorialRow(0));
+            CampUiState.Set(_state.Instruction2, TutorialRow(1));
+            CampUiState.Set(_state.Instruction3, TutorialRow(2));
+            CampUiState.Set(_state.Instruction4, TutorialRow(3));
+            CampUiState.Set(_state.Instruction5, TutorialRow(4));
+
+            int current = (int)_tutorial.Current;
+            CampUiState.Set(
+                _state.HintCaption,
+                Format(
+                    "camp.tutorial.step.format",
+                    current + 1,
+                    CampTutorial.StepCount,
+                    Lookup(TutorialKeys[current])));
+        }
+
+        /// <summary>One checklist row: ticked, current, or still to do.</summary>
+        private string TutorialRow(int index)
+        {
+            var action = (CampTutorialAction)index;
+            string label = Lookup(TutorialKeys[index]);
+
+            if (_tutorial.IsDone(action))
+            {
+                return Format("camp.tutorial.done.format", label);
+            }
+
+            return Format(
+                index == (int)_tutorial.Current ? "camp.tutorial.current.format" : "camp.tutorial.todo.format",
+                label);
         }
 
         // ------------------------------------------------------------------
@@ -238,6 +349,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             if (rented.IsSuccess)
             {
                 Counters.Rented++;
+                ObserveTutorial(CampTutorialAction.Rent);
                 ClearStatus();
             }
             else
@@ -318,6 +430,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             if (rotated.IsSuccess)
             {
                 Counters.Rotated++;
+                ObserveTutorial(CampTutorialAction.Rotate);
                 ClearStatus();
             }
             else
@@ -631,6 +744,19 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             if (applied.IsSuccess)
             {
+                // The checklist's two bag steps are the two things a new player has to discover:
+                // an item on the board is "placed", a turned drop is "rotated". A bag moving onto
+                // the board is not the item step.
+                if (zone == BagDropZone.Board && piece.Kind == PieceKind.Item)
+                {
+                    ObserveTutorial(CampTutorialAction.Place);
+                }
+
+                if (rotation != Rotation.Degrees0)
+                {
+                    ObserveTutorial(CampTutorialAction.Rotate);
+                }
+
                 ClearStatus();
             }
             else
@@ -664,6 +790,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
             // open). Publishing the tooltip first read a stale cache and silently drew nothing.
             PublishBag();
             PublishTooltip();
+
+            // Stage 13b: "read the tooltip" is a step, and only a piece's tooltip counts — a shelf
+            // offer is a shop readout, not the item's stats and combos.
+            if (piece.IsValid)
+            {
+                ObserveTutorial(CampTutorialAction.ReadTooltip);
+            }
         }
 
         /// <summary>Drops the tooltip.</summary>
@@ -991,6 +1124,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             DepartFloor = departed.Value.FloorIndex;
             DepartSeed = departed.Value.Seed;
             Counters.Departures++;
+            ObserveTutorial(CampTutorialAction.Depart);
             ClearStatus();
             Refresh();
         }

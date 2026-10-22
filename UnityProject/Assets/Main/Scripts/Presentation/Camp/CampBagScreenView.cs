@@ -55,6 +55,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
         [SerializeField] private TMP_Text _instructionStep2Label;
         [SerializeField] private TMP_Text _instructionStep3Label;
         [SerializeField] private TMP_Text _instructionStep4Label;
+        [SerializeField] private TMP_Text _instructionStep5Label;
 
         [Header("Navigation (Bottom-Left, above the status bar)")]
         [Tooltip("The whole bottom-left block: กลับ, ไปชั้นถัดไป and the reason. Its screen rectangle is what the layout report measures.")]
@@ -713,6 +714,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             Subscribe(_state.Instruction2, _instructionStep2Label);
             Subscribe(_state.Instruction3, _instructionStep3Label);
             Subscribe(_state.Instruction4, _instructionStep4Label);
+            Subscribe(_state.Instruction5, _instructionStep5Label);
 
             // The panel carries no run stat of its own: น้ำหนัก/สมาธิ/หีบ/เบี้ย/HP/MP live on the
             // bottom bar, which is under the panel and never hidden by it, and a second copy here was

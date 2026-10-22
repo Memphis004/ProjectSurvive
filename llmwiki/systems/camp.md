@@ -1,7 +1,7 @@
 # System — ศาลาพัก (the camp screen)
 
-Stage 09 (+09b, +09c, +09e). The first screen the player can *change* the run from: rent a shelf,
-arrange the bag, rotate, merge, give a piece back, restore, and leave for the floor.
+Stage 09 (+09b, +09c, +09e, +13b). The first screen the player can *change* the run from: rent a
+shelf, arrange the bag, rotate, merge, give a piece back, restore, and leave for the floor.
 
 - Scene: `Assets/Main/Scenes/Camp.unity`, build index 5, reachable as `?scene=Camp`
   (`ProjectSetup` *Stage 09/5* authors it; the boot allow-list is `UrlSceneAllowList`).
@@ -63,6 +63,28 @@ published *inside* the world status bar's rectangle at 960×600 and 1280×720. T
 incense pot was moved for the same reason, so it no longer covers ออกเดินทาง. History:
 [`../docs/stages/09b-report.md`](../../docs/stages/09b-report.md) §2(d) and
 [`../docs/stages/09e-report.md`](../../docs/stages/09e-report.md) §1.
+
+## 3a. The first-run checklist (13b)
+
+A profile that has never finished it sees the camp's five steps in the panel's instruction block —
+rent → place → rotate → read the tooltip → depart — as `[>]` on the step to do, `[x]` on the ones
+done, `[ ]` on the rest, with the status bar naming the next one (`ขั้นที่ N/5: …`, 10
+`camp.tutorial.*` rows). The fifth instruction label exists only for it.
+
+- `CampTutorial` (`Assets/Main/Scripts/Presentation/Camp/CampTutorial.cs`) is the whole state: five
+  booleans and a `bool completed`. It has no UnityEngine dependency and no command logic; it is
+  testable in EditMode by itself.
+- A step ticks only inside the branch where the **command succeeded** — `CampPresenter.Rent`,
+  `Drop` (an item landing on the board, or a turned drop), `RotateSelected`, `Hover` of a piece,
+  `Depart` — in any order, and repeating a step changes nothing.
+- Nothing consults it: no rule, no gate, no price. A player who ignores it plays the same game.
+- Finishing it sets `GameSettings.TutorialCompleted`; `CampSceneDirector` writes it to the settings
+  file (`SettingsDto` key 4) before the scene changes, and `CampSceneScope` hands the flag to the
+  presenter on the next visit, which is why the checklist never returns. `CampReport` publishes
+  `tutorialActive` / `tutorialComplete` / `tutorialDone` / `tutorialStep`.
+- The markers are ASCII because the Sarabun atlas has no `✓`/`▶`/`•`
+  ([gotcha](../gotchas/symbol-glyphs-are-not-in-the-ui-font.md)).
+- Report: [`docs/stages/13b-report.md`](../../docs/stages/13b-report.md).
 
 ## 3b. The tooltip, and what a mark on the board means since 09e
 

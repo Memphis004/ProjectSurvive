@@ -27,6 +27,7 @@ namespace ProjectSurvive.Core.Infrastructure.Save
                 MasterVolume = settings.MasterVolume,
                 Language = (int)settings.Language,
                 DefaultSpeed = settings.DefaultBattleSpeed,
+                TutorialCompleted = settings.TutorialCompleted,
             });
         }
 
@@ -66,6 +67,7 @@ namespace ProjectSurvive.Core.Infrastructure.Save
             settings.SetVolume(dto.MasterVolume);
             settings.SetLanguage(language);
             settings.SetDefaultBattleSpeed(dto.DefaultSpeed);
+            settings.SetTutorialCompleted(dto.TutorialCompleted);
             return settings;
         }
     }

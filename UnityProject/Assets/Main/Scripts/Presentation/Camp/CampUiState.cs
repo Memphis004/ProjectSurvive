@@ -119,7 +119,11 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>The instruction scroll's heading.</summary>
         public ReactiveProperty<string> InstructionsTitle { get; } = new ReactiveProperty<string>(string.Empty);
 
-        /// <summary>The instruction scroll's four steps, in order.</summary>
+        /// <summary>
+        /// The instruction scroll's five rows, in order. The first four are the static instructions
+        /// (Stage 09) and the whole block is the first-run checklist while it is unfinished
+        /// (Stage 13b); the fifth is empty outside the checklist.
+        /// </summary>
         public ReactiveProperty<string> Instruction1 { get; } = new ReactiveProperty<string>(string.Empty);
 
         public ReactiveProperty<string> Instruction2 { get; } = new ReactiveProperty<string>(string.Empty);
@@ -127,6 +131,8 @@ namespace ProjectSurvive.Game.Presentation.Camp
         public ReactiveProperty<string> Instruction3 { get; } = new ReactiveProperty<string>(string.Empty);
 
         public ReactiveProperty<string> Instruction4 { get; } = new ReactiveProperty<string>(string.Empty);
+
+        public ReactiveProperty<string> Instruction5 { get; } = new ReactiveProperty<string>(string.Empty);
 
         /// <summary>
         /// The tooltip, one field per <b>line</b>: ชื่อ, ระดับ, ค่าที่ใช้จริง, รุ่นย่อยที่เลือก,
@@ -310,6 +316,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             Instruction2.Dispose();
             Instruction3.Dispose();
             Instruction4.Dispose();
+            Instruction5.Dispose();
             TooltipTitle.Dispose();
             TooltipTier.Dispose();
             TooltipStatus.Dispose();

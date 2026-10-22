@@ -241,6 +241,10 @@ namespace ProjectSurvive.Game.Presentation.Flow
                 .Write("language", _ui.Language.Value.ToString())
                 .Write("volume", _ui.MasterVolume.Value)
                 .Write("defaultSpeed", _ui.DefaultBattleSpeed.Value)
+                // Stage 13b: the camp's first-run checklist flag, as the settings file now carries
+                // it. Published so a browser test can see that finishing the checklist reached
+                // storage, which is the only way that fact survives a reload.
+                .Write("tutorialCompleted", _settings.Current.TutorialCompleted)
                 .EndObject();
 
             WebGlBridge.Publish(WebGlBridge.PersistenceGlobal, writer.ToString());

@@ -1,3 +1,4 @@
+using ProjectSurvive.Core.Application.Settings;
 using ProjectSurvive.Core.Application.Text;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Game.Presentation;
@@ -54,7 +55,11 @@ namespace ProjectSurvive.Game.Camp
                     resolver.Resolve<RunScopeOwner>().RequireRun(),
                     resolver.Resolve<IGameConfig>(),
                     resolver.Resolve<LocalizationService>(),
-                    resolver.Resolve<CampUiState>()),
+                    resolver.Resolve<CampUiState>(),
+                    // The first-run checklist is shown once per profile (Stage 13b). The flag lives
+                    // with the other player settings, so it survives a browser reload and is the
+                    // same file the settings screen writes.
+                    resolver.Resolve<SettingsService>().Current.TutorialCompleted),
                 Lifetime.Singleton);
         }
     }

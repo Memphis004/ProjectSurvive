@@ -217,3 +217,13 @@
 ,ui.save.failed,บันทึกไม่สำเร็จ,Could not save
 ,camp.chest.title.format,หีบสัมภาระ ({0}),Chest ({0})
 ,camp.status.hpmp.format,ชีวิต {0}  พลังอาคม {1},HP {0}  MP {1}
+,camp.tutorial.title,เริ่มต้นใช้งาน (ทำตามทีละข้อ),Getting Started (step by step)
+,camp.tutorial.1,เช่าไอเทมจากชั้นวาง,Rent an item from a shelf
+,camp.tutorial.2,ลากไอเทมลงช่องในย่าม,Drag the item onto a bag cell
+,camp.tutorial.3,หมุนไอเทมด้วย R หรือคลิกขวา,Rotate it with R or right-click
+,camp.tutorial.4,ชี้ที่ไอเทมเพื่ออ่านค่าสถานะ,Hover the item to read its stats
+,camp.tutorial.5,กดออกเดินทางเพื่อลงชั้นถัดไป,Press depart to enter the floor
+,camp.tutorial.step.format,ขั้นที่ {0}/{1}: {2},Step {0}/{1}: {2}
+,camp.tutorial.done.format,[x] {0},[x] {0}
+,camp.tutorial.current.format,[>] {0},[>] {0}
+,camp.tutorial.todo.format,[ ] {0},[ ] {0}

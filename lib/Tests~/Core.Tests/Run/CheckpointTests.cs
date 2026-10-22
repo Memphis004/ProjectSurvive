@@ -302,13 +302,19 @@ namespace ProjectSurvive.Core.Tests.Run
             settings.SetVolume(0.35f);
             settings.SetLanguage(Language.En);
             settings.SetDefaultBattleSpeed(2f);
+            settings.SetTutorialCompleted(true);
 
             GameSettings decoded = codec.Decode(codec.Encode(settings));
 
             Assert.Equal(0.35f, decoded.MasterVolume, 4);
             Assert.Equal(Language.En, decoded.Language);
             Assert.Equal(2f, decoded.DefaultBattleSpeed);
+            Assert.True(decoded.TutorialCompleted, "the first-run flag survives the round trip");
             Assert.True(decoded.IsValid);
+
+            // Stage 13b appended the flag at key 4; settings written before it are still readable
+            // because MessagePack leaves an absent key at the property's default (false).
+            Assert.False(new GameSettings().TutorialCompleted);
 
             settings.SetVolume(5f);
             Assert.Equal(GameSettings.MaxVolume, settings.MasterVolume);

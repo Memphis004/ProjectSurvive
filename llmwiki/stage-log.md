@@ -453,3 +453,19 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   [report](../docs/stages/13a-report.md).
 - **Next:** 13b (tutorial buy → place → rotate → combo → depart) and then 13c (CC0 audio, pause,
   audio settings); the human playtest acceptance waits for 13b.
+
+## Stage 13b — the first-run checklist (2026-10-22)
+
+- **Did:** a five-step first-run checklist in the camp (rent → place → rotate → read the tooltip →
+  depart) that ticks only from commands that succeeded, prints in the จัดย่าม panel's instruction
+  block and the status bar, and writes one flag into the settings file (`SettingsDto` key 4) when the
+  last step lands; `CampTutorial` (Presentation, no UnityEngine) holds the state, `CampSceneDirector`
+  persists it, and five new tests in `CampTutorialTests` drive the presenter's real commands.
+- **Result:** Fast suite green (601 xUnit, **185/185** EditMode); PlayMode **75/75** per class (the
+  bulk run is §7's ambient flake again); WebGL rebuild + **14/14** browser tests, including a new camp
+  spec that walks the checklist, departs, and reads `tutorialCompleted` back from the persistence
+  report; camp text audit 36 labels, 0 overflow, 0 missing glyphs. The checklist's first draft used
+  `✓`/`▶` markers, which the font has no glyphs for — found by the audit, now `[x]`/`[>]`/`[ ]`
+  ([gotcha](gotchas/symbol-glyphs-are-not-in-the-ui-font.md)).
+- **Next:** the human playtest (Stage 13's headline acceptance — a real person reaching the first
+  battle unaided, still **NOT RUN**) and 13c (CC0 audio, pause, audio settings).

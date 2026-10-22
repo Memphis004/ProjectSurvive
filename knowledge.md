@@ -48,7 +48,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | 11 | Thai ghost AI, Pob boss, balance (11a–11d all landed) | **DONE** — [`11a`](docs/adr/0028-item-effects-and-status-table.md), [`11b`](docs/stages/11b-report.md), [`11c`](docs/stages/11c-report.md), [`11d`](docs/stages/11d-report.md) |
 | **12** | **Save, resume, settings (checkpoint, IndexedDB flush, TH/EN, volume, starting speed)** | **DONE** — see [`docs/stages/12-report.md`](docs/stages/12-report.md), [ADR 0033](docs/adr/0033-application-awaits-capture-the-caller-context.md) |
 | **13a** | **Content complete, text fit, attribution (the audit half of 13)** | **DONE** — see [`docs/stages/13a-report.md`](docs/stages/13a-report.md), [`ATTRIBUTION.md`](ATTRIBUTION.md) |
-| **13b** | **Tutorial: buy → place → rotate → combo → depart** | not started |
+| **13b** | **Tutorial: rent → place → rotate → read the tooltip → depart (the first-run checklist)** | **CODE DONE** — the human playtest it exists for is **NOT RUN**: see [`docs/stages/13b-report.md`](docs/stages/13b-report.md) |
 | **13c** | **Audio (CC0 synthesized), pause, audio settings** | not started |
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
@@ -296,6 +296,20 @@ clipped; nine other battle labels were 0.6 px shorter than 22 px Sarabun's line 
 shifted to keep 2 px gaps), and [`ATTRIBUTION.md`](ATTRIBUTION.md) records every asset licence — with
 `THSarabunPSK` flagged (unused, non-OFL SIPA licence, still shipping from `Resources/`) as a Stage 15
 must-remove. The human playtest acceptance is **NOT RUN**: it needs 13b's tutorial.
+
+**13b** added that tutorial: a five-step first-run checklist (rent → place → rotate → read the
+tooltip → depart) shown in the จัดย่าม panel's instruction block and named step-by-step in the status
+bar, ticking only from commands that **succeeded** and in any order. `CampTutorial`
+(`Assets/Main/Scripts/Presentation/Camp/CampTutorial.cs`, no UnityEngine, no command logic) holds the
+state; `CampPresenter` fills five instruction rows from it and the fifth label
+(`__instructionStep5Label`) exists for it; `CampSceneDirector` writes the one flag
+(`SettingsDto` key 4, `GameSettings.TutorialCompleted`) when the last step lands, so a finished
+checklist never returns and no game rule reads it. Ten `camp.tutorial.*` rows took the table to
+**228**; the camp publishes `tutorialActive`/`tutorialComplete`/`tutorialDone`/`tutorialStep` and the
+persistence report publishes `tutorialCompleted`. Evidence: **185/185 EditMode** (7 new), **75/75
+PlayMode** per class, **14/14** browser tests with a new camp spec that finishes the checklist through
+the real UI and reads the flag back. The rows use `[x]`/`[>]`/`[ ]` because the Sarabun atlas has no
+`✓`/`▶` glyphs ([gotcha](llmwiki/gotchas/symbol-glyphs-are-not-in-the-ui-font.md)).
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
 `tools/gen.ps1` (Luban 5.1.0 + protoc 33.6) → generated C# + `.bytes` →

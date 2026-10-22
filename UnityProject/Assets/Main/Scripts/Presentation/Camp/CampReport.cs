@@ -238,6 +238,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
             report.Write("saveWarning", saveWarning ?? string.Empty);
             report.Write("saveError", saveError ?? string.Empty);
 
+            // Stage 13b: the first-run checklist. "active" is what decides whether the instruction
+            // block is a checklist at all; "step" is the next step the player has to do, 1..5.
+            report.Write("tutorialActive", presenter.Tutorial.IsActive);
+            report.Write("tutorialComplete", presenter.Tutorial.IsComplete);
+            report.Write("tutorialDone", presenter.Tutorial.DoneCount);
+            report.Write("tutorialStep", (int)presenter.Tutorial.Current + 1);
+
             report.Write("departed", presenter.Departed);
             report.Write("departFloor", presenter.DepartFloor);
             report.Write("departSeed", presenter.DepartSeed.ToString());

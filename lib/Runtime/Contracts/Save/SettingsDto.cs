@@ -25,6 +25,13 @@ namespace ProjectSurvive.Core.Contracts.Save
 
         /// <summary>The multiplier a battle starts at (1 or 2).</summary>
         [Key(3)] public float DefaultSpeed { get; set; } = 1f;
+
+        /// <summary>
+        /// True once the camp's first-run checklist has been finished (Stage 13b). A settings file
+        /// written before the key existed decodes as <c>false</c>, so an existing player meets the
+        /// checklist once — which is the point of it.
+        /// </summary>
+        [Key(4)] public bool TutorialCompleted { get; set; }
     }
 
     /// <summary>Serialization entry point for <see cref="SettingsDto"/>.</summary>

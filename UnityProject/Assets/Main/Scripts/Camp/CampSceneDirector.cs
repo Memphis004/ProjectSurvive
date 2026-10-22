@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using ProjectSurvive.Core.Application.Run;
+using ProjectSurvive.Core.Application.Settings;
 using ProjectSurvive.Core.Application.Text;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Shared;
@@ -54,10 +55,18 @@ namespace ProjectSurvive.Game.Camp
 
         private SceneLoader _loader;
         private GameSave _save;
+        private SettingsService _settings;
         private LocalizationService _text;
         private CancellationTokenSource _lifetime;
         private bool _departed;
         private bool _saveDirty;
+
+        /// <summary>
+        /// Set when the first-run checklist was finished and its flag still has to reach the
+        /// settings file (Stage 13b). Unlike the run, this is a once-per-profile fact: it is written
+        /// as soon as it is known, and the departure path writes it before the scene changes.
+        /// </summary>
+        private bool _tutorialDirty;
         private bool _warningVisible;
         private float _saveTimer;
         private int _lastSaveKey;
@@ -111,6 +120,7 @@ namespace ProjectSurvive.Game.Camp
             _loader = _scope.Container.Resolve<SceneLoader>();
             Presenter = _scope.Container.Resolve<CampPresenter>();
             _save = _scope.Container.Resolve<GameSave>();
+            _settings = _scope.Container.Resolve<SettingsService>();
             _text = _scope.Container.Resolve<LocalizationService>();
             _lifetime = new CancellationTokenSource();
             _lastSaveKey = -1;
@@ -201,6 +211,13 @@ namespace ProjectSurvive.Game.Camp
                 return;
             }
 
+            // Taken before the departure is handled: the checklist's last step is the departure
+            // itself, so the flag must already be pending when DepartAsync starts writing.
+            if (Presenter != null && Presenter.TakeTutorialCompletion())
+            {
+                _tutorialDirty = true;
+            }
+
             UpdateAutosave();
 
             // The departure is the camp's one way out: the presenter has already performed the
@@ -261,6 +278,12 @@ namespace ProjectSurvive.Game.Camp
                 }
             }
 
+            if (_tutorialDirty)
+            {
+                _tutorialDirty = false;
+                WriteTutorialAsync(_lifetime.Token).Forget();
+            }
+
             bool failed = _save.LastSaveFailed;
             if (failed != _warningVisible)
             {
@@ -277,14 +300,57 @@ namespace ProjectSurvive.Game.Camp
             }
         }
 
+        /// <summary>
+        /// Writes the "checklist finished" flag into the settings file. The settings service lives in
+        /// the App scope, so the write is not part of this scene's state either.
+        /// </summary>
+        private async UniTask SaveTutorialAsync(CancellationToken token)
+        {
+            _settings.Apply(settings => settings.SetTutorialCompleted(true));
+            await _settings.SaveAsync(token);
+            _save.PublishReport();
+        }
+
+        /// <summary>
+        /// Fire-and-forget form of <see cref="SaveTutorialAsync"/>. A failed write is logged and
+        /// ignored: the checklist staying off for the rest of this session is the right behaviour
+        /// when storage is unavailable, and the next camp would show it again rather than break.
+        /// </summary>
+        private async UniTaskVoid WriteTutorialAsync(CancellationToken token)
+        {
+            try
+            {
+                await SaveTutorialAsync(token);
+            }
+            catch (OperationCanceledException)
+            {
+                _tutorialDirty = true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+            }
+        }
+
         private async UniTaskVoid DepartAsync(CancellationToken token)
         {
             try
             {
+                // "Never show the checklist again" is durable before the floor starts, so a player
+                // who reloads mid-battle does not meet it a second time. Same write the autosave
+                // would have made; this one is ordered against the scene change instead of a
+                // timer.
+                if (_tutorialDirty)
+                {
+                    _tutorialDirty = false;
+                    await SaveTutorialAsync(token);
+                }
+
                 await _save.SaveAsync(Run, token);
             }
             catch (OperationCanceledException)
             {
+                _tutorialDirty = true;
                 return;
             }
 
