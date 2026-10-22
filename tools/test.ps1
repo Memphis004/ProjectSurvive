@@ -194,6 +194,45 @@ function Find-CommandPath {
     return $null
 }
 
+# Stage 14: the contract suite runs twice (once per factory). Its verdict is read out of the
+# TRX the dotnet step just wrote, so the summary can name each factory on its own line: "the
+# contract holds for the simulation" is the claim a green run has to make visible, and a single
+# combined "604 passed" cannot say it.
+function Get-ContractSuiteOutcome {
+    param([Parameter(Mandatory)][string]$ClassName)
+
+    $trx = Join-Path $script:DotnetDir 'core-tests.trx'
+    if (-not (Test-Path -LiteralPath $trx)) {
+        return @{ Status = 'FAIL'; Detail = 'the xUnit TRX is missing, so this suite cannot be named; see artifacts/dotnet/test.log' }
+    }
+
+    try {
+        $doc = New-Object System.Xml.XmlDocument
+        $doc.Load($trx)
+    }
+    catch {
+        return @{ Status = 'FAIL'; Detail = ("the xUnit TRX could not be read: {0}" -f $_.Exception.Message) }
+    }
+
+    # local-name() rather than the TRX namespace, so a schema-version change does not silently
+    # turn "0 tests matched" into a pass.
+    $nodes = @($doc.SelectNodes("//*[local-name()='UnitTestResult']"))
+    $pattern = '\.' + [regex]::Escape($ClassName) + '\.'
+    $matched = @($nodes | Where-Object { ([string]$_.testName) -match $pattern })
+
+    if ($matched.Count -eq 0) {
+        return @{ Status = 'FAIL'; Detail = ("no test named {0} ran" -f $ClassName) }
+    }
+
+    $failed = @($matched | Where-Object { $_.outcome -ne 'Passed' -and $_.outcome -ne 'NotExecuted' })
+    if ($failed.Count -gt 0) {
+        $first = [string]$failed[0].testName
+        return @{ Status = 'FAIL'; Detail = ("{0}/{1} passed; first failure: {2}" -f ($matched.Count - $failed.Count), $matched.Count, $first) }
+    }
+
+    return @{ Status = 'PASS'; Detail = ("{0}/{0} passed" -f $matched.Count) }
+}
+
 function Write-Artifact {
     param([string]$Directory, [string]$Name, [string]$Content)
     if ($NoWrite) { return }
@@ -294,6 +333,14 @@ if ($dotnet -and (Test-Path -LiteralPath $script:Sln)) {
         }
 
         return @{ Status = 'PASS'; Detail = ("{0} passed" -f $passed) }
+    } | Out-Null
+
+    Invoke-Step 'contract: FakeBattleSession' 'Fast' {
+        Get-ContractSuiteOutcome -ClassName 'FakeBattleSessionContractTests'
+    } | Out-Null
+
+    Invoke-Step 'contract: BattleSimulation' 'Fast' {
+        Get-ContractSuiteOutcome -ClassName 'EcsBattleSessionContractTests'
     } | Out-Null
 
     # Sim determinism (process level) - unchanged from the Stage 01 harness.
@@ -552,13 +599,13 @@ else {
 # 8-9. Full: the WebGL build and the browser suite
 # ---------------------------------------------------------------------------
 if ($Suite -ne 'Full') {
-    Add-Step 'web: WebGL build (Development)' 'Full' 'NOT RUN' 'the Full suite was not requested (-Suite Full)'
-    Add-Step 'web: Playwright (smoke + title + battle + camp + result + persistence)' 'Full' 'NOT RUN' 'the Full suite was not requested (-Suite Full)'
+    Add-Step ('web: WebGL build ({0})' -f $script:WebConfiguration) 'Full' 'NOT RUN' 'the Full suite was not requested (-Suite Full)'
+    Add-Step 'web: Playwright (all specs)' 'Full' 'NOT RUN' 'the Full suite was not requested (-Suite Full)'
 }
 else {
     $buildOk = $false
 
-    Invoke-Step 'web: WebGL build (Development)' 'Full' {
+    Invoke-Step ('web: WebGL build ({0})' -f $script:WebConfiguration) 'Full' {
         $editor = Get-UnityEditor
         if ($null -ne $editor) {
             return @{ Status = 'NOT RUN'; Detail = 'a Unity Editor holds the project lock; close it and run the Full suite again (tools/build-web.ps1 cannot share a project)' }
@@ -583,13 +630,23 @@ else {
         $wasm = @(Get-ChildItem -LiteralPath $script:WebRoot -Recurse -Filter *.wasm -File -ErrorAction SilentlyContinue)
         if (-not (Test-Path -LiteralPath $index) -or $wasm.Count -lt 1) {
             return @{ Status = 'FAIL'; Detail = ("the build produced no player at {0}" -f $script:WebRoot) }
-        }
+        }            # Stage 14: the build metadata travels with the test artifacts, so a run can be
+            # read back (which config hash, which scenes, Development or Release) without
+            # asking the machine that built it.
+            $webArtifacts = Join-Path $script:ArtifactDir 'web'
+            [void](New-Item -ItemType Directory -Path $webArtifacts -Force)
+            foreach ($name in @('build-info.json', 'build-report.json')) {
+                $source = Join-Path $script:WebRoot $name
+                if (Test-Path -LiteralPath $source) {
+                    Copy-Item -LiteralPath $source -Destination (Join-Path $webArtifacts $name) -Force
+                }
+            }
 
-        $script:WebBuildOk = $true
-        return @{ Status = 'PASS'; Detail = ("{0} configuration -> {1}" -f $script:WebConfiguration, $script:WebRoot) }
-    } | Out-Null
+            $script:WebBuildOk = $true
+            return @{ Status = 'PASS'; Detail = ("{0} configuration -> {1}" -f $script:WebConfiguration, $script:WebRoot) }
+        } | Out-Null
 
-    Invoke-Step 'web: Playwright (smoke + title + battle + camp + result + persistence)' 'Full' {
+    Invoke-Step 'web: Playwright (all specs)' 'Full' {
         if (-not $script:WebBuildOk) {
             return @{ Status = 'NOT RUN'; Detail = 'the WebGL build step did not produce a player to test' }
         }
@@ -629,11 +686,58 @@ else {
                 return @{ Status = 'NOT RUN'; Detail = ("tools/serve-web.mjs did not start on port {0}; see artifacts/dotnet/serve-web.log" -f $script:WebPort) }
             }
 
-            $playwright = Invoke-Native $npx @(
-                'playwright', 'test', 'smoke.spec.ts', 'title.spec.ts', 'battle.spec.ts', 'camp.spec.ts',
-                'result.spec.ts', 'persistence.spec.ts'
-            ) $testsDir
+            # Every spec the suite owns, plus the one that only makes sense for this build:
+            # a Development build has the harness and must not be asked to prove its absence;
+            # a Release build has no harness and must not be asked to drive one. `screens.spec.ts`
+            # stays out: it is the opt-in screenshot generator (SCREENS=1), not a check.
+            $specs = @(
+                'smoke.spec.ts', 'title.spec.ts', 'battle.spec.ts', 'camp.spec.ts',
+                'result.spec.ts', 'persistence.spec.ts', 'audio.spec.ts', 'pause.spec.ts'
+            )
+            if ($script:WebConfiguration -eq 'Release') {
+                $specs += 'release.spec.ts'
+            }
+            else {
+                $specs += 'harness.spec.ts'
+            }
+
+            # JSON as well as the console reporter: the machine-readable result is the artifact a
+            # later stage can diff, and `list` keeps the live log readable.
+            $webArtifacts = Join-Path $script:ArtifactDir 'web'
+            [void](New-Item -ItemType Directory -Path $webArtifacts -Force)
+            $jsonPath = Join-Path $webArtifacts 'playwright.json'
+            $previousJson = $env:PLAYWRIGHT_JSON_OUTPUT_NAME
+            $previousBuild = $env:PROJECTSURVIVE_BUILD
+            $env:PLAYWRIGHT_JSON_OUTPUT_NAME = $jsonPath
+
+            # A release build has no dev menu, so the browser cases that *use* it skip themselves
+            # (Stage 14). The spec reads this instead of guessing from the build it finds.
+            $env:PROJECTSURVIVE_BUILD = if ($script:WebConfiguration -eq 'Release') { 'release' } else { 'development' }
+            try {
+                $playwright = Invoke-Native $npx (@('playwright', 'test', '--reporter', 'list,json') + $specs) $testsDir
+            }
+            finally {
+                $env:PLAYWRIGHT_JSON_OUTPUT_NAME = $previousJson
+                $env:PROJECTSURVIVE_BUILD = $previousBuild
+            }
             Write-Artifact $script:DotnetDir 'playwright.log' $playwright.Output
+
+            # Screenshots and traces (on failure) plus the HTML report, kept where a report can
+            # link them (Stage 14 item 4).
+            foreach ($pair in @(
+                    @{ Source = (Join-Path $testsDir 'test-results'); Name = 'test-results' },
+                    @{ Source = (Join-Path $testsDir 'playwright-report'); Name = 'playwright-report' }
+                )) {
+                if (-not (Test-Path -LiteralPath $pair.Source)) { continue }
+                $destination = Join-Path $webArtifacts $pair.Name
+                try {
+                    if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Recurse -Force }
+                    Copy-Item -LiteralPath $pair.Source -Destination $destination -Recurse -Force
+                }
+                catch {
+                    Write-Host ("  (warning) could not copy {0}: {1}" -f $pair.Name, $_.Exception.Message) -ForegroundColor Yellow
+                }
+            }
 
             $passedCount = 0
             $failedCount = 0

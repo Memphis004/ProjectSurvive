@@ -516,3 +516,17 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   A stale localization row pin (228 vs the 232 rows since 13c-2a) also failed at HEAD and is corrected
   to 237. PlayMode still cannot run (Editor bridge), so the stage is code-complete, not PASS.
 - **Next:** the PlayMode re-run, the Stage 13 human playtest (audio mix + pause feel), then Stage 14.
+
+## Stage 14 — automated verification and CI (2026-10-23)
+
+- **Did:** `tools/ci.ps1` as the gate (`Validate → Test → Sim → Unity → Build → Web`, licence jobs
+  kept off the pure-validation ones and refusing to share `UnityProject`), a development-only
+  `HarnessBridge` with four commands that call the screens' own use cases and **no bypass**, and
+  Playwright waiting on published handshakes instead of sleeps. `tools/test.ps1` grew the two
+  `contract:` lines, the harness/release spec choice and per-run artifacts.
+- **Result:** Fast suite **13 PASS / 0 FAIL / 3 NOT RUN** (exit 0), xUnit **604**, EditMode **205**,
+  sim **22/50 = 44.0 %**, Release Playwright **19 passed / 1 skipped**, Development **21 passed**
+  including three harness cases; the induced failure path exited **1** and a held port **2**. PlayMode
+  per fixture is green except a 20-visit heap case (5.07 MB against 3 MB) shown to predate the stage.
+  See the [report](../docs/stages/14-report.md).
+- **Next:** the scene-lifetime leak the heap case measures, the Stage 13 human playtest, then Stage 15.

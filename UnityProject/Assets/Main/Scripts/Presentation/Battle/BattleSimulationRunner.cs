@@ -34,7 +34,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
     /// </para>
     /// </remarks>
     [DisallowMultipleComponent]
-    public sealed class BattleSimulationRunner : MonoBehaviour
+    public sealed partial class BattleSimulationRunner : MonoBehaviour
     {
         /// <summary>On-screen name of the page global that carries the battle's progress.</summary>
         public const string BattleReportGlobal = "__projectSurviveBattle";
@@ -55,6 +55,18 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private bool _running;
         private bool _paused;
         private bool _appPaused;
+
+        // Set only by the development harness (\"BattleSimulationRunner.Harness.cs\") when it
+        // takes over the clock to advance a known number of ticks. A release build can never
+        // set it: the method that does is compiled out, so the field stays false for the whole
+        // session and the frame loop below is unchanged.
+        private bool _harnessDriven;
+
+        /// <summary>Hook for the development harness (no implementation in a release build).</summary>
+        partial void OnHarnessBegin();
+
+        /// <summary>Hook for the development harness (no implementation in a release build).</summary>
+        partial void OnHarnessShutdown();
         private bool _reportedFirst;
         private bool _resultAnnounced;
         private float _reportTimer;
@@ -181,7 +193,9 @@ namespace ProjectSurvive.Game.Presentation.Battle
             _paused = false;
             _appPaused = false;
             _running = true;
+            _harnessDriven = false;
 
+            OnHarnessBegin();
             PublishReport(true);
         }
 
@@ -203,6 +217,8 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
             _context = null;
             _ticker?.Reset();
+
+            OnHarnessShutdown();
         }
 
         private void OnDestroy() => Shutdown();
@@ -222,7 +238,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
         private void Update()
         {
-            if (!_running || _paused || _appPaused || _session is null)
+            if (!_running || _paused || _appPaused || _harnessDriven || _session is null)
             {
                 return;
             }

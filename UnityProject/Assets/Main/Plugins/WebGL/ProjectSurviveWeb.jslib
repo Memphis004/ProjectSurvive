@@ -109,5 +109,70 @@ mergeInto(LibraryManager.library, {
       $ProjectSurviveFlushState = 0;
     }
     return state;
+  },
+
+  // ---------------------------------------------------------------------------
+  // Stage 14: the development-only test harness' command queue.
+  //
+  // The page can only read globals, so a command that the page *sends* (advance n
+  // ticks, start a run with a named seed) needs a queue the player polls. The queue
+  // is a library symbol, not a page global: the send function's name and the
+  // opcodes come from the C# side (`HarnessBridge`), exactly like every other page
+  // global name (Stage 10t).
+  //
+  // `ProjectSurvive_HarnessEnable` is called once by `HarnessBridge` at boot, and
+  // only in a development build or the Editor. A release player never calls it, so
+  // the send function is never defined there - which is what the release absence
+  // test reads.
+  //
+  // A command is two integers: opcode and one argument (a seed, a tick count, or 0).
+  // Numbers rather than JSON because the reader is a C# `int` return value; a string
+  // would need a callback and a marshalled buffer for no gain.
+  //
+  // The queue is created HERE, by assignment, not by a `$ProjectSurviveHarnessQueue: []`
+  // declaration. Unity 6.3's jsifier drops a `$symbol: value` member from the generated
+  // framework (the symbol is listed in `unexportedSymbols` and no `var`/initialiser is
+  // emitted), so a function that *reads* it throws `$symbol is not defined` and halts the
+  // player. `$ProjectSurviveFlushState` above survives only by accident: assigning to an
+  // undeclared name in the non-strict framework creates the global, and every read there
+  // happens after an assignment. This queue is read before anything is assigned, so it
+  // must be initialised explicitly (measured: the first harness build halted with exactly
+  // that ReferenceError).
+  // ---------------------------------------------------------------------------
+  ProjectSurvive_HarnessEnable: function (sendNamePtr) {
+    if (typeof $ProjectSurviveHarnessQueue === 'undefined') {
+      $ProjectSurviveHarnessQueue = [];
+    }
+
+    var name = UTF8ToString(sendNamePtr);
+    $ProjectSurviveHarnessQueue.length = 0;
+    window[name] = function (op, arg) {
+      if (typeof op !== 'number' || typeof arg !== 'number') {
+        return false;
+      }
+      if (!isFinite(op) || !isFinite(arg)) {
+        return false;
+      }
+      $ProjectSurviveHarnessQueue.push([op | 0, arg | 0]);
+      return true;
+    };
+  },
+
+  // The opcode at the head of the queue, or 0 when nothing is waiting.
+  ProjectSurvive_HarnessPoll: function () {
+    return $ProjectSurviveHarnessQueue.length > 0 ? ($ProjectSurviveHarnessQueue[0][0] | 0) : 0;
+  },
+
+  // The argument of the command at the head of the queue (0 when none).
+  ProjectSurvive_HarnessArg: function () {
+    return $ProjectSurviveHarnessQueue.length > 0 ? ($ProjectSurviveHarnessQueue[0][1] | 0) : 0;
+  },
+
+  // Drops the command at the head and returns how many are left.
+  ProjectSurvive_HarnessShift: function () {
+    if ($ProjectSurviveHarnessQueue.length > 0) {
+      $ProjectSurviveHarnessQueue.shift();
+    }
+    return $ProjectSurviveHarnessQueue.length;
   }
 });

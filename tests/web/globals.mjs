@@ -20,6 +20,10 @@
  *   __projectSurviveSettings    the settings panel's bus levels, labels and control points (`SettingsReport`)
  *   __projectSurvivePause       the battle pause overlay's state and control points (`BattlePauseReport`)
  *   __projectSurviveTextFit      every label's rect, needed size and missing glyphs (`UiTextFitReport`)
+ *   __projectSurviveHarness       the development harness' ready handshake and command list
+ *                                (`HarnessBridge`, Stage 14; absent from a release player)
+ *   __projectSurviveHarnessSnapshot  phase / tick / endReason, read from `IBattleSession`
+ *   __projectSurviveHarnessDiagnostics  build facts and the run's identity, for an artifact
  */
 export const SMOKE = "__projectSurviveSmoke";
 export const SCENE = "__projectSurviveScene";
@@ -29,3 +33,25 @@ export const AUDIO = "__projectSurviveAudio";
 export const SETTINGS = "__projectSurviveSettings";
 export const PAUSE = "__projectSurvivePause";
 export const TEXT_FIT = "__projectSurviveTextFit";
+
+/**
+ * Stage 14: the development-only harness.
+ *
+ * The player defines `HARNESS_SEND` (a queue the page writes to) only when C# asked for it,
+ * which only happens in a development build or the Editor. A release player has neither the
+ * function nor `HARNESS`; `release.spec.ts` asserts exactly that.
+ *
+ * A command is a pair of integers. The opcodes are the wire contract; their other home is
+ * `HarnessProtocol` on the C# side, and an EditMode test keeps the two equal.
+ */
+export const HARNESS = "__projectSurviveHarness";
+export const HARNESS_SEND = "__projectSurviveHarnessSend";
+export const HARNESS_SNAPSHOT = "__projectSurviveHarnessSnapshot";
+export const HARNESS_DIAGNOSTICS = "__projectSurviveHarnessDiagnostics";
+
+export const HARNESS_OPS = {
+  startSeededRun: 1,
+  advanceTicks: 2,
+  snapshot: 3,
+  diagnostics: 4,
+};

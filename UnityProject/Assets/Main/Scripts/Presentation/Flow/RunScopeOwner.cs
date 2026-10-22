@@ -31,7 +31,7 @@ namespace ProjectSurvive.Game.Presentation.Flow
     /// <c>RunSession</c> holds no OS resources, so dropping it is the whole of the work.
     /// </para>
     /// </remarks>
-    public sealed class RunScopeOwner : IDisposable
+    public sealed partial class RunScopeOwner : IDisposable
     {
         /// <summary>
         /// The seed a run gets when nobody names one. A constant rather than a clock read, so two

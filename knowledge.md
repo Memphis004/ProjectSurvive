@@ -52,7 +52,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **13c-1** | **Audio: generated CC0 clips, cue channels, the one audio device, Web autoplay + import settings** | **DONE** — see [`docs/stages/13c-1-report.md`](docs/stages/13c-1-report.md), [`llmwiki/systems/audio.md`](llmwiki/systems/audio.md) |
 | **13c-2a** | **Audio settings: music and effects buses, persisted, with a schema-2 read path** | **DONE** — see [`docs/stages/13c-2a-report.md`](docs/stages/13c-2a-report.md), [ADR 0034](docs/adr/0034-settings-schema-and-per-bus-volume.md) |
 | **13c-2b** | **Pause overlay: freeze the floor, resume, or leave for the camp** | **CODE DONE** — PlayMode could not run; see [`docs/stages/13c-2b-report.md`](docs/stages/13c-2b-report.md) |
-| 14 | Test harness & CI | not started |
+| **14** | **Test harness & CI (development-only WebBridge, Playwright, `tools/ci.ps1`)** | **CODE DONE** — the PlayMode heap case fails and predates the stage; see [`docs/stages/14-report.md`](docs/stages/14-report.md) |
 | 15 | Web release candidate | not started |
 
 **Current state:** Stages 00–10, plus **09k-data** (one word in `data/`: the tome combo is
@@ -361,6 +361,21 @@ browser suite **18 passed / 13 skipped** in a Development build. PlayMode still 
 bridge), so the stage is code-complete, not closed as PASS. See the
 [report](docs/stages/13c-2b-report.md).
 
+**14** made verification something a machine runs. `tools/ci.ps1` is the gate — `Validate → Test →
+Sim → Unity → Build → Web`, with the licence jobs (`Unity`, `Build`, `Web`) kept away from the pure
+validation ones and refusing to start while any Editor or batch build holds `UnityProject`; exit `0`
+all green, `1` a required check failed, `2` a gate could not be evaluated (never a pass). The 50-seed
+sim gate fails outside the 44 %-in-0.30–0.60 band it now records. A **development-only** harness
+(`HarnessBridge`, `#if DEVELOPMENT_BUILD || UNITY_EDITOR`) gives a page four commands — start a run
+from a named seed, advance a floor by N ticks, read the session snapshot, export diagnostics — each
+one calling the same use case the screen calls (`TitlePresenter.RequestStart`, `IBattleSession.Step`),
+**with no bypass command at all**; a Release player compiles out both the component and the `window`
+function it defines, which `tests/web/release.spec.ts` asserts on the artefact that would ship. Fast
+suite **13 PASS / 0 FAIL / 3 NOT RUN**, xUnit **604**, EditMode **205**, sim **44.0 %**, Release
+Playwright **19 passed / 1 skipped**, and PlayMode per fixture is green except a 20-visit heap case
+(5.07 MB against 3 MB) measured to predate the stage. See the
+[report](docs/stages/14-report.md).
+
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
 `tools/gen.ps1` (Luban 5.1.0 + protoc 33.6) → generated C# + `.bytes` →
 `IGameConfig`. See [`llmwiki/systems/data-schema.md`](llmwiki/systems/data-schema.md).
@@ -380,7 +395,7 @@ license. Locked in [`tools/versions.lock.json`](tools/versions.lock.json).
 | .NET SDK | `6.0.428`, `9.0.311` |
 | Node.js / npm | `v25.6.1` / `11.9.0` |
 | Unity Editor | `6000.3.9f1` + WebGL Build Support |
-| Browsers | Chrome `154.0.8037.98`; Edge `145.0.3800.70`; **Firefox not installed** |
+| Browsers | Chrome `154.0.8037.98`; Edge `145.0.3800.70`; no system Firefox — Playwright's bundled `firefox-1555` was installed at Stage 14 |
 | Playwright | not installed (added Stage 03/14) |
 
 Reference machine for all performance work: Intel Core i5-14400F, 32 GB RAM,
@@ -573,7 +588,9 @@ Full detail: [`docs/architecture/overview.md`](docs/architecture/overview.md).
 - ~~IndexedDB flush method on Unity 6.3~~ — **resolved at Stage 12**: `FS.syncfs` is the
   flush, and it must be **polled from a Unity frame**, not completed from its browser
   callback ([ADR 0033](docs/adr/0033-application-awaits-capture-the-caller-context.md)).
-- Firefox not installed → cross-browser runs are NOT RUN until it is.
+- **Cross-browser is still Chrome-only.** Playwright's Firefox was installed at Stage 14 and the
+  Release player boots there (Stage 14 probe: `WebGL 2.0`, smoke passed, harness absent), but the
+  suite itself has not been run on Gecko — the browser gate is Chrome.
 - **Charm passives and offering effects are data since Stage 11a.** `item` carries
   `charm_stat`/`charm_method`/`charm_magnitude` and
   `offering_effect`/`amount`/`uses`/`auto_hp_percent`; `LoadoutResolver` applies a charm to a

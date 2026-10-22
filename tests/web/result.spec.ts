@@ -206,6 +206,15 @@ async function clickUntil(
 
 test.describe("ProjectSurvive's summary screen in the browser", () => {
   test("a lost floor shows the run's summary and Restart starts a new run", async ({ page }) => {
+    // A lost floor is produced through the dev menu's เล่นต่อ→แพ้ทันที control, and a release build
+    // has no dev menu (by design, Stage 14 item 7). `tools/ci.ps1` and `tools/test.ps1 -Release`
+    // set PROJECTSURVIVE_BUILD=release, and this case skips itself there instead of waiting two
+    // minutes for a panel that must never appear. It is covered against a Development build.
+    test.skip(
+      process.env.PROJECTSURVIVE_BUILD === "release",
+      "the dev menu does not exist in a release build",
+    );
+
     test.setTimeout(330_000);
     const pageErrors = collectPageErrors(page);
 

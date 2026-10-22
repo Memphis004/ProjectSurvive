@@ -19,7 +19,9 @@ need to run, and the Web build moved behind the Full suite.
 | --- | --- | --- |
 | `toolchain: .NET SDK` | Fast | an SDK ≥ 8 is present |
 | `dotnet build` | Fast | every `lib/` layer, the xUnit project and the Sim compile |
-| `dotnet test (xUnit)` | Fast | 591 tests: the rule engine, the architecture guards, the contract suites, the Sim, checkpoint/settings round-trips |
+| `dotnet test (xUnit)` | Fast | the rule engine, the architecture guards, the contract suites, the Sim, checkpoint/settings round-trips (604 on 2026-10-23) |
+| `contract: FakeBattleSession` | Fast | the shared `BattleSessionContractTests` as the fake passes it, read out of the TRX (24 cases, Stage 14) |
+| `contract: BattleSimulation` | Fast | the same suite against `EcsBattleSessionFactory` (24 cases). Two lines rather than one because "the contract holds for the simulation" is the claim a green run has to make visible |
 | `sim: determinism` | Fast | the same seed prints the same `determinismDigest` twice, a different seed does not |
 | `sim: stream separation` | Fast | shop / battle / visual digests differ, `ticksProduced=300` |
 | `sim: bot smoke run` | Fast | the kiting bot plays 2 seeds and writes balance rows |
@@ -27,10 +29,10 @@ need to run, and the Web build moved behind the Full suite.
 | `data: generated code reproducible` | Fast | `tools/verify-generated.ps1` — `data/` + `proto/` reproduce the tracked output |
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 21 broken data sets rejected for the right reason |
 | `wiki: content reproducible` | Fast | `tools/verify-wiki.ps1` — `llmwiki/content/` regenerates byte-identically from `data/`, every relative link and anchor resolves, every data id has a section, no `systems/`/`gotchas/` orphan, and a WARN-only heuristic for hand-written pages that restate skill numbers |
-| `unity: EditMode` | Fast | 199 tests in `ProjectSurvive.Game.Tests.EditMode` (incl. the seven audio-asset cases, the two settings-bus cases and the five pause-overlay cases) |
+| `unity: EditMode` | Fast | 205 tests in `ProjectSurvive.Game.Tests.EditMode` (incl. the seven audio-asset cases, the two settings-bus cases, the five pause-overlay cases and the six harness-contract cases added in Stage 14) |
 | `unity: PlayMode` | **Full** | 76 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control and settings panel, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
-| `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force` |
-| `web: Playwright (smoke + title + battle + camp + result + persistence + audio + settings + pause)` | **Full** | 18 browser tests against that build, in Chrome (13 more are the opt-in screenshot generator, skipped unless `SCREENS=1`) |
+| `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force`; `build-info.json` and `build-report.json` are copied to `artifacts/web/` |
+| `web: Playwright (all specs)` | **Full** | every spec in `tests/web/` against that build, in Chrome: smoke, title, battle, camp, result, persistence, audio, pause, **and** `harness.spec.ts` (Development) or `release.spec.ts` (Release). The HTML report, failure screenshots/traces and a JSON result land in `artifacts/web/` |
 
 `-Release` moves the dotnet build and the WebGL build to Release. It is for a Stage gate or a
 measurement — a Development build's numbers may not be quoted ([ADR 0003](../adr/0003-performance-baseline-machine-and-browser.md)).
@@ -492,3 +494,58 @@ The same note also records that `run_tests` can answer with the **previous** run
 per-test durations). The harness guards against it: it polls `test_status` and only accepts a result that
 either reported `running` first or differs from the payload captured before the submit, and it writes the
 raw payload to `artifacts/dotnet/unity-<mode>-status.json` so the durations can be checked.
+
+## 8. The CI pipeline (`tools/ci.ps1`) — and how it differs from `tools/test.ps1`
+
+`test.ps1` is the **working loop** and runs one suite (`Fast`/`Full`) in one process, using the
+Editor that is already open. `ci.ps1` is the **gate**: it composes the tools in a fixed order, keeps
+the jobs that need a Unity licence apart from the ones that do not, and refuses to run when another
+Unity process holds `UnityProject`.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci.ps1 -Job Validate     # no licence
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci.ps1 -Job Build,Web     # licence
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci.ps1                    # everything
+```
+
+`-Job` takes a comma-separated list (a `-File` invocation hands `Build,Web` over as one string;
+`-Job Build -Job Web` would bind the parameter twice and be refused).
+
+| Job | Needs a licence | Steps |
+| --- | --- | --- |
+| `Validate` | no | `gen.ps1`, `validate-data.ps1` (over `lib/Tests~/data`, what `gen.ps1` just published), `verify-generated.ps1`, `check-fixtures.ps1`, `verify-wiki.ps1` |
+| `Test` | no | `dotnet build` + `dotnet test`, then the two `contract:` lines read out of the TRX |
+| `Sim` | no | `tools/sim.ps1 --seeds 50`, then the boss-floor win rate has to be inside `-MinBossWinRate`/`-MaxBossWinRate` (0.30–0.60 by default). Fewer than 50 boss rows also fails: a seed that did not play to the end is not a win rate |
+| `Unity` | **yes** | EditMode as one run, then **PlayMode one fixture per process** (§7) — `unity test --mode PlayMode --filter <Class>` for every `*PlayModeTests.cs`. Each writes NUnit XML |
+| `Build` | **yes** | `tools/build-web.ps1 -Force`; the `development` flag in `build-info.json` must match the requested configuration (a Release gate must not pass against a Development player) |
+| `Web` | no (a build must exist) | `serve-web.mjs` + `npx playwright test --reporter list,json` with every spec, plus `release.spec.ts` for a Release build and `harness.spec.ts` for a Development one |
+
+Order in `-Job All`: Validate → Test → Sim → Unity → Build → Web. The Sim gate is deliberately
+before the licence jobs: it costs a minute and can fail a balance regression before a ten-minute
+build.
+
+**One Unity process at a time.** `Unity`, `Build` and `Web` all check that no Editor is connected
+and that `UnityProject/Temp/UnityLockfile` is absent; `unity test` and `build-web.ps1` each start
+their own batch Editor, so they must run strictly one after another. A run that is interrupted
+leaves that lockfile behind and would block every later run, so `ci.ps1` removes a lockfile **only
+when no `Unity` process is running** (a live Editor or batch build always owns one) and says so on
+the console.
+
+**Exit codes.** `0` every required step passed; `1` at least one FAILED; `2` a required step could
+not be evaluated (project locked, no Editor, no `node`, no build to test). A blocked gate is never
+reported as a pass.
+
+**Artifacts** (all under `artifacts/ci/`, overwritten per run):
+
+| File | What it is |
+| --- | --- |
+| `summary.md` / `summary.json` | every step with PASS / FAIL / NOT RUN counted and listed separately |
+| `generate.log`, `validate-data.log`, `verify-generated.log`, `check-fixtures.log`, `verify-wiki.log`, `dotnet-build.log`, `dotnet-test.log`, `sim.log` | one log per step |
+| `ci-tests.trx` | the xUnit result the `contract:` lines are read from |
+| `editmode.xml`, `playmode-<fixture>.xml` | NUnit XML per Unity run |
+| `balance-50.csv`, `balance-summary.json` | the 50-seed bot run and its win-rate verdict |
+| `build-web.log`, `build-info.json` | the build and the metadata it produced |
+| `playwright.json`, `playwright.log`, `web-test-results/`, `web-report/` | the browser results, failure screenshots/traces and the HTML report |
+
+`test.ps1 -Suite Full` writes the same kinds of browser artifact under `artifacts/web/`, so a run
+made either way can be read back the same way.

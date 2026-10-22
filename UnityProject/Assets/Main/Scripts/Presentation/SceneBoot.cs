@@ -72,6 +72,13 @@ namespace ProjectSurvive.Game.Presentation
                 _scope.PersistAcrossScenes();
             }
 
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            // Stage 14: the development build's test harness (seeded start, tick advance,
+            // snapshot, diagnostics). The whole type is behind this same condition, so a release
+            // player has neither the component nor the page global it publishes.
+            Web.HarnessBridge.Install(_scope);
+#endif
+
             BootAsync(_lifetime.Token).Forget();
         }
 
