@@ -40,6 +40,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.AreEqual("__projectSurviveScene", WebGlBridge.SceneGlobal);
             Assert.AreEqual("__projectSurviveThaiSpike", WebGlBridge.ThaiSpikeGlobal);
             Assert.AreEqual("__projectSurvivePersistence", WebGlBridge.PersistenceGlobal);
+            Assert.AreEqual("__projectSurviveAudio", WebGlBridge.AudioGlobal);
         }
 
         [Test]
@@ -64,6 +65,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
             StringAssert.Contains("export const SCENE = \"" + WebGlBridge.SceneGlobal + "\";", text);
             StringAssert.Contains("export const THAI_SPIKE = \"" + WebGlBridge.ThaiSpikeGlobal + "\";", text);
             StringAssert.Contains("export const PERSISTENCE = \"" + WebGlBridge.PersistenceGlobal + "\";", text);
+            StringAssert.Contains("export const AUDIO = \"" + WebGlBridge.AudioGlobal + "\";", text);
         }
     }
 }

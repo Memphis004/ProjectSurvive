@@ -49,6 +49,9 @@ namespace ProjectSurvive.Game.Presentation.Web
         /// <summary>Global the page reads for the checkpoint/settings storage verdict (Stage 12).</summary>
         public const string PersistenceGlobal = "__projectSurvivePersistence";
 
+        /// <summary>The audio director's play counts and music state (Stage 13c-1).</summary>
+        public const string AudioGlobal = "__projectSurviveAudio";
+
         /// <summary>Event dispatched after a smoke report is published.</summary>
         public const string SmokeReportEvent = "projectsurvive:smoke";
 

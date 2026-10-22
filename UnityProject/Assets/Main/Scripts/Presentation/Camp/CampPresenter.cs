@@ -10,6 +10,7 @@ using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Domain.Shop;
 using ProjectSurvive.Core.Shared;
+using ProjectSurvive.Game.Presentation.Audio;
 using UnityEngine;
 
 namespace ProjectSurvive.Game.Presentation.Camp
@@ -349,6 +350,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             if (rented.IsSuccess)
             {
                 Counters.Rented++;
+                Cue(AudioCue.Rent);
                 ObserveTutorial(CampTutorialAction.Rent);
                 ClearStatus();
             }
@@ -430,6 +432,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             if (rotated.IsSuccess)
             {
                 Counters.Rotated++;
+                Cue(AudioCue.Rotate);
                 ObserveTutorial(CampTutorialAction.Rotate);
                 ClearStatus();
             }
@@ -757,6 +760,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
                     ObserveTutorial(CampTutorialAction.Rotate);
                 }
 
+                Cue(AudioCue.Place);
                 ClearStatus();
             }
             else
@@ -917,6 +921,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             Counters.Merged++;
             Counters.MergeChoicesConfirmed++;
+            Cue(AudioCue.Merge);
             ClearStatus();
             Refresh();
             return true;
@@ -1362,6 +1367,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
                     if (merged.IsSuccess)
                     {
                         Counters.Merged++;
+                        Cue(AudioCue.Merge);
                     }
 
                     return merged.IsSuccess ? Result.Ok() : Result.Fail(merged.Error);
@@ -2285,11 +2291,30 @@ namespace ProjectSurvive.Game.Presentation.Camp
             }
 
             _statusCode = next;
+
+            if (next.Length > 0)
+            {
+                Cue(AudioCue.Refuse);
+            }
+
             CampUiState.Set(
                 _state.StatusLine, next.Length == 0 ? string.Empty : Lookup("error." + next));
         }
 
         private void ClearStatus() => SetStatus(string.Empty);
+
+        /// <summary>
+        /// Asks for one sound (Stage 13c-1). The cue travels on the screen's own state, so the
+        /// presenter never touches a scene object, and a screen with no audio attached simply has no
+        /// listener to hear it.
+        /// </summary>
+        private void Cue(AudioCue cue)
+        {
+            if (!_disposed)
+            {
+                _state.Cues.OnNext(cue);
+            }
+        }
 
         private string PieceName(PieceKind kind, string defId)
         {

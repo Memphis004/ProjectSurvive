@@ -1,4 +1,5 @@
 using System;
+using ProjectSurvive.Game.Presentation.Audio;
 using R3;
 
 namespace ProjectSurvive.Game.Presentation.Camp
@@ -273,8 +274,16 @@ namespace ProjectSurvive.Game.Presentation.Camp
         }
 
         /// <inheritdoc />
+        /// <summary>
+        /// Sound cues the screen asks for (Stage 13c-1). UI-level events like everything else here:
+        /// the presenter publishes "this command was accepted", and the scene's director hands the cue
+        /// to the app's one audio device.
+        /// </summary>
+        public Subject<AudioCue> Cues { get; } = new Subject<AudioCue>();
+
         public void Dispose()
         {
+            Cues.Dispose();
             Title.Dispose();
             ShopCaption.Dispose();
             BagCaption.Dispose();

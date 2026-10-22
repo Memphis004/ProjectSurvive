@@ -1,4 +1,5 @@
 using ProjectSurvive.Game.Presentation;
+using ProjectSurvive.Game.Presentation.Audio;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -29,6 +30,10 @@ namespace ProjectSurvive.Game.Editor
 
         public static void Create()
         {
+            // The clips are imported before the scene references them, and with the Web build's
+            // load types (Stage 13c-1).
+            ProjectSetup.ConfigureAudio();
+
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             var root = new GameObject("Boot");
@@ -43,6 +48,15 @@ namespace ProjectSurvive.Game.Editor
             // the camp, and `?scene=Camp` is how it reaches the camp. It is an allow-list, not a
             // router: only the scenes named here can be requested from a URL.
             ProjectSetup.SetStringArray(boot, "_urlSceneOverrides", ProjectSetup.UrlSceneAllowList);
+
+            // Stage 13c-1: the game's one audio device. It is a child of the app root, which Boot
+            // moves into DontDestroyOnLoad, so music survives a scene change and the game has
+            // exactly one AudioListener for the whole session.
+            var audioObject = new GameObject("Audio");
+            audioObject.transform.SetParent(root.transform, worldPositionStays: false);
+            AudioDirector audio = audioObject.AddComponent<AudioDirector>();
+            ProjectSetup.SetObjectReference(audio, "_scope", scope);
+            ProjectSetup.SetObjectArray(audio, "_clips", ProjectSetup.LoadAudioClips());
 
             EditorSceneManager.SaveScene(scene, ProjectSetup.BootScenePath);
         }

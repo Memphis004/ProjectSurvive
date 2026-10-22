@@ -1,5 +1,6 @@
 using System;
 using ProjectSurvive.Core.Domain.Config;
+using ProjectSurvive.Game.Presentation.Audio;
 using R3;
 
 namespace ProjectSurvive.Game.Presentation
@@ -77,6 +78,17 @@ namespace ProjectSurvive.Game.Presentation
         /// <summary>The settings panel's open caption (localized).</summary>
         public ReactiveProperty<string> SettingsOpenLabel { get; } = new ReactiveProperty<string>(string.Empty);
 
+        /// <summary>
+        /// Sound cues a screen wants played, as UI-level events (Stage 13c-1).
+        /// </summary>
+        /// <remarks>
+        /// A presenter publishes "this command was accepted" here instead of touching an
+        /// <see cref="AudioDirector"/>: the presenter stays free of scene objects (AGENTS rule 10),
+        /// and the one thing that owns the audio device subscribes. Nothing in the game reads this
+        /// channel, so a missing listener costs a sound and no state.
+        /// </remarks>
+        public Subject<AudioCue> Cues { get; } = new Subject<AudioCue>();
+
         /// <summary>True once the root scope has finished booting.</summary>
         public ReactiveProperty<bool> Ready { get; } = new ReactiveProperty<bool>(false);
 
@@ -95,6 +107,7 @@ namespace ProjectSurvive.Game.Presentation
             SpeedLabel.Dispose();
             SettingsCloseLabel.Dispose();
             SettingsOpenLabel.Dispose();
+            Cues.Dispose();
             Ready.Dispose();
         }
     }

@@ -115,6 +115,14 @@ namespace ProjectSurvive.Game.Presentation.Web
             return this;
         }
 
+        /// <summary>Writes a counter that can outgrow an <see cref="int"/> (play totals, ticks).</summary>
+        public JsonReportWriter Write(string name, long value)
+        {
+            WriteName(name);
+            _sb.Append(value.ToString(CultureInfo.InvariantCulture));
+            return this;
+        }
+
         public JsonReportWriter Write(string name, float value)
         {
             WriteName(name);

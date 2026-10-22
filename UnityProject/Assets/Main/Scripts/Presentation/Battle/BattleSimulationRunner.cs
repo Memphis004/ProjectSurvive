@@ -131,7 +131,8 @@ namespace ProjectSurvive.Game.Presentation.Battle
                 context.HudState,
                 context.Hud,
                 context.Speed,
-                context.VisualSeed);
+                context.VisualSeed,
+                Audio.AudioDirector.Instance);
 
             _session = _view.Begin(
                 context.Factory, context.Setup, context.StartingBia, context.Backpack, context.Config);

@@ -469,3 +469,17 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   ([gotcha](gotchas/symbol-glyphs-are-not-in-the-ui-font.md)).
 - **Next:** the human playtest (Stage 13's headline acceptance — a real person reaching the first
   battle unaided, still **NOT RUN**) and 13c (CC0 audio, pause, audio settings).
+
+## Stage 13c-1 — sound (2026-10-22)
+
+- **Did:** `tools/gen-audio.py` synthesises all 13 clips (11 effects, two 6 s loops, mono 22 050 Hz PCM,
+  seeded LCG); `AudioDirector` on the App scope owns eight pooled voices, one music source and the game's
+  only `AudioListener`; presenters ask for a cue on an R3 channel and only after a command succeeded, and
+  `BattleAudioListener` reads the battle event channel. The player publishes `__projectSurviveAudio`.
+- **Result:** 601/601 xUnit, **193/193** EditMode, WebGL Development build (0 C# errors) + **16 passed /
+  13 skipped / 0 failed** browser tests incl. two new audio specs; music switched to `DecompressOnLoad`
+  after the 20-visit memory test caught a decoder buffer per `Play`. PlayMode did **not** re-run after the
+  final two edits (Editor bridge lost), so the stage is not closed as PASS — see
+  [report](../docs/stages/13c-1-report.md), [system note](systems/audio.md).
+- **Next:** 13c-2 (pause + the audio settings panel), a PlayMode re-run, and the Stage 13 human playtest
+  with headphones, still **NOT RUN**.

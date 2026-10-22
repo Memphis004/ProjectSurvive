@@ -12,6 +12,7 @@ using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Infrastructure.Save;
 using ProjectSurvive.Core.Shared;
 using ProjectSurvive.Game.Infrastructure;
+using ProjectSurvive.Game.Presentation.Audio;
 using ProjectSurvive.Game.Presentation.Camp;
 
 namespace ProjectSurvive.Game.Tests.EditMode
@@ -2647,6 +2648,40 @@ namespace ProjectSurvive.Game.Tests.EditMode
         /// <summary>
         /// The screen and the run behind it, at the first camp of a fresh run.
         /// </summary>
+        /// <summary>
+        /// Stage 13c-1: the screen asks for a sound when a command <b>landed</b>, and for the refusal
+        /// cue when one was turned down. A cue is UI-level state (it travels on
+        /// <see cref="CampUiState.Cues"/>), so this is checked here, without a scene.
+        /// </summary>
+        [Test]
+        public void The_screen_asks_for_a_sound_only_when_a_command_landed()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            var cues = new List<AudioCue>();
+            using IDisposable subscription = R3.ObservableSubscribeExtensions.Subscribe(
+                ui.State.Cues, cue => cues.Add(cue));
+
+            int slot = SlotOffering(ui.Run, RunDefaults.InitialWeaponId);
+            Assert.That(slot, Is.GreaterThanOrEqualTo(0), "the pinned seed must offer the starting weapon");
+
+            ui.Presenter.Rent(slot);
+            Assert.That(cues, Is.EqualTo(new[] { AudioCue.Rent }), "a rent that landed asks for one rent cue");
+
+            // A refused command is the refusal cue and nothing else: the run did not change, so
+            // neither did the thing the sound is reporting.
+            cues.Clear();
+            ui.Presenter.Rent(-1);
+            Assert.That(cues, Is.EqualTo(new[] { AudioCue.Refuse }), "a refusal is the only cue it asks for");
+
+            // Turning a selected piece asks for the rotate cue.
+            PieceRef onBoard = OnBoardItem(ui.Run);
+            Assert.That(onBoard.IsValid, Is.True, "the starting kit carries an item on the board");
+            cues.Clear();
+            ui.Presenter.SelectOnly(onBoard);
+            ui.Presenter.RotateSelected();
+            Assert.That(cues, Is.EqualTo(new[] { AudioCue.Rotate }));
+        }
+
         private Screen ScreenAtFirstCamp()
         {
             RunSession run = AtFirstCamp();
@@ -2685,6 +2720,22 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         /// <summary>The one item the run is carrying in its chest.</summary>
+        /// <summary>The first item standing on the board, or <see cref="PieceRef.None"/>.</summary>
+        private static PieceRef OnBoardItem(RunSession run)
+        {
+            IReadOnlyList<ItemInstance> items = run.Backpack.Items;
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (items[i].Zone == PieceZone.Board)
+                {
+                    return items[i].Ref;
+                }
+            }
+
+            return PieceRef.None;
+        }
+
         private static PieceRef OnlyChestItem(RunSession run)
         {
             IReadOnlyList<ItemInstance> items = run.Backpack.Items;

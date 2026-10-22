@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using ProjectSurvive.Game.Presentation;
+using ProjectSurvive.Game.Presentation.Audio;
 using TMPro;
 using UnityEditor;
 using UnityEditor.Build;
@@ -935,6 +936,85 @@ namespace ProjectSurvive.Game.Editor
         }
 
         // ------------------------------------------------------------------
+        // audio (Stage 13c-1)
+        // ------------------------------------------------------------------
+
+        /// <summary>The folder the generated placeholder audio lives in.</summary>
+        public const string AudioFolder = "Assets/Main/Audio";
+
+        /// <summary>
+        /// Loads every clip <c>tools/gen-audio.py</c> writes, in <see cref="AudioCue"/> order.
+        /// </summary>
+        /// <remarks>
+        /// Throws rather than returning a half-filled array: a scene built against missing audio
+        /// should fail where somebody is looking, not ship a silent game.
+        /// </remarks>
+        public static AudioClip[] LoadAudioClips()
+        {
+            var clips = new AudioClip[AudioCueTable.Count];
+            for (int i = 0; i < clips.Length; i++)
+            {
+                string path = AudioFolder + "/" + AudioCueTable.Names[i] + ".wav";
+                clips[i] = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+                if (clips[i] is null)
+                {
+                    throw new InvalidOperationException(
+                        "Missing placeholder clip '" + path + "'. Run tools/gen-audio.py first.");
+                }
+            }
+
+            return clips;
+        }
+
+        /// <summary>
+        /// Import settings chosen for the Web build, following the Unity 6.3 manual's "Audio in
+        /// Web" and Stage 13c-1's memory measurement: both music and effects are decompressed on
+        /// load. A CompressedInMemory clip that is Played again after a scene change leaves a
+        /// decoder buffer behind, which is what the round-trip memory test caught.
+        /// </summary>
+        public static void ConfigureAudio()
+        {
+            for (int i = 0; i < AudioCueTable.Count; i++)
+            {
+                string name = AudioCueTable.Names[i];
+                string path = AudioFolder + "/" + name + ".wav";
+                var importer = AssetImporter.GetAtPath(path) as AudioImporter;
+                if (importer is null)
+                {
+                    throw new InvalidOperationException("No AudioImporter at '" + path + "'.");
+                }
+
+                bool music = name.StartsWith("music-", StringComparison.Ordinal);
+                AudioImporterSampleSettings settings = importer.defaultSampleSettings;
+
+                // Both kinds are decompressed on load, which the Web manual lists as supported and
+                // which is also what the project's own memory test demands: a CompressedInMemory
+                // clip that is Played again after a scene change leaves a decoder buffer behind
+                // (measured — 18 camp/battle round trips grew the managed heap by 3.9 MB until the
+                // music was switched to DecompressOnLoad). A six-second loop decoded once is
+                // 264 KB, which is a cheaper thing to keep than a buffer per Play.
+                settings.loadType = AudioClipLoadType.DecompressOnLoad;
+                settings.compressionFormat = music
+                    ? AudioCompressionFormat.Vorbis
+                    : AudioCompressionFormat.PCM;
+                settings.quality = music ? 0.5f : 1f;
+                // Keep the generated 22 050 Hz data instead of letting the importer resample
+                // to 44.1 kHz: the clips were written small on purpose (Stage 13c-1).
+                settings.sampleRateSetting = AudioSampleRateSetting.PreserveSampleRate;
+
+                importer.forceToMono = true;
+                importer.loadInBackground = false;
+                importer.defaultSampleSettings = settings;
+
+                // No per-platform override: the default settings are the fallback every platform
+                // uses, and Unity transcode the clip to the Web build's own format (AAC) itself
+                // (Unity 6.3 manual, "Audio in Web"). An explicit WebGL override would be a second
+                // copy of the same numbers that nobody would keep in step.
+                importer.SaveAndReimport();
+            }
+        }
+
+        // ------------------------------------------------------------------
         // Serialized-field helpers
         // ------------------------------------------------------------------
 
@@ -989,6 +1069,19 @@ namespace ProjectSurvive.Game.Editor
             for (int i = 0; i < values.Length; i++)
             {
                 property.GetArrayElementAtIndex(i).stringValue = values[i];
+            }
+
+            property.serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>Replaces an object-reference array, e.g. the audio director's clip table.</summary>
+        public static void SetObjectArray(Object target, string fieldName, Object[] values)
+        {
+            SerializedProperty property = FindProperty(target, fieldName);
+            property.arraySize = values.Length;
+            for (int i = 0; i < values.Length; i++)
+            {
+                property.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
             }
 
             property.serializedObject.ApplyModifiedPropertiesWithoutUndo();

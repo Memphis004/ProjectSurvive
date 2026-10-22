@@ -89,6 +89,11 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             int completedBefore = SceneBoot.CompletedBootCount;
 
             SceneFlowHarness.ResetShell();
+
+            // Boot resumes a checkpoint before the title (Stage 12), so a run left by an earlier
+            // fixture would hand over to the camp and this test would be asserting on the wrong
+            // scene. The resume itself is covered by the SceneFlow fixture.
+            SceneFlowHarness.ClearPersistedCheckpoint();
             yield return null;
 
             yield return SceneManager.LoadSceneAsync(SceneIndex("Boot"), LoadSceneMode.Single);

@@ -6,9 +6,11 @@ using ProjectSurvive.Core.Application.Settings;
 using ProjectSurvive.Core.Application.Text;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Shared;
+using ProjectSurvive.Game.Presentation.Audio;
 using ProjectSurvive.Game.Presentation.Camp;
 using ProjectSurvive.Game.Presentation.Flow;
 using ProjectSurvive.Game.Presentation.Web;
+using R3;
 using TMPro;
 using UnityEngine;
 using VContainer;
@@ -58,6 +60,7 @@ namespace ProjectSurvive.Game.Camp
         private SettingsService _settings;
         private LocalizationService _text;
         private CancellationTokenSource _lifetime;
+        private IDisposable _cueSubscription;
         private bool _departed;
         private bool _saveDirty;
 
@@ -119,6 +122,12 @@ namespace ProjectSurvive.Game.Camp
             Run = _scope.Container.Resolve<RunScopeOwner>().RequireRun();
             _loader = _scope.Container.Resolve<SceneLoader>();
             Presenter = _scope.Container.Resolve<CampPresenter>();
+
+            // Stage 13c-1: the presenter asks for sounds, this scene hands them to the app's audio
+            // device. One subscription for the scene's life, disposed with it.
+            _cueSubscription = _scope.Container.Resolve<CampUiState>().Cues.Subscribe(
+                cue => AudioDirector.Instance?.Play(cue));
+
             _save = _scope.Container.Resolve<GameSave>();
             _settings = _scope.Container.Resolve<SettingsService>();
             _text = _scope.Container.Resolve<LocalizationService>();
@@ -143,7 +152,9 @@ namespace ProjectSurvive.Game.Camp
 
             if (Run.FlowState == RunFlowState.Title)
             {
-                Result started = Run.StartRun();
+                // Fully qualified: `R3` is in scope for the cue channel below, and it also has a
+                // `Result` type, so the shared one would be an ambiguous reference.
+                ProjectSurvive.Core.Shared.Result started = Run.StartRun();
                 if (started.IsFailure)
                 {
                     StartError = "The run could not start: " + started.Error.Code;
@@ -384,6 +395,9 @@ namespace ProjectSurvive.Game.Camp
 
         private void OnDestroy()
         {
+            _cueSubscription?.Dispose();
+            _cueSubscription = null;
+
             if (_lifetime is null)
             {
                 return;

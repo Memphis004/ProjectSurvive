@@ -64,6 +64,7 @@ hand-written page that **restates** a skill's numbers raises a `balance_numbers`
 | Camp screen (ศาลาพัก: the sala, walkable, shelves as the shop, the จัดย่าม drag, the two published reports) | [`systems/camp.md`](systems/camp.md) | 09 | done |
 | The full loop: three scopes (App / Run / Scene), `SceneLoader`, the floor loop, the title's start control, the summary screen, dev cheats | [`systems/loop-and-scopes.md`](systems/loop-and-scopes.md) | 10, 10d | done |
 | Core foundation (RNG / clock / ticker / Result) | [ADR 0004](../docs/adr/0004-dotnet-layer-enforcement.md) + [`../docs/architecture/overview.md`](../docs/architecture/overview.md) | 01 | done |
+| Audio (generated clips, cue channels, the one device, Web autoplay, import settings) | [`systems/audio.md`](systems/audio.md) | 13c-1 | done |
 | Save / resume | *(pending)* | 12 | not started |
 
 Notes live in [`systems/`](systems/). Create one file per system as its stage

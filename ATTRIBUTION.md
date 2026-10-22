@@ -16,7 +16,7 @@ resolve first.
 | --- | --- | --- | --- |
 | Sarabun Regular / Bold (`.ttf`) and the baked `Sarabun-Regular SDF` font asset | `UnityProject/Assets/Main/Fonts/` | **SIL Open Font License 1.1** | Sarabun Project Authors, Cadson Demak — <https://github.com/cadsondemak/Sarabun>. The OFL text ships beside the fonts in `Assets/Main/Fonts/OFL.txt`; the baked atlas is a derivative of the same font and carries the same licence. In use by every canvas (ADR 0008, Stage 09d). |
 | Character, ghost, prop and HUD art | *(none on disk)* | Project-owned (CC0 by the project) | Drawn procedurally at runtime from primitives: `Presentation/Battle/BattlePlaceholderArt.cs`, `Presentation/Camp/CampPlaceholderArt.cs`, `Presentation/Battle/Hud/BattleHudArt.cs`, plus Unity primitives (`Cube`, `Quad`, `Capsule`) and URP's default material. There are no third-party sprite files. |
-| Audio (music and effects) | *(none yet — Stage 13c adds them)* | Project-owned (CC0) | Stage 13c synthesises the placeholder SFX and ambience with a committed script; no downloaded sample packs. Recorded here when it lands. |
+| Audio (music and effects) | `UnityProject/Assets/Main/Audio/` | Project-owned (CC0 by the project) | **Synthesised, not sampled.** `tools/gen-audio.py` writes all 13 clips (11 effects, 2 six-second music loops) as mono 22 050 Hz 16-bit PCM from its own oscillators and a seeded LCG noise source — no downloaded sample pack, no third-party loop. The script is the provenance: `python tools/gen-audio.py --check` reports whether the committed bytes still match it (Stage 13c-1). |
 | `THSarabunPSK.ttf` and its baked `THSarabunPSK SDF` atlas | `UnityProject/Assets/Resources/Fonts/` | **Thai-language font licence (SIPA), not OFL** — provenance not established in this repository | **Risk: unused and shipped.** No scene, prefab or field references it (Stage 09d, measured); it is a template leftover from the Stage 03 spike recorded in `UnityProject/SETUP.md` §8, and being under `Resources/` it is included in every build (4.0 MiB). It must be removed from `Resources/` (or the repository) before a release candidate, because its licence terms are not the OFL the rest of the UI ships under. |
 
 ## Unity package assets (editor templates, not game art)
@@ -46,7 +46,9 @@ do not ship in the player; they exist so TMP's editor tools work.
 ## How the audit was made (Stage 13a)
 
 1. Every file under `UnityProject/Assets` was classified: font, texture/sprite, audio, shader, package
-   payload, or editor template. Audio and sprite files: **none outside the Unity/TMP templates**.
+   payload, or editor template. Audio and sprite files at audit time: **none outside the Unity/TMP
+   templates**. The only audio since added is Stage 13c-1's generated set under
+   `Assets/Main/Audio/`, whose provenance is the generator script (see the table above).
 2. Each font was matched to a licence text in the repository (`Assets/Main/Fonts/OFL.txt`) or flagged
    (`THSarabunPSK`, above).
 3. Each package was read from `UnityProject/Packages/manifest.json`, `UnityProject/Assets/packages.config`

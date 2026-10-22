@@ -49,7 +49,8 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **12** | **Save, resume, settings (checkpoint, IndexedDB flush, TH/EN, volume, starting speed)** | **DONE** — see [`docs/stages/12-report.md`](docs/stages/12-report.md), [ADR 0033](docs/adr/0033-application-awaits-capture-the-caller-context.md) |
 | **13a** | **Content complete, text fit, attribution (the audit half of 13)** | **DONE** — see [`docs/stages/13a-report.md`](docs/stages/13a-report.md), [`ATTRIBUTION.md`](ATTRIBUTION.md) |
 | **13b** | **Tutorial: rent → place → rotate → read the tooltip → depart (the first-run checklist)** | **CODE DONE** — the human playtest it exists for is **NOT RUN**: see [`docs/stages/13b-report.md`](docs/stages/13b-report.md) |
-| **13c** | **Audio (CC0 synthesized), pause, audio settings** | not started |
+| **13c-1** | **Audio: generated CC0 clips, cue channels, the one audio device, Web autoplay + import settings** | **DONE** — see [`docs/stages/13c-1-report.md`](docs/stages/13c-1-report.md), [`llmwiki/systems/audio.md`](llmwiki/systems/audio.md) |
+| **13c-2** | **Pause and the audio settings panel** | not started |
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
@@ -310,6 +311,24 @@ persistence report publishes `tutorialCompleted`. Evidence: **185/185 EditMode**
 PlayMode** per class, **14/14** browser tests with a new camp spec that finishes the checklist through
 the real UI and reads the flag back. The rows use `[x]`/`[>]`/`[ ]` because the Sarabun atlas has no
 `✓`/`▶` glyphs ([gotcha](llmwiki/gotchas/symbol-glyphs-are-not-in-the-ui-font.md)).
+
+**13c-1** gave the game sound. `tools/gen-audio.py` synthesises all 13 clips (11 effects and two
+six-second loops; mono 22 050 Hz PCM, seeded LCG so a rebuild is byte-identical — 688 KB of source
+WAV, project-owned per [`ATTRIBUTION.md`](ATTRIBUTION.md)); `AudioDirector` on the **App** scope
+plays them through eight pooled voices and one music source, and adds the game's only
+`AudioListener` so the music survives a scene change. A presenter asks for a cue on its screen's R3
+`Subject<AudioCue>` (`UiState.Cues`, `CampUiState.Cues`) and **only after a command succeeded**,
+while battle cues come from `BattleAudioListener` on the event channel Stage 08 reserved; no view
+touches an `AudioSource`. The player publishes `__projectSurviveAudio` (voices, plays, `stolen`,
+`throttled`, `missingClips`, `musicPlaying`, `cueCounts`) and two browser tests read it — the arena
+plays `MusicBattle` and lands `sfx-hit` during a floor, the camp plays `MusicCamp` — because nothing
+may play before a user gesture, so Boot stays silent by design. The 20-visit memory test found the
+music leaking a decoder buffer per `Play` under `CompressedInMemory`; music and effects are both
+`DecompressOnLoad` now. Evidence on the final tree: **601/601** xUnit, **193/193** EditMode,
+WebGL Development build with 0 C# errors and **16 passed / 13 skipped / 0 failed** browser tests;
+**PlayMode did not re-run** after the last two line edits (the Editor bridge was lost), so the stage
+is code-complete but not closed as PASS. Pause and the audio settings panel are **13c-2**. See
+[`llmwiki/systems/audio.md`](llmwiki/systems/audio.md) and the [report](docs/stages/13c-1-report.md).
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
 `tools/gen.ps1` (Luban 5.1.0 + protoc 33.6) → generated C# + `.bytes` →

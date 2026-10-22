@@ -3,6 +3,7 @@ using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Shared;
+using ProjectSurvive.Game.Presentation.Audio;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.Battle.Vfx;
 using UnityEngine;
@@ -50,18 +51,24 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private readonly BattleCameraRig _camera;
         private readonly FloatingDamagePool _damage;
         private readonly TelegraphPool _telegraphs;
+        private readonly BattleAudioListener _audio;
 
         private IBattleSession _session;
         private GameObject _floor;
         private bool _disposed;
 
         /// <summary>Builds the view: art, ground, pool, bridge, camera, HUD wiring, VFX.</summary>
+        /// <param name="audio">
+        /// The app's audio director, or null in a scene that has none (an EditMode fixture) — in
+        /// which case the battle is silent and every other part of the view is unchanged.
+        /// </param>
         public BattleViewScene(
             BattleViewSettings settings,
             BattleHudState hudState,
             BattleHudPresenter hud,
             BattleSpeed speed,
-            uint visualSeed)
+            uint visualSeed,
+            AudioDirector audio = null)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _hudState = hudState ?? throw new ArgumentNullException(nameof(hudState));
@@ -96,10 +103,19 @@ namespace ProjectSurvive.Game.Presentation.Battle
             // event's own shape and footprint rather than re-derived from a def.
             _telegraphs = _owned.Own(new TelegraphPool(root, _art));
 
+            // Stage 13c-1: the third channel the pump reserved in Stage 08. Null in a fixture
+            // with no App scope, and a null listener is simply not registered.
+            _audio = audio is null ? null : new BattleAudioListener(audio);
+
             // This is the whole event-side subscription list: three cursors, one per channel.
             _events.AddListener(BattleEventChannel.Hud, _hud);
             _events.AddListener(BattleEventChannel.Vfx, _damage);
             _events.AddListener(BattleEventChannel.Vfx, _telegraphs);
+
+            if (_audio is not null)
+            {
+                _events.AddListener(BattleEventChannel.Audio, _audio);
+            }
 
             CreateFloor(root);
 
@@ -140,6 +156,9 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
         /// <summary>How many floor warnings are drawn right now (Stage 11b).</summary>
         public int ActiveTelegraphs => _telegraphs.ActiveCount;
+
+        /// <summary>Cues the battle's events have asked the director to play (Stage 13c-1).</summary>
+        public long CuesRequested => _audio?.CuesRequested ?? 0;
 
         /// <summary>
         /// Starts a floor: creates the session through the port, snapshots its first frame and
