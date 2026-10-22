@@ -53,6 +53,47 @@ namespace ProjectSurvive.Core.Tests.Run
         }
 
         [Fact]
+        public void Abandoning_a_floor_returns_to_the_same_camp_and_keeps_the_damage_taken()
+        {
+            IGameConfig config = RunFixture.Config();
+            RunSession run = RunFixture.StartedRun(config);
+
+            int biaBefore = run.Wallet.Bia;
+            int hpBefore = run.Hp;
+            int shopBefore = run.Stock.SlotCount;
+            string firstOffer = run.Stock[0].OfferedId;
+            int floorBefore = run.FloorIndex;
+
+            Result<BattleSetup> departure = run.StartFloor();
+            Assert.True(departure.IsSuccess);
+            Assert.Equal(RunFlowState.Battle, run.FlowState);
+
+            // Mid-floor, with damage taken: the retreat must keep it, or the pause menu is a free heal.
+            Result abandoned = run.AbandonFloor(hpBefore - 37);
+
+            Assert.True(abandoned.IsSuccess);
+            Assert.Equal(RunFlowState.Camp, run.FlowState);
+            Assert.Equal(hpBefore - 37, run.Hp);
+
+            // The floor was neither cleared nor paid, and the camp is the one that was left: same
+            // purse, same floor cursor, same shelf offers.
+            Assert.Equal(0, run.FloorsCleared);
+            Assert.Equal(biaBefore, run.Wallet.Bia);
+            Assert.Equal(floorBefore, run.FloorIndex);
+            Assert.Equal(shopBefore, run.Stock.SlotCount);
+            Assert.Equal(firstOffer, run.Stock[0].OfferedId);
+
+            // And the bag is editable again, because the floor is over.
+            Assert.False(run.IsBagLocked);
+
+            // The same floor can be departed for again, and abandoning is no longer possible.
+            Assert.True(run.StartFloor().IsSuccess);
+            Assert.Equal(RunFlowState.Battle, run.FlowState);
+            Assert.True(run.AbandonFloor(50).IsSuccess);
+            Assert.False(run.AbandonFloor(50).IsSuccess, "a camp cannot be abandoned");
+        }
+
+        [Fact]
         public void Commands_out_of_order_are_refused_and_change_nothing()
         {
             IGameConfig config = RunFixture.Config();

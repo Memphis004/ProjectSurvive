@@ -54,6 +54,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private FixedTicker _ticker;
         private bool _running;
         private bool _paused;
+        private bool _appPaused;
         private bool _reportedFirst;
         private bool _resultAnnounced;
         private float _reportTimer;
@@ -85,6 +86,40 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
         /// <summary>True once the floor has ended and its result was taken.</summary>
         public bool HasEnded => _result is not null;
+
+        /// <summary>
+        /// True while the floor is held still by the pause overlay (Stage 13c-2b).
+        /// </summary>
+        /// <remarks>
+        /// Distinct from the browser's own <c>OnApplicationPause</c>: that one says the tab is not
+        /// being drawn, this one says the player asked for the floor to stop. Both stop the clock and
+        /// neither lets the missed time be replayed, but only this one is a game state the HUD shows.
+        /// </remarks>
+        public bool IsPaused => _paused;
+
+        /// <summary>
+        /// Holds the floor still, or lets it run again.
+        /// </summary>
+        /// <remarks>
+        /// Resuming <b>resets</b> the accumulator rather than leaving it as it was: the ticker keeps
+        /// the fraction of a tick it had not spent, and time spent looking at the overlay must not be
+        /// owed to the simulation when it resumes. A paused runner runs no steps at all, so a frame's
+        /// delta is never scaled by the battle speed while paused either.
+        /// </remarks>
+        public void SetPaused(bool paused)
+        {
+            if (_paused == paused)
+            {
+                return;
+            }
+
+            _paused = paused;
+
+            if (!paused)
+            {
+                _ticker?.Reset();
+            }
+        }
 
         /// <summary>The floor's result, once it ended (null while running).</summary>
         public BattleResult Result => _result;
@@ -144,6 +179,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
             _reportedFirst = false;
             _reportTimer = 0f;
             _paused = false;
+            _appPaused = false;
             _running = true;
 
             PublishReport(true);
@@ -177,7 +213,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
         /// </summary>
         private void OnApplicationPause(bool paused)
         {
-            _paused = paused;
+            _appPaused = paused;
             if (!paused)
             {
                 _ticker?.Reset();
@@ -186,7 +222,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
         private void Update()
         {
-            if (!_running || _paused || _session is null)
+            if (!_running || _paused || _appPaused || _session is null)
             {
                 return;
             }

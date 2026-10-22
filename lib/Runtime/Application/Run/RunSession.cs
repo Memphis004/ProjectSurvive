@@ -504,6 +504,43 @@ namespace ProjectSurvive.Core.Application.Run
                 settlementId, floorIndex, result.Outcome, result.EndReason, reward, healed, Hp, runCompleted));
         }
 
+        /// <summary>
+        /// Leaves the running floor and returns the run to the camp it departed from, without
+        /// settling the floor (Stage 13c-2b).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This is the pause overlay's "กลับศาลา", and it is deliberately <b>not</b> a surrender: a
+        /// surrender is a battle result, and <see cref="ApplyBattleResult"/> ends the run on a defeat.
+        /// A player who retreats keeps the run, the purse and the shop, and the floor stays uncleared
+        /// and unpaid — it can be departed for again.
+        /// </para>
+        /// <para>
+        /// <paramref name="currentHp"/> is the damage the floor actually did. The battle owns HP until
+        /// a settlement, so retreating without it would erase every hit taken and make the pause menu
+        /// a free heal; the calculator passes what the live frame says. Nothing is re-rolled here
+        /// (no <c>EnterCamp</c>): the player returns to the shelves they left, not to a fresh stock.
+        /// </para>
+        /// </remarks>
+        public Result AbandonFloor(int currentHp)
+        {
+            if (FlowState != RunFlowState.Battle || _pendingSetup is null)
+            {
+                return Result.Fail(RunError.NotInBattle, ErrorKind.InvalidState);
+            }
+
+            Hp = Clamp(currentHp, 0, MaxHp);
+            _pendingSetup = null;
+            _pendingLoadout = null;
+            Editor.SetLocked(false);
+
+            FlowState = RunFlowState.Camp;
+
+            Record(RunCommand.AbandonFloor(Hp));
+            Emit(RunEventKind.FlowChanged, (int)FlowState);
+            return Result.Ok();
+        }
+
         /// <summary>Leaves the summary screen after a finished run (Result → Title).</summary>
         public Result ReturnToTitle()
         {

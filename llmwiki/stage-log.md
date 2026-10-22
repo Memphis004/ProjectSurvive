@@ -497,3 +497,22 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   ([screenshot](../artifacts/stage13c-2a/web-title-settings.png)). PlayMode still cannot run (Editor
   bridge), so the stage is code-complete, not PASS.
 - **Next:** 13c-2b (pause overlay), a PlayMode re-run, and the Stage 13 human playtest with headphones.
+
+## Stage 13c-2b — the pause overlay (2026-10-22)
+
+- **Did:** the arena gained หยุด: a HUD control opens a card above the HUD and stops the fixed step
+  (`BattleSimulationRunner.SetPaused`, the accumulator reset on resume), with เล่นต่อ and กลับศาลา.
+  The retreat is a new Application command, `RunSession.AbandonFloor(currentHp)` — the floor is not
+  settled, so the run keeps its purse, floor cursor and shelves, takes the damage back, unlocks the
+  bag and can depart for the same floor again; `RunCommand.AbandonFloor = 13` logs the HP because no
+  `BattleResult` exists for it. Five `ui.pause.*` rows, the overlay report `__projectSurvivePause`
+  (rewritten twice a second only while open), and a new EditMode layout case over the authored card.
+- **Result:** 604/604 xUnit, **199/199** EditMode, WebGL Development build (0 C# errors,
+  122,292,971 B) and **18 passed / 13 skipped / 0 failed** browser tests, including a spec that
+  freezes the floor, resumes it and leaves for the camp at floor 1
+  ([screenshot](../artifacts/stage13c-2b/web-battle-pause.png)). The first capture found a card that
+  did not read as a menu (fixed to 0.98 alpha over a lighter surface) and the first browser run found
+  the overlay publishing before the director attached the floor (fixed with a first-frame republish).
+  A stale localization row pin (228 vs the 232 rows since 13c-2a) also failed at HEAD and is corrected
+  to 237. PlayMode still cannot run (Editor bridge), so the stage is code-complete, not PASS.
+- **Next:** the PlayMode re-run, the Stage 13 human playtest (audio mix + pause feel), then Stage 14.

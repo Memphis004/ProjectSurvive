@@ -231,3 +231,8 @@
 ,camp.tutorial.done.format,[x] {0},[x] {0}
 ,camp.tutorial.current.format,[>] {0},[>] {0}
 ,camp.tutorial.todo.format,[ ] {0},[ ] {0}
+,ui.pause.open,หยุด,Pause
+,ui.pause.title,หยุดพัก,Paused
+,ui.pause.resume,เล่นต่อ,Resume
+,ui.pause.leave,กลับศาลา,Return to camp
+,ui.pause.warning,ชั้นนี้ยังไม่ผ่าน — ออกไปแล้วไม่ได้รางวัล,This floor is not cleared; leaving forfeits its reward

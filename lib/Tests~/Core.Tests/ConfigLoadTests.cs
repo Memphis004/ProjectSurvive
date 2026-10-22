@@ -69,8 +69,12 @@ namespace ProjectSurvive.Core.Tests
             // panel's heading (`camp.chest.title.format`) and the camp status bar's combined
             // HP/MP line (`camp.status.hpmp.format`) — taking it to 218. Stage 13b added the
             // ten step's checklist rows (a title, five steps, the "step N/5" line and the three
-            // row states), taking it to 228.
-            Assert.Equal(228, config.Localization.Count);
+            // row states), taking it to 228. Stage 13c-2a added the four settings rows that name its
+            // own controls (`ui.settings.decrease`/`.increase` and the two open/close captions),
+            // taking it to 232 — the pin was left at 228 then, which this stage corrects. Stage 13c-2b
+            // added the five pause rows (the HUD's own หยุด control, the overlay's title, its two ways
+            // out and the line that says a retreat forfeits the floor), taking it to 237.
+            Assert.Equal(237, config.Localization.Count);
         }
 
         /// <summary>

@@ -8,6 +8,7 @@ using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Shared;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
+using ProjectSurvive.Game.Presentation.Battle.Pause;
 using ProjectSurvive.Game.Presentation.Flow;
 using ProjectSurvive.Game.Presentation.Web;
 using UnityEngine;
@@ -56,6 +57,7 @@ namespace ProjectSurvive.Game.Battle
 
         private RunSession _run;
         private SceneLoader _loader;
+        private BattlePausePresenter _pause;
         private GameSave _save;
         private bool _settled;
         private bool _standalone;
@@ -83,6 +85,9 @@ namespace ProjectSurvive.Game.Battle
         /// <summary>The settlement the finished floor produced, or null.</summary>
         public FloorSettlement? LastSettlement { get; private set; }
 
+        /// <summary>The pause overlay's logic (null until the scene has started).</summary>
+        public BattlePausePresenter Pause => _pause;
+
         private void Start() => TryStart();
 
         private void OnDestroy()
@@ -99,6 +104,16 @@ namespace ProjectSurvive.Game.Battle
 
         private void Update()
         {
+            // Stage 13c-2b: the pause overlay's กลับศาลา asks for a scene the same way a settlement
+            // does, and a refused move is retried here rather than dropping the player in a frozen
+            // arena (the loader only refuses while another transition is in flight).
+            if (!_settled && _pause is not null && _pause.RequestedScene is SceneId pauseTarget)
+            {
+                _leavingFor = pauseTarget;
+                TryLeave();
+                return;
+            }
+
             if (_settled)
             {
                 // The floor is settled, but its departure may not have been accepted yet: the loader
@@ -182,6 +197,12 @@ namespace ProjectSurvive.Game.Battle
             };
 
             _runner.Begin(context);
+
+            // The overlay's logic is a scope singleton because the view resolves it too; the floor it
+            // holds is the scene's own runner, so it is attached here rather than injected.
+            _pause = _scope.Container.Resolve<BattlePausePresenter>();
+            _pause.Attach(_runner, _run);
+
             return true;
         }
 
@@ -303,6 +324,11 @@ namespace ProjectSurvive.Game.Battle
             {
                 _leaveRefusedLogged = false;
                 StartError = string.Empty;
+
+                // The move is committed: neither half may ask again while the fade runs, or the
+                // loader would refuse a second transition and the retry would log every frame.
+                _leavingFor = null;
+                _pause?.DepartureAccepted();
                 return;
             }
 

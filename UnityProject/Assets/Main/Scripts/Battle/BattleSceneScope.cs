@@ -4,6 +4,7 @@ using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Game.Presentation;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
+using ProjectSurvive.Game.Presentation.Battle.Pause;
 using UnityEngine;
 using VContainer;
 
@@ -87,6 +88,16 @@ namespace ProjectSurvive.Game.Battle
                     resolver.Resolve<Core.Application.Text.LocalizationService>(),
                     resolver.Resolve<IGameConfig>(),
                     resolver.Resolve<BattleSpeed>()),
+                Lifetime.Singleton);
+
+            // The pause overlay (Stage 13c-2b): its state is a scope singleton the view mirrors, and
+            // its presenter is one too because the view drives it. The floor it holds is the scene's
+            // own runner, which the director attaches once the floor has begun.
+            builder.Register(_ => new BattlePauseState(), Lifetime.Singleton);
+            builder.Register(
+                resolver => new BattlePausePresenter(
+                    resolver.Resolve<BattlePauseState>(),
+                    resolver.Resolve<Core.Application.Text.LocalizationService>()),
                 Lifetime.Singleton);
         }
     }

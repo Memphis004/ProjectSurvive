@@ -55,6 +55,9 @@ namespace ProjectSurvive.Game.Presentation.Web
         /// <summary>The settings panel's values, labels and control points (Stage 13c-2a).</summary>
         public const string SettingsGlobal = "__projectSurviveSettings";
 
+        /// <summary>The battle pause overlay's state and control points (Stage 13c-2b).</summary>
+        public const string PauseGlobal = "__projectSurvivePause";
+
         /// <summary>Event dispatched after a smoke report is published.</summary>
         public const string SmokeReportEvent = "projectsurvive:smoke";
 

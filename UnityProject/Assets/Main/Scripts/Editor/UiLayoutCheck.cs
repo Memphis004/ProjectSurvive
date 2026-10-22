@@ -158,6 +158,38 @@ namespace ProjectSurvive.Game.Editor
         /// <summary>The 1×/2× control, inside <see cref="ResourcePanel"/>.</summary>
         public const string SpeedButton = "SpeedButton";
 
+        /// <summary>
+        /// The HUD's หยุด control, in the band under the floor's name (Stage 13c-2b). A control inside
+        /// <see cref="FloorPanel"/>, like the speed toggle is inside the resource panel.
+        /// </summary>
+        public const string PauseButton = "PauseButton";
+
+        /// <summary>
+        /// The pause overlay's card: the surface the heading, the warning and the two ways out are
+        /// drawn on. It is an <see cref="UiRegionKind.Overlay"/> because it is meant to cover the HUD;
+        /// the overlap rule therefore has nothing to say about it, and what it must satisfy is that it
+        /// is opaque and that nothing inside it escapes its frame.
+        /// </summary>
+        public const string PausePanel = "PausePanel";
+
+        /// <summary>
+        /// The pause overlay's dim sheet, stretched over the whole canvas. It is the thing that takes
+        /// the screen out of play, so it is an overlay as well and deliberately translucent.
+        /// </summary>
+        public const string PauseOverlayDim = "PauseOverlayDim";
+
+        /// <summary>เล่นต่อ, inside <see cref="PausePanel"/>.</summary>
+        public const string PauseResume = "PauseResume";
+
+        /// <summary>กลับศาลา, inside <see cref="PausePanel"/>.</summary>
+        public const string PauseLeave = "PauseLeave";
+
+        /// <summary>The overlay's heading, inside <see cref="PausePanel"/>.</summary>
+        public const string PauseTitle = "PauseTitle";
+
+        /// <summary>The line that says a retreat forfeits the floor, inside <see cref="PausePanel"/>.</summary>
+        public const string PauseWarning = "PauseWarning";
+
         /// <summary>The HP fill, inside <see cref="StatusPanel"/>.</summary>
         public const string HpBar = "HpBar";
 
@@ -231,7 +263,12 @@ namespace ProjectSurvive.Game.Editor
         /// world behind it must not be read through it. The จัดย่าม overlay's own background (0.62) is
         /// the one panel that is translucent on purpose and is not listed.
         /// </remarks>
-        public static readonly string[] OpaqueRegions = { "Board", ChestPanel, Summary };
+        /// <remarks>
+        /// <see cref="PausePanel"/> is here for the strongest version of the same reason: a pause menu
+        /// a player can read the frozen arena through is not a menu, and the player has to be able to
+        /// read the line that says the retreat costs the floor.
+        /// </remarks>
+        public static readonly string[] OpaqueRegions = { "Board", ChestPanel, Summary, PausePanel };
 
         /// <summary>True when the two rectangles share any area at all.</summary>
         public static bool Overlaps(Rect a, Rect b) =>

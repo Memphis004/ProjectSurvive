@@ -18,6 +18,7 @@
  *   __projectSurvivePersistence  the checkpoint/settings storage verdict (`GameSave`)
  *   __projectSurviveAudio       play counts, voice stealing and music state (`AudioDirector`)
  *   __projectSurviveSettings    the settings panel's bus levels, labels and control points (`SettingsReport`)
+ *   __projectSurvivePause       the battle pause overlay's state and control points (`BattlePauseReport`)
  *   __projectSurviveTextFit      every label's rect, needed size and missing glyphs (`UiTextFitReport`)
  */
 export const SMOKE = "__projectSurviveSmoke";
@@ -26,4 +27,5 @@ export const THAI_SPIKE = "__projectSurviveThaiSpike";
 export const PERSISTENCE = "__projectSurvivePersistence";
 export const AUDIO = "__projectSurviveAudio";
 export const SETTINGS = "__projectSurviveSettings";
+export const PAUSE = "__projectSurvivePause";
 export const TEXT_FIT = "__projectSurviveTextFit";

@@ -51,7 +51,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **13b** | **Tutorial: rent → place → rotate → read the tooltip → depart (the first-run checklist)** | **CODE DONE** — the human playtest it exists for is **NOT RUN**: see [`docs/stages/13b-report.md`](docs/stages/13b-report.md) |
 | **13c-1** | **Audio: generated CC0 clips, cue channels, the one audio device, Web autoplay + import settings** | **DONE** — see [`docs/stages/13c-1-report.md`](docs/stages/13c-1-report.md), [`llmwiki/systems/audio.md`](llmwiki/systems/audio.md) |
 | **13c-2a** | **Audio settings: music and effects buses, persisted, with a schema-2 read path** | **DONE** — see [`docs/stages/13c-2a-report.md`](docs/stages/13c-2a-report.md), [ADR 0034](docs/adr/0034-settings-schema-and-per-bus-volume.md) |
-| **13c-2b** | **Pause overlay: freeze the floor, resume, or leave for the camp** | not started |
+| **13c-2b** | **Pause overlay: freeze the floor, resume, or leave for the camp** | **CODE DONE** — PlayMode could not run; see [`docs/stages/13c-2b-report.md`](docs/stages/13c-2b-report.md) |
 | 14 | Test harness & CI | not started |
 | 15 | Web release candidate | not started |
 
@@ -344,6 +344,22 @@ Four new localization rows (the `%` formats and the `-`/`+` captions). The first
 defects no test could see — the title showed through the 96 %-opaque panel, and the `±` controls were
 blank — both fixed in `TitleSceneBuilder` and re-captured. Pause is **13c-2b**. See the
 [report](docs/stages/13c-2a-report.md).
+
+**13c-2b** added the arena's pause overlay. หยุด is a control in the floor panel; it opens a card on
+its own canvas above the HUD and calls `BattleSimulationRunner.SetPaused(true)`, which stops the fixed
+step entirely (the accumulator is reset on resume, so the time spent reading the menu is never owed to
+the simulation). The single WIN/LOSE flow is unchanged: the overlay offers only เล่นต่อ and กลับศาลา,
+and the second is **not** a surrender — `RunSession.AbandonFloor(currentHp)` is a new command that
+carries the damage the floor did back into the run, keeps the purse, the floor cursor and the shop's
+offers, unlocks the bag and returns to the camp it departed from, so the same floor can be departed
+for again (RunCommand `AbandonFloor = 13` records the HP, because no `BattleResult` exists for it). The
+overlay publishes `__projectSurvivePause` twice a second **while open** — the only document that can
+show the clock stopping, since a paused runner writes none — with its five labels and the centres of
+the controls a click can currently reach. Five localization rows; xUnit **604**, EditMode **199**
+(including five pause cases measured from the authored scene with `UiLayoutCheck`), and the full
+browser suite **18 passed / 13 skipped** in a Development build. PlayMode still cannot run (Editor
+bridge), so the stage is code-complete, not closed as PASS. See the
+[report](docs/stages/13c-2b-report.md).
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
 `tools/gen.ps1` (Luban 5.1.0 + protoc 33.6) → generated C# + `.bytes` →

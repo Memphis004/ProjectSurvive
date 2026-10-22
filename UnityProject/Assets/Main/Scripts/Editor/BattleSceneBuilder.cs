@@ -1,6 +1,7 @@
 using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
+using ProjectSurvive.Game.Presentation.Battle.Pause;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -59,6 +60,28 @@ namespace ProjectSurvive.Game.Editor
         private static readonly Color PanelBackdrop = new Color(0.07f, 0.08f, 0.11f, 0.92f);
 
         /// <summary>
+        /// How dark the pause overlay's dim sheet is (Stage 13c-2b). The arena stays visible behind the
+        /// menu — the player has to recognise the floor they are about to leave — while the HUD's small
+        /// labels are dark enough not to compete with the card's own text.
+        /// </summary>
+        private const float PauseDimAlpha = 0.72f;
+
+        /// <summary>
+        /// The pause card's background, at the opacity the layout check requires of it: the warning is
+        /// long and the arena behind a translucent card would make it unreadable.
+        /// </summary>
+        /// <remarks>
+        /// Lighter than the HUD's panels on purpose. The first capture of the overlay showed a card
+        /// that shared the HUD's near-black, drawn on a dim sheet over a dark arena: the heading read
+        /// as text floating on the frozen screen rather than as a menu, and no test could say so. The
+        /// card now sits a few steps above the dim so its edge is visible at both sizes.
+        /// </remarks>
+        private static readonly Color PausePanelBackdrop = new Color(0.13f, 0.14f, 0.19f, 0.98f);
+
+        /// <summary>Draw order of the pause overlay's canvas: above the HUD's 0 and the dev menu's 20.</summary>
+        private const int PauseCanvasSortingOrder = 200;
+
+        /// <summary>
         /// Height of the dev menu's single column, in pixels: the heading (44), six 52 px rows (312)
         /// and the 60 px status line, with the margins inside it. The panel is anchored to the bottom
         /// edge, so this is the one dimension that is a number rather than a fraction.
@@ -92,10 +115,15 @@ namespace ProjectSurvive.Game.Editor
             var viewRoot = new GameObject("ViewRoot");
 
             Canvas canvas = ProjectSetup.CreateCanvas(out GameObject canvasObject);
-            BattleHudView hud = BuildBattleHud(canvas, canvasObject, font, scope, out BattleMiniBagView miniBag);
+            BattleHudView hud = BuildBattleHud(
+                canvas, canvasObject, font, scope, out BattleMiniBagView miniBag, out Button pauseButton);
 
             var runnerObject = new GameObject("BattleRunner");
             BattleSimulationRunner runner = runnerObject.AddComponent<BattleSimulationRunner>();
+
+            // Stage 13c-2b: the pause overlay, on its own canvas above the HUD. Built before the
+            // runner's own references are wired because it needs the runner itself, not the reverse.
+            BuildPauseOverlay(font, scope, runner, pauseButton);
 
             ProjectSetup.SetObjectReference(runner, "_viewSettings.ViewRoot", viewRoot.transform);
             ProjectSetup.SetObjectReference(runner, "_viewSettings.Camera", camera);
@@ -280,9 +308,82 @@ namespace ProjectSurvive.Game.Editor
         /// own PlayMode test caught ("the scene wired no mini bag").
         /// </para>
         /// </remarks>
+        /// <summary>
+        /// The pause overlay (Stage 13c-2b): a dim sheet over the whole screen and a card with the
+        /// heading, the warning and the two ways out, on a canvas above the HUD's.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Its own canvas rather than a panel inside the HUD, because it has to cover the HUD's panels
+        /// rather than sit beside them, and because the dim sheet is what takes the screen out of play:
+        /// it is a raycast target, so a press lands on the overlay and nowhere behind it.
+        /// </para>
+        /// <para>
+        /// Authored <b>inactive</b>: the scene is authored between floors, and the overlay appears only
+        /// when the presenter's flag says so. The view lives on the canvas object rather than on the
+        /// panel, so its <c>Start</c> still runs while the panel is off and its subscriptions are wired
+        /// before the first press.
+        /// </para>
+        /// </remarks>
+        private static BattlePauseView BuildPauseOverlay(
+            TMP_FontAsset font, BattleSceneScope scope, BattleSimulationRunner runner, Button pauseButton)
+        {
+            Canvas canvas = ProjectSetup.CreateCanvas(
+                out GameObject canvasObject, PauseCanvasSortingOrder, withRaycaster: true);
+            var canvasRect = (RectTransform)canvas.transform;
+
+            RectTransform overlay = ProjectSetup.StretchUiRect(
+                canvasRect, "PauseOverlay", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
+            RectTransform dim = ProjectSetup.StretchUiRect(
+                overlay, UiLayoutCheck.PauseOverlayDim, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            Image dimImage = dim.gameObject.AddComponent<Image>();
+            dimImage.color = new Color(0f, 0f, 0f, PauseDimAlpha);
+
+            // The dim sheet swallows the click: while the floor is held still, a press on the arena or
+            // on the HUD's speed toggle must not reach the thing underneath the menu the player is
+            // reading (the sheet's own raycast flag is the whole mechanism).
+            dimImage.raycastTarget = true;
+
+            RectTransform card = ProjectSetup.CreateUiRect(
+                overlay, UiLayoutCheck.PausePanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(820f, 380f));
+            ProjectSetup.AddPanelBackground(card, PausePanelBackdrop);
+
+            TMP_Text title = ProjectSetup.CreateUiText(
+                card, UiLayoutCheck.PauseTitle, new Vector2(0f, -28f), new Vector2(820f, 60f),
+                40f, font, TextAlignmentOptions.Center);
+
+            // The warning is the reason the overlay is not just two buttons: a retreat is a real loss,
+            // and the player is told so before pressing กลับศาลา, not after arriving in the camp.
+            TMP_Text warning = ProjectSetup.CreateUiText(
+                card, UiLayoutCheck.PauseWarning, new Vector2(0f, -104f), new Vector2(760f, 96f),
+                24f, font, TextAlignmentOptions.Center);
+
+            Button resumeButton = ProjectSetup.CreateUiButton(
+                card, UiLayoutCheck.PauseResume, new Vector2(-150f, 44f), new Vector2(280f, 92f),
+                font, out _, new Vector2(0.5f, 0f));
+            Button leaveButton = ProjectSetup.CreateUiButton(
+                card, UiLayoutCheck.PauseLeave, new Vector2(150f, 44f), new Vector2(280f, 92f),
+                font, out _, new Vector2(0.5f, 0f));
+
+            BattlePauseView view = canvasObject.AddComponent<BattlePauseView>();
+            ProjectSetup.SetObjectReference(view, "_scope", scope);
+            ProjectSetup.SetObjectReference(view, "_runner", runner);
+            ProjectSetup.SetObjectReference(view, "_panel", overlay.gameObject);
+            ProjectSetup.SetObjectReference(view, "_titleLabel", title);
+            ProjectSetup.SetObjectReference(view, "_warningLabel", warning);
+            ProjectSetup.SetObjectReference(view, "_openButton", pauseButton);
+            ProjectSetup.SetObjectReference(view, "_resumeButton", resumeButton);
+            ProjectSetup.SetObjectReference(view, "_leaveButton", leaveButton);
+
+            overlay.gameObject.SetActive(false);
+            return view;
+        }
+
         private static BattleHudView BuildBattleHud(
             Canvas canvas, GameObject canvasObject, TMP_FontAsset font, BattleSceneScope scope,
-            out BattleMiniBagView miniBag)
+            out BattleMiniBagView miniBag, out Button pauseButton)
         {
             var canvasRect = (RectTransform)canvas.transform;
 
@@ -314,10 +415,16 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(miniBag, "_content", miniBagContent);
             ProjectSetup.SetObjectReference(miniBag, "_font", font);
 
-            // ---- top centre: the floor's name and its number in the run ----
+            // ---- top centre: the floor's name, its number in the run, and หยุด ----
+            //
+            // The panel is 176 reference pixels tall rather than 140 because Stage 13c-2b added the
+            // pause control in the band the two labels did not use: the index label ends 96 px below
+            // the top, and the control needs 38 px of its own below a 32 px gap. The alternative (a
+            // control crammed into the resource panel) would have put a third pressable thing inside
+            // the column that already holds the speed toggle.
             RectTransform floorPanel = ProjectSetup.StretchUiRect(
                 canvasRect, UiLayoutCheck.FloorPanel, new Vector2(0.35f, 1f), new Vector2(0.65f, 1f),
-                new Vector2(0f, -140f), new Vector2(0f, -UiMargin));
+                new Vector2(0f, -176f), new Vector2(0f, -UiMargin));
             ProjectSetup.AddPanelBackground(floorPanel, PanelBackdrop);
 
             TMP_Text floorLabel = ProjectSetup.StretchUiText(
@@ -327,6 +434,19 @@ namespace ProjectSurvive.Game.Editor
             TMP_Text floorIndexLabel = ProjectSetup.StretchUiText(
                 floorPanel, "FloorIndexLabel", new Vector2(0f, 1f), new Vector2(1f, 1f),
                 new Vector2(12f, -96f), new Vector2(-12f, -58f), ProjectSetup.UiFontSize, font, TextAlignmentOptions.Center);
+
+            // Stage 13c-2b: the HUD's own หยุด control. Its caption is a localization row the pause
+            // view assigns, so the button says what it does the moment the scene binds.
+            RectTransform pauseObject = ProjectSetup.StretchUiRect(
+                floorPanel, UiLayoutCheck.PauseButton, new Vector2(0f, 0f), new Vector2(1f, 0f),
+                new Vector2(12f, 10f), new Vector2(-12f, 48f));
+            Image pauseBackground = pauseObject.gameObject.AddComponent<Image>();
+            pauseBackground.color = new Color(0.22f, 0.24f, 0.31f, 0.95f);
+            pauseButton = pauseObject.gameObject.AddComponent<Button>();
+            pauseButton.targetGraphic = pauseBackground;
+            ProjectSetup.StretchUiText(
+                pauseObject, "Label", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero,
+                ProjectSetup.UiFontSize, font, TextAlignmentOptions.Center);
 
             // ---- top right: time, bia, kills, wave, the boss bar and the speed control ----
             //

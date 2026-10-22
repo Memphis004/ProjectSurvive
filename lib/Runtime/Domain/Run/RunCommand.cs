@@ -73,6 +73,16 @@ namespace ProjectSurvive.Core.Domain.Run
         /// to carry it and not just the pair.
         /// </summary>
         ConfirmMerge = 12,
+
+        /// <summary>
+        /// Leave a running floor and return to the camp without settling it (Stage 13c-2b).
+        /// </summary>
+        /// <remarks>
+        /// The log has to carry this one because no <c>BattleResult</c> is ever produced for an
+        /// abandoned floor, so a replay cannot learn it from the battle: <c>Index</c> carries the HP
+        /// the floor ended with.
+        /// </remarks>
+        AbandonFloor = 13,
     }
 
     /// <summary>
@@ -182,6 +192,9 @@ namespace ProjectSurvive.Core.Domain.Run
         /// <summary>Records a camp-reset.</summary>
         public static RunCommand Reset() => new RunCommand(RunCommandKind.Reset);
 
+        /// <summary>Records leaving a floor for the camp, with the HP the floor ended with.</summary>
+        public static RunCommand AbandonFloor(int hp) => new RunCommand(RunCommandKind.AbandonFloor, hp);
+
         /// <inheritdoc />
         public override string ToString()
         {
@@ -198,6 +211,8 @@ namespace ProjectSurvive.Core.Domain.Run
                 case RunCommandKind.MergeItems: return "MergeItems(" + Piece + " -> " + Second + ")";
                 case RunCommandKind.ConfirmMerge:
                     return "ConfirmMerge(" + Piece + " -> " + Second + " with " + VariantId + ")";
+                case RunCommandKind.AbandonFloor:
+                    return "AbandonFloor(at " + Index + " hp)";
                 default: return Kind.ToString();
             }
         }

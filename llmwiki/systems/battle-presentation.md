@@ -261,3 +261,34 @@ Stage 03 smoke suite uses — and on a screenshot, rather than on how the page l
 - **`BattleSceneScope` aliases `EcsBattleSessionFactory`.** The simulation's namespace also
   declares a `Lifetime` component that collides with VContainer's lifetime enum in every
   registration; the alias is the fix, not a preference.
+
+## 12. Pause and the retreat (Stage 13c-2b)
+
+The floor can be held still. **หยุด** is a control in the floor panel (`UiLayoutCheck.PauseButton`),
+drawn inside it like the speed toggle is inside the resource panel; it calls
+`BattleSimulationRunner.SetPaused(true)`, and the runner's whole `Update` returns before the
+accumulator is asked for a step. A paused runner therefore runs **no** steps and copies no frame: the
+world stays exactly as the last tick left it, and nothing is owed on resume because
+`SetPaused(false)` resets `FixedTicker` rather than letting a menu's worth of wall clock replay into
+the arena. The browser's own `OnApplicationPause` is a second, separate flag (`_appPaused`): a hidden
+tab and a player's request both stop the clock, but only the second is a game state the overlay shows.
+
+The overlay lives on its own canvas at sorting order 200, with a dim sheet over the whole screen and a
+card (`UiLayoutCheck.PausePanel`, alpha 0.98) carrying the heading, the line that says a retreat
+forfeits the floor, and the two ways out. The dim sheet is a raycast target on purpose: while the
+menu is up, a press cannot reach the HUD under it. `BattlePausePresenter` owns the three actions —
+open/resume through the runner, and the retreat through the Application layer:
+
+- `RunSession.AbandonFloor(currentHp)` (Stage 13c-2b) is **not** a surrender. `ApplyBattleResult`
+  ends the run on a defeat, so a retreat cannot travel through it; the floor is left unsettled, the
+  HP the last frame reported is carried back (clamped by the run, never by the caller), the bag is
+  unlocked and the run returns to the camp it departed from with its purse, floor cursor and shop
+  offers intact. The floor can be departed for again, and nothing was paid for it.
+- The scene change is **requested**, not performed: `BattleSceneDirector` owns the loader and retries
+  a refused move, exactly like the summary screen does.
+
+`BattlePauseView` publishes `window.__projectSurvivePause` (scene, canvas size, open, paused, tick,
+hp, requested scene, the five labels and the centres of the controls a click can currently reach) and
+rewrites it twice a second **only while open**. `tests/web/pause.spec.ts` is built on that: the freeze
+is proved by that document's `tick` staying put, then by the battle document's `stepsRun` passing it
+once เล่นต่อ was pressed.
