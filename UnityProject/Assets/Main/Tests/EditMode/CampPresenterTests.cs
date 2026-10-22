@@ -2091,6 +2091,279 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         // -------------------------------------------------------------------
+        // the shelf offer's tooltip (Stage 09n)
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// Stage 09n: hovering a shelf fills the tooltip from the run's own offer readout — the same
+        /// numbers a tier-1 copy in the chest resolves to, the price the shelf asks, and the combos the
+        /// piece could join.
+        /// </summary>
+        [Test]
+        public void A_hovered_shelf_fills_the_tooltip_from_the_runs_offer_readout()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            RunSession run = ui.Run;
+
+            int checkedSlots = 0;
+
+            for (int slot = 0; slot < run.Stock.SlotCount; slot++)
+            {
+                if (run.Stock[slot].IsEmpty)
+                {
+                    continue;
+                }
+
+                Result<OfferReadout> explained = run.ExplainOffer(slot);
+                Assert.That(explained.IsSuccess, Is.True, explained.Error.ToString());
+                OfferReadout offer = explained.Value;
+
+                ui.Presenter.HoverOffer(slot);
+
+                Assert.That(ui.Presenter.HoveredOffer, Is.EqualTo(slot), "the presenter follows the shelf under the pointer");
+                Assert.That(ui.State.TooltipVisible.Value, Is.True, "a shelf with an offer explains itself");
+                Assert.That(ui.State.TooltipTitle.Value, Is.EqualTo(Text(offer.NameKey)), "the name is the piece's localized one");
+                Assert.That(
+                    ui.State.TooltipTier.Value,
+                    Is.EqualTo(Format("camp.tooltip.tier.format", offer.Tier, _config.Constant.MaxTier)));
+
+                // The price line carries the shelf's price and the verdict the run would give.
+                string verdict = Text(
+                    offer.Rentable ? "camp.tooltip.offer.rentable" : "error." + offer.RefusalCode);
+                Assert.That(
+                    ui.State.TooltipPrice.Value,
+                    Is.EqualTo(Format("camp.tooltip.offer.price.format", offer.Price) + " · " + verdict),
+                    "the price line is the shelf's own price and the rent verdict");
+
+                // The numbers are the read model's, printed through the tooltip's own rows.
+                if (offer.Piece.IsBag)
+                {
+                    Assert.That(_config.TryGetBag(offer.DefId, out BagConfig bag), Is.True);
+                    Assert.That(
+                        ui.State.TooltipStatus.Value,
+                        Is.EqualTo(Format("camp.tooltip.slots.format", bag.Footprint.CellCount)),
+                        "a bag shows its slots and no damage");
+                    Assert.That(
+                        ui.State.TooltipDescription.Value,
+                        Is.EqualTo(Format("camp.tooltip.offer.weight.format", offer.Weight)));
+                }
+                else
+                {
+                    Assert.That(_config.TryGetItem(offer.DefId, out ItemConfig item), Is.True);
+
+                    if (offer.Piece.Casts)
+                    {
+                        string resolved = Format(
+                            "camp.tooltip.stat.format",
+                            offer.Piece.Resolved.Damage,
+                            offer.Piece.Resolved.CooldownSeconds,
+                            offer.Piece.Resolved.MpCost);
+                        string baseRow = Format(
+                            "camp.tooltip.base.format",
+                            Format(
+                                "camp.tooltip.stat.format",
+                                offer.Piece.Base.Damage,
+                                offer.Piece.Base.CooldownSeconds,
+                                offer.Piece.Base.MpCost));
+
+                        StringAssert.StartsWith(resolved, ui.State.TooltipStatus.Value);
+                        StringAssert.Contains(baseRow, ui.State.TooltipStatus.Value);
+                    }
+                    else
+                    {
+                        StringAssert.StartsWith(
+                            Text(CategoryKeyOf(item.Category)), ui.State.TooltipStatus.Value);
+                    }
+
+                    Assert.That(
+                        ui.State.TooltipDescription.Value,
+                        Is.EqualTo(offer.DescriptionKey.Length == 0 ? string.Empty : Text(offer.DescriptionKey)));
+                }
+
+                Assert.That(ui.State.TooltipUpgrades.Value, Is.Empty, "an offer has no merge steps yet");
+
+                // The combos line is the listing the read model produced, not a second calculation.
+                if (offer.Combos.Count == 0)
+                {
+                    Assert.That(ui.State.TooltipCombos.Value, Is.EqualTo(Text("camp.tooltip.offer.combos.none")));
+                }
+                else
+                {
+                    StringAssert.StartsWith(Text("camp.tooltip.offer.combos.header"), ui.State.TooltipCombos.Value);
+                    Assert.That(
+                        ui.State.TooltipCombos.Value.Split('\n').Length,
+                        Is.EqualTo(offer.Combos.Count + 1),
+                        "one row per rule, under the header");
+                    StringAssert.Contains(Text(offer.Combos[0].NameKey), ui.State.TooltipCombos.Value);
+                }
+
+                checkedSlots++;
+            }
+
+            Assert.That(checkedSlots, Is.GreaterThan(0), "the first camp always offers something to explain");
+        }
+
+        /// <summary>Stage 09n: leaving the shelf takes the tooltip with it.</summary>
+        [Test]
+        public void Leaving_a_shelf_closes_the_tooltip()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            int slot = FirstAvailableSlot(ui.Run);
+
+            ui.Presenter.HoverOffer(slot);
+            Assert.That(ui.State.TooltipVisible.Value, Is.True);
+
+            ui.Presenter.HoverOffer(-1);
+
+            Assert.That(ui.Presenter.HoveredOffer, Is.EqualTo(-1));
+            Assert.That(ui.State.TooltipVisible.Value, Is.False, "nothing under the pointer means no tooltip");
+        }
+
+        /// <summary>
+        /// Stage 09n: renting the shelf under the pointer empties it, so the tooltip that described it
+        /// must go in the same refresh rather than keep quoting a price nobody can pay again.
+        /// </summary>
+        [Test]
+        public void Renting_the_hovered_shelf_takes_its_tooltip_away()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            int slot = FirstAvailableSlot(ui.Run);
+
+            ui.Presenter.HoverOffer(slot);
+            Assert.That(ui.State.TooltipVisible.Value, Is.True);
+
+            ui.Presenter.Rent(slot);
+
+            Assert.That(ui.Presenter.Counters.Rented, Is.EqualTo(1), "the rent went through the screen");
+            Assert.That(ui.Run.Stock[slot].IsPurchased, Is.True);
+            Assert.That(ui.State.TooltipVisible.Value, Is.False, "a rented shelf has nothing left to explain");
+            Assert.That(ui.State.FocusedShelfDetail.Value, Is.Empty);
+        }
+
+        /// <summary>Stage 09n: the upgrade chooser is the screen while it is up, so no shelf tooltip.</summary>
+        [Test]
+        public void The_merge_chooser_suppresses_the_shelf_tooltip()
+        {
+            Screen ui = AtACampWithAMergeablePair(out PieceRef survivor, out PieceRef twin);
+            int slot = FirstAvailableSlot(ui.Run);
+
+            ui.Presenter.HoverOffer(slot);
+            Assert.That(ui.State.TooltipVisible.Value, Is.True);
+
+            DropOnto(ui.Presenter, ui.Run, twin, survivor);
+            Assert.That(ui.Presenter.IsMergeChooserOpen, Is.True);
+
+            // A pointer move that lands on another shelf while the modal is up must not draw it.
+            ui.Presenter.HoverOffer(slot == 0 ? 1 : 0);
+            Assert.That(ui.State.TooltipVisible.Value, Is.False, "the modal is the screen");
+        }
+
+        /// <summary>Stage 09n: a piece in the air is what the pointer means, not the shelf under it.</summary>
+        [Test]
+        public void A_piece_in_the_air_suppresses_the_shelf_tooltip()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            RunSession run = ui.Run;
+            int slot = FirstAvailableSlot(run);
+
+            ui.Presenter.HoverOffer(slot);
+            Assert.That(ui.State.TooltipVisible.Value, Is.True);
+
+            PieceRef piece = run.Backpack.Items[0].Ref;
+            ui.Presenter.DragStart(piece, RotationOf(run, piece));
+            ui.Presenter.DragMove(BagDropZone.Board, new CellOffset(0, 0));
+
+            Assert.That(ui.Presenter.IsDragging, Is.True);
+            Assert.That(ui.State.TooltipVisible.Value, Is.False, "a drag hides the shelf tooltip");
+
+            ui.Presenter.HoverOffer(slot == 0 ? 1 : 0);
+            Assert.That(ui.State.TooltipVisible.Value, Is.False, "and it stays hidden while the piece is in the air");
+
+            ui.Presenter.CancelDrag();
+            Assert.That(ui.State.TooltipVisible.Value, Is.True, "putting the piece down brings the tooltip back");
+        }
+
+        /// <summary>
+        /// Stage 09n: the shelf the player is <b>standing</b> at shows the same readout on its own
+        /// board, so walking up to a station answers the question hovering it does.
+        /// </summary>
+        [Test]
+        public void The_shelf_the_player_stands_at_shows_the_same_readout()
+        {
+            Screen ui = ScreenAtFirstCamp();
+            RunSession run = ui.Run;
+            int slot = FirstAvailableSlot(run);
+
+            Result<OfferReadout> explained = run.ExplainOffer(slot);
+            Assert.That(explained.IsSuccess, Is.True, explained.Error.ToString());
+            OfferReadout offer = explained.Value;
+
+            ui.Presenter.FocusOffer(slot);
+
+            Assert.That(ui.Presenter.FocusedOffer, Is.EqualTo(slot));
+            StringAssert.StartsWith(
+                Format("camp.tooltip.offer.price.format", offer.Price), ui.State.FocusedShelfDetail.Value);
+
+            if (offer.Piece.IsBag)
+            {
+                StringAssert.Contains(
+                    Format("camp.tooltip.offer.weight.format", offer.Weight),
+                    ui.State.FocusedShelfDetail.Value);
+            }
+            else if (offer.Piece.Casts)
+            {
+                StringAssert.Contains(
+                    Format(
+                        "camp.tooltip.stat.format",
+                        offer.Piece.Resolved.Damage,
+                        offer.Piece.Resolved.CooldownSeconds,
+                        offer.Piece.Resolved.MpCost),
+                    ui.State.FocusedShelfDetail.Value);
+            }
+
+            ui.Presenter.FocusOffer(-1);
+            Assert.That(ui.State.FocusedShelfDetail.Value, Is.Empty, "walking away leaves no detail behind");
+        }
+
+        /// <summary>The first shelf with something on it, or -1 (the first camp always has four).</summary>
+        private static int FirstAvailableSlot(RunSession run) =>
+            RunFixtureSlots(run, slot => !run.Stock[slot].IsEmpty && !run.Stock[slot].IsPurchased);
+
+        private static int RunFixtureSlots(RunSession run, Func<int, bool> predicate)
+        {
+            for (int slot = 0; slot < run.Stock.SlotCount; slot++)
+            {
+                if (predicate(slot))
+                {
+                    return slot;
+                }
+            }
+
+            Assert.Fail("the camp has no shelf to hover");
+            return -1;
+        }
+
+        /// <summary>The localization key of an item's category, as the tooltip prints it.</summary>
+        private static string CategoryKeyOf(ItemCategory category)
+        {
+            switch (category)
+            {
+                case ItemCategory.ArcaneWeapon:
+                    return "camp.category.arcane_weapon";
+                case ItemCategory.Charm:
+                    return "camp.category.charm";
+                case ItemCategory.SpellTome:
+                    return "camp.category.tome";
+                case ItemCategory.Offering:
+                    return "camp.category.offering";
+                case ItemCategory.Familiar:
+                    return "camp.category.familiar";
+                default:
+                    return "camp.category.unknown";
+            }
+        }
+
+        // -------------------------------------------------------------------
         // helpers for the upgrade chooser (Stage 09g)
         // -------------------------------------------------------------------
 

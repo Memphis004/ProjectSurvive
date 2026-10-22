@@ -11,8 +11,11 @@ using VContainer.Unity;
 namespace ProjectSurvive.Game.Presentation.Camp
 {
     /// <summary>
-    /// The piece tooltip: ชื่อ, ระดับ, ค่าที่ใช้จริง, รุ่นย่อยที่เลือก, คำอธิบาย, คอมโบที่ทำงานอยู่ —
-    /// one label per line, on its own canvas that draws above the whole camp screen.
+    /// The piece tooltip: ชื่อ, ระดับ, ราคา, ค่าที่ใช้จริง, รุ่นย่อยที่เลือก, คำอธิบาย, คอมโบ —
+    /// one label per line, on its own canvas that draws above the whole camp screen. The same panel
+    /// explains a <b>shelf offer</b> (Stage 09n): ราคา carries the price and the rent verdict, and
+    /// คอมโบ carries the rules the piece could join rather than the ones acting on it. The lines a
+    /// piece has and an offer does not (and the reverse) are hidden, never blank.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -47,6 +50,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
         [SerializeField] private GameObject _root;
         [SerializeField] private TMP_Text _titleLabel;
         [SerializeField] private TMP_Text _tierLabel;
+        [SerializeField] private TMP_Text _priceLabel;
         [SerializeField] private TMP_Text _statusLabel;
         [SerializeField] private TMP_Text _upgradesLabel;
         [SerializeField] private TMP_Text _descriptionLabel;
@@ -104,6 +108,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             Subscribe(_state.TooltipTitle, _titleLabel);
             Subscribe(_state.TooltipTier, _tierLabel);
+            Subscribe(_state.TooltipPrice, _priceLabel);
             Subscribe(_state.TooltipStatus, _statusLabel);
             Subscribe(_state.TooltipUpgrades, _upgradesLabel);
             Subscribe(_state.TooltipDescription, _descriptionLabel);

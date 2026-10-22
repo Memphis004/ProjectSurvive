@@ -7,7 +7,9 @@ using ProjectSurvive.Core.Application.Run;
 using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Domain.Run;
+using ProjectSurvive.Core.Shared;
 using ProjectSurvive.Game.Camp;
+using ProjectSurvive.Game.Infrastructure;
 using ProjectSurvive.Game.Presentation;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
@@ -3145,6 +3147,586 @@ namespace ProjectSurvive.Game.Editor
                     _report, _clock.ElapsedMilliseconds, "-tooltip",
                     "`ProjectSurvive/Tools/4. Capture the tooltip before and after an upgrade (Play Mode)`",
                     "the tooltip's resolved numbers, in Play Mode" + (_size.x > 0 ? " (" + _size.x + "x" + _size.y + ")" : string.Empty));
+            }
+        }
+
+        /// <summary>
+        /// Shoots a shelf offer's tooltip in Play Mode: an item that casts, a charm, a bag, and an offer
+        /// the purse cannot afford — the four states Stage 09n's acceptance asks for.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Play Mode because a shelf's tooltip exists only at runtime: the labels in <c>Camp.unity</c>
+        /// are empty until the presenter writes them from the run's offer readout. The four shots are
+        /// taken at the Game View's acceptance size, from one camp, and the strings each shot drew are
+        /// written into <c>ui-report-shelf-offer.md</c> so a picture and the numbers it shows can be read
+        /// together.
+        /// </para>
+        /// <para>
+        /// The panel is placed explicitly beside the shelf before each shot (the tooltip follows the
+        /// pointer in the game, and an Editor's pointer may be anywhere): "the panel is beside the
+        /// station it explains" is then a property of the picture rather than of where a mouse happened
+        /// to rest.
+        /// </para>
+        /// </remarks>
+        [MenuItem("ProjectSurvive/Tools/7. Capture shelf offer tooltips in Play Mode (Camp)", priority = 136)]
+        private static void CaptureShelfTooltipFromMenu() => ShelfTooltipCaptureRun.Start();
+
+        private sealed class ShelfTooltipCaptureRun
+        {
+            private const int FrameBudget = 900;
+            private const int SettleFrames = 3;
+            private const int RefreshBudget = 30;
+
+            private const string PendingKey = "ProjectSurvive.ShelfTooltipCapture.Pending";
+
+            private static ShelfTooltipCaptureRun sRunning;
+
+            private readonly CaptureReport _report = new CaptureReport();
+            private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+            private readonly string _startedIn = SceneManager.GetActiveScene().path;
+            private readonly List<(string Slug, int Slot, bool Poor)> _shots =
+                new List<(string Slug, int Slot, bool Poor)>(4);
+            private readonly List<string> _drawn = new List<string>(4);
+
+            private Step _step;
+            private int _frames;
+            private int _waited;
+            private int _next;
+
+            private CampSceneDirector _director;
+            private CampWorldView _world;
+            private CampTooltipView _tooltip;
+            private IGameConfig _config;
+
+            private Vector2Int _size;
+
+            private enum Step
+            {
+                Prepare,
+                StartCamp,
+                Capture,
+                Judge,
+                Done,
+            }
+
+            private ShelfTooltipCaptureRun(Step start)
+            {
+                _step = start;
+            }
+
+            internal static void Start()
+            {
+                if (sRunning != null)
+                {
+                    Debug.LogWarning("[ProjectSurvive] the shelf tooltip capture is already running.");
+                    return;
+                }
+
+                if (EditorApplication.isPlaying)
+                {
+                    Debug.LogWarning(
+                        "[ProjectSurvive] the shelf tooltip capture starts from edit mode: leave play "
+                        + "mode, then run the menu item again.");
+                    return;
+                }
+
+                sRunning = new ShelfTooltipCaptureRun(Step.Prepare);
+                SessionState.SetBool(PendingKey, true);
+                EditorApplication.update += sRunning.Tick;
+            }
+
+            [InitializeOnLoadMethod]
+            private static void ResumeAfterReload()
+            {
+                if (!SessionState.GetBool(PendingKey, false) || sRunning != null)
+                {
+                    return;
+                }
+
+                sRunning = new ShelfTooltipCaptureRun(Step.StartCamp);
+                EditorApplication.update += sRunning.Tick;
+            }
+
+            private void Tick()
+            {
+                _frames++;
+                _waited++;
+
+                if (_frames > FrameBudget)
+                {
+                    Fail("the run did not finish within " + FrameBudget + " frames");
+                    Finish();
+                }
+
+                try
+                {
+                    switch (_step)
+                    {
+                        case Step.Prepare:
+                            if (!EnsureOpen(CampScenePath, _report))
+                            {
+                                _report.Notes.Add("the camp scene could not be opened, so nothing was shot");
+                                Finish();
+                                return;
+                            }
+
+                            EditorApplication.isPlaying = true;
+                            Advance(Step.StartCamp);
+                            return;
+
+                        case Step.StartCamp:
+                        {
+                            if (!EditorApplication.isPlaying || EditorApplication.isCompiling)
+                            {
+                                return;
+                            }
+
+                            if (SceneManager.GetActiveScene().name != CampSceneName)
+                            {
+                                return;
+                            }
+
+                            _director = Object.FindFirstObjectByType<CampSceneDirector>();
+                            if (_director == null)
+                            {
+                                return;
+                            }
+
+                            if (!_director.TryStart())
+                            {
+                                Fail("the camp did not start: " + _director.StartError);
+                                Finish();
+                                return;
+                            }
+
+                            _world = Object.FindFirstObjectByType<CampWorldView>(FindObjectsInactive.Include);
+                            _tooltip = Object.FindFirstObjectByType<CampTooltipView>(FindObjectsInactive.Include);
+
+                            if (_world == null || _tooltip == null)
+                            {
+                                Fail("the Camp scene is missing CampWorldView or CampTooltipView");
+                                Finish();
+                                return;
+                            }
+
+                            if (!PlanShots(out string failure))
+                            {
+                                Fail(failure);
+                                Finish();
+                                return;
+                            }
+
+                            Advance(Step.Capture);
+                            return;
+                        }
+
+                        case Step.Capture:
+                        {
+                            if (_next >= _shots.Count)
+                            {
+                                Advance(Step.Judge);
+                                return;
+                            }
+
+                            if (!ShootOne(_shots[_next].Slug, _shots[_next].Slot, _shots[_next].Poor))
+                            {
+                                Finish();
+                                return;
+                            }
+
+                            _next++;
+                            Advance(Step.Capture);
+                            return;
+                        }
+
+                        case Step.Judge:
+                            Judge();
+                            Finish();
+                            return;
+
+                        case Step.Done:
+                            if (EditorApplication.isPlaying || _waited < SettleFrames)
+                            {
+                                return;
+                            }
+
+                            Complete();
+                            return;
+
+                        default:
+                            return;
+                    }
+                }
+                catch (Exception error)
+                {
+                    Fail(error.GetType().Name + ": " + error.Message);
+                    Finish();
+                }
+            }
+
+            /// <summary>
+            /// Finds a shelf for each state the stage asks for, re-rolling the stall when the panel does
+            /// not hold one. The four slugs are the evidence names, so a missing state is a failure with
+            /// the name of what was missing rather than a silent half-run.
+            /// </summary>
+            private bool PlanShots(out string failure)
+            {
+                failure = string.Empty;
+                RunSession run = _director.Run;
+
+                if (run == null)
+                {
+                    failure = "the camp has no run";
+                    return false;
+                }
+
+                // The purse is not what these four shots are about; the last one empties it on purpose.
+                run.Wallet.Credit(5000);
+                _config = ResourcesGameConfigLoader.Load();
+                _size = CapturedSizes[0];
+
+                if (!TryFind(
+                        run, "weapon", slot => IsItem(run, slot, item => item.SkillId.Length > 0), out int weapon)
+                    || !TryFind(run, "charm", slot => IsItem(run, slot, item => item.Category == ItemCategory.Charm), out int charm)
+                    || !TryFind(run, "bag", slot => run.Stock[slot].Kind == PieceKind.Bag, out int bag)
+                    || !TryFind(run, "insufficient", slot => IsItem(run, slot, item => true), out int poor))
+                {
+                    failure = "a shelf for one of the four states could not be found in "
+                        + RefreshBudget + " re-rolls";
+                    return false;
+                }
+
+                _shots.Add(("weapon", weapon, false));
+                _shots.Add(("charm", charm, false));
+                _shots.Add(("bag", bag, false));
+                _shots.Add(("insufficient", poor, true));
+                return true;
+            }
+
+            private bool IsItem(RunSession run, int slot, Func<ItemConfig, bool> accept)
+            {
+                if (run.Stock[slot].IsEmpty || run.Stock[slot].Kind != PieceKind.Item)
+                {
+                    return false;
+                }
+
+                return _config.TryGetItem(run.Stock[slot].OfferedId, out ItemConfig item) && accept(item);
+            }
+
+            /// <summary>The first shelf that satisfies <paramref name="accept"/>, re-rolling to find one.</summary>
+            private bool TryFind(RunSession run, string what, Func<int, bool> accept, out int slot)
+            {
+                slot = -1;
+
+                for (int attempt = 0; attempt <= RefreshBudget; attempt++)
+                {
+                    for (int i = 0; i < run.Stock.SlotCount; i++)
+                    {
+                        if (!run.Stock[i].IsEmpty && accept(i))
+                        {
+                            if (attempt > 0)
+                            {
+                                _report.Notes.Add(
+                                    "no shelf for " + what + " in the first panel: " + attempt
+                                    + " re-roll(s) were paid for to reach one");
+                            }
+
+                            slot = i;
+                            return true;
+                        }
+                    }
+
+                    if (attempt == RefreshBudget)
+                    {
+                        return false;
+                    }
+
+                    _director.Presenter.RefreshShop();
+                }
+
+                return false;
+            }
+
+            /// <summary>Hovers one shelf, places the panel beside it and writes the PNG.</summary>
+            private bool ShootOne(string slug, int slot, bool poor)
+            {
+                RunSession run = _director.Run;
+                CampPresenter presenter = _director.Presenter;
+
+                if (poor)
+                {
+                    // The fourth state: the same panel with a purse that cannot pay.
+                    run.Wallet.TrySpend(run.Wallet.Bia);
+                }
+
+                Result<OfferReadout> explained = run.ExplainOffer(slot);
+                if (explained.IsFailure)
+                {
+                    Fail(slug + ": the run cannot explain shelf " + slot + ": " + explained.Error);
+                    return false;
+                }
+
+                if (poor == explained.Value.Rentable)
+                {
+                    Fail(slug + ": the readout's verdict is " + explained.Value.Rentable
+                        + ", which is not the state this shot is for");
+                    return false;
+                }
+
+                presenter.HoverOffer(slot);
+                Canvas.ForceUpdateCanvases();
+
+                if (!_tooltip.Visible)
+                {
+                    Fail(slug + ": hovering shelf " + slot + " drew no tooltip");
+                    return false;
+                }
+
+                if (!_world.TryGetShelfScreenRect(slot, out Rect shelf))
+                {
+                    Fail(slug + ": shelf " + slot + " is not on screen");
+                    return false;
+                }
+
+                // Beside the station, at its top-right corner: what a player reading the shelf sees.
+                _tooltip.PlaceAt(new Vector2(shelf.xMax - 8f, shelf.yMax - 8f));
+                Canvas.ForceUpdateCanvases();
+
+                Texture2D shot = null;
+                if (!Shoot(ref shot, out Rect panel))
+                {
+                    return false;
+                }
+
+                if (!_tooltip.TryGetScreenRect(out Rect measured) || measured.width <= 0f)
+                {
+                    Fail(slug + ": the tooltip did not report a rectangle");
+                    return false;
+                }
+
+                string size = _size.x + "x" + _size.y;
+                string fileName = "stage09n-shelf-" + slug + "-" + size + ".png";
+                byte[] png = Save(shot, fileName);
+                Object.DestroyImmediate(shot);
+
+                if (png == null)
+                {
+                    return false;
+                }
+
+                var regions = new List<UiRegion>
+                {
+                    new UiRegion(UiLayoutCheck.Tooltip, measured, UiRegionKind.Overlay),
+                };
+                CheckInside(regions, _size, "tooltip", _report);
+
+                _drawn.Add(
+                    slug + " (shelf " + slot + ", " + explained.Value.DefId + ", price "
+                    + explained.Value.Price + ", rentable " + explained.Value.Rentable + "): "
+                    + string.Join(" | ", Texts()));
+
+                _report.Shots.Add(new Shot(
+                    SceneKind.Camp, "shelf-" + slug, fileName, _size.x, _size.y, png.Length,
+                    _clock.ElapsedMilliseconds, regions, new List<string>()));
+
+                presenter.HoverOffer(-1);
+                Canvas.ForceUpdateCanvases();
+                return true;
+            }
+
+            private void Judge()
+            {
+                for (int i = 0; i < _drawn.Count; i++)
+                {
+                    _report.Notes.Add("drawn: " + _drawn[i]);
+                }
+
+                if (_drawn.Count < 4)
+                {
+                    Fail("only " + _drawn.Count + " of the four states were shot");
+                }
+            }
+
+            private void Advance(Step next)
+            {
+                _step = next;
+                _waited = 0;
+            }
+
+            private void Finish()
+            {
+                EditorApplication.isPlaying = false;
+                _step = Step.Done;
+                _waited = 0;
+            }
+
+            private void Fail(string reason) => _report.Failures.Add("shelf tooltip: " + reason);
+
+            private TextMeshProUGUI LabelNamed(string field)
+            {
+                var fields = new SerializedObject(_tooltip);
+                var property = fields.FindProperty(field);
+                return property?.objectReferenceValue as TextMeshProUGUI;
+            }
+
+            /// <summary>Every line the tooltip is drawing, in the panel's own order.</summary>
+            private string[] Texts()
+            {
+                string[] fields =
+                {
+                    "_titleLabel", "_tierLabel", "_priceLabel", "_statusLabel",
+                    "_upgradesLabel", "_descriptionLabel", "_combosLabel",
+                };
+
+                var texts = new List<string>(fields.Length);
+
+                for (int i = 0; i < fields.Length; i++)
+                {
+                    TextMeshProUGUI label = LabelNamed(fields[i]);
+                    texts.Add(
+                        fields[i] + (label == null
+                            ? "=<missing label>"
+                            : label.gameObject.activeSelf
+                                ? "=\"" + label.text.Replace("\n", " | ") + "\""
+                                : "=(hidden)"));
+                }
+
+                return texts.ToArray();
+            }
+
+            /// <summary>
+            /// Renders one frame into a <see cref="_size"/>-sized target with the root overlay canvases
+            /// borrowed by the camp camera, exactly as the tooltip run does — a screenshot taken from an
+            /// unfocused Editor comes back black.
+            /// </summary>
+            private bool Shoot(ref Texture2D into, out Rect panel)
+            {
+                panel = default;
+                Canvas.ForceUpdateCanvases();
+
+                Camera camera = Camera.main;
+                if (camera == null)
+                {
+                    Fail("the Camp scene has no MainCamera to render the shot with");
+                    return false;
+                }
+
+                var borrowed = new List<(Canvas Canvas, RenderMode Mode, Camera Camera, float Plane)>();
+                RenderTexture target = RenderTexture.GetTemporary(
+                    _size.x, _size.y, 24, RenderTextureFormat.ARGB32);
+                RenderTexture previousTarget = camera.targetTexture;
+                Texture2D shot = null;
+
+                try
+                {
+                    Canvas[] canvases = Object.FindObjectsByType<Canvas>(
+                        FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+                    for (int i = 0; i < canvases.Length; i++)
+                    {
+                        Canvas canvas = canvases[i];
+                        if (canvas.rootCanvas != canvas
+                            || canvas.renderMode != RenderMode.ScreenSpaceOverlay
+                            || !canvas.gameObject.activeInHierarchy)
+                        {
+                            continue;
+                        }
+
+                        borrowed.Add((canvas, canvas.renderMode, canvas.worldCamera, canvas.planeDistance));
+                        canvas.renderMode = RenderMode.ScreenSpaceCamera;
+                        canvas.worldCamera = camera;
+                        canvas.planeDistance = camera.nearClipPlane + 1f;
+                    }
+
+                    camera.targetTexture = target;
+                    Canvas.ForceUpdateCanvases();
+
+                    RectTransform root = TooltipRoot()?.transform as RectTransform;
+                    Rect measured = ScreenRectOf(root, camera);
+                    if (measured.width > 0f && measured.height > 0f)
+                    {
+                        panel = measured;
+                    }
+
+                    camera.Render();
+
+                    shot = new Texture2D(_size.x, _size.y, TextureFormat.RGBA32, false);
+                    RenderTexture previous = RenderTexture.active;
+                    RenderTexture.active = target;
+                    shot.ReadPixels(new Rect(0f, 0f, _size.x, _size.y), 0, 0);
+                    shot.Apply();
+                    RenderTexture.active = previous;
+                }
+                catch (Exception error)
+                {
+                    Fail("the frame could not be rendered (" + error.GetType().Name + ": " + error.Message + ")");
+                    return false;
+                }
+                finally
+                {
+                    camera.targetTexture = previousTarget;
+
+                    for (int i = 0; i < borrowed.Count; i++)
+                    {
+                        borrowed[i].Canvas.renderMode = borrowed[i].Mode;
+                        borrowed[i].Canvas.worldCamera = borrowed[i].Camera;
+                        borrowed[i].Canvas.planeDistance = borrowed[i].Plane;
+                    }
+
+                    RenderTexture.ReleaseTemporary(target);
+                    Canvas.ForceUpdateCanvases();
+                }
+
+                if (shot == null)
+                {
+                    Fail("the frame produced no texture");
+                    return false;
+                }
+
+                into = shot;
+                return true;
+            }
+
+            private GameObject TooltipRoot()
+            {
+                var fields = new SerializedObject(_tooltip);
+                return fields.FindProperty("_root")?.objectReferenceValue as GameObject;
+            }
+
+            private byte[] Save(Texture2D texture, string fileName)
+            {
+                if (texture == null)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    byte[] png = texture.EncodeToPNG();
+                    File.WriteAllBytes(Path.Combine(OutputDirectory, fileName), png);
+                    return png;
+                }
+                catch (Exception error)
+                {
+                    Fail("could not write " + fileName + ": " + error.Message);
+                    return null;
+                }
+            }
+
+            private void Complete()
+            {
+                EditorApplication.update -= Tick;
+                sRunning = null;
+
+                RestoreScene(_startedIn, _report);
+
+                SessionState.EraseBool(PendingKey);
+
+                WriteReports(
+                    _report, _clock.ElapsedMilliseconds, "-shelf-offer",
+                    "`ProjectSurvive/Tools/7. Capture shelf offer tooltips in Play Mode (Camp)`",
+                    "a shelf offer's tooltip in Play Mode (" + _size.x + "x" + _size.y + ")");
             }
         }
 

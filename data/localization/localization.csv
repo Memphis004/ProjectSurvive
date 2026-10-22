@@ -198,6 +198,13 @@
 ,camp.tooltip.offering_heal.format,ฟื้น HP {0} · ใช้ได้ {1} ครั้ง,Heals {0} HP · {1} use(s)
 ,camp.tooltip.offering_bia.format,ได้เบี้ย {0} · ใช้ได้ {1} ครั้ง,Grants {0} bia · {1} use(s)
 ,camp.tooltip.offering_auto.format,ใช้เองเมื่อ HP เหลือ {0}% หรือน้อยกว่า,Used automatically at {0}% HP or less
+,camp.tooltip.offer.price.format,ราคา {0} เบี้ย,Price {0} bia
+,camp.tooltip.offer.rentable,เช่าได้,Available to rent
+,camp.tooltip.offer.weight.format,น้ำหนัก {0:0.##},Weight {0:0.##}
+,camp.tooltip.offer.combos.header,ร่วมคอมโบกับ,Combos with
+,camp.tooltip.offer.combo.format,{0} — {1},{0} — {1}
+,camp.tooltip.offer.combo.more.format,อีก {0} ชิ้น,{0} more
+,camp.tooltip.offer.combos.none,ไม่มีคอมโบที่ร่วมได้,No combo it can join
 ,hud.possession,ถูกปอบสิง · ทิศควบคุมสลับ,Possessed · controls reversed
 ,ui.settings.title,ตั้งค่า,Settings
 ,ui.settings.open,ตั้งค่า,Settings

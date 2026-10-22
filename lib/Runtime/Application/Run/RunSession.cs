@@ -53,6 +53,10 @@ namespace ProjectSurvive.Core.Application.Run
         private readonly List<FloorConfig> _floors;
         private readonly bool _recording;
 
+        // Scrap for the combo list an offer readout carries (Stage 09n). One hovered slot at a
+        // time is explained, so a single buffer is enough and asking twice allocates nothing.
+        private readonly List<OfferCombo> _offerCombos = new List<OfferCombo>(8);
+
         private BattleSetup? _pendingSetup;
         private CombatLoadoutSnapshot? _pendingLoadout;
         private int _pendingSettlementId;
@@ -524,48 +528,27 @@ namespace ProjectSurvive.Core.Application.Run
         /// </summary>
         public Result<PurchaseOutcome> Purchase(int slotIndex)
         {
-            if (FlowState != RunFlowState.Camp)
+            Result<OfferCheck> check = CheckPurchase(slotIndex);
+
+            if (check.IsFailure)
             {
-                return Result.Fail<PurchaseOutcome>(RunError.WrongState, ErrorKind.InvalidState);
+                return Result.Fail<PurchaseOutcome>(check.Error);
             }
 
-            if (slotIndex < 0 || slotIndex >= Stock.SlotCount)
-            {
-                return Result.Fail<PurchaseOutcome>(ShopError.UnknownSlot, ErrorKind.NotFound);
-            }
+            OfferCheck offer = check.Value;
 
-            ShopSlot slot = Stock[slotIndex];
-
-            if (slot.IsPurchased)
+            if (!offer.Rentable)
             {
-                // \"ซื้อช่องเดิมซ้ำไม่ได้\"
-                return Result.Fail<PurchaseOutcome>(ShopError.SlotPurchased, ErrorKind.Conflict);
-            }
-
-            if (slot.IsEmpty)
-            {
-                return Result.Fail<PurchaseOutcome>(ShopError.SlotEmpty, ErrorKind.Insufficient);
-            }
-
-            if (!_roller.TryResolve(slot.OfferedId, out PieceKind kind, out int price))
-            {
-                return Result.Fail<PurchaseOutcome>(ShopError.UnknownPiece, ErrorKind.NotFound);
-            }
-
-            if (!Wallet.CanAfford(slot.Price))
-            {
-                return Result.Fail<PurchaseOutcome>(WalletError.InsufficientBia, ErrorKind.Insufficient);
-            }
-
-            if (Backpack.Chest.IsFull)
-            {
-                return Result.Fail<PurchaseOutcome>(InventoryError.ChestFull, ErrorKind.Insufficient);
+                // The one predicate that decided it is <see cref="CheckPurchase"/>; this branch only
+                // turns the verdict into the typed failure a command returns.
+                return Result.Fail<PurchaseOutcome>(offer.RefusalCode, ErrorKind.Insufficient);
             }
 
             // Read the offer before anything is committed: renting takes the piece off
             // the slot, so the outcome and the event need the values captured here.
-            string offeredId = slot.OfferedId;
-            int paid = slot.Price;
+            string offeredId = offer.OfferedId;
+            int paid = offer.Price;
+            PieceKind kind = offer.Kind;
 
             // Pay first, then take the piece: if the add still failed the money goes
             // straight back, so a purchase is never half-applied (AGENTS rule 7).
@@ -594,6 +577,134 @@ namespace ProjectSurvive.Core.Application.Run
             Emit(RunEventKind.WalletChanged, Wallet.Bia);
 
             return Result.Ok(new PurchaseOutcome(slotIndex, offeredId, kind, paid, Wallet.Bia, acquired.Value));
+        }
+
+        /// <summary>
+        /// The verdict <see cref="Purchase"/> acts on, without doing it — what the shelf tooltip
+        /// reads instead of restating the rent rules (Stage 09n).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This is the <b>one</b> purchase predicate: <see cref="Purchase"/> begins by calling it and
+        /// turns a refusal into its typed failure, so a tooltip that says "เบี้ยไม่พอ" and a button that
+        /// refuses cannot disagree (AGENTS rules 7 and 10). A failure result means the slot itself is
+        /// not describable (empty, already rented, unknown id, wrong flow); a successful result with a
+        /// non-empty <see cref="OfferCheck.RefusalCode"/> means the offer exists but the run would
+        /// refuse the rent right now.
+        /// </para>
+        /// <para>
+        /// Nothing is recorded, nothing is emitted and no revision moves: a pointer may ask this as
+        /// often as it moves.
+        /// </para>
+        /// </remarks>
+        public Result<OfferCheck> CheckPurchase(int slotIndex)
+        {
+            if (FlowState != RunFlowState.Camp)
+            {
+                return Result.Fail<OfferCheck>(RunError.WrongState, ErrorKind.InvalidState);
+            }
+
+            if (slotIndex < 0 || slotIndex >= Stock.SlotCount)
+            {
+                return Result.Fail<OfferCheck>(ShopError.UnknownSlot, ErrorKind.NotFound);
+            }
+
+            ShopSlot slot = Stock[slotIndex];
+
+            if (slot.IsPurchased)
+            {
+                // "ซื้อช่องเดิมซ้ำไม่ได้"
+                return Result.Fail<OfferCheck>(ShopError.SlotPurchased, ErrorKind.Conflict);
+            }
+
+            if (slot.IsEmpty)
+            {
+                return Result.Fail<OfferCheck>(ShopError.SlotEmpty, ErrorKind.Insufficient);
+            }
+
+            if (!_roller.TryResolve(slot.OfferedId, out PieceKind kind, out _))
+            {
+                return Result.Fail<OfferCheck>(ShopError.UnknownPiece, ErrorKind.NotFound);
+            }
+
+            // The two refusals the *offer* has, in the order a player would meet them: the price
+            // first, then room for it in the chest. Both are reported rather than returned as a
+            // failure, because the tooltip has to print which one it is.
+            string refusal = !Wallet.CanAfford(slot.Price)
+                ? WalletError.InsufficientBia
+                : Backpack.Chest.IsFull ? InventoryError.ChestFull : string.Empty;
+
+            return Result.Ok(new OfferCheck(slot.OfferedId, kind, slot.Price, 1, refusal));
+        }
+
+        /// <summary>
+        /// Explains the offer in <paramref name="slotIndex"/> exactly as the จัดย่าม tooltip explains a
+        /// piece, plus its price, its rentability and the combos it could join (Stage 09n).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The numbers come from <see cref="LoadoutResolver.TryExplainOffer"/> — the same core a tier-1
+        /// piece in the chest resolves through — so the shelf and the bag cannot show two different
+        /// damage numbers for one item, and no combo applies because nothing is in a layout yet
+        /// ("ของในหีบไม่ให้โบนัส"). <see cref="CheckPurchase"/> supplies the price and the verdict.
+        /// </para>
+        /// <para>
+        /// Read-only: an empty or already-rented slot returns a failure rather than an empty picture, so
+        /// a caller cannot render a tooltip for something that is not for sale. A hover that changes
+        /// slot is the only reason to call this, never a frame.
+        /// </para>
+        /// </remarks>
+        public Result<OfferReadout> ExplainOffer(int slotIndex)
+        {
+            Result<OfferCheck> check = CheckPurchase(slotIndex);
+
+            if (check.IsFailure)
+            {
+                return Result.Fail<OfferReadout>(check.Error);
+            }
+
+            OfferCheck offer = check.Value;
+
+            if (!_loadouts.TryExplainOffer(offer.OfferedId, offer.Tier, out PieceReadout piece))
+            {
+                return Result.Fail<OfferReadout>(ShopError.UnknownPiece, ErrorKind.NotFound);
+            }
+
+            string nameKey;
+            string descriptionKey = string.Empty;
+            float weight;
+
+            if (offer.Kind == PieceKind.Bag)
+            {
+                _config.TryGetBag(offer.OfferedId, out BagConfig bag);
+                nameKey = bag?.NameKey ?? string.Empty;
+                weight = bag?.Weight ?? 0f;
+            }
+            else
+            {
+                _config.TryGetItem(offer.OfferedId, out ItemConfig item);
+                nameKey = item?.NameKey ?? string.Empty;
+                descriptionKey = item?.DescriptionKey ?? string.Empty;
+                weight = item?.Weight ?? 0f;
+            }
+
+            _loadouts.PotentialCombos(offer.OfferedId, _offerCombos);
+
+            return Result.Ok(new OfferReadout
+            {
+                SlotIndex = slotIndex,
+                DefId = offer.OfferedId,
+                Kind = offer.Kind,
+                Price = offer.Price,
+                Weight = weight,
+                Tier = offer.Tier,
+                NameKey = nameKey,
+                DescriptionKey = descriptionKey,
+                Piece = piece,
+                Rentable = offer.Rentable,
+                RefusalCode = offer.RefusalCode,
+                Combos = new List<OfferCombo>(_offerCombos),
+            });
         }
 
         /// <summary>

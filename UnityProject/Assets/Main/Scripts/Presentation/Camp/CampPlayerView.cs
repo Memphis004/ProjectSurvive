@@ -124,6 +124,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             Walk();
             UpdateFocus();
+            UpdateHover();
 
             if (WalkingBlocked)
             {
@@ -237,6 +238,40 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             _world.SetFocusedShelf(nearest);
             _world.SetResetFocused(atReset);
+
+            // Stage 09n: the store the player is standing at explains itself on its own board. The
+            // presenter early-returns on an unchanged station, so this costs one comparison a frame.
+            _presenter.FocusOffer(nearest);
+        }
+
+        /// <summary>
+        /// Tells the presenter which shelf the pointer is over, using the <b>same</b> hit test the
+        /// click uses (Stage 09n: "ห้ามใช้ hit test ที่สอง").
+        /// </summary>
+        /// <remarks>
+        /// The pointer is only <i>read</i> here; the presenter decides whether a tooltip is allowed
+        /// (a drag, the chooser or the จัดย่าม panel all suppress it). A pointer over the pin control or
+        /// over the screen's own UI states no shelf at all: hovering ล็อกไว้ must not describe the
+        /// product, and a button's hover belongs to the button.
+        /// </remarks>
+        private void UpdateHover()
+        {
+            int station = -1;
+            Mouse mouse = Mouse.current;
+
+            if (mouse != null && _world != null && !WalkingBlocked
+                && (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject()))
+            {
+                Vector2 point = mouse.position.ReadValue();
+                int hit = _world.ShelfAtScreenPoint(point, out bool onTheLock);
+
+                if (hit >= 0 && !onTheLock)
+                {
+                    station = hit;
+                }
+            }
+
+            _presenter.HoverOffer(station);
         }
 
         private static float Planar(Vector3 a, Vector3 b)

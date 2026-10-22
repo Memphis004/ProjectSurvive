@@ -147,69 +147,224 @@ namespace ProjectSurvive.Core.Domain.Inventory
                 return false;
             }
 
+            ItemInstance? item = instance as ItemInstance;
+            SynergyEvaluation? evaluation = item is null ? null : _evaluator.Evaluate(backpack);
+            ItemModifiers modifiers = evaluation is null ? ItemModifiers.None : evaluation.For(item!.InstanceId);
+
+            PieceReadout result = Explain(
+                piece, instance.DefId, instance.Tier, instance is BagPieceInstance,
+                item?.VariantIds ?? Array.Empty<string>(), modifiers,
+                backpack, item?.InstanceId ?? 0);
+
+            if (item is not null && evaluation is not null)
+            {
+                result.ActiveSynergyCount = modifiers.ActiveSynergyCount;
+                result.DamageMultiplier = modifiers.DamageMultiplier;
+                result.CooldownMultiplier = modifiers.CooldownMultiplier;
+                result.ComboRuleIds = ComboRules(evaluation, item.InstanceId);
+                result.Steps = Steps(item);
+            }
+
+            readout = result;
+            return true;
+        }
+
+        /// <summary>
+        /// Explains a <b>shelf offer</b> — a piece that is not in the bag yet (Stage 09n).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The same <see cref="Explain"/> core <see cref="TryExplain"/> uses, with the numbers a piece
+        /// that is in no layout has: its own skill row and its own (absent) upgrades, no combo. That is
+        /// exactly how a tier-1 piece in the chest resolves, so the shelf and the bag cannot print two
+        /// different sets of numbers for the same item — a second calculator is what this method
+        /// exists to avoid.
+        /// </para>
+        /// <para>
+        /// Returns false only for an id that is in neither table (a data bug, reported by the caller as
+        /// <c>shop.unknown_piece</c>).
+        /// </para>
+        /// </remarks>
+        public bool TryExplainOffer(string defId, int tier, out PieceReadout readout)
+        {
+            readout = null!;
+
+            if (string.IsNullOrEmpty(defId))
+            {
+                return false;
+            }
+
+            bool isBag = _config.TryGetBag(defId, out _);
+
+            if (!isBag && !_config.TryGetItem(defId, out _))
+            {
+                return false;
+            }
+
+            readout = Explain(
+                PieceRef.None, defId, tier, isBag, Array.Empty<string>(), ItemModifiers.None, null, 0);
+            return true;
+        }
+
+        /// <summary>How many partner names one <see cref="OfferCombo"/> carries (the rest are counted).</summary>
+        private const int PartnerNamesShown = 3;
+
+        /// <summary>
+        /// Fills <paramref name="into"/> with the combos an offer of <paramref name="defId"/> could take
+        /// part in, and returns how many there are.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A <b>listing</b> read straight off the <c>synergy</c> and <c>item</c> tables: a rule whose two
+        /// tags this piece carries one of, with the other tag's pieces named. No multiplier is applied
+        /// and no <see cref="SynergyEvaluator"/> pass runs, because there is nothing on a board to
+        /// evaluate — which is why this is not a second combo calculation (AGENTS rule 10: the numbers
+        /// still come from <see cref="PieceReadout"/>).
+        /// </para>
+        /// <para>
+        /// A bag lists nothing: the only rule a bag takes part in is the bag-area bonus, which is a
+        /// property of the whole layout rather than a pairing with another piece.
+        /// </para>
+        /// </remarks>
+        public int PotentialCombos(string defId, List<OfferCombo> into)
+        {
+            if (into is null)
+            {
+                throw new ArgumentNullException(nameof(into));
+            }
+
+            into.Clear();
+
+            if (string.IsNullOrEmpty(defId) || !_config.TryGetItem(defId, out ItemConfig item))
+            {
+                return 0;
+            }
+
+            IReadOnlyList<SynergyConfig> rules = _config.Synergies;
+            for (int i = 0; i < rules.Count; i++)
+            {
+                SynergyConfig rule = rules[i];
+
+                // Only a rule whose condition is "these two tags sit next to each other" can be said
+                // about one piece on its own; the bag-area bonus names no pair.
+                if (rule.Kind != SynergyKind.AdjacentPair && rule.Kind != SynergyKind.SameRow)
+                {
+                    continue;
+                }
+
+                bool carriesA = HasTag(item, rule.TagA);
+                bool carriesB = HasTag(item, rule.TagB);
+
+                if (!carriesA && !carriesB)
+                {
+                    continue;
+                }
+
+                // The partner is the rule's other half. A piece carrying both tags is listed against
+                // the second one, and the piece itself is filtered out of the names below.
+                string partnerTag = carriesA ? rule.TagB : rule.TagA;
+
+                if (string.IsNullOrEmpty(partnerTag))
+                {
+                    continue;
+                }
+
+                var names = new List<string>(PartnerNamesShown);
+                int count = 0;
+                IReadOnlyList<ItemConfig> items = _config.Items;
+
+                for (int c = 0; c < items.Count; c++)
+                {
+                    ItemConfig partner = items[c];
+
+                    if (string.Equals(partner.Id, item.Id, StringComparison.Ordinal) || !HasTag(partner, partnerTag))
+                    {
+                        continue;
+                    }
+
+                    count++;
+                    if (names.Count < PartnerNamesShown)
+                    {
+                        names.Add(partner.NameKey);
+                    }
+                }
+
+                if (count == 0)
+                {
+                    continue;
+                }
+
+                into.Add(new OfferCombo(rule.Id, rule.NameKey, partnerTag, names, count));
+            }
+
+            return into.Count;
+        }
+
+        /// <summary>
+        /// The one description of a piece: its row's own effects, its skill's base row and the numbers
+        /// it resolves to — with the board consulted only when the piece is on it.
+        /// </summary>
+        private PieceReadout Explain(
+            PieceRef piece, string defId, int tier, bool isBag,
+            IReadOnlyList<string> variantIds, ItemModifiers modifiers,
+            Backpack? boardBackpack, int instanceId)
+        {
             var result = new PieceReadout
             {
                 Piece = piece,
-                DefId = instance.DefId,
-                Tier = instance.Tier,
-                IsBag = instance is BagPieceInstance,
+                DefId = defId,
+                Tier = tier,
+                IsBag = isBag,
                 MinCooldownSeconds = _config.Constant.MinCooldownSeconds,
             };
 
-            if (!(instance is ItemInstance item))
+            if (isBag)
             {
-                readout = result;
-                return true;
+                // A bag has a tier, a shape and a weight — never a damage number.
+                return result;
             }
 
-            SynergyEvaluation evaluation = _evaluator.Evaluate(backpack);
-            ItemModifiers modifiers = evaluation.For(item.InstanceId);
-
-            result.ActiveSynergyCount = modifiers.ActiveSynergyCount;
-            result.DamageMultiplier = modifiers.DamageMultiplier;
-            result.CooldownMultiplier = modifiers.CooldownMultiplier;
-            result.ComboRuleIds = ComboRules(evaluation, item.InstanceId);
-            result.Steps = Steps(item);
-
-            if (_config.TryGetItem(item.ItemId, out ItemConfig itemDefinition))
+            if (!_config.TryGetItem(defId, out ItemConfig definition))
             {
-                // The item-local effects the tooltip draws (Stage 11a). They are copied from
-                // the same row the loadout resolver reads, so the screen and the snapshot
-                // cannot disagree about a charm's passive or an offering's uses.
-                result.HasCharmEffect = itemDefinition.HasCharmEffect;
-                result.CharmStat = itemDefinition.CharmStat;
-                result.CharmMethod = itemDefinition.CharmMethod;
-                result.CharmMagnitude = itemDefinition.CharmMagnitude;
-                result.IsOffering = itemDefinition.Category == ItemCategory.Offering;
-                result.OfferingEffect = itemDefinition.OfferingEffect;
-                result.OfferingAmount = itemDefinition.OfferingAmount;
-                result.OfferingUses = itemDefinition.OfferingUses;
-                result.OfferingAutoHpPercent = itemDefinition.OfferingAutoHpPercent;
+                return result;
             }
 
-            if (_config.TryGetItem(item.ItemId, out ItemConfig definition)
-                && !string.IsNullOrEmpty(definition.SkillId)
+            // The item-local effects the tooltip draws (Stage 11a). They are copied from
+            // the same row the loadout resolver reads, so the screen and the snapshot
+            // cannot disagree about a charm's passive or an offering's uses.
+            result.HasCharmEffect = definition.HasCharmEffect;
+            result.CharmStat = definition.CharmStat;
+            result.CharmMethod = definition.CharmMethod;
+            result.CharmMagnitude = definition.CharmMagnitude;
+            result.IsOffering = definition.Category == ItemCategory.Offering;
+            result.OfferingEffect = definition.OfferingEffect;
+            result.OfferingAmount = definition.OfferingAmount;
+            result.OfferingUses = definition.OfferingUses;
+            result.OfferingAutoHpPercent = definition.OfferingAutoHpPercent;
+
+            if (!string.IsNullOrEmpty(definition.SkillId)
                 && _config.TryGetSkill(definition.SkillId, out SkillConfig skill))
             {
                 result.SkillId = skill.Id;
                 result.Casts = true;
                 result.Base = new PieceStatValues(skill.Damage, skill.CooldownSeconds, skill.MpCost);
 
-                if (TryFindResolved(backpack, item, out PieceStatValues resolved))
+                if (boardBackpack is not null && instanceId > 0
+                    && TryFindResolved(boardBackpack, instanceId, out PieceStatValues resolved))
                 {
                     result.InLoadout = true;
                     result.Resolved = resolved;
                 }
                 else
                 {
-                    result.Resolved = ResolveStandalone(skill, item, modifiers);
+                    result.Resolved = ResolveStandalone(skill, variantIds, modifiers);
                 }
 
                 // The floor is the difference between "the combo did nothing" and "the combo was
                 // capped", so it is answered from the value before the clamp (same accumulation
                 // rule: every percent sums, every factor multiplies).
                 float intended = _upgrades.Resolve(
-                    skill.CooldownSeconds, _config, item.VariantIds, UpgradeStat.Cooldown)
+                    skill.CooldownSeconds, _config, variantIds, UpgradeStat.Cooldown)
                     * modifiers.CooldownMultiplier;
 
                 result.CooldownAtMinimum =
@@ -217,8 +372,27 @@ namespace ProjectSurvive.Core.Domain.Inventory
                     && result.Resolved.CooldownSeconds <= _config.Constant.MinCooldownSeconds;
             }
 
-            readout = result;
-            return true;
+            return result;
+        }
+
+        /// <summary>True when <paramref name="item"/> carries <paramref name="tag"/> (ordinal, never a fuzzy match).</summary>
+        private static bool HasTag(ItemConfig item, string tag)
+        {
+            if (string.IsNullOrEmpty(tag))
+            {
+                return false;
+            }
+
+            IReadOnlyList<string> tags = item.Tags;
+            for (int i = 0; i < tags.Count; i++)
+            {
+                if (string.Equals(tags[i], tag, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>The synergy rules this piece takes part in (provided or received).</summary>
@@ -274,14 +448,14 @@ namespace ProjectSurvive.Core.Domain.Inventory
         /// The numbers this piece receives in the battle, copied out of the snapshot this resolver
         /// hands to the floor. False when the piece is not in it (it is in the chest).
         /// </summary>
-        private bool TryFindResolved(Backpack backpack, ItemInstance item, out PieceStatValues resolved)
+        private bool TryFindResolved(Backpack backpack, int instanceId, out PieceStatValues resolved)
         {
             CombatLoadoutSnapshot snapshot = Resolve(backpack);
 
             IReadOnlyList<WeaponLoadout> weapons = snapshot.Weapons;
             for (int i = 0; i < weapons.Count; i++)
             {
-                if (weapons[i].InstanceId != item.InstanceId)
+                if (weapons[i].InstanceId != instanceId)
                 {
                     continue;
                 }
@@ -294,7 +468,7 @@ namespace ProjectSurvive.Core.Domain.Inventory
             IReadOnlyList<SummonLoadout> summons = snapshot.Summons;
             for (int i = 0; i < summons.Count; i++)
             {
-                if (summons[i].InstanceId != item.InstanceId)
+                if (summons[i].InstanceId != instanceId)
                 {
                     continue;
                 }
@@ -308,12 +482,10 @@ namespace ProjectSurvive.Core.Domain.Inventory
             return false;
         }
 
-        /// <summary>A chest piece's own numbers: its upgrades apply, no combo does.</summary>
+        /// <summary>A piece that is in no layout: its own upgrades apply, no combo does.</summary>
         private PieceStatValues ResolveStandalone(
-            SkillConfig skill, ItemInstance item, ItemModifiers modifiers)
+            SkillConfig skill, IReadOnlyList<string> upgrades, ItemModifiers modifiers)
         {
-            IReadOnlyList<string> upgrades = item.VariantIds;
-
             return new PieceStatValues(
                 AtLeast(
                     _upgrades.Resolve(

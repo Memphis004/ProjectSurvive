@@ -92,6 +92,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private TextMeshPro _stallLabel;
         private bool _bound;
         private int _focusedShelf = -1;
+
+        /// <summary>The shop row as of the last publish, kept so a focus change can repaint it (Stage 09n).</summary>
+        private CampShopSlotModel[] _slots = Array.Empty<CampShopSlotModel>();
+
+        /// <summary>The focused station's readout lines, or empty while none is in reach (Stage 09n).</summary>
+        private string _focusDetail = string.Empty;
         private bool _resetFocused;
 
         /// <summary>How many shelf stations stand in the sala (a test reads this).</summary>
@@ -143,6 +149,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             _bound = true;
             _state = _scope.Container.Resolve<CampUiState>();
             _subscriptions.Add(_state.Shop.Subscribe(RenderStations));
+            _subscriptions.Add(_state.FocusedShelfDetail.Subscribe(SetFocusedDetail));
             _subscriptions.Add(_state.RefreshButtonLabel.Subscribe(SetResetLabel));
             _subscriptions.Add(_state.NpcName.Subscribe(_ => RenderStall()));
             _subscriptions.Add(_state.ShopCaption.Subscribe(_ => RenderStall()));
@@ -560,6 +567,8 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// </remarks>
         private void RenderStations(CampShopSlotModel[] slots)
         {
+            _slots = slots;
+
             for (int i = 0; i < _stations.Count; i++)
             {
                 Station station = _stations[i];
@@ -579,6 +588,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
                     ? slot.Name + "\n" + Label(_state == null ? null : _state.RentedLabel)
                     : slot.Name + "\n" + slot.PriceLabel;
 
+                // Stage 09n: the store the player stands at carries its detail on the same board, from
+                // the same readout the pointer's tooltip uses. Only the focused station's board grows.
+                if (i == _focusedShelf && _focusDetail.Length > 0)
+                {
+                    station.Price.text += "\n" + _focusDetail;
+                }
+
                 station.Lock.text = slot.IsLocked
                     ? Label(_state == null ? null : _state.UnpinLabel)
                     : Label(_state == null ? null : _state.PinLabel);
@@ -590,6 +606,19 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 // starts, which is exactly the frame a browser test reads.
                 station.Lock.ForceMeshUpdate();
             }
+        }
+
+        /// <summary>
+        /// Keeps the walk-up detail for the focused station and repaints the boards (Stage 09n).
+        /// </summary>
+        /// <remarks>
+        /// The whole row is repainted rather than one label: a station that gained or lost the detail
+        /// line must not keep a stale third row, and four labels is not a cost paid per frame.
+        /// </remarks>
+        private void SetFocusedDetail(string detail)
+        {
+            _focusDetail = detail ?? string.Empty;
+            RenderStations(_slots);
         }
 
         private void SetResetLabel(string label)

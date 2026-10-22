@@ -104,6 +104,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         private PieceRef _selected = PieceRef.None;
         private PieceRef _hovered = PieceRef.None;
+
+        /// <summary>The shelf the pointer is over, or -1 (Stage 09n).</summary>
+        private int _hoveredOffer = -1;
+
+        /// <summary>The shelf the player is standing at, or -1 (Stage 09n).</summary>
+        private int _focusedOffer = -1;
         private string _statusCode = string.Empty;
         private int _altarOffer = -1;
         private bool _disposed;
@@ -208,6 +214,10 @@ namespace ProjectSurvive.Game.Presentation.Camp
             PublishBag();
             PublishDepart();
             PublishTooltip();
+
+            // The shelf the player is standing at may have just been rented or re-rolled; its board
+            // must not keep describing what is no longer there (Stage 09n).
+            PublishFocusedShelf();
         }
 
         // ------------------------------------------------------------------
@@ -506,6 +516,10 @@ namespace ProjectSurvive.Game.Presentation.Camp
             // and a placeholder with no riders would make the plan look unchanged (Stage 09f).
             _drag = Evaluate(piece, BagDropZone.Board, _dragAnchor, _dragRotation, CampDragState.None);
             PublishDrag();
+
+            // A shelf tooltip under a piece that is now in the air has to go, and it may only be
+            // republished when the drag ends (Stage 09n).
+            PublishTooltip();
         }
 
         /// <summary>
@@ -654,6 +668,56 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         /// <summary>Drops the tooltip.</summary>
         public void ClearHover() => Hover(PieceRef.None);
+
+        /// <summary>
+        /// Points the tooltip at a shelf, or at nothing (Stage 09n).
+        /// </summary>
+        /// <remarks>
+        /// Called by <see cref="CampPlayerView"/> from the <b>same</b> hit test the shelf's click uses
+        /// (<c>CampWorldView.ShelfAtScreenPoint</c>), so "what a click would rent" and "what the
+        /// tooltip explains" cannot name two different stations. The early return on an unchanged
+        /// slot is what keeps a pointer moving inside one shelf at zero allocations: nothing is
+        /// formatted and nothing is republished until the station under it changes.
+        /// </remarks>
+        public void HoverOffer(int slotIndex)
+        {
+            int next = slotIndex < 0 ? -1 : slotIndex;
+
+            if (_disposed || _hoveredOffer == next)
+            {
+                return;
+            }
+
+            _hoveredOffer = next;
+            PublishTooltip();
+        }
+
+        /// <summary>
+        /// The shelf the player is standing at, which the walk-up detail label reads (Stage 09n).
+        /// </summary>
+        /// <remarks>
+        /// A separate channel from <see cref="HoverOffer"/> so walking away from a shelf never removes
+        /// the tooltip the pointer is over, and hovering a shelf never rewrites the label the player
+        /// is standing at. Both are formatted from the same read model.
+        /// </remarks>
+        public void FocusOffer(int slotIndex)
+        {
+            int next = slotIndex < 0 ? -1 : slotIndex;
+
+            if (_disposed || _focusedOffer == next)
+            {
+                return;
+            }
+
+            _focusedOffer = next;
+            PublishFocusedShelf();
+        }
+
+        /// <summary>The shelf the pointer is over, or -1 (a test reads this).</summary>
+        public int HoveredOffer => _hoveredOffer;
+
+        /// <summary>The shelf the player is standing at, or -1 (a test reads this).</summary>
+        public int FocusedOffer => _focusedOffer;
 
         // ------------------------------------------------------------------
         // the merge chooser (Stage 09g)
@@ -1071,6 +1135,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
             _hasGrab = false;
             _carryScratch.Clear();
             PublishDrag();
+
+            // Back on the ground: whatever the pointer is over may explain itself again.
+            PublishTooltip();
         }
 
         /// <summary>
@@ -1530,6 +1597,20 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
+            if (_drag.IsActive)
+            {
+                // A piece in the air is what the pointer is doing; a shelf tooltip under it would
+                // both hide the drop target and describe an offer the drag is not about.
+                CampUiState.Set(_state.TooltipVisible, false);
+                return;
+            }
+
+            if (_hoveredOffer >= 0)
+            {
+                PublishOfferTooltip(_hoveredOffer);
+                return;
+            }
+
             if (!_hovered.IsValid)
             {
                 CampUiState.Set(_state.TooltipVisible, false);
@@ -1556,6 +1637,193 @@ namespace ProjectSurvive.Game.Presentation.Camp
             CampUiState.Set(_state.TooltipDescription, DescriptionLine(model));
             CampUiState.Set(_state.TooltipCombos, ComboLine(readout));
             CampUiState.Set(_state.TooltipVisible, true);
+        }
+
+        /// <summary>
+        /// Fills the tooltip with one shelf offer's readout (Stage 09n).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The numbers are the run's <see cref="OfferReadout"/> — the same shape a chest copy resolves
+        /// to — and the ราคา line carries the verdict <c>RunSession.CheckPurchase</c> returned, so the
+        /// tooltip cannot offer what the rent button would refuse.
+        /// </para>
+        /// <para>
+        /// A shelf that stopped holding something (rented a moment ago, or replaced by a re-roll)
+        /// explains nothing and the panel hides, which is what makes "หลังเช่า/สุ่มใหม่ tooltip ต้อง
+        /// เปลี่ยนทันที" true without the view knowing about the shop at all.
+        /// </para>
+        /// </remarks>
+        private void PublishOfferTooltip(int slotIndex)
+        {
+            Result<OfferReadout> explained = _run.ExplainOffer(slotIndex);
+
+            if (explained.IsFailure)
+            {
+                CampUiState.Set(_state.TooltipVisible, false);
+                return;
+            }
+
+            OfferReadout offer = explained.Value;
+
+            CampUiState.Set(_state.TooltipTitle, OfferName(offer));
+            CampUiState.Set(
+                _state.TooltipTier, Format("camp.tooltip.tier.format", offer.Tier, _config.Constant.MaxTier));
+            CampUiState.Set(_state.TooltipPrice, PriceLine(offer));
+            CampUiState.Set(_state.TooltipStatus, StatusText(offer.DefId, offer.Piece.IsBag, BagSlots(offer), offer.Piece));
+            CampUiState.Set(_state.TooltipUpgrades, string.Empty);
+            CampUiState.Set(_state.TooltipDescription, OfferDescription(offer));
+            CampUiState.Set(_state.TooltipCombos, OfferComboLine(offer));
+            CampUiState.Set(_state.TooltipVisible, true);
+        }
+
+        /// <summary>
+        /// Repaints the shelf the player is standing at: its board gets the same readout the pointer's
+        /// tooltip gets, appended under the price.
+        /// </summary>
+        /// <remarks>
+        /// The string is built only when the focused station changes (or a command republished the
+        /// stock), never per frame — walking is a per-frame event and this must not be one.
+        /// </remarks>
+        private void PublishFocusedShelf()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            CampUiState.Set(_state.FocusedShelfDetail, FocusedShelfText(_focusedOffer));
+        }
+
+        /// <summary>The walk-up detail: price and the numbers, or empty for a shelf with nothing on it.</summary>
+        private string FocusedShelfText(int slotIndex)
+        {
+            if (slotIndex < 0)
+            {
+                return string.Empty;
+            }
+
+            Result<OfferReadout> explained = _run.ExplainOffer(slotIndex);
+
+            if (explained.IsFailure)
+            {
+                return string.Empty;
+            }
+
+            OfferReadout offer = explained.Value;
+
+            // The board is a four-line world label, not a panel: the verdict and one row of numbers,
+            // with the pointer's tooltip carrying the full readout (base row, combos, description).
+            _builder.Clear();
+            _builder.Append(PriceLine(offer));
+            _builder.Append('\n');
+
+            if (offer.Piece.IsBag)
+            {
+                _builder.Append(Format("camp.tooltip.slots.format", BagSlots(offer)));
+                _builder.Append(" · ");
+                _builder.Append(Format("camp.tooltip.offer.weight.format", offer.Weight));
+            }
+            else if (offer.Piece.Casts)
+            {
+                _builder.Append(Format(
+                    "camp.tooltip.stat.format",
+                    offer.Piece.Resolved.Damage,
+                    offer.Piece.Resolved.CooldownSeconds,
+                    offer.Piece.Resolved.MpCost));
+            }
+            else if (offer.DescriptionKey.Length > 0)
+            {
+                _builder.Append(Lookup(offer.DescriptionKey));
+            }
+
+            return _builder.ToString();
+        }
+
+        /// <summary>ราคา and the verdict: "ราคา 9 เบี้ย · เช่าได้", or the code the rent would return.</summary>
+        private string PriceLine(OfferReadout offer)
+        {
+            _builder.Clear();
+            _builder.Append(Format("camp.tooltip.offer.price.format", offer.Price));
+            _builder.Append(" · ");
+            _builder.Append(offer.Rentable
+                ? Lookup("camp.tooltip.offer.rentable")
+                : Lookup("error." + offer.RefusalCode));
+            return _builder.ToString();
+        }
+
+        /// <summary>The offer's name, looked up rather than echoed as a data id.</summary>
+        private string OfferName(OfferReadout offer) =>
+            offer.NameKey.Length == 0 ? offer.DefId : Lookup(offer.NameKey);
+
+        /// <summary>A bag's usable slots, from the footprint the shelf would hand the player.</summary>
+        private int BagSlots(OfferReadout offer) =>
+            offer.Kind == PieceKind.Bag && _config.TryGetBag(offer.DefId, out BagConfig bag)
+                ? bag.Footprint.CellCount
+                : 0;
+
+        /// <summary>
+        /// คำอธิบาย for an offer: the item's own row, a bag's shape and weight, or empty.
+        /// </summary>
+        private string OfferDescription(OfferReadout offer)
+        {
+            if (offer.Kind == PieceKind.Bag)
+            {
+                return Format("camp.tooltip.offer.weight.format", offer.Weight);
+            }
+
+            return offer.DescriptionKey.Length == 0 ? string.Empty : Lookup(offer.DescriptionKey);
+        }
+
+        /// <summary>
+        /// ร่วมคอมโบกับ: the rules this offer could pair in, with the partner pieces named.
+        /// </summary>
+        /// <remarks>
+        /// A <b>listing</b> from the run's read model, not an evaluation: nothing is in a layout yet, so
+        /// no multiplier is printed — only which rules would take this piece and with whom.
+        /// </remarks>
+        private string OfferComboLine(OfferReadout offer)
+        {
+            if (offer.Combos.Count == 0)
+            {
+                return Lookup("camp.tooltip.offer.combos.none");
+            }
+
+            _builder.Clear();
+            _builder.Append(Lookup("camp.tooltip.offer.combos.header"));
+
+            for (int i = 0; i < offer.Combos.Count; i++)
+            {
+                OfferCombo combo = offer.Combos[i];
+
+                _detail.Clear();
+                for (int p = 0; p < combo.PartnerNameKeys.Count; p++)
+                {
+                    if (_detail.Length > 0)
+                    {
+                        _detail.Append(", ");
+                    }
+
+                    _detail.Append(Lookup(combo.PartnerNameKeys[p]));
+                }
+
+                int more = combo.PartnerCount - combo.PartnerNameKeys.Count;
+                if (more > 0)
+                {
+                    if (_detail.Length > 0)
+                    {
+                        _detail.Append(", ");
+                    }
+
+                    _detail.Append(Format("camp.tooltip.offer.combo.more.format", more));
+                }
+
+                _builder.Append('\n');
+                _builder.Append(Format(
+                    "camp.tooltip.offer.combo.format", Lookup(combo.NameKey), _detail.ToString()));
+            }
+
+            return _builder.ToString();
         }
 
         /// <summary>
@@ -1586,16 +1854,27 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// Stage 09h this line read the <c>skill</c> row, which is why a piece at 3/3 showed its 1/1
         /// damage and a −15 % cooldown variant changed nothing on screen.
         /// </remarks>
-        private string StatusLine(CampPieceModel model, PieceReadout readout)
+        private string StatusLine(CampPieceModel model, PieceReadout readout) =>
+            StatusText(
+                model.DefId, model.IsBag, model.Shape == null ? 0 : model.Shape.CellCount, readout);
+
+        /// <summary>
+        /// The numbers block for <b>any</b> explained piece, in the bag or on a shelf (Stage 09n).
+        /// </summary>
+        /// <remarks>
+        /// One formatter for both callers: a shelf offer and the same piece in the chest print the
+        /// same words, because they carry the same <see cref="PieceReadout"/>. The piece's identity
+        /// arrives as values rather than as a <see cref="CampPieceModel"/> because an offer has no
+        /// model — it is not in the run's inventory yet.
+        /// </remarks>
+        private string StatusText(string defId, bool isBag, int slotCount, PieceReadout readout)
         {
-            if (model.IsBag)
+            if (isBag)
             {
-                return model.Shape == null
-                    ? string.Empty
-                    : Format("camp.tooltip.slots.format", model.Shape.CellCount);
+                return slotCount <= 0 ? string.Empty : Format("camp.tooltip.slots.format", slotCount);
             }
 
-            if (!_config.TryGetItem(model.DefId, out ItemConfig item))
+            if (!_config.TryGetItem(defId, out ItemConfig item))
             {
                 return string.Empty;
             }

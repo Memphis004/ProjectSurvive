@@ -424,3 +424,16 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   on the old order, with the old colour in the message); Fast suite PASS (dotnet **591**, EditMode
   **172/172**); 1920x1080 before/after shots in `artifacts/ui/stage09m-*` — [report](../docs/stages/09m-report.md).
 - **Next:** 13 (content complete and UX) — or give the L bag's drag ghost its real shape, still open from 09l.
+
+## Stage 09n — a shelf offer explains itself before you rent it
+
+- **Did:** gave the shelf tooltip its own read model — `RunSession.ExplainOffer(slot)` resolves the
+  offer through `LoadoutResolver` (the same core a tier-1 copy in the chest uses, so still no second
+  calculator), lists the synergy rows it could pair in, and takes its rent verdict from the new
+  `CheckPurchase`, which `Purchase` itself now calls. The pointer's shelf comes from the click's own
+  hit test; the shelf the player walks up to prints the same numbers on its board.
+- **Result:** dotnet **598**, EditMode **178/178**, PlayMode camp classes **52/52** (new
+  `CampShelfTooltipPlayModeTests` 5/5, including 0 bytes allocated moving inside one shelf),
+  `UiLayoutCheck` PASS at 1920×1080 and 1280×720; four Game View shots in `artifacts/ui/stage09n-*`
+  (weapon, charm, bag, "เบี้ยไม่พอ") — [report](../docs/stages/09n-report.md).
+- **Next:** 13 (content complete and UX) — or the still-open world-label legibility at 1280×720.

@@ -160,6 +160,27 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>คอมโบที่ทำงานอยู่: the totals and the names of the rules that fired.</summary>
         public ReactiveProperty<string> TooltipCombos { get; } = new ReactiveProperty<string>(string.Empty);
 
+        /// <summary>
+        /// ราคา and the rent verdict: the shelf's asking price with "เช่าได้" or the reason the run
+        /// would refuse it (Stage 09n).
+        /// </summary>
+        /// <remarks>
+        /// The reason is the code <c>RunSession.CheckPurchase</c> returned, localized through the
+        /// same <c>error.&lt;code&gt;</c> rows the bottom bar uses — a tooltip cannot say "available"
+        /// about an offer the rent button would refuse, because it does not decide that itself.
+        /// </remarks>
+        public ReactiveProperty<string> TooltipPrice { get; } = new ReactiveProperty<string>(string.Empty);
+
+        /// <summary>
+        /// The shelf the player is standing at, written as the same readout the pointer's tooltip
+        /// carries, so walking up to a station answers the same question as hovering it.
+        /// </summary>
+        /// <remarks>
+        /// One line-broken string rather than the tooltip's fields: it is drawn on the shelf's own
+        /// board, which is a single world label. Empty while no station is in reach.
+        /// </remarks>
+        public ReactiveProperty<string> FocusedShelfDetail { get; } = new ReactiveProperty<string>(string.Empty);
+
         // --- flags and bars ---
         public ReactiveProperty<bool> CanDepart { get; } = new ReactiveProperty<bool>(false);
 
@@ -291,6 +312,8 @@ namespace ProjectSurvive.Game.Presentation.Camp
             TooltipUpgrades.Dispose();
             TooltipDescription.Dispose();
             TooltipCombos.Dispose();
+            TooltipPrice.Dispose();
+            FocusedShelfDetail.Dispose();
             CanDepart.Dispose();
             CanRefresh.Dispose();
             CanReset.Dispose();

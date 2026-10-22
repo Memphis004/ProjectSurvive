@@ -62,8 +62,10 @@ namespace ProjectSurvive.Core.Tests
             // added the four charm/offering tooltip rows (camp.tooltip.charm_effect and the three
             // offering lines), taking it to 199. Stage 11c added `hud.possession`, the line the HUD
             // draws while a boss's possession has the stick turned around, taking it to 200.
-            // Stage 12 added the nine settings/save-warning rows, taking it to 209.
-            Assert.Equal(209, config.Localization.Count);
+            // Stage 12 added the nine settings/save-warning rows, taking it to 209. Stage 09n
+            // added the seven shelf-offer tooltip rows (ราคา, เช่าได้, weight, the combos header, its
+            // row format, "อีก N ชิ้น" and the empty listing), taking it to 216.
+            Assert.Equal(216, config.Localization.Count);
         }
 
         [Fact]
