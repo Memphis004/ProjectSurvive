@@ -53,7 +53,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **13c-2a** | **Audio settings: music and effects buses, persisted, with a schema-2 read path** | **DONE** — see [`docs/stages/13c-2a-report.md`](docs/stages/13c-2a-report.md), [ADR 0034](docs/adr/0034-settings-schema-and-per-bus-volume.md) |
 | **13c-2b** | **Pause overlay: freeze the floor, resume, or leave for the camp** | **CODE DONE** — PlayMode could not run; see [`docs/stages/13c-2b-report.md`](docs/stages/13c-2b-report.md) |
 | **14** | **Test harness & CI (development-only WebBridge, Playwright, `tools/ci.ps1`)** | **DONE** — the 20-visit heap case was not a leak but a missing `AudioListener` (its per-frame warning was what the runner measured), fixed 2026-10-23; see [`docs/stages/14-report.md`](docs/stages/14-report.md) |
-| 15 | Web release candidate | not started |
+| **15** | **Web release candidate** | **DONE (browser gate green; browser stress & Firefox full suite NOT RUN)** — see [`docs/stages/15-report.md`](docs/stages/15-report.md), [`docs/build/performance-report.md`](docs/build/performance-report.md), [`docs/release/known-issues.md`](docs/release/known-issues.md), [ADR 0035](docs/adr/0035-the-release-candidate-configuration-and-its-numbers.md) |
 
 **Current state:** Stages 00–10, plus **09k-data** (one word in `data/`: the tome combo is
 `AdjacentPair`, so a weapon takes +20 % from a tome it **touches** on any of its four edges — never
@@ -375,6 +375,33 @@ suite **13 PASS / 0 FAIL / 3 NOT RUN**, xUnit **604**, EditMode **205**, sim **4
 Playwright **19 passed / 1 skipped**, and PlayMode per fixture is green except a 20-visit heap case
 (5.07 MB against 3 MB) measured to predate the stage. See the
 [report](docs/stages/14-report.md).
+
+**15** produced the **release candidate** and measured it. `tools/build-web.ps1 -ReleaseCandidate` is
+the one command: it applies the `optimize-size` profile (stripping High, IL2CPP OptimizeSize), restores
+`ProjectSettings.asset`/`GraphicsSettings.asset` afterwards, and **fails a build whose
+`build-report.json` disagrees with the requested profile** — the residue trap that crashed a Stage 08
+player is now caught at build time ([gotcha](llmwiki/gotchas/webgl-size-profile-settings-residue.md)).
+`Assets/link.xml` preserves `Luban.Runtime`, `MessagePack`, `MessagePack.Annotations`,
+`Google.Protobuf`, `VContainer` and `R3` with a reason per entry, and `ReleaseLinkXmlTests` keeps that
+from disappearing; the proof it is enough is the **Release** browser suite (boot's seven probes plus
+a real save/reload through IndexedDB). Compression lives at the host, not in Unity:
+`tools/compress-web.mjs` writes `.br`/`.gz` siblings and `tools/serve-web.mjs` negotiates them with
+`Vary: Accept-Encoding`; player files are `no-cache` + `ETag` (their names are not content-hashed),
+and `tests/web/scripts/verify-hosting.mjs` tests the headers, the budget and a redeploy under a live
+browser ([docs/build/web-hosting.md](docs/build/web-hosting.md), `deploy/_headers`). The non-OFL,
+unused `THSarabunPSK` font was removed. Measured on the RC (Release, `optimize-size`, git
+`89b7c50` + this commit, Chrome **155.0.8059.85**, 1920×1080, 144 Hz display, reference machine):
+initial payload **44.65 MiB raw / 15.52 MiB gzip / 11.29 MiB Brotli** (gate < 30, target < 15), battle
+floor 1 frame time **p95 7.10 ms** (budget ≤ 20 ms), Wasm heap **79.81 MiB** (budget ~350 MB), cold
+load to title **≈3.1 s**, and the stress case (300 ghosts + ~482 projectiles) **0 bytes/tick, tick p95
+0.154 ms** in the headless sim — a **browser** stress number is NOT RUN because a Release player ships
+no way to inject that load ([ADR 0035](docs/adr/0035-the-release-candidate-configuration-and-its-numbers.md)).
+Release browser suite **21 passed / 1 skipped** on the measured artifact (the skipped case needs the dev
+menu a Release build must not have); the clean rebuild's run had one camp-spec pointer flake that
+passed 5/5 on re-run, EditMode **207/207**, and Addressables were **not** added because both size budgets are
+met. The rank of the open gaps (browser stress, Firefox full suite, GPU memory) is in
+[docs/release/known-issues.md](docs/release/known-issues.md); the run list is
+[docs/release/checklist.md](docs/release/checklist.md).
 
 **Data is the only source of balance numbers** (AGENTS rule 5): `data/` →
 `tools/gen.ps1` (Luban 5.1.0 + protoc 33.6) → generated C# + `.bytes` →

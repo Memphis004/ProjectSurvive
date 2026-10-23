@@ -569,3 +569,22 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   specs ran **21/21 in 4.0 min** against that build, and batch-mode `SceneFlowPlayModeTests` is **6/6 in
   46.0 s** (the 20-visit case 39.2 s, a budget it used to miss by 17.8 MB).
 - **Next:** Stage 15 (release candidate), and the Stage 13 human playtest that nothing automated replaces.
+
+## Stage 15 — Web release candidate (2026-10-23)
+
+- **Did:** made the release build one command (`-ReleaseCandidate` = optimize-size + restores
+  `ProjectSettings`, and a build whose report disagrees with the profile fails), added
+  `Assets/link.xml` for the six reflection-dependent assemblies, moved compression to the host
+  (`tools/compress-web.mjs`, `serve-web.mjs` negotiation, `no-cache` + `ETag` because names are not
+  hashed, `deploy/_headers`), removed the non-OFL `THSarabunPSK` font, and measured the artifact with
+  two new tools (`tests/web/scripts/measure-performance.mjs`, `verify-hosting.mjs`) plus a new
+  `release-candidate.spec.ts` (tab switch, resize).
+- **Result:** initial payload **15.52 MiB gzip / 11.29 MiB Brotli** (gate < 30, target < 15), battle
+  floor 1 frame time **p95 7.10 ms** at 144 Hz (budget ≤ 20 ms), Wasm heap **79.81 MiB**, cold load
+  **≈3.1 s**; Release Playwright **21 passed / 1 skipped** (the clean rebuild's run had one camp pointer flake that re-ran 5/5), EditMode **207/207**, hosting **13/13**.
+  Browser stress at 300+500 is **NOT RUN** (a Release player has no injector) while the headless sim
+  measured **0 B/tick, p95 0.154 ms**; Firefox full suite and GPU memory are NOT RUN
+  ([report](../docs/stages/15-report.md), [performance](../docs/build/performance-report.md),
+  [known issues](../docs/release/known-issues.md)).
+- **Next:** browser stress under a labelled test artifact, a Firefox run, and the Stage 13 human
+  playtest.

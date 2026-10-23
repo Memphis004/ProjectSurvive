@@ -1,0 +1,74 @@
+<!--
+  Stage 15: what the managed linker must not remove from a release player.
+
+  The WebGL release candidate runs with Managed Stripping Level = High and IL2CPP
+  code generation = OptimizeSize (the `optimize-size` profile, ADR 0011 /
+  docs/build/size-baseline.md). Stripping is what makes the player small; it is
+  also the one setting that can remove a type nothing *statically* references
+  but the runtime looks up by name. This file is the allow-list for exactly the
+  assemblies where that can happen, and every entry names why.
+
+  Rules for editing this file:
+    * one assembly per block, with the reason in the comment above it;
+    * a new entry needs evidence (a failing release player, or code that resolves
+      a type by name), not caution — `preserve="all"` costs bytes in every build;
+    * the five packages named by the Stage 15 brief are the five reflection paths
+      the game actually reaches: Serilog-less config tables (Luban), the save
+      codecs (MessagePack), the external contract probe (Google.Protobuf), the
+      container (VContainer) and the UI state streams (R3).
+
+  The release gate that proves this list is enough is the browser suite run
+  against the *Release* player (`tools/test.ps1 -Suite Full -Release`): boot's
+  seven probes include the MessagePack and Protobuf round trips and the DI
+  resolution, and the persistence spec saves and reloads a real run through
+  IndexedDB, which is the path that deserialises a checkpoint.
+-->
+<linker>
+
+  <!--
+    Luban.Runtime - `StringUtil.ToString` walks an object's fields and properties
+    with reflection (`GetType().GetFields()`); the generated table rows are passed
+    to it when a config error is reported. It is diagnostics-only, but a stripped
+    copy would turn a config failure into a second failure while explaining the
+    first.
+  -->
+  <assembly fullname="Luban.Runtime" preserve="all" />
+
+  <!--
+    MessagePack - the formatters for the save DTOs are generated into
+    ProjectSurvive.Core.Contracts (source generator, direct references), but the
+    serializer resolves them through the resolver chain at runtime, and
+    `MessagePack.Annotations` holds the attributes that chain reads. Preserve the
+    runtime assembly rather than the generated one: the generated resolver is a
+    static reference from the codec, so it is not at risk.
+  -->
+  <assembly fullname="MessagePack" preserve="all" />
+  <assembly fullname="MessagePack.Annotations" preserve="all" />
+
+  <!--
+    Google.Protobuf - the generated `AppInfo` message is direct code, but
+    `FileDescriptor.FromGeneratedCode` builds descriptors by reflection over the
+    descriptor pool, which is what `AppInfo.Descriptor` touches at first use. Only
+    the external-contract probe uses it.
+  -->
+  <assembly fullname="Google.Protobuf" preserve="all" />
+
+  <!--
+    VContainer - registrations that name a type are resolved through constructors
+    found by reflection. The project registers with explicit factories (see
+    llmwiki/gotchas/il2cpp-di-and-reflection.md), so the resolution itself is not
+    reflection, but the container still reflects over registered types to build
+    its resolution cache and to format its own diagnostics.
+  -->
+  <assembly fullname="VContainer" preserve="all" />
+
+  <!--
+    R3 - subscription plumbing is generic code, but `ObservableTracker`/operator
+    diagnostics and the `[Preserve]`-driven observer types are reached through
+    reflection-free but generic instantiations that the linker cannot always see.
+    Keeping the assembly costs little and removes the "works in the Editor, throws
+    in the player" class of failure from the UI state layer.
+  -->
+  <assembly fullname="R3" preserve="all" />
+
+</linker>

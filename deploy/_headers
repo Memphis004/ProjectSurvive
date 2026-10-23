@@ -1,0 +1,38 @@
+# ProjectSurvive - response headers for the WebGL release candidate.
+#
+# Format: Netlify / Cloudflare Pages `_headers`. The same policy is implemented by
+# tools/serve-web.mjs and checked over HTTP by tests/web/scripts/verify-hosting.mjs;
+# docs/build/web-hosting.md explains each row.
+#
+# The build is shipped UNCOMPRESSED (Unity WebGLCompressionFormat = Disabled) and
+# delivered compressed by the host. Both of these platforms Brotli-compress static
+# text assets (including .js, .wasm and .data) automatically; if the deployment is
+# moved to a host that does not, run tools/compress-web.mjs and make sure it serves
+# the .br/.gz siblings with `Content-Encoding` and `Vary: Accept-Encoding`.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+
+# The entry point. A stale index.html makes a fresh deploy look like it did nothing.
+/index.html
+  Cache-Control: no-cache
+
+# Player files. Names are stable across builds (webGLNameFilesAsHashes: 0), so
+# they must be revalidated rather than cached as immutable.
+/Build/*
+  Cache-Control: no-cache
+
+# Template decoration around the canvas.
+/TemplateData/*
+  Cache-Control: public, max-age=3600
+
+# Build diagnostics describe one build; a cached copy is a lie.
+/build-info.json
+  Cache-Control: no-store
+
+/build-report.json
+  Cache-Control: no-store
+
+/compression-report.json
+  Cache-Control: no-store

@@ -375,6 +375,12 @@ namespace ProjectSurvive.Game.Presentation.Battle
                 _report.Write("kills", hud.Kills);
                 _report.Write("waveIndex", hud.WaveIndex);
                 _report.Write("remainingSeconds", hud.RemainingSeconds(BattleConstants.TickRate));
+
+                // Stage 15: the profiler's entity count, read from the frame the view drew. The
+                // report is throttled to one pass a second, so this is not a frame-path cost; it
+                // is published so a browser measurement can say which load a frame time belongs
+                // to instead of inferring it from the floor number.
+                _report.Write("entities", _view.Snapshot.CurrentCount);
             }
 
             if (_result is not null)

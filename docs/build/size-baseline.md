@@ -230,3 +230,56 @@ quoted as "assembly X costs Y kilobytes of `.wasm`".
    `"sizeProfilePlan": null`, and the settings it *actually* ran with — a build nobody configured
    must not look like one that was measured. Asserted by
    `WebSizeProfilesTests.A_build_with_no_profile_is_not_labelled_as_one`.
+
+## 8. Stage 15 — the release candidate re-measured
+
+Stage 03b's numbers describe the Stage 03 shell. Nine stages of content later
+(presentation, audio, save, settings, the tutorial, the test harness behind
+`#if DEVELOPMENT_BUILD`), the payload was measured again on the artifact that
+ships — the `optimize-size` Release player — because ADR 0011 §4a says a size
+figure is only a figure with its configuration recorded. It is:
+
+```
+tools/build-web.ps1 -ReleaseCandidate -Force     # optimize-size + restores ProjectSettings
+node tools/measure-web-size.mjs --dir UnityProject/Builds/Web --label release-candidate
+```
+
+| Build | `index.html` | `.loader.js` | `.framework.js` | `.wasm` | `.data` | **player total** |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Stage 03b `optimize-size` raw | 5,642 | 26,982 | 404,114 | 23,884,342 | 11,067,646 | **35,388,726 (33.75 MiB)** |
+| **Stage 15 RC raw** | 5,586 | 26,982 | 450,487 | 33,819,932 | 12,515,503 | **46,818,490 (44.65 MiB)** |
+| Stage 03b `optimize-size` gzip -9 | 2,147 | 9,326 | 85,084 | 8,646,096 | 5,027,987 | **13,770,640 (13.13 MiB)** |
+| **Stage 15 RC gzip -9** | 2,137 | 9,326 | 90,974 | 10,592,885 | 5,581,674 | **15.52 MiB** |
+| Stage 03b `optimize-size` Brotli q11 | 1,590 | 8,137 | 71,712 | 6,215,967 | 3,876,965 | **10,174,371 (9.70 MiB)** |
+| **Stage 15 RC Brotli q11** | 1,579 | 8,131 | 76,035 | 7,408,196 | 4,344,046 | **11.29 MiB** |
+
+Growth since Stage 03b, and where it came from:
+
+| Step | Raw | gzip -9 | Brotli q11 | Attribution |
+| --- | ---: | ---: | ---: | --- |
+| `optimize-size` → release candidate | **+11,429,764 B (+10.90 MiB)** | **+2.39 MiB** | **+1.59 MiB** | `.wasm` +9.47 MiB raw (the simulation, presentation, audio device, save/settings, R3/VContainer/UniTask use and the `link.xml` preservation list), `.data` +1.38 MiB raw (the R3/URP/audio content added since Stage 03) |
+
+Verdicts on the same two budgets:
+
+| Basis | Gate / target | Measured | Verdict |
+| --- | --- | ---: | --- |
+| gzip -9 | gate < 30 MiB | **15.52 MiB** | PASS (5.30 MiB unspent) |
+| Brotli q11 | target < 15 MiB | **11.29 MiB** | PASS (3.71 MiB unspent) |
+
+**Addressables were not added.** They are the answer to an initial download over
+budget; the payload is 48 % of the gzip gate and 75 % of the Brotli target. A
+network/streaming layer would be a new failure mode bought with no budget need.
+
+### The one asset lever taken
+
+The audit's *must-remove* asset was removed: `Assets/Resources/Fonts/THSarabunPSK`
+(8.6 MB on disk, non-OFL, referenced by nothing — measured in Stage 09d). A build
+with it and a build without differ by **171,415 B raw / 0.12 MiB gzip / 0.11 MiB
+Brotli** (`artifacts/stage15/rc-build-with-font/build-report.json` versus the
+shipped `build-report.json`). The saving is small; the reason to remove it was the
+licence, and the size is the measured side effect.
+
+The other Stage 03b levers (the TMP Examples import, the duplicate UI-Toolkit font
+asset, the UI Toolkit theme) are still in the payload. They are content/UI-stack
+decisions, and Stage 03b's report already records why they were left; nothing in
+Stage 15's budget requires taking them.

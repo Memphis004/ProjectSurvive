@@ -695,10 +695,19 @@ else {
             return @{ Status = 'NOT RUN'; Detail = 'a Unity Editor holds the project lock; close it and run the Full suite again (tools/build-web.ps1 cannot share a project)' }
         }
 
-        $build = Invoke-Native 'powershell' @(
-            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'build-web.ps1'),
-            '-Configuration', $script:WebConfiguration, '-Force'
+        # -Release in the harness means the artifact that ships: the `optimize-size` release
+        # candidate, not a plain Release build with the project's authored (Low) stripping.
+        # Stage 15: the browser gate has to run against the configuration ADR 0035 ships.
+        $buildArguments = @(
+            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'build-web.ps1')
         )
+        if ($script:WebConfiguration -eq 'Release') {
+            $buildArguments += @('-ReleaseCandidate', '-Force')
+        }
+        else {
+            $buildArguments += @('-Configuration', $script:WebConfiguration, '-Force')
+        }
+        $build = Invoke-Native 'powershell' $buildArguments
         Write-Artifact $script:DotnetDir 'web-build.log' $build.Output
 
         if ($build.Code -eq 2) {
@@ -780,6 +789,10 @@ else {
             )
             if ($script:WebConfiguration -eq 'Release') {
                 $specs += 'release.spec.ts'
+                # Stage 15: the desktop-browser behaviours a release candidate has to survive
+                # (background tab, resize). They assert on the Release player's own reports, so
+                # they are only asked for here.
+                $specs += 'release-candidate.spec.ts'
             }
             else {
                 $specs += 'harness.spec.ts'
@@ -841,6 +854,50 @@ else {
                 try { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue } catch { }
             }
         }
+    } | Out-Null
+
+    # Stage 15: the player is only as good as the server that hands it over. This produces the
+    # pre-compressed siblings the deployment serves and checks - over HTTP, never file:// - the
+    # encoding negotiation, content types, cache/ETag policy, the compressed payload budget, and
+    # that a browser reloads a redeployed file instead of keeping the old one.
+    Invoke-Step 'web: hosting (compression, headers, stale cache)' 'Full' {
+        if (-not $script:WebBuildOk) {
+            return @{ Status = 'NOT RUN'; Detail = 'the WebGL build step did not produce a player to serve' }
+        }
+        if (-not $node) {
+            return @{ Status = 'NOT RUN'; Detail = 'node is not on PATH' }
+        }
+
+        $testsDir = Join-Path $script:Root 'tests\web'
+        if (-not (Test-Path -LiteralPath (Join-Path $testsDir 'node_modules'))) {
+            return @{ Status = 'NOT RUN'; Detail = 'tests/web/node_modules is missing; run npm install in tests/web first' }
+        }
+
+        $compress = Invoke-Native $node @(
+            (Join-Path $PSScriptRoot 'compress-web.mjs'), '--dir', $script:WebRoot,
+            '--label', $script:WebConfiguration
+        ) $script:Root
+        Write-Artifact $script:DotnetDir 'compress-web.log' $compress.Output
+        if (-not $compress.Ok) {
+            return @{ Status = 'FAIL'; Detail = 'tools/compress-web.mjs could not write the pre-compressed siblings; see artifacts/dotnet/compress-web.log' }
+        }
+
+        $verify = Invoke-Native $node @(
+            (Join-Path $testsDir 'scripts\verify-hosting.mjs'), '--dir', $script:WebRoot,
+            '--port', ("$($script:WebPort + 1)")
+        ) $script:Root
+        $log = Write-Artifact $script:DotnetDir 'verify-hosting.log' $verify.Output
+
+        $failedChecks = 0
+        foreach ($line in @($verify.Output -split "`r?`n")) {
+            if ($line -match '\[FAIL\]') { $failedChecks += 1 }
+        }
+
+        if (-not $verify.Ok -or $failedChecks -gt 0) {
+            return @{ Status = 'FAIL'; Detail = ("{0} hosting checks failed; see artifacts/dotnet/verify-hosting.log" -f $failedChecks); Log = $log }
+        }
+
+        return @{ Status = 'PASS'; Detail = 'compression, headers and a redeploy served correctly over HTTP'; Log = $log }
     } | Out-Null
 }
 

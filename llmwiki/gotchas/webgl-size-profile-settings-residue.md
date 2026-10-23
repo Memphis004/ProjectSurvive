@@ -52,6 +52,20 @@ the project's own). Anything else in that block is a profile's residue.
 check `git diff` after every size-profile run. Rebuilding with the authored settings restored the
 player to a working state in Stage 08 with no other change.
 
+**What Stage 15 added so this cannot happen again.**
+
+- `tools/build-web.ps1 -ReleaseCandidate` is the release build and it **restores**
+  `ProjectSettings.asset` and `GraphicsSettings.asset` after Unity exits, so the profile's settings
+  live in `build-report.json` and not in the tree. `-SizeProfile <name> -RestoreProjectSettings` does
+  the same for any other measurement.
+- Every build now reads `build-report.json` back and compares `managedStrippingLevel`,
+  `il2cppCodeGeneration`, `exceptionSupport` and `sizeProfile` with what was requested. A build that
+  ran on a leftover profile prints `[FAIL] build settings match profile` and exits 1 — the residue
+  is caught at build time instead of at boot in a browser.
+- The authored pair (stripping **Low**, codegen **OptimizeSpeed**) is still what a plain
+  `-Configuration Release` build means; the release candidate is the `optimize-size` artifact and its
+  report says so ([ADR 0035](../../docs/adr/0035-the-release-candidate-configuration-and-its-numbers.md)).
+
 **The general shape.** A measurement tool that mutates the thing it measures has to say so
 loudly. [ADR 0011](../../docs/adr/0011-webgl-payload-budget-and-size-measurement.md) warns about
 this from the other side (a GUI Build click rewrites player settings); this is the same trap with

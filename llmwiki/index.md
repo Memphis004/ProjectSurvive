@@ -54,7 +54,8 @@ hand-written page that **restates** a skill's numbers raises a `balance_numbers`
 | Battle contract v1 (interfaces, fake, contract tests, the frame's cooldown list) | [`systems/battle-contract.md`](systems/battle-contract.md) | 02b, 08b | done |
 | Bot simulation + acceptance benchmark (kiting bot, greedy camp, balance CSV) | [`systems/battle-simulation.md#11-running-it`](systems/battle-simulation.md#11-running-it) | 07 | done |
 | Unity shell (scenes, DI, smoke suite, WebGL build, browser tests) | [`systems/unity-shell.md`](systems/unity-shell.md) | 03 | done |
-| WebGL payload size (profiles, measurement, per-assembly attribution) | [`../docs/build/size-baseline.md`](../docs/build/size-baseline.md) | 03b | done |
+| WebGL payload size (profiles, measurement, per-assembly attribution) | [`../docs/build/size-baseline.md`](../docs/build/size-baseline.md) | 03b, 15 | done |
+| Web release candidate: compression, hosting headers, cache policy, browser baseline | [`../docs/build/performance-report.md`](../docs/build/performance-report.md) + [`../docs/build/web-hosting.md`](../docs/build/web-hosting.md) | 15 | done |
 | Bag / Board placement, editing commands, undo/lock, the carried-item rule | [`systems/backpack.md`](systems/backpack.md) | 05, carried rule 09f | done |
 | Combo (synergy) evaluation + bag → battle loadout | [`systems/backpack.md#6-combos--synergyevaluator`](systems/backpack.md#6-combos--synergyevaluator) | 05 | done |
 | Shop / economy (wallet, `shop_pool`, stock per camp, re-roll ladder, clear reward) | [`systems/run-shop.md`](systems/run-shop.md) | 06, 07b | done |
@@ -81,6 +82,7 @@ report.
 | IL2CPP strips constructors reflection-only code needs | [`gotchas/il2cpp-di-and-reflection.md`](gotchas/il2cpp-di-and-reflection.md) | A VContainer registration that works in the Editor can fail in the player; register with factories |
 | Dynamic TMP font assets lose their tables at build time | [`gotchas/tmp-font-assets-in-builds.md`](gotchas/tmp-font-assets-in-builds.md) | The first Web build shipped a font asset with an empty character table; bake, then freeze to Static |
 | A GUI Build click rewrites player settings | [ADR 0011](../docs/adr/0011-webgl-payload-budget-and-size-measurement.md) | It applies platform profile defaults (`webGLNameFilesAsHashes`, compression, linear lighting) and regenerates the shared IL2CPP tree; only CLI `-SizeProfile` builds are evidence |
+| Player file names are not content-hashed | [`../docs/build/web-hosting.md`](../docs/build/web-hosting.md) §3 | `webGLNameFilesAsHashes: 0`, so `immutable` caching pins a returning player to an old build; serve `no-cache` + `ETag` |
 | Build size is meaningless without its basis | [ADR 0011](../docs/adr/0011-webgl-payload-budget-and-size-measurement.md) | The same player is 44.29 MiB raw, 15.53 MiB gzip or 10.87 MiB Brotli; a budget is on a compressed payload |
 | `TryAddCharacters`' return value is not coverage | [`gotchas/tmp-tryaddcharacters-lies.md`](gotchas/tmp-tryaddcharacters-lies.md) | A false return with the whole set "missing" usually means the face failed to load |
 | Luban 5.1 CLI: `--strict`, `__tables__.csv`, loader keys | [`gotchas/luban-5-strict-and-tables.md`](gotchas/luban-5-strict-and-tables.md) | Without `--strict` a broken `#ref` only warns and still exits 0; `#ref` cannot mean "optional" |

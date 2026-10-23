@@ -55,6 +55,18 @@
     Where the player is written; relative paths resolve against the repo root.
     Default: UnityProject/Builds/Web
 
+.PARAMETER ReleaseCandidate
+    The release candidate: `-SizeProfile optimize-size` plus `-RestoreProjectSettings`, in one
+    command. A profile build persists its settings into ProjectSettings.asset (see
+    llmwiki/gotchas/webgl-size-profile-settings-residue.md); restoring them afterwards means the
+    RC is reproducible with one command and the working tree is left clean, so the next ordinary
+    build cannot silently inherit a profile it never asked for.
+
+.PARAMETER RestoreProjectSettings
+    Back up ProjectSettings.asset and GraphicsSettings.asset before the build and put them back
+    after it. Only meaningful with -SizeProfile; the artifact still records the settings it was
+    built with in build-report.json.
+
 .PARAMETER NoWrite
     Do not write the build report under artifacts/.
 
@@ -80,6 +92,8 @@ param(
     [string]$OutputDirectory = 'UnityProject/Builds/Web',
     [switch]$Json,
     [switch]$NoWrite,
+    [switch]$ReleaseCandidate,
+    [switch]$RestoreProjectSettings,
     [switch]$Force
 )
 
@@ -93,6 +107,15 @@ $ArtifactsDir = Join-Path $RepoRoot 'artifacts'
 
 if (-not [System.IO.Path]::IsPathRooted($OutputDirectory)) {
     $OutputDirectory = Join-Path $RepoRoot $OutputDirectory
+}
+
+if ($ReleaseCandidate) {
+    if ($SizeProfile -and $SizeProfile -ne 'optimize-size') {
+        Write-Host "RESULT: ERROR - -ReleaseCandidate is the optimize-size profile; do not also pass -SizeProfile $SizeProfile" -ForegroundColor Red
+        exit 2
+    }
+    $SizeProfile = 'optimize-size'
+    $RestoreProjectSettings = $true
 }
 
 $script:Checks = New-Object System.Collections.Generic.List[object]
@@ -186,8 +209,34 @@ if ($SizeProfile) {
 }
 
 Write-Host ("  running: Unity.exe {0}" -f ($arguments -join ' ')) -ForegroundColor DarkGray
-$process = Start-Process -FilePath $editorPath -ArgumentList $arguments -Wait -PassThru -NoNewWindow
-$exitCode = $process.ExitCode
+
+# A profile build persists its settings (WebSizeProfiles.ApplyAndPersist runs inside the build
+# process). Restoring them here, after Unity has exited and written ProjectSettings, is what
+# closes the residue trap: the artifact keeps the configuration in build-report.json, the tree
+# keeps the authored one.
+$settingsToRestore = @('ProjectSettings/ProjectSettings.asset', 'ProjectSettings/GraphicsSettings.asset')
+$settingsBackup = @{}
+if ($RestoreProjectSettings -and $SizeProfile) {
+    foreach ($relative in $settingsToRestore) {
+        $source = Join-Path $ProjectPath $relative
+        if (Test-Path -LiteralPath $source) {
+            $settingsBackup[$relative] = [System.IO.File]::ReadAllBytes($source)
+        }
+    }
+}
+
+try {
+    $process = Start-Process -FilePath $editorPath -ArgumentList $arguments -Wait -PassThru -NoNewWindow
+    $exitCode = $process.ExitCode
+}
+finally {
+    if ($settingsBackup.Count -gt 0) {
+        foreach ($relative in $settingsBackup.Keys) {
+            [System.IO.File]::WriteAllBytes((Join-Path $ProjectPath $relative), $settingsBackup[$relative])
+        }
+        Add-Check 'player settings restored' 'PASS' ("{0} file(s) put back after the profile build" -f $settingsBackup.Count)
+    }
+}
 
 if ($exitCode -ne 0) {
     Add-Check 'unity build' 'FAIL' "exit $exitCode (see $logPath)"
@@ -213,6 +262,51 @@ if (Test-Path -LiteralPath $OutputDirectory) {
 
 $artifactOk = (Test-Path -LiteralPath $indexHtml) -and ($wasm.Count -gt 0)
 Add-Check 'player output' $(if ($artifactOk) { 'PASS' } else { 'FAIL' }) "index.html + $($wasm.Count) wasm file(s) in $OutputDirectory"
+
+# --- the settings the build actually ran with (Stage 15) -------------------
+# A size figure belongs to a configuration, and a build that ran with a profile's
+# leftover settings is not the configuration anybody asked for. Read the report the
+# build wrote and compare it with the requested profile; never infer it from the
+# file name or from what was applied in memory.
+$reportPath = Join-Path $OutputDirectory 'build-report.json'
+if (Test-Path -LiteralPath $reportPath) {
+    $buildReport = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+    if (-not $buildReport.PSObject.Properties['sizeSettings']) {
+        Add-Check 'build settings match profile' 'FAIL' 'build-report.json records no sizeSettings'
+        $buildReport = $null
+    }
+}
+
+if ($buildReport) {
+    $expected = @{
+        managedStrippingLevel = if (-not $SizeProfile -or $SizeProfile -eq 'baseline') { 'Low' } else { 'High' }
+        il2cppCodeGeneration = if (-not $SizeProfile -or $SizeProfile -in @('baseline', 'strip-high')) { 'OptimizeSpeed' } else { 'OptimizeSize' }
+        exceptionSupport      = if ($SizeProfile -eq 'minimal') { 'None' } else { 'ExplicitlyThrownExceptionsOnly' }
+    }
+
+    $mismatches = @()
+    foreach ($key in $expected.Keys) {
+        $actual = $buildReport.sizeSettings.$key
+        if ($actual -ne $expected[$key]) {
+            $mismatches += ("{0}: expected {1}, built with {2}" -f $key, $expected[$key], $actual)
+        }
+    }
+
+    $reportedProfile = if ($buildReport.sizeProfile) { $buildReport.sizeProfile } else { 'none' }
+    $requestedProfile = if ($SizeProfile) { $SizeProfile } else { 'none' }
+    if ($reportedProfile -ne $requestedProfile) {
+        $mismatches += ("sizeProfile: requested {0}, report says {1}" -f $requestedProfile, $reportedProfile)
+    }
+
+    if ($mismatches.Count -eq 0) {
+        Add-Check 'build settings match profile' 'PASS' ("{0}: stripping {1}, codegen {2}, exceptions {3}" -f $reportedProfile, $expected.managedStrippingLevel, $expected.il2cppCodeGeneration, $expected.exceptionSupport)
+    } else {
+        Add-Check 'build settings match profile' 'FAIL' ($mismatches -join '; ')
+        Write-Host "  (a profile's settings were left in ProjectSettings.asset - see llmwiki/gotchas/webgl-size-profile-settings-residue.md)" -ForegroundColor Yellow
+    }
+} else {
+    Add-Check 'build settings match profile' 'FAIL' 'the build wrote no build-report.json, so its configuration is unknown'
+}
 
 $buildInfoPath = Join-Path $OutputDirectory 'build-info.json'
 $buildInfo = $null
