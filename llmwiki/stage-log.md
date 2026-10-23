@@ -542,3 +542,21 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   `SceneFlowPlayModeTests.Twenty_camp_and_battle_visits_leave_nothing_behind_and_do_not_grow_the_heap`
   instead of a 22/47 ambient-log flake. The flake itself is unchanged and unfixed (docs §7).
 - **Next:** the scene-lifetime heap leak that the named case measures, then Stage 15.
+
+## Stage 14 follow-up — the heap case was a missing `AudioListener` (2026-10-23)
+
+- **Did:** moved the game's one `AudioListener` out of `AudioDirector.Awake` — where
+  `AddComponent<AudioListener>()` silently produced nothing, so the game had been *silent* — and authored
+  it into the Boot scene on the `Audio` child of the persisting app root; `WebGlBridge.Publish` now logs
+  `"<global> (<n> chars)"` instead of echoing whole report documents; `SceneFlowPlayModeTests` gained
+  `The_game_has_one_audio_listener_that_survives_every_scene_change`.
+- **Result:** the 20-visit heap case passes — `SceneFlowPlayModeTests` **6/6** in 49.9 s in the open
+  Editor — and what it had been measuring was ~1,750 retained "no audio listeners" warning lines per
+  camp/battle visit plus kilobytes of report JSON, not a surviving scope or ECS world. `-Suite Full` with
+  the Editor open is **PASS 21 | FAIL 2 | NOT RUN 2** (527.3 s): the two FAILs are the camp fixtures'
+  first-test pointer flake, reproduced at `HEAD` with this change stashed. Fast is **13 PASS / 0 FAIL / 3
+  NOT RUN** (97 s). Batch-mode PlayMode and the Web gate were not run (both need the Editor closed); see
+  the [report](../docs/stages/14-report.md) and the
+  [gotcha](gotchas/an-audio-listener-added-at-runtime-never-appears.md).
+- **Next:** the camp pointer flake (Stage 09b/09l) and the web half of the Full run, then Stage 15 and the
+  Stage 13 human playtest that nothing automated replaces.

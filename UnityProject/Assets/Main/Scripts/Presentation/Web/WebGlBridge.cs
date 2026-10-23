@@ -89,7 +89,15 @@ namespace ProjectSurvive.Game.Presentation.Web
         /// </summary>
         public static void Publish(string globalName, string json)
         {
-            Debug.Log("[ProjectSurvive] " + globalName + " = " + json);
+            // The payload is deliberately not logged here. A camp or battle report is several kilobytes
+            // and publishes on a timer (camp geometry, the floor's progress), so echoing it put
+            // megabytes into the Editor console and the browser console per session — and the
+            // PlayMode runner keeps every captured line, which is what the 20-visit heap case was
+            // measuring (200 KB of "managed growth" per camp/battle visit). The page global
+            // carries the document; this line says which one moved and how big it is. The smoke
+            // report is still logged in full: it is one small document per session and the verdict
+            // a reader wants at a glance.
+            Debug.Log("[ProjectSurvive] " + globalName + " (" + (json is null ? 0 : json.Length) + " chars)");
             ProjectSurvive_Publish(globalName, json);
         }
 

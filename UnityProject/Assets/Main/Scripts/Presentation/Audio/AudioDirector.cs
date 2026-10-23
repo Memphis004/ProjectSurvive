@@ -124,16 +124,6 @@ namespace ProjectSurvive.Game.Presentation.Audio
 
             Instance = this;
 
-            // Always on this object, never "somebody in the scene has one": this object is the one that
-            // persists (it is a child of the persisted app root), so a listener found *in a scene* would
-            // be unloaded with that scene and every playing source would then log "no audio listeners"
-            // once per frame. No authored scene carries a listener (Stage 13c-1), so there is still
-            // exactly one in the game.
-            if (GetComponent<AudioListener>() is null)
-            {
-                gameObject.AddComponent<AudioListener>();
-            }
-
             CreateVoices();
 
             if (_clips.Length > 0)

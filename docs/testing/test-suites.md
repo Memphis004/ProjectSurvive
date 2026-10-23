@@ -30,7 +30,7 @@ need to run, and the Web build moved behind the Full suite.
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 21 broken data sets rejected for the right reason |
 | `wiki: content reproducible` | Fast | `tools/verify-wiki.ps1` — `llmwiki/content/` regenerates byte-identically from `data/`, every relative link and anchor resolves, every data id has a section, no `systems/`/`gotchas/` orphan, and a WARN-only heuristic for hand-written pages that restate skill numbers |
 | `unity: EditMode` | Fast | 205 tests in `ProjectSurvive.Game.Tests.EditMode` (incl. the seven audio-asset cases, the two settings-bus cases, the five pause-overlay cases and the six harness-contract cases added in Stage 14) |
-| `unity: PlayMode` | **Full** | **one `run_tests --filter <Class>` per `*PlayModeTests.cs` fixture**, ten runs (see §7): 75 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control and settings panel, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
+| `unity: PlayMode` | **Full** | **one `run_tests --filter <Class>` per `*PlayModeTests.cs` fixture**, ten runs (see §7): 76 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control and settings panel, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force`; `build-info.json` and `build-report.json` are copied to `artifacts/web/` |
 | `web: Playwright (all specs)` | **Full** | every spec in `tests/web/` against that build, in Chrome: smoke, title, battle, camp, result, persistence, audio, pause, **and** `harness.spec.ts` (Development) or `release.spec.ts` (Release). The HTML report, failure screenshots/traces and a JSON result land in `artifacts/web/` |
 
@@ -285,7 +285,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `CampSynergyLinePlayModeTests` | 9 | **Stage 09j → 09l** — where a combo mark is drawn at all: a tome with a weapon on each of its four sides gets four lines, each running between the two pieces' middles (asserted against the drawn rectangles, at 1080p and at the 720p scale factor), every quarter turn keeps them, the names stay above, and the combo still shows on the tooltip and the highlight |
 | `CampMergeChooserPlayModeTests` | 4 | **Stage 09g** — the upgrade-choice window through real pointer/keyboard events: drag onto the twin opens it (measured geometry: the dim covers the canvas, the cards do not overlap), a tap on the second card upgrades in the same cell with that card's variant id, `Escape` and the back control close it with the run's hash byte-identical and the same cards offered again, the board behind it stays locked and no tooltip is drawn, and `2` picks the second card |
 | `CampWorldPlayModeTests` | 8 | WASD walking, the walk clamp, `E` at a shelf, clicking without walking |
-| `SceneFlowPlayModeTests` | 5 | **Stage 10a** — the whole loop through the real scenes: the purse, bag and HP that went into the arena come back out of it (same `RunSession` object, same seed), a settled floor writes `BattleResult.FinalHp` back into the run and heals only what the run's own settlement heals, leaving the arena disposes its `IBattleSession`, arriving at the title leaves no run scope and no scene scope behind, the loader refuses a second transition and a scene that is not built, and **20 camp/battle round trips** leave exactly one scene scope and one run scope each time and grow the managed heap by ≤ 3 MiB (measured: 0.70 MiB; [`artifacts/stage10/loop-memory.md`](../../artifacts/stage10/loop-memory.md)) |
+| `SceneFlowPlayModeTests` | 6 | **Stage 10a** — the whole loop through the real scenes: the purse, bag and HP that went into the arena come back out of it (same `RunSession` object, same seed), a settled floor writes `BattleResult.FinalHp` back into the run and heals only what the run's own settlement heals, leaving the arena disposes its `IBattleSession`, arriving at the title leaves no run scope and no scene scope behind, the loader refuses a second transition and a scene that is not built, and **20 camp/battle round trips** leave exactly one scene scope and one run scope each time and grow the managed heap by ≤ 3 MiB (measured: 0.70 MiB; [`artifacts/stage10/loop-memory.md`](../../artifacts/stage10/loop-memory.md)). **Stage 14** added the direct case the budget could only infer: `The_game_has_one_audio_listener_that_survives_every_scene_change` — exactly one enabled listener on the audio device's own object at the camp, after a departure into the arena, and at the title |
 | `ResultScenePlayModeTests` | 3 | **Stage 10b** — a lost floor lands on the summary screen and **Restart** starts a new run at floor 1 with the starting purse and an empty bag, a run can be won floor by floor and ends on the victory summary, and leaving the summary for the title leaves no run behind. **Stage 06b** extended the victory loop (the one case that really crosses camp → battle → camp in one run): shelf 0 is rented and shelf 1 pinned in the first sala, and the second sala's panel must be full, rent-free, unpinned and re-roll counter 0 |
 | `TitleScenePlayModeTests` | 5 | **Stage 10d** — the loop's first screen through the real scenes: Boot hands over and **stops** there (the scene marker, the absent run and the screen's own report are read after the handover the boot scene performed by itself), pressing เริ่มเล่น with the mouse starts a run and walks into the camp as **one** run and one scene scope on floor 1, `Enter` and `Space` reach the same control (the focus is asserted first, because "the key did nothing" and "the button was never focused" are different defects), a second press while the move is in flight is refused by the presenter and by the loader with its typed reason, and playing a run to its summary, going back to the title and pressing again starts a run that is **new** (floor 1, starting purse, the starting bag as a `RunSession` built from scratch on the same seed) |
 | `ShellPlayModeTests` | 5 | scene loading, the title, the Thai spike's two stacks, UniTask cancellation in play mode. **Note:** the assembly's bulk payload reports four of these five — `Thai_spike_scene_measures_both_stacks_without_missing_glyphs` was absent from the payload of every run since Stage 10 while the file still declares it (see §7) |
@@ -491,8 +491,30 @@ whole assembly's death warrant. Each fixture writes
 the aggregate table `artifacts/dotnet/unity-playmode-per-fixture.md`; a step's name carries the class, so
 a FAIL names the fixture that broke. Measured that day: **74/75 across ten fixtures**, the one failure
 `SceneFlowPlayModeTests.Twenty_camp_and_battle_visits_leave_nothing_behind_and_do_not_grow_the_heap` —
-a real defect, not the flake. Running the assembly in one go is still red, and is now something you do
-by hand:
+a real defect, not the flake.
+
+**That failure is fixed (2026-10-23, same day), and it was not a scene-lifetime leak.** The game had no
+`AudioListener` at all: the one `AudioDirector` added from `Awake` never appeared, so Unity logged
+"There are no audio listeners in the scene" once per frame for every playing source — ~1,750 lines per
+camp/battle visit, which the runner keeps. The listener is now authored into the Boot scene on the
+persisting `Audio` object ([gotcha](../../llmwiki/gotchas/an-audio-listener-added-at-runtime-never-appears.md)),
+and `WebGlBridge.Publish` logs a size line instead of echoing a multi-kilobyte report document. The case
+passes in the open Editor (`SceneFlowPlayModeTests` **6/6**, 49.9 s, the 20-visit case itself 41.9 s;
+[status](../../artifacts/stage14/sceneflow-6of6-status.json)), and the fixture gained a direct assertion —
+`The_game_has_one_audio_listener_that_survives_every_scene_change` — so the cause has a test of its own
+rather than only a byte budget.
+
+That run also showed the camp fixtures' own old flake in the one-fixture-per-run shape: `-Suite Full` with
+the Editor open measured **PASS 21 | FAIL 2 | NOT RUN 2** in 527.3 s
+([log](../../artifacts/stage14/full-after-listener-fix.log)), and both FAILs are the same thing —
+`CampBagDragPlayModeTests` 24/25 and `CampMergeChooserPlayModeTests` 3/4, each losing **one** test to
+`clicking จัดย่าม did not open the panel … aimed at (960.00, 254.00)`, with a different victim per run
+([rerun](../../artifacts/stage14/campmergechooser-rerun-status.json)). It is not this work: the same fixture
+on the same machine at `HEAD` (this change stashed) fails 24/25 with the same message
+([status](../../artifacts/stage14/head-campbagdrag-status.json)). The pointer never reaches the view on the
+first test of a run — the Stage 09b/09l trap the fixture's own comment records — and it is unresolved.
+The two NOT RUN steps are the web ones, which need the Editor closed. Running the assembly in one go is
+still red, and is still something you do by hand:
 
 ```powershell
 unity command run_tests --mode playmode --async_tests --filter CampBagDragPlayModeTests

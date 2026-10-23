@@ -52,7 +52,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **13c-1** | **Audio: generated CC0 clips, cue channels, the one audio device, Web autoplay + import settings** | **DONE** — see [`docs/stages/13c-1-report.md`](docs/stages/13c-1-report.md), [`llmwiki/systems/audio.md`](llmwiki/systems/audio.md) |
 | **13c-2a** | **Audio settings: music and effects buses, persisted, with a schema-2 read path** | **DONE** — see [`docs/stages/13c-2a-report.md`](docs/stages/13c-2a-report.md), [ADR 0034](docs/adr/0034-settings-schema-and-per-bus-volume.md) |
 | **13c-2b** | **Pause overlay: freeze the floor, resume, or leave for the camp** | **CODE DONE** — PlayMode could not run; see [`docs/stages/13c-2b-report.md`](docs/stages/13c-2b-report.md) |
-| **14** | **Test harness & CI (development-only WebBridge, Playwright, `tools/ci.ps1`)** | **CODE DONE** — the PlayMode heap case fails and predates the stage; see [`docs/stages/14-report.md`](docs/stages/14-report.md) |
+| **14** | **Test harness & CI (development-only WebBridge, Playwright, `tools/ci.ps1`)** | **DONE** — the 20-visit heap case was not a leak but a missing `AudioListener` (its per-frame warning was what the runner measured), fixed 2026-10-23; see [`docs/stages/14-report.md`](docs/stages/14-report.md) |
 | 15 | Web release candidate | not started |
 
 **Current state:** Stages 00–10, plus **09k-data** (one word in `data/`: the tome combo is

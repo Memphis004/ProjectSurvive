@@ -16,9 +16,16 @@ outcome to a `Play()` call, and the rules a new sound has to obey to join it.
 `AudioDirector` preallocates eight `AudioSource` voices plus one looping music source in
 `Awake` and reuses them round-robin. A cue is an `int++` and a `Play()`: no
 `PlayClipAtPoint`, no `AudioSource` created per hit, no `Instantiate` (AGENTS rule 8 — a
-floor-1 wave lands dozens of hits a second). It also adds the game's only `AudioListener`
-if the scene has none; a listener per scene is how a project ends up with Unity's two-listener
-warning on every load.
+floor-1 wave lands dozens of hits a second).
+
+`AudioListener` is **authored in the Boot scene**, on the same `Audio` child the device sits on,
+so it is in the scene data before the first frame and rides with that object into
+`DontDestroyOnLoad` (Stage 14, 2026-10-23). It is not added at runtime: a listener added from
+`AudioDirector.Awake` — and, measured, from `Start` too — never appeared, so the game was silent and
+Unity logged "There are no audio listeners in the scene" once per frame per playing source. That
+flood was most of what the 20-visit PlayMode heap case measured; see
+[the gotcha](../gotchas/an-audio-listener-added-at-runtime-never-appears.md). Every other scene
+authors none, so there is still exactly one listener in the game.
 
 Two counters make the mix observable instead of guessable, and both are published:
 `stolen` (every voice was busy, so a playing one was taken) and `throttled` (the same cue

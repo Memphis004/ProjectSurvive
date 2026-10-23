@@ -52,8 +52,17 @@ namespace ProjectSurvive.Game.Editor
             // Stage 13c-1: the game's one audio device. It is a child of the app root, which Boot
             // moves into DontDestroyOnLoad, so music survives a scene change and the game has
             // exactly one AudioListener for the whole session.
+            //
+            // The listener is **authored here** rather than added by AudioDirector at runtime:
+            // a listener the component added from Awake (and from Start) never appeared, so the
+            // game ran silent and Unity logged "There are no audio listeners in the scene" once
+            // per frame for every playing source — ~1,750 lines per camp/battle visit, which the
+            // PlayMode runner keeps in memory. In the scene data it exists before the first frame
+            // and travels with the object into DontDestroyOnLoad. Measured after this change:
+            // zero warnings over a full 20-visit loop.
             var audioObject = new GameObject("Audio");
             audioObject.transform.SetParent(root.transform, worldPositionStays: false);
+            audioObject.AddComponent<AudioListener>();
             AudioDirector audio = audioObject.AddComponent<AudioDirector>();
             ProjectSetup.SetObjectReference(audio, "_scope", scope);
             ProjectSetup.SetObjectArray(audio, "_clips", ProjectSetup.LoadAudioClips());

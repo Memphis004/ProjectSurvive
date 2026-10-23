@@ -5,6 +5,7 @@ using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Camp;
+using ProjectSurvive.Game.Presentation.Audio;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.Flow;
@@ -210,6 +211,61 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(
                 SceneFlowHarness.Owner().HasRun, Is.False,
                 "the App scope still holds a run at the title");
+        }
+
+        /// <summary>
+        /// The game has exactly one <see cref="AudioListener"/>, on the audio device's own object,
+        /// and it is still there after a camp → battle → title walk.
+        /// </summary>
+        /// <remarks>
+        /// The listener is authored into the Boot scene on the app root that is carried into
+        /// <c>DontDestroyOnLoad</c>. That is a fix, not a detail: the game used to let
+        /// <c>AudioDirector</c> add its own listener from <c>Awake</c>, the component never appeared,
+        /// and the resulting "There are no audio listeners in the scene" warning — once per frame per
+        /// playing source — was most of what the 20-visit heap case was measuring. This is the direct
+        /// assertion; the 20-loop keeps the byte budget that the flood used to blow through.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator The_game_has_one_audio_listener_that_survives_every_scene_change()
+        {
+            yield return SceneFlowHarness.EnterCamp();
+            AssertOneListener("camp");
+
+            // The camp's own departure, so the walk is the one the player takes.
+            var camp = SceneFlowHarness.Find<CampSceneDirector>();
+            camp.Presenter.Depart();
+            yield return SceneFlowHarness.WaitForScene(SceneFlowHarness.BattleSceneName);
+            yield return SceneFlowHarness.WaitForIdle(SceneFlowHarness.Loader());
+
+            var battle = SceneFlowHarness.Find<BattleSceneDirector>();
+            yield return WaitForFloorToStart(battle);
+            AssertOneListener("battle");
+
+            SceneLoader loader = SceneFlowHarness.Loader();
+            Assert.That(loader.TryGo(SceneId.Title), Is.True, "the title was refused: " + loader.LastError);
+            yield return SceneFlowHarness.WaitForScene(SceneFlowHarness.TitleSceneName);
+            yield return SceneFlowHarness.WaitForIdle(loader);
+
+            AssertOneListener("title");
+        }
+
+        /// <summary>
+        /// Fails unless there is exactly one enabled listener and it belongs to the audio device —
+        /// the object the shell persists, rather than one a scene brought with it.
+        /// </summary>
+        private static void AssertOneListener(string where)
+        {
+            AudioListener[] listeners = Object.FindObjectsByType<AudioListener>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+            Assert.That(
+                listeners.Length, Is.EqualTo(1),
+                "the " + where + " screen has " + listeners.Length + " audio listeners");
+            Assert.That(listeners[0].enabled, Is.True, "the listener on the " + where + " screen is disabled");
+            Assert.That(AudioDirector.Instance, Is.Not.Null, "there is no audio device on the " + where + " screen");
+            Assert.That(
+                listeners[0].gameObject, Is.EqualTo(AudioDirector.Instance.gameObject),
+                "the listener on the " + where + " screen is not on the game's audio device");
         }
 
         /// <summary>

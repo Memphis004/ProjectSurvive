@@ -10,9 +10,12 @@ screens use**, and it is compiled out of a Release player — `tests/web/release
 absence out of the build that would ship. Playwright now waits for each screen's published handshake
 instead of sleeping, and every spec fails on a `console.error` or a `pageerror`.
 
-The one thing this stage did not fix is the PlayMode suite's own two old wounds: a 20-visit heap case
-that fails in every environment (measured at 5.07 MB against a 3 MB limit) and a bulk-run flake caused
-by Unity's ambient log asserts. Both are classified below with evidence, not waved past.
+The PlayMode suite's 20-visit heap case failed in every environment at the time (5.07 MB against a
+3 MB limit) and a bulk run still dies on Unity's ambient log asserts. Both are classified below with
+evidence, not waved past — and the heap case turned out not to be a leak at all: it was **fixed on
+2026-10-23** by authoring the game's `AudioListener` into the Boot scene instead of adding it at
+runtime (the game had been silent, and Unity's per-frame "no audio listeners" warning — kept by the
+PlayMode runner — was what the case measured).
 
 ## Acceptance
 
@@ -55,11 +58,41 @@ by Unity's ambient log asserts. Both are classified below with evidence, not wav
 | Battle / MergeChooser / ShelfTooltip / CampWorld / ResultScene / TitleScene | 6+4+5+9+3+5 — all pass | not re-run |
 | CampBagDrag | 24 / 25 — the layout case reads a 640×480 Game View | **25 / 25** |
 | CampSynergyLine | 8 / 9 — same cause | **9 / 9** |
-| SceneFlow | **4 / 5** — 20-visit heap case, 17,764,352 B batch / 5,066,752 B open, limit 3,145,728 B | **4 / 5** |
+| SceneFlow | **4 / 5** then — 20-visit heap case, 17,764,352 B batch / 5,066,752 B open, limit 3,145,728 B; **6 / 6** after the listener fix (2026-10-23, 49.8 s) | **4 / 5** then, **6 / 6** now |
 | Shell | 0 cases reported (the framework quirk §7 has recorded since Stage 10) | 0 |
 
 The heap case is **not** this stage's: with the harness install commented out of `SceneBoot` the heap
 still grew by 5,865,472 B. It belongs to the stage that owns the camp/battle scene lifetimes.
+
+### The heap case, resolved (2026-10-23)
+
+There was no scene-lifetime leak left to find: the camp/battle loop already left one scope and one run
+scope per visit, and the session was disposed. The heap was growing from **log lines the runner keeps**:
+
+- The game had **no `AudioListener`**. `AudioDirector` added one from `Awake`; the component never
+  appeared, so Unity logged "There are no audio listeners in the scene" once per frame for every
+  playing source — ~1,750 retained lines per camp/battle visit, i.e. a megabyte of strings.
+- `WebGlBridge.Publish` echoed every report document to the console. A camp or battle report is
+  kilobytes and republishes on a timer.
+
+The listener is now authored into the Boot scene on the `Audio` child of the persisting app root
+(`BootSceneBuilder`), so it exists before the first frame and travels into `DontDestroyOnLoad`;
+`Publish` logs `"<global> (<n> chars)"` instead of the document (the smoke report is still logged in
+full — one small document per session). The fixture gained a direct case,
+`The_game_has_one_audio_listener_that_survives_every_scene_change` (exactly one enabled listener, on
+the audio device's own object, at the camp, in the arena and at the title), so the cause has its own
+test rather than only a byte budget. Measured in the open Editor: `SceneFlowPlayModeTests` **6/6** in
+49.9 s, the 20-visit case itself 41.9 s ([status](../../artifacts/stage14/sceneflow-6of6-status.json),
+[Full log](../../artifacts/stage14/full-after-listener-fix.log)). The batch-mode number was not
+re-measured (batch PlayMode needs the Editor closed).
+
+`-Suite Full` with the Editor open is then **PASS 21 | FAIL 2 | NOT RUN 2** in 527.3 s: the two NOT RUN
+steps are the web ones (they refuse to share the project with a running Editor), and the two FAILs are
+the camp fixtures' pre-existing first-test pointer flake — `CampBagDragPlayModeTests` 24/25 and
+`CampMergeChooserPlayModeTests` 3/4, one test each, `clicking จัดย่าม did not open the panel` with a
+different victim per run. It reproduces at `HEAD` with this change stashed (24/25, same message;
+[status](../../artifacts/stage14/head-campbagdrag-status.json)), so it is not a regression from this
+fix; it is the Stage 09b/09l input-module trap and is still open.
 
 ## Not tested, and risks
 
@@ -75,7 +108,7 @@ still grew by 5,865,472 B. It belongs to the stage that owns the camp/battle sce
   (74/75 across ten fixtures) — the scene-lifetime leak below, not the flake
   ([log](../../artifacts/stage14/full-per-fixture.log),
   [per-fixture table](../../artifacts/dotnet/unity-playmode-per-fixture.md)). The Release/Playwright half
-  still needs its own run, and the leak is still open.
+  still needs its own run. The leak that FAIL named is **closed** (see “The heap case, resolved”).
 - **PlayMode batch mode**: the two layout cases need a 1080p-or-larger Game View, which `unity test`
   cannot be given. They pass in the open Editor, which is where all earlier stages measured them.
 - **Firefox full suite: NOT RUN** — installed and smoke-probed only.
@@ -95,10 +128,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci.ps1 -Job Build,Web 
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci.ps1 -Job Build,Web -Configuration Development
 unity test UnityProject --mode PlayMode --filter <each *PlayModeTests class>
 unity command run_tests --mode editor --filter HarnessBridgeTests
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -Suite Full   # after the listener fix
 ```
 
 ## Outcome
 
-**CODE DONE, gate 14 green on Chrome + Release.** The PlayMode heap failure predates this stage and
-is recorded as a FAIL to be fixed by the stage that owns the scene lifetimes; the WebGL/Playwright
-gate itself returned 0.
+**DONE, gate 14 green on Chrome + Release.** The WebGL/Playwright gate returned 0. The PlayMode heap
+failure that outlived the first pass was not a scene-lifetime leak: it was a missing `AudioListener`
+whose per-frame warning the runner kept in memory, plus whole report documents echoed to the console.
+Both are fixed, the listener has its own PlayMode case, and `SceneFlowPlayModeTests` is **6/6**
+([log](../../artifacts/stage14/full-after-listener-fix.log)). The bulk-run ambient-log flake is
+unchanged and is worked around by running one fixture per test run (§7 of the suite doc).
