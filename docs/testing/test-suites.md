@@ -504,17 +504,29 @@ passes in the open Editor (`SceneFlowPlayModeTests` **6/6**, 49.9 s, the 20-visi
 `The_game_has_one_audio_listener_that_survives_every_scene_change` — so the cause has a test of its own
 rather than only a byte budget.
 
-That run also showed the camp fixtures' own old flake in the one-fixture-per-run shape: `-Suite Full` with
-the Editor open measured **PASS 21 | FAIL 2 | NOT RUN 2** in 527.3 s
-([log](../../artifacts/stage14/full-after-listener-fix.log)), and both FAILs are the same thing —
-`CampBagDragPlayModeTests` 24/25 and `CampMergeChooserPlayModeTests` 3/4, each losing **one** test to
-`clicking จัดย่าม did not open the panel … aimed at (960.00, 254.00)`, with a different victim per run
-([rerun](../../artifacts/stage14/campmergechooser-rerun-status.json)). It is not this work: the same fixture
-on the same machine at `HEAD` (this change stashed) fails 24/25 with the same message
-([status](../../artifacts/stage14/head-campbagdrag-status.json)). The pointer never reaches the view on the
-first test of a run — the Stage 09b/09l trap the fixture's own comment records — and it is unresolved.
-The two NOT RUN steps are the web ones, which need the Editor closed. Running the assembly in one go is
-still red, and is still something you do by hand:
+That run also brought out the camp fixtures' own old flake in the one-fixture-per-run shape:
+`-Suite Full` with the Editor open measured **PASS 21 | FAIL 2 | NOT RUN 2** in 527.3 s
+([log](../../artifacts/stage14/full-after-listener-fix.log)) — `CampBagDragPlayModeTests` 24/25 and
+`CampMergeChooserPlayModeTests` 3/4, each losing **one** test to `clicking จัดย่าม did not open the panel …
+drag previews 0`, with a different victim per run, and reproduced at `HEAD`
+([status](../../artifacts/stage14/head-campbagdrag-status.json)).
+
+**Diagnosed and fixed (same day).** The pointer was never withheld by the fixture: the UI module drops
+every pointer while the Game View does not have focus — `InputSystemUIInputModule.Process()` returns
+early when `!eventSystem.isFocused && !shouldIgnoreFocus` — and a run started from a terminal has no
+focus. The module stayed enabled, its point action read `Performed`, and a raycast the test performed
+itself found the button, which is why every earlier explanation (hook given up, device missing, dropped
+frame) was wrong. Both camp fixtures now set
+`InputSystem.settings.backgroundBehavior = IgnoreFocus` in `Setup` and restore it in `TearDown`
+([gotcha](../../llmwiki/gotchas/ui-pointer-events-need-focus.md)), and wait until
+`EventSystem.IsPointerOverGameObject()` is true before clicking, so a failure names that instead of
+"nothing happened". Measured: three runs of each fixture afterwards, **29/29 every run**
+([drag](../../artifacts/stage14/pointer-fix-campbagdrag-status.json),
+[chooser](../../artifacts/stage14/pointer-fix-campmergechooser-status.json)). `-Suite Full` with the
+Editor open is now **PASS 23 | FAIL 0 | NOT RUN 2** in 526.6 s, exit 0
+([log](../../artifacts/stage14/full-after-pointer-fix.log)); the two NOT RUN steps are the web ones,
+which need the Editor closed. Running the assembly in one go is still red, and is still something you
+do by hand:
 
 ```powershell
 unity command run_tests --mode playmode --async_tests --filter CampBagDragPlayModeTests

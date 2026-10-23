@@ -86,13 +86,21 @@ test rather than only a byte budget. Measured in the open Editor: `SceneFlowPlay
 [Full log](../../artifacts/stage14/full-after-listener-fix.log)). The batch-mode number was not
 re-measured (batch PlayMode needs the Editor closed).
 
-`-Suite Full` with the Editor open is then **PASS 21 | FAIL 2 | NOT RUN 2** in 527.3 s: the two NOT RUN
+`-Suite Full` with the Editor open was then **PASS 21 | FAIL 2 | NOT RUN 2** in 527.3 s: the two NOT RUN
 steps are the web ones (they refuse to share the project with a running Editor), and the two FAILs are
-the camp fixtures' pre-existing first-test pointer flake — `CampBagDragPlayModeTests` 24/25 and
+the camp fixtures' pre-existing pointer flake — `CampBagDragPlayModeTests` 24/25 and
 `CampMergeChooserPlayModeTests` 3/4, one test each, `clicking จัดย่าม did not open the panel` with a
 different victim per run. It reproduces at `HEAD` with this change stashed (24/25, same message;
-[status](../../artifacts/stage14/head-campbagdrag-status.json)), so it is not a regression from this
-fix; it is the Stage 09b/09l input-module trap and is still open.
+[status](../../artifacts/stage14/head-campbagdrag-status.json)), so it was not a regression from this
+fix — and it is now **closed** as well: the module drops every pointer while the Game View is unfocused
+(`InputSystemUIInputModule.Process()`'s `!eventSystem.isFocused && !shouldIgnoreFocus` gate), which a run
+started from a terminal always is. Both camp fixtures set
+`InputSystem.settings.backgroundBehavior = IgnoreFocus` (restored in `TearDown`) and wait for
+`IsPointerOverGameObject()` before clicking. Three runs of each fixture afterwards: **29/29 every run**
+([drag](../../artifacts/stage14/pointer-fix-campbagdrag-status.json),
+[chooser](../../artifacts/stage14/pointer-fix-campmergechooser-status.json)), and `-Suite Full` with the
+Editor open is **PASS 23 | FAIL 0 | NOT RUN 2** in 526.6 s, exit 0
+([log](../../artifacts/stage14/full-after-pointer-fix.log)).
 
 ## Not tested, and risks
 
@@ -107,8 +115,11 @@ fix; it is the Stage 09b/09l input-module trap and is still open.
   `SceneFlowPlayModeTests.Twenty_camp_and_battle_visits_leave_nothing_behind_and_do_not_grow_the_heap`
   (74/75 across ten fixtures) — the scene-lifetime leak below, not the flake
   ([log](../../artifacts/stage14/full-per-fixture.log),
-  [per-fixture table](../../artifacts/dotnet/unity-playmode-per-fixture.md)). The Release/Playwright half
-  still needs its own run. The leak that FAIL named is **closed** (see “The heap case, resolved”).
+  [per-fixture table](../../artifacts/dotnet/unity-playmode-per-fixture.md)). The leak that FAIL named is
+  **closed** (see “The heap case, resolved”), the camp pointer flake is closed too
+  ([gotcha](../../llmwiki/gotchas/ui-pointer-events-need-focus.md)), and `-Suite Full` with the Editor
+  open is **PASS 23 | FAIL 0 | NOT RUN 2** in 526.6 s, exit 0. The Release/Playwright half still needs
+  a run with the Editor closed.
 - **PlayMode batch mode**: the two layout cases need a 1080p-or-larger Game View, which `unity test`
   cannot be given. They pass in the open Editor, which is where all earlier stages measured them.
 - **Firefox full suite: NOT RUN** — installed and smoke-probed only.

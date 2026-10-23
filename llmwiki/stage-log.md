@@ -552,11 +552,16 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   `The_game_has_one_audio_listener_that_survives_every_scene_change`.
 - **Result:** the 20-visit heap case passes — `SceneFlowPlayModeTests` **6/6** in 49.9 s in the open
   Editor — and what it had been measuring was ~1,750 retained "no audio listeners" warning lines per
-  camp/battle visit plus kilobytes of report JSON, not a surviving scope or ECS world. `-Suite Full` with
-  the Editor open is **PASS 21 | FAIL 2 | NOT RUN 2** (527.3 s): the two FAILs are the camp fixtures'
-  first-test pointer flake, reproduced at `HEAD` with this change stashed. Fast is **13 PASS / 0 FAIL / 3
-  NOT RUN** (97 s). Batch-mode PlayMode and the Web gate were not run (both need the Editor closed); see
-  the [report](../docs/stages/14-report.md) and the
+  camp/battle visit plus kilobytes of report JSON, not a surviving scope or ECS world. Fast is **13 PASS
+  / 0 FAIL / 3 NOT RUN** (97 s); see the [report](../docs/stages/14-report.md) and the
   [gotcha](gotchas/an-audio-listener-added-at-runtime-never-appears.md).
-- **Next:** the camp pointer flake (Stage 09b/09l) and the web half of the Full run, then Stage 15 and the
+- **Also (same day):** the camp fixtures' long-recorded "pointer never reached the view" flake was the UI
+  module's **focus gate**, not a hook or a dropped frame — `InputSystemUIInputModule.Process()` skips
+  every pointer while the Game View is unfocused and `InputTestRuntime.runInBackground` is false, so a run
+  started from a terminal has no UI input at all. Both camp fixtures now set
+  `InputSystem.settings.backgroundBehavior = IgnoreFocus` (restored in `TearDown`) and wait for
+  `IsPointerOverGameObject()`; three runs of each were **29/29**, and `-Suite Full` with the Editor open
+  is **PASS 23 | FAIL 0 | NOT RUN 2** in 526.6 s
+  ([gotcha](gotchas/ui-pointer-events-need-focus.md)).
+- **Next:** the web half of the Full run (WebGL build + Playwright, Editor closed), then Stage 15 and the
   Stage 13 human playtest that nothing automated replaces.

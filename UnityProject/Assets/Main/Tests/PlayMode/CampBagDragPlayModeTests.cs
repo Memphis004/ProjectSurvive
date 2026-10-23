@@ -84,6 +84,9 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         private PieceRef _basket;
         private PieceRef _clothBag;
 
+        /// <summary>Input settings as this fixture found them, restored in <see cref="TearDown"/>.</summary>
+        private InputSettings.BackgroundBehavior _backgroundBehavior;
+
         public override void Setup()
         {
             base.Setup();
@@ -92,6 +95,25 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             // Stage 09m: Escape is one of the gestures a colour must survive, and the screen reads it
             // through <c>Keyboard.current</c>, so the fixture needs a device to press.
             _keyboard = InputSystem.AddDevice<Keyboard>();
+
+            // `InputSystemUIInputModule.Process()` returns before touching any pointer state when
+            // `!eventSystem.isFocused && !shouldIgnoreFocus` (read in the installed package), and
+            // `shouldIgnoreFocus` is `InputSystem.settings.backgroundBehavior == IgnoreFocus` or the
+            // runtime's own `runInBackground`. Under `InputTestFixture` the runtime is an
+            // `InputTestRuntime`, whose `runInBackground` is false and not reachable from here — so the
+            // gate stayed shut whenever the Game View did not have focus, which a run started from a
+            // terminal does not: the module stayed enabled and active, its point action read
+            // `Performed`, a raycast found the button, and yet `IsPointerOverGameObject()` was false and
+            // every click did nothing. That is the "pointer never reached the view" flake of 09b/09l,
+            // measured as one failed test per run on 2026-10-23 and reproduced at `HEAD`.
+            _backgroundBehavior = InputSystem.settings.backgroundBehavior;
+            InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
+        }
+
+        public override void TearDown()
+        {
+            InputSystem.settings.backgroundBehavior = _backgroundBehavior;
+            base.TearDown();
         }
 
         /// <summary>
@@ -179,18 +201,18 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 _bag.TryGetButtonScreenPoint(CampBagButton.Open, out Vector2 toggle), Is.True,
                 "the จัดย่าม button is not on screen");
 
+            yield return AimAtPanelButton(toggle);
             yield return Click(toggle);
 
             if (!_bag.PanelVisible)
             {
-                // Stage 09l, measured: a run can start with no pointer at all reaching the screen —
-                // the aim is the button's own published point (960,254) and neither a click nor a
-                // single drag preview arrives. Two clicks in a row, a re-added Mouse device and a
-                // disabled-then-enabled module all failed to change it, so this is the first test of a
-                // run losing the input module's hook (the Stage 09b ordering trap, one level up), not a
-                // dropped frame. One more click is all a test can do; if the panel still does not open,
-                // the message says the pointer never reached the view, and 09l's report records it.
+                // Stage 09l saw a run start with no pointer at all reaching the screen — the aim is the
+                // button's own published point (960,254) and neither a click nor a single drag preview
+                // arrived, with two clicks, a re-added Mouse device and a re-enabled module all failing
+                // to change it. Stage 14's follow-up named the cause (Game View focus, above) and the
+                // module now processes every frame; the retry stays because a click is still a click.
                 Canvas.ForceUpdateCanvases();
+                yield return AimAtPanelButton(toggle);
                 yield return Click(toggle);
             }
 
@@ -200,7 +222,8 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 _bag.PanelVisible, Is.True,
                 "clicking จัดย่าม did not open the panel: aimed at " + toggle + ", the button now reads "
                 + (again ? after.ToString() : "nothing") + ", drag previews "
-                + _director.Presenter.Counters.DragPreviews);
+                + _director.Presenter.Counters.DragPreviews + ", the pointer "
+                + (PointerSeesUi() ? "is" : "is not") + " over the UI");
             Assert.That(_bag.BoardWidth, Is.GreaterThan(0), "the board never rendered its cells");
         }
 
@@ -1955,6 +1978,29 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         // ------------------------------------------------------------------
         // pointer helpers
         // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Aims the pointer at <paramref name="point"/> and waits until the EventSystem sees it.
+        /// </summary>
+        /// <remarks>
+        /// The wait is what makes a failure readable: the module is enabled and reads its point action
+        /// either way, so "the pointer is not over the UI" is the only thing a click can be missing, and
+        /// it is in the message below. The focus that used to withhold it is handled in
+        /// <see cref="LoadCamp"/>; no attempt here can recover from it, which is why there is no retry.
+        /// </remarks>
+        private IEnumerator AimAtPanelButton(Vector2 point)
+        {
+            Set(_mouse.position, point);
+
+            for (int frame = 0; frame < 30 && !PointerSeesUi(); frame++)
+            {
+                yield return null;
+            }
+        }
+
+        /// <summary>True when the EventSystem's own pointer raycast is over a UI object.</summary>
+        private static bool PointerSeesUi() =>
+            EventSystem.current is not null && EventSystem.current.IsPointerOverGameObject();
 
         /// <summary>Press, move across the cells, release — one frame per step.</summary>
         private IEnumerator Drag(Vector2 from, Vector2 to)

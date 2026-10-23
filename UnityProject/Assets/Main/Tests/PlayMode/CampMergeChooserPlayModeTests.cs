@@ -54,11 +54,28 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         private CampBagScreenView _bag;
         private CampTooltipView _tooltip;
 
+        /// <summary>Input settings as this fixture found them, restored in <see cref="TearDown"/>.</summary>
+        private InputSettings.BackgroundBehavior _backgroundBehavior;
+
         public override void Setup()
         {
             base.Setup();
             _mouse = InputSystem.AddDevice<Mouse>();
             _keyboard = InputSystem.AddDevice<Keyboard>();
+
+            // The UI module drops every pointer while the Game View does not have focus (see
+            // `CampBagDragPlayModeTests.Setup`, which reads the gate in the installed package); a run
+            // started from a terminal has no focus, so the จัดย่าม click that opens this fixture's panel
+            // never arrived. `IgnoreFocus` is the switch that gate honours under `InputTestFixture`,
+            // whose runtime does not follow `Application.runInBackground`.
+            _backgroundBehavior = InputSystem.settings.backgroundBehavior;
+            InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
+        }
+
+        public override void TearDown()
+        {
+            InputSystem.settings.backgroundBehavior = _backgroundBehavior;
+            base.TearDown();
         }
 
         // ------------------------------------------------------------------
@@ -329,6 +346,10 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         // fixture
         // ------------------------------------------------------------------
 
+        /// <summary>True when the EventSystem's own pointer raycast is over a UI object.</summary>
+        private static bool PointerSeesUi() =>
+            EventSystem.current is not null && EventSystem.current.IsPointerOverGameObject();
+
         /// <summary>Loads the Camp scene, starts it, and opens the จัดย่าม panel the way a player does.</summary>
         private IEnumerator LoadCamp()
         {
@@ -372,7 +393,10 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             yield return Click(toggle);
 
-            Assert.That(_bag.PanelVisible, Is.True, "clicking จัดย่าม did not open the panel");
+            Assert.That(
+                _bag.PanelVisible, Is.True,
+                "clicking จัดย่าม did not open the panel; the pointer "
+                + (PointerSeesUi() ? "is" : "is not") + " over the UI");
             Assert.That(_bag.BoardWidth, Is.GreaterThan(0), "the board never rendered its cells");
         }
 
