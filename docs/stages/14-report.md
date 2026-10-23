@@ -63,10 +63,19 @@ still grew by 5,865,472 B. It belongs to the stage that owns the camp/battle sce
 
 ## Not tested, and risks
 
-- **`tools/test.ps1 -Suite Full` as one command: NOT RUN.** Its PlayMode step is the bulk run that the
-  ambient-log flake kills (76 discovered, 0 completed), and its Web step would overwrite the Release
-  player with a Development one. The same ground was covered by `ci.ps1 -Job Unity` (per fixture),
-  `-Job Build -Configuration Release` and `-Job Web -Configuration Release`.
+- **`tools/test.ps1 -Suite Full` as one command: NOT RUN at this stage.** Its PlayMode step was the bulk
+  run the ambient-log flake kills (76 discovered, 0 completed), and its Web step would overwrite the
+  Release player with a Development one. The same ground was covered by `ci.ps1 -Job Unity` (per
+  fixture), `-Job Build -Configuration Release` and `-Job Web -Configuration Release`.
+  *Follow-up, 2026-10-23 — the first half is fixed:* the step now runs **one fixture per Editor test run**
+  (`run_tests --filter <Class>`, §7 of [the suite doc](../testing/test-suites.md)), so the flake can no
+  longer hide the suite's verdict. `-Suite Full` with the Editor open measured **PASS 22 | FAIL 1 |
+  NOT RUN 2** in 525.2 s, exit 1, and the single FAIL is by name
+  `SceneFlowPlayModeTests.Twenty_camp_and_battle_visits_leave_nothing_behind_and_do_not_grow_the_heap`
+  (74/75 across ten fixtures) — the scene-lifetime leak below, not the flake
+  ([log](../../artifacts/stage14/full-per-fixture.log),
+  [per-fixture table](../../artifacts/dotnet/unity-playmode-per-fixture.md)). The Release/Playwright half
+  still needs its own run, and the leak is still open.
 - **PlayMode batch mode**: the two layout cases need a 1080p-or-larger Game View, which `unity test`
   cannot be given. They pass in the open Editor, which is where all earlier stages measured them.
 - **Firefox full suite: NOT RUN** — installed and smoke-probed only.

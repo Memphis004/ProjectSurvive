@@ -18,7 +18,8 @@
       6. Unity EditMode tests, through the Editor that is already open
 
     Full (before a Stage's commit, or at a Stage gate) = Fast, then:
-      7. Unity PlayMode tests, through the same Editor
+      7. Unity PlayMode tests, through the same Editor, one fixture per test run (a bulk run is the
+         documented flake of docs/testing/test-suites.md (section 7) and cannot report this suite's verdict)
       8. a WebGL build (Development; Release only with -Release)
       9. the browser suite: smoke, battle and camp in a real Chrome
 
@@ -523,20 +524,26 @@ function Get-UnityTestStatus {
     return [pscustomobject]@{ Payload = $payload; Raw = $r.Output }
 }
 
+# -Filter narrows a run to one fixture. PlayMode is always run that way: see Invoke-UnityPlayModeSuites.
 function Invoke-UnityTests {
-    param([Parameter(Mandatory)][ValidateSet('editor', 'playmode')][string]$Mode)
+    param(
+        [Parameter(Mandatory)][ValidateSet('editor', 'playmode')][string]$Mode,
+        [string]$Filter = ''
+    )
 
     $editor = Get-UnityEditor
     if ($null -eq $editor) {
-        return @{ Status = 'NOT RUN'; Detail = 'no Unity Editor with this project is connected (open UnityProject in Unity 6.3 with the Pipeline package, then run again)' }
+        return @{ Status = 'NOT RUN'; Detail = 'no Unity Editor with this project is connected (open UnityProject in Unity 6.3 with the Pipeline package, then run again)'; Passed = 0; Failed = 0; Total = 0 }
     }
 
     $before = Get-UnityTestStatus
     $beforeRaw = if ($before) { $before.Raw } else { '' }
 
-    $submit = Invoke-Native $unity @('command', 'run_tests', '--mode', $Mode, '--async_tests', '--timeout', '120')
+    $arguments = @('command', 'run_tests', '--mode', $Mode, '--async_tests', '--timeout', '120')
+    if ($Filter) { $arguments += @('--filter', $Filter, '--filter_type', 'testName') }
+    $submit = Invoke-Native $unity $arguments
     if (-not $submit.Ok) {
-        return @{ Status = 'FAIL'; Detail = ("run_tests could not be submitted: {0}" -f $submit.Output) }
+        return @{ Status = 'FAIL'; Detail = ("run_tests could not be submitted: {0}" -f $submit.Output); Passed = 0; Failed = 0; Total = 0 }
     }
 
     $deadline = (Get-Date).AddSeconds($UnityTimeoutSeconds)
@@ -562,10 +569,13 @@ function Invoke-UnityTests {
     }
 
     if ($null -eq $last -or $last.status -eq 'running' -or (-not $sawRunning -and $lastRaw -eq $beforeRaw)) {
-        return @{ Status = 'NOT RUN'; Detail = ("the {0} run did not report a result within {1} s (the Editor may be busy or a modal dialog may be open)" -f $Mode, $UnityTimeoutSeconds) }
+        return @{ Status = 'NOT RUN'; Detail = ("the {0} run did not report a result within {1} s (the Editor may be busy or a modal dialog may be open)" -f $Mode, $UnityTimeoutSeconds); Passed = 0; Failed = 0; Total = 0 }
     }
 
-    Write-Artifact $script:DotnetDir ("unity-{0}-status.json" -f $Mode) $lastRaw
+    # A per-fixture run writes its own payload: the aggregate ones would be overwritten by the
+    # next fixture, and the artifact is the only place a class' durations survive the run.
+    $label = if ($Filter) { ("{0}-{1}" -f $Mode, $Filter.ToLowerInvariant()) } else { $Mode }
+    Write-Artifact $script:DotnetDir ("unity-{0}-status.json" -f $label) $lastRaw
 
     $results = @($last.results)
     $passed = @($results | Where-Object { $_.Status -eq 'Passed' }).Count
@@ -573,26 +583,100 @@ function Invoke-UnityTests {
     $total = $results.Count
 
     if ($total -eq 0) {
-        return @{ Status = 'FAIL'; Detail = 'the run reported no tests at all' }
+        # A filter that matches nothing is a stale fixture name, not a green run.
+        $what = if ($Filter) { ("no test matched {0}" -f $Filter) } else { 'the run reported no tests at all' }
+        return @{ Status = 'FAIL'; Detail = $what; Passed = 0; Failed = 0; Total = 0 }
     }
 
     if ($failed -gt 0) {
         $names = @($results | Where-Object { $_.Status -ne 'Passed' -and $_.Status -ne 'Skipped' } | ForEach-Object { $_.FullName })
         $shown = @($names | Select-Object -First 4)
         $more = if ($names.Count -gt $shown.Count) { (" (+{0} more)" -f ($names.Count - $shown.Count)) } else { '' }
-        return @{ Status = 'FAIL'; Detail = ("{0}/{1} passed; {2} not passed: {3}{4}; see artifacts/dotnet/unity-{5}-status.json" -f $passed, $total, $failed, ($shown -join ', '), $more, $Mode) }
+        return @{ Status = 'FAIL'; Detail = ("{0}/{1} passed; {2} not passed: {3}{4}; see artifacts/dotnet/unity-{5}-status.json" -f $passed, $total, $failed, ($shown -join ', '), $more, $label); Passed = $passed; Failed = $failed; Total = $total }
     }
 
-    return @{ Status = 'PASS'; Detail = ("{0}/{1} passed ({2} s)" -f $passed, $total, $last.duration) }
+    return @{ Status = 'PASS'; Detail = ("{0}/{1} passed ({2} s)" -f $passed, $total, $last.duration); Passed = $passed; Failed = 0; Total = $total }
+}
+
+# PlayMode runs **one fixture per test run**, which is the only shape that reports this suite's
+# verdict (docs/testing/test-suites.md, section 7): a bulk assembly run fails a dozen-to-twenty-five tests on
+# Unity's own ambient Input System / R3 log asserts - never on an assertion of ours - and a test that
+# dies before its teardown hands the next fixture a half-finished scene, so the cascade reads like
+# real defects. One run per class means a FAIL names the class that broke, and a class that cannot
+# report is NOT RUN on its own line instead of dragging the rest of the suite with it.
+function Get-PlayModeFixtures {
+    $dir = Join-Path $script:Root 'UnityProject\Assets\Main\Tests\PlayMode'
+    if (-not (Test-Path -LiteralPath $dir)) { return @() }
+
+    # The file name is the class name by convention (tools/ci.ps1 filters the same way). A class that
+    # drifts from its file name shows up as "no test matched <filter>" rather than quietly missing.
+    return @(Get-ChildItem -LiteralPath $dir -Filter '*PlayModeTests.cs' -File |
+        Sort-Object Name |
+        ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.Name) })
+}
+
+function Invoke-UnityPlayModeSuites {
+    $fixtures = @(Get-PlayModeFixtures)
+    if ($fixtures.Count -eq 0) {
+        return @{ Status = 'NOT RUN'; Detail = 'no *PlayModeTests.cs fixtures were found under Assets/Main/Tests/PlayMode'; Passed = 0; Failed = 0; Total = 0 }
+    }
+
+    # Asked once, up front: with no Editor connected every fixture would otherwise repeat the reason.
+    $editor = Get-UnityEditor
+    if ($null -eq $editor) {
+        return @{ Status = 'NOT RUN'; Detail = 'no Unity Editor with this project is connected (open UnityProject in Unity 6.3 with the Pipeline package, then run again)'; Passed = 0; Failed = 0; Total = 0 }
+    }
+
+    $passed = 0
+    $failed = 0
+    $total = 0
+    $failing = New-Object System.Collections.ArrayList
+    $silent = New-Object System.Collections.ArrayList
+    $rows = New-Object System.Collections.ArrayList
+
+    foreach ($fixture in $fixtures) {
+        $current = $fixture
+        $outcome = Invoke-Step -Name ("unity: PlayMode {0}" -f $current) -StepSuite 'Full' -Action {
+            Invoke-UnityTests -Mode 'playmode' -Filter $current
+        }
+
+        $passed += [int]$outcome.Passed
+        $failed += [int]$outcome.Failed
+        $total += [int]$outcome.Total
+        if ($outcome.Status -eq 'FAIL') { [void]$failing.Add($current) }
+        if ($outcome.Status -eq 'NOT RUN') { [void]$silent.Add($current) }
+        [void]$rows.Add(('| `{0}` | {1} | {2} | {3} |' -f $current, $outcome.Passed, $outcome.Total, $outcome.Status))
+    }
+
+    $report = ((@(
+                '# PlayMode, one fixture per Editor run',
+                '',
+                ('{0:yyyy-MM-dd HH:mm} - {1} fixture(s), {2}/{3} passed. Each fixture is its own `run_tests --filter`; a bulk assembly run is the flake recorded in docs/testing/test-suites.md, section 7.' -f (Get-Date), $fixtures.Count, $passed, $total),
+                '',
+                '| Fixture | Passed | Total | Status |',
+                '| --- | --- | --- | --- |'
+            ) + @($rows)) -join "`r`n")
+    Write-Artifact $script:DotnetDir 'unity-playmode-per-fixture.md' $report
+
+    $count = $fixtures.Count
+    if ($failed -gt 0) {
+        return @{ Status = 'FAIL'; Detail = ("{0}/{1} passed across {2} fixtures; failing: {3}; see artifacts/dotnet/unity-playmode-per-fixture.md" -f $passed, $total, $count, ($failing -join ', ')); Passed = $passed; Failed = $failed; Total = $total }
+    }
+
+    if ($silent.Count -gt 0) {
+        return @{ Status = 'NOT RUN'; Detail = ("{0}/{1} passed; no verdict from: {2}; see artifacts/dotnet/unity-playmode-per-fixture.md" -f $passed, $total, ($silent -join ', ')); Passed = $passed; Failed = 0; Total = $total }
+    }
+
+    return @{ Status = 'PASS'; Detail = ("{0}/{0} passed across {1} fixtures, one Editor run each" -f $total, $count); Passed = $total; Failed = 0; Total = $total }
 }
 
 Invoke-Step 'unity: EditMode' 'Fast' { Invoke-UnityTests -Mode 'editor' } | Out-Null
 
 if ($Suite -eq 'Full') {
-    Invoke-Step 'unity: PlayMode' 'Full' { Invoke-UnityTests -Mode 'playmode' } | Out-Null
+    Invoke-UnityPlayModeSuites | Out-Null
 }
 else {
-    Add-Step 'unity: PlayMode' 'Full' 'NOT RUN' 'the Full suite was not requested (-Suite Full)'
+    Add-Step 'unity: PlayMode (one fixture per run)' 'Full' 'NOT RUN' 'the Full suite was not requested (-Suite Full)'
 }
 
 # ---------------------------------------------------------------------------

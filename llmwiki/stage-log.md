@@ -530,3 +530,15 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   per fixture is green except a 20-visit heap case (5.07 MB against 3 MB) shown to predate the stage.
   See the [report](../docs/stages/14-report.md).
 - **Next:** the scene-lifetime leak the heap case measures, the Stage 13 human playtest, then Stage 15.
+
+## Stage 14 follow-up — PlayMode one fixture per run (2026-10-23)
+
+- **Did:** `tools/test.ps1 -Suite Full` no longer runs the PlayMode assembly in one go: it enumerates
+  `*PlayModeTests.cs` and calls `run_tests --filter <Class>` for each, writing
+  `artifacts/dotnet/unity-playmode-<fixture>-status.json` plus the table
+  `artifacts/dotnet/unity-playmode-per-fixture.md`, and marking a filter that matches nothing as FAIL.
+- **Result:** `-Suite Full` with the Editor open is **PASS 22 / FAIL 1 / NOT RUN 2** in 525.2 s (exit 1),
+  ten fixtures **74/75**; the one FAIL is named
+  `SceneFlowPlayModeTests.Twenty_camp_and_battle_visits_leave_nothing_behind_and_do_not_grow_the_heap`
+  instead of a 22/47 ambient-log flake. The flake itself is unchanged and unfixed (docs §7).
+- **Next:** the scene-lifetime heap leak that the named case measures, then Stage 15.
