@@ -83,8 +83,10 @@ full — one small document per session). The fixture gained a direct case,
 the audio device's own object, at the camp, in the arena and at the title), so the cause has its own
 test rather than only a byte budget. Measured in the open Editor: `SceneFlowPlayModeTests` **6/6** in
 49.9 s, the 20-visit case itself 41.9 s ([status](../../artifacts/stage14/sceneflow-6of6-status.json),
-[Full log](../../artifacts/stage14/full-after-listener-fix.log)). The batch-mode number was not
-re-measured (batch PlayMode needs the Editor closed).
+[Full log](../../artifacts/stage14/full-after-listener-fix.log)). Batch mode, which the first pass of this
+fix could not reach, was measured after the web run below: `unity test UnityProject --mode PlayMode
+--filter SceneFlowPlayModeTests` reports **6/6 in 46.0 s**, the 20-visit case 39.2 s, against a budget it
+used to miss by 17.8 MB ([xml](../../artifacts/stage14/sceneflow-batch.xml)).
 
 `-Suite Full` with the Editor open was then **PASS 21 | FAIL 2 | NOT RUN 2** in 527.3 s: the two NOT RUN
 steps are the web ones (they refuse to share the project with a running Editor), and the two FAILs are
@@ -117,8 +119,23 @@ Editor open is **PASS 23 | FAIL 0 | NOT RUN 2** in 526.6 s, exit 0
   ([log](../../artifacts/stage14/full-per-fixture.log),
   [per-fixture table](../../artifacts/dotnet/unity-playmode-per-fixture.md)). The leak that FAIL named is
   **closed** (see “The heap case, resolved”), the camp pointer flake is closed too
-  ([gotcha](../../llmwiki/gotchas/ui-pointer-events-need-focus.md)), and `-Suite Full` with the Editor
-  open is **PASS 23 | FAIL 0 | NOT RUN 2** in 526.6 s, exit 0. The Release/Playwright half still needs
+  ([gotcha](../../llmwiki/gotchas/ui-pointer-events-need-focus.md)), and `-Suite Full` with the Editor  open is **PASS 23 | FAIL 0 | NOT RUN 2** in 526.6 s, exit 0.
+
+### The web half, with the Editor closed (2026-10-23)
+
+`tools/test.ps1 -Suite Full` with no Editor connected: **PASS 13 | FAIL 0 | NOT RUN 2** in 550.7 s
+([log](../../artifacts/stage14/full-editor-closed.log)). The web half of that run is green on the final
+code — `web: WebGL build (Development)` **PASS** in 304.7 s (a rebuilt `UnityProject/Builds/Web`) — and
+the two NOT RUN steps are the Unity ones, which need the Editor (`unity: EditMode` has no batch path of
+its own, so it reports "no Unity Editor with this project is connected").
+
+Its Playwright step reported NOT RUN because a stray `python` process had been holding port 8080 since
+an earlier session, which `tools/serve-web.mjs` cannot bind. With that released, the same nine specs
+run by hand against that build: **21 passed / 0 failed in 4.0 min**, `audio.spec.ts` and
+`harness.spec.ts` included ([log](../../artifacts/stage14/playwright-editor-closed.log),
+[json](../../artifacts/web/playwright-editor-closed.json)). The suite's own guard — a blocked gate is
+reported as NOT RUN, never as a pass — is what made the stale port visible instead of silent.
+ The Release/Playwright half still needs
   a run with the Editor closed.
 - **PlayMode batch mode**: the two layout cases need a 1080p-or-larger Game View, which `unity test`
   cannot be given. They pass in the open Editor, which is where all earlier stages measured them.
@@ -147,6 +164,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -Suite Full  
 **DONE, gate 14 green on Chrome + Release.** The WebGL/Playwright gate returned 0. The PlayMode heap
 failure that outlived the first pass was not a scene-lifetime leak: it was a missing `AudioListener`
 whose per-frame warning the runner kept in memory, plus whole report documents echoed to the console.
-Both are fixed, the listener has its own PlayMode case, and `SceneFlowPlayModeTests` is **6/6**
-([log](../../artifacts/stage14/full-after-listener-fix.log)). The bulk-run ambient-log flake is
-unchanged and is worked around by running one fixture per test run (§7 of the suite doc).
+Both are fixed, the listener has its own PlayMode case, and `SceneFlowPlayModeTests` is **6/6** in the
+open Editor and in batch ([log](../../artifacts/stage14/full-after-listener-fix.log),
+[xml](../../artifacts/stage14/sceneflow-batch.xml)). The camp fixtures' pointer flake is closed too —
+it was the UI module's focus gate, not a given-up hook
+([gotcha](../../llmwiki/gotchas/ui-pointer-events-need-focus.md)) — so `-Suite Full` with the Editor open
+is **23 PASS / 0 FAIL / 2 NOT RUN**, and the web half of the same suite with the Editor closed is a green
+Development build plus **21/21** Playwright cases. The bulk-run ambient-log flake is the one item still
+unchanged, and it is worked around by running one fixture per test run (§7 of the suite doc).

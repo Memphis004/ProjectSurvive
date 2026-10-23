@@ -563,5 +563,9 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   `IsPointerOverGameObject()`; three runs of each were **29/29**, and `-Suite Full` with the Editor open
   is **PASS 23 | FAIL 0 | NOT RUN 2** in 526.6 s
   ([gotcha](gotchas/ui-pointer-events-need-focus.md)).
-- **Next:** the web half of the Full run (WebGL build + Playwright, Editor closed), then Stage 15 and the
-  Stage 13 human playtest that nothing automated replaces.
+- **Web half (Editor closed):** `-Suite Full` gave **PASS 13 / FAIL 0 / NOT RUN 2** in 550.7 s — a green
+  Development WebGL build (304.7 s) and NOT RUN for the two Unity steps, which need the Editor. Its
+  Playwright step refused to start because a stray `python` held port 8080; with that freed the nine
+  specs ran **21/21 in 4.0 min** against that build, and batch-mode `SceneFlowPlayModeTests` is **6/6 in
+  46.0 s** (the 20-visit case 39.2 s, a budget it used to miss by 17.8 MB).
+- **Next:** Stage 15 (release candidate), and the Stage 13 human playtest that nothing automated replaces.
