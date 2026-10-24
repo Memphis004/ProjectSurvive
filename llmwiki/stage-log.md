@@ -627,3 +627,17 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
 - **Next:** fix `tools/build-web.ps1` / `tools/serve-web.mjs` so compressed siblings can never outlive
   the data they compress, then decide on a dither for border trees that hide the player at the arena
   edge (the wall is walkable by design).
+
+## Stage 08e follow-up — the border trees dither (2026-10-25)
+
+- **Did:** added `ArenaCardFade` + a 4×4 Bayer `_Fade` discard to `ArenaCard.shader`: any card that
+  sorts in front of the player and stands in the band `z … z + 0.84h` (h / tan 50°) is dithered from
+  solid to 0.22 in 0.16 s through a per-renderer `MaterialPropertyBlock`; card prefabs and placements
+  lost `BatchingStatic` (static batching drops the block and would draw them solid) while decals kept
+  it. Presentation only — `lib/` and `data/` untouched.
+- **Result:** `ArenaEnvironmentTests` **18/18** (3 new: who the fade covers, the 0.22 floor, the
+  material has `_Fade`); in a 300-ghost edge frame exactly 1 of 141 cards fades
+  (`blockFade 0.22`, `materialFade 1.00`, order −538), and the frozen-time on/off pair differs in
+  47,053 px confined to that one card (`stage08e-dither-compare.png`); edge batches unchanged at 166.
+- **Next:** check the effect in a WebGL build and on a real browser pass, and let the user review the
+  screenshot pair before calling the look done.

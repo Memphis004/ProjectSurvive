@@ -74,6 +74,9 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         [Tooltip("Blob shadows under the actors (Stage 08e).")]
         [SerializeField] private ArenaBlobShadows _shadows;
 
+        [Tooltip("The dither that keeps the player readable under a tree at the arena's edge.")]
+        [SerializeField] private ArenaCardFade _cardFade;
+
         [Tooltip("Start the floor at night. The gallery/capture tool drives both.")]
         [SerializeField] private bool _night;
 
@@ -145,6 +148,15 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
             _leafSway = enabled;
             Shader.SetGlobalFloat(ArenaSwayGlobal, enabled ? 1f : 0f);
         }
+
+        /// <summary>
+        /// Turns the occlusion dither on or off. Off, the border cards always draw solid — the arena
+        /// before this stage — which is cheaper but hides the player at the edge.
+        /// </summary>
+        public void SetOcclusionFade(bool enabled) => _cardFade?.SetEnabled(enabled);
+
+        /// <summary>The occlusion dither, for a test or a report.</summary>
+        public ArenaCardFade CardFade => _cardFade;
 
         /// <summary>Applies a specific profile, whichever of the theme's two it is.</summary>
         public void ApplyProfile(ArenaLightingProfile profile)

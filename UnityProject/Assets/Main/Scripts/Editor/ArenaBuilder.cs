@@ -218,6 +218,12 @@ namespace ProjectSurvive.Game.Editor
             BuildLightPools(poolsRoot, theme);
             BuildPostVolume(root.transform);
 
+            // The dither that keeps the player visible under a canopy. It lives on the arena root so
+            // its card list is one GetComponentsInChildren at Awake, and it follows the lantern's own
+            // transform, which is already the player's position every frame.
+            ArenaCardFade cardFade = root.AddComponent<ArenaCardFade>();
+            Wire(cardFade, "_target", lanternRoot);
+
             var shadowsObject = new GameObject("Shadows");
             shadowsObject.transform.SetParent(root.transform, worldPositionStays: false);
             ArenaBlobShadows shadows = shadowsObject.AddComponent<ArenaBlobShadows>();
@@ -234,6 +240,7 @@ namespace ProjectSurvive.Game.Editor
             Wire(environment, "_camera", camera);
             Wire(environment, "_volume", Object.FindFirstObjectByType<Volume>(FindObjectsInactive.Include));
             Wire(environment, "_shadows", shadows);
+            Wire(environment, "_cardFade", cardFade);
             WireArray(environment, "_staticLights", statics);
 
             // The runner is what builds the view; hand it the environment without rebuilding the scene.
@@ -272,8 +279,13 @@ namespace ProjectSurvive.Game.Editor
             }
 
             card.GetComponent<ArenaCard>()?.Configure(placement.StyleId, placement.Zone);
-            GameObjectUtility.SetStaticEditorFlags(
-                card, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic);
+
+            // Deliberately **not** BatchingStatic. Static batching draws the card through a combined
+            // mesh and ignores its MaterialPropertyBlock, which is exactly how ArenaCardFade writes
+            // the per-card dither — the block reads back correctly and the card still draws solid.
+            // Nothing is lost: every card carries its own sorting order, so no two cards could share
+            // a batch anyway (the stage measures 133–172 batches with 300 ghosts either way).
+            GameObjectUtility.SetStaticEditorFlags(card, StaticEditorFlags.OccludeeStatic);
         }
 
         private static void PlaceDecal(

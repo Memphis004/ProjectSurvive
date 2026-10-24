@@ -323,6 +323,19 @@ path gets from `BillboardPitch`, so no second copy of the angle exists; and who 
 in the transparent queue writing no depth and testing none. The camera's depth buffer never decides
 an occlusion, which is what lets the cards interleave with ghosts and the player by row.
 
+**A tree that hides the player thins out instead of disappearing.** The wall is walkable, so a
+canopy can land exactly over the ghost-doctor. `ArenaCardFade` (one component on the arena root,
+target = the lantern that already follows the player) decides which cards cover them with a pure
+function, `Covers(cardX, cardZ, width, height, playerX, playerZ, margin)`: a card only ever hides
+something *in front of* it by sorting order, and a card `H` tall reaches `H / tan(50°) ≈ 0.84H`
+ground units up the screen, so the test is `cardZ ≤ playerZ ≤ cardZ + 0.84H` plus half the card's
+width. Covering cards are dithered — a 4×4 Bayer discard in `ArenaCard.shader`, driven per renderer
+by a `MaterialPropertyBlock` on `_Fade` — down to `_minFade` 0.22 rather than to zero, because a
+tree that vanishes leaves a hole in a forest that otherwise never moves. The dither is also why the
+card prefabs are **not** `BatchingStatic`: static batching draws through a combined mesh and ignores
+the block, so the fade would read back as set and draw solid. The cards keep their own
+`sortingOrder`, so no batch was possible anyway.
+
 The dirt patch is a *multiply* decal (`ProjectSurvive/ArenaDirt`, `Blend DstColor Zero`) rather than
 an alpha-blended polygon: the floor is the brightest surface the fight is read against, and a decal
 laid over it could only ever lift it.
@@ -331,4 +344,7 @@ Evidence and the acceptance table are in [the stage report](../../docs/stages/08
 capture is `ProjectSurvive/Stage 08e/1. Build arena (theme + seed)` plus
 `AgentScripts/ArenaEvidenceCapture.Run` (player centred and near the edge at 1920×1080 and
 1280×720, with 300 ghosts: 133–172 batches, 2.4–2.6 ms/frame in the Editor on an i5-14400F /
-RTX 5060 Ti).
+RTX 5060 Ti). `AgentScripts/ArenaFadeCompare.Run` is the dither's own pair: it walks to the edge,
+freezes `Time.timeScale` so the sway stops, and captures the same frame with the fade on and off —
+the two images differ only where the dither removed pixels
+(`stage08e-dither-compare.png`).

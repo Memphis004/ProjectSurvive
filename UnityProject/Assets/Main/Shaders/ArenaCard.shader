@@ -18,6 +18,12 @@ Shader "ProjectSurvive/ArenaCard"
         _Cutoff ("Alpha cutoff", Range(0, 1)) = 0.35
         _SwayAmplitude ("Sway (world units)", Range(0, 0.5)) = 0.12
         _SwaySpeed ("Sway speed", Float) = 1.1
+        // 1 = solid, 0 = dithered away. Written per card by ArenaCardFade when the card stands
+        // between the camera and the player, so a player who walks into the tree wall is still
+        // readable. A screen-door dither rather than alpha blending: this shader writes no depth
+        // and blends nothing, and staying opaque is what keeps the card from revealing the actors
+        // that are already sorted behind it.
+        _Fade ("Occlusion fade", Range(0, 1)) = 1
     }
 
     SubShader
@@ -53,12 +59,16 @@ Shader "ProjectSurvive/ArenaCard"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
+            // _Fade lives inside the per-material CBUFFER, not beside the globals: it is written by
+            // a MaterialPropertyBlock on one renderer at a time, and a property outside the CBUFFER
+            // would be read as a shader global that the block cannot override.
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
                 half4 _BaseColor;
                 half _Cutoff;
                 float _SwayAmplitude;
                 float _SwaySpeed;
+                float _Fade;
             CBUFFER_END
 
             TEXTURE2D(_BaseMap);
@@ -102,10 +112,28 @@ Shader "ProjectSurvive/ArenaCard"
                 return output;
             }
 
+            // A 4×4 ordered dither, built arithmetically so the shader needs no lookup table.
+            // Returns 0 … 0.9375 over the sixteen pixels of one cell.
+            float Bayer2(float2 cell)
+            {
+                cell = floor(cell);
+                return frac((cell.x * 0.5) + (cell.y * cell.y * 0.75));
+            }
+
+            float Bayer4(float2 pixel)
+            {
+                return (Bayer2(pixel * 0.5) * 0.25) + Bayer2(pixel);
+            }
+
             half4 Frag(Varyings input) : SV_Target
             {
                 half4 colour = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv) * _BaseColor;
                 clip(colour.a - _Cutoff);
+
+                // The fade is a discard, not a blend: at _Fade < 1 the card leaves a screen-door
+                // pattern, so the player behind it is seen *through* the card at half resolution
+                // instead of disappearing behind a translucent tint.
+                clip(_Fade - Bayer4(input.positionCS.xy) - 0.001h);
 
                 colour.rgb *= _ArenaTint.rgb;
                 colour.rgb = MixFog(colour.rgb, input.fogFactor);

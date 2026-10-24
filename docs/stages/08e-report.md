@@ -166,8 +166,8 @@ player eulerX=50   ghost eulerX=50   rigPitch=50
 ## 6. สิ่งที่ไม่ได้ทดสอบและความเสี่ยง
 
 - **ผู้เล่นหายใต้ต้นไม้ที่ขอบ:** การ์ดต้นไม้อยู่ในวง 26–40 ซึ่งเป็นพื้นที่ที่ผู้เล่นเดินได้
-  (clamp ที่ 40) จึงมีจังหวะที่ต้นไม้อยู่ระหว่างกล้องกับผู้เล่น — ตรงตามข้อ "วางตามขอบเพื่อให้ผู้เล่น
-  เห็นซ้อนหน้าเมื่อเดินใกล้ขอบ" แต่ยังไม่มี dither/fade ให้ต้นไม้ที่บังผู้เล่น (ไม่ใช่ขอบเขตของ Stage นี้)
+  (clamp ที่ 40) จึงมีจังหวะที่ต้นไม้อยู่ระหว่างกล้องกับผู้เล่น — **แก้แล้วใน §8** (dither ตามการ์ดที่บัง
+  ผู้เล่น); ยังไม่ได้ทดสอบบน WebGL build จริงของรอบติดตามนี้
 - ปื้นดินยังเป็น ellipse โปร่งแสงแบบ placeholder ไม่ใช่ texture ดินจริง — Stage 08c/13 ค่อยเปลี่ยน
 - ยังไม่ได้วัดบน browser จริง (WebGL) ในรอบนี้; ตัวเลข frameMs มาจาก Editor Play Mode
 - **พบปัญหาที่เครื่องมือ build ไม่ใช่ที่ฉาก:** `tools/build-web.ps1` เขียน `Web.data`/`Web.wasm` ใหม่
@@ -188,4 +188,73 @@ tools/test.ps1 -Suite Full                     → PASS 23 | FAIL 0 | NOT RUN 3
 tools/ci.ps1 -Job Build,Web                    → PASS 2 | FAIL 0 (WebGL 465s, Playwright 19 passed
                                                  — แต่เสิร์ฟ .br ของ build เก่า, ดู §6)
 tools/ci.ps1 -Job Web                          → PASS 1 | FAIL 0 (Playwright 19 passed กับ build สด)
+```
+
+## 8. รอบติดตาม — dither ต้นไม้ที่บังผู้เล่น (ไม่ใช่การเปลี่ยน Stage)
+
+**ปัญหา:** การ์ดต้นไม้วง 26–40 คือพื้นที่ที่ผู้เล่นเดินได้ (clamp 40) การ์ดที่อยู่ *ใกล้กล้องกว่า*
+ผู้เล่นถูกวาดทับด้วย `PropSortingOrder` และ shader เขียน depth ไม่ได้ (`ZWrite Off`, `ZTest Always`)
+จึงไม่มีกลไก depth ใดช่วยได้ — ผู้เล่นหายใต้พุ่มทั้งต้น
+
+**วิธีแก้:** `ArenaCardFade` (component เดียวบน root `Arena`) + `_Fade` ใน `ArenaCard.shader`
+
+- `Covers(cardX, cardZ, w, h, playerX, playerZ, margin)` เป็นฟังก์ชันบริสุทธิ์: การ์ดบังได้เฉพาะเมื่อ
+  `cardZ ≤ playerZ` และผู้เล่นอยู่ในแถบ `cardZ … cardZ + h / tan(50°)` (≈ `0.84h`, ค่าคงที่
+  `ReachPerHeight` — ไม่มี `tan` ในลูปต่อเฟรม) และอยู่ในความกว้าง ±`w/2 + margin` (0.6)
+- การ์ดที่บังถูก dither ด้วย 4×4 Bayer discard ใน shader เขียนผ่าน `MaterialPropertyBlock` ต่อ renderer
+  (`_Fade` อยู่ใน `UnityPerMaterial` CBUFFER) — ไล่จาก 1 → **0.22** ใน 0.16 s ไม่ลงถึง 0
+  เพราะต้นไม้ที่หายไปทั้งต้นกลายเป็นรูในป่าที่ต้นอื่นไม่ขยับ; 0.22 พอให้เห็นผู้เล่นทะลุและยังเห็นเงาต้น
+- **ถอด `BatchingStatic` ออกจาก prefab การ์ดและทุก placement** (`OccludeeStatic` ยังอยู่):
+  static batching วาดผ่าน mesh รวมและทิ้ง property block → block อ่านกลับได้แต่ต้นไม้ยังทึบ
+  ไม่เสียอะไรเพราะทุกการ์ดมี `sortingOrder` ของตัวเองอยู่แล้ว; decal ยัง batching ได้ (ไม่เคยบังผู้เล่น)
+- สวิตช์: `ArenaEnvironmentView.SetOcclusionFade(bool)`; เป้าหมายคือ transform ของตะเกียงที่ตามผู้เล่นอยู่แล้ว
+- ลูปต่อเฟรม: 141 การ์ด, ไม่มี allocation/LINQ/closure, เขียน renderer เฉพาะเฟรมที่ค่า fade เปลี่ยนจริง
+
+**เทสต์ใหม่ (EditMode, `ArenaEnvironmentTests`)**
+
+| test | ครอบอะไร |
+|---|---|
+| `TheOcclusionDitherOnlyCoversWhatStandsInFrontOfThePlayer` | การ์ดหลังผู้เล่น/สูงเกินแถบที่บังได้/อยู่ข้างไกลไม่จาง และ margin |
+| `AnOccludingCardThinsOutButDoesNotBecomeAHole` | `MinFade` อยู่ใน (0, 0.6) — ต้นไม้ไม่หายทั้งต้น |
+| `TheCardShaderHasAFadeToDitherWith` | วัสดุการ์ดมีการ์ด `_Fade` จริง (shader ฝั่งที่ต้องอ่านค่า) |
+
+ผลรวม suite นี้ **18/18 passed** (เดิม 15 + 3 ใหม่)
+
+**หลักฐาน** (`artifacts/ui/battle-env/`)
+
+| ไฟล์ | คืออะไร |
+|---|---|
+| `stage08e-dither-compare.png` | ซ้าย fade ON / ขวา fade OFF — ครอป 2× ของเฟรมเดียวกัน (timeScale = 0) |
+| `stage08e-fade-on.png`, `stage08e-fade-off.png` | เฟรมเต็ม 1920×1080 คู่เดียวกัน |
+| `crop-stage08e-fade-on.png`, `crop-stage08e-fade-off.png` | ครอป 1× ของคู่เดียวกัน |
+
+วัดจากการเล่นจริง (Editor Play Mode, 300 ผี, ผู้เล่นที่ `(0, 0, 34.29)`):
+
+```
+fade component=found enabled=True
+card card-076-tree-big-b zone=Border pos=3.04,0.00,33.55 size=12.07,18.00
+     covers=True blockFade=0.22 materialFade=1.00 order=-538
+cardsTotal=141 matched=1  fadingCount=1
+```
+
+- `blockFade = 0.22` และ `materialFade = 1.00` → ค่าถูกเขียนที่ property block ต่อ renderer จริง
+  ไม่ใช่การแก้ shared material (ถ้า static batching ยังเปิด ค่านี้จะอ่านได้แต่ภาพยังทึบ)
+- เทียบสองเฟรมแบบหยุดเวลา: พิกเซลต่างกัน **47,053 px** จำกัดในกรอบ `x 930–1241, y 0–562`
+  ซึ่งคือการ์ดต้นไม้ต้นนั้นต้นเดียว — ไม่มีพิกเซลอื่นในจอเปลี่ยน (HUD/ต้นอื่น/พื้นนิ่งสนิท)
+- `fadingCards=1` ที่ขอบยืนยันว่าไม่มีต้นไม้ต้นอื่นถูกจางพร้อมกัน; ตัวเลข batches ที่ขอบยังเป็น
+  166/171 (1920×1080 / 1280×720) เท่ารอบก่อนที่มี `fadingCards=1` — ไม่มี regression จาก MPB
+
+**ยังไม่ได้ทดสอบ:** WebGL build + Playwright ของรอบติดตามนี้ (ไม่ได้ build ใหม่ในรอบนี้) และ
+ภาพต้องให้ผู้ใช้ตรวจด้วยตาก่อนปิดเป็น PASS ด้านภาพ
+
+**คำสั่งที่รันจริง**
+
+```
+Unity EditMode (filter ArenaEnvironmentTests)  → 18/18 passed
+AgentScripts/ArenaFadeProbe.Run                → blockFade 0.22, 1/141 การ์ดบัง, order -538
+AgentScripts/ArenaFadeCompare.Run              → stage08e-fade-on/off.png (timeScale=0 คู่เดียว)
+python (PIL) diff on/off                       → 47,053 px, bbox x 930–1241 y 0–562
+tools/test.ps1 -Suite Fast                     → PASS 13 | FAIL 0 | NOT RUN 3
+                                                 (unity EditMode 225/225, xUnit 612 passed;
+                                                  PlayMode/WebGL/Playwright NOT RUN ตามกติกา Fast)
 ```

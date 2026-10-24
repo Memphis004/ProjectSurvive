@@ -250,6 +250,63 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 Is.GreaterThan(BattleWorldMap.SortingOrder(RenderEntityKind.Enemy, 20f)));
         }
 
+        // -------------------------------------------------------------------
+        // the occlusion dither
+        // -------------------------------------------------------------------
+
+        [Test]
+        public void TheOcclusionDitherOnlyCoversWhatStandsInFrontOfThePlayer()
+        {
+            // A 4-unit-tall card at z = 10 covers ground rows up to 10 + 4/tan(50°) ≈ 13.36.
+            Assert.That(ArenaCardFade.Covers(0f, 10f, 4f, 4f, 0f, 10.5f), Is.True,
+                "a card the player stands right behind does not fade");
+            Assert.That(ArenaCardFade.Covers(0f, 10f, 4f, 4f, 0f, 13f), Is.True,
+                "a player standing under the canopy is not covered by it");
+            Assert.That(ArenaCardFade.Covers(0f, 10f, 4f, 4f, 0f, 14f), Is.False,
+                "a card fades a player who is above the top it can actually cover");
+
+            // A card further from the camera than the player is drawn behind them.
+            Assert.That(ArenaCardFade.Covers(0f, 10f, 4f, 4f, 0f, 9f), Is.False,
+                "a card behind the player faded for no reason");
+
+            // The card's own width, plus whatever margin the component asks for.
+            Assert.That(ArenaCardFade.Covers(5f, 10f, 4f, 4f, 0f, 10.5f), Is.False,
+                "a card far to the side of the player faded");
+            Assert.That(ArenaCardFade.Covers(2.5f, 10f, 4f, 4f, 0f, 10.5f, 0.6f), Is.True,
+                "the fade does not start before the canopy is dead centre");
+        }
+
+        [Test]
+        public void AnOccludingCardThinsOutButDoesNotBecomeAHole()
+        {
+            // The fade is a screen-door, so the card stays in the forest as a sparse silhouette.
+            // Driving it to zero would delete a tree the moment the player walks past its trunk.
+            var go = new GameObject("ArenaCardFadeProbe");
+            try
+            {
+                ArenaCardFade fade = go.AddComponent<ArenaCardFade>();
+                Assert.That(fade.MinFade, Is.GreaterThan(0f),
+                    "an occluding card fades to nothing instead of to a faint silhouette");
+                Assert.That(fade.MinFade, Is.LessThan(0.6f),
+                    "an occluding card stays too solid for the player behind it to read");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void TheCardShaderHasAFadeToDitherWith()
+        {
+            // The component writes _Fade per renderer; the shader is the half that has to honour it.
+            Material material = AssetDatabase.LoadAssetAtPath<Material>("Assets/Main/Art/Arena/Materials/card-bush.mat");
+            Assert.That(material, Is.Not.Null);
+
+            Assert.That(material.HasProperty(ArenaCardFade.FadeProperty), Is.True,
+                "card materials have no " + ArenaCardFade.FadeProperty + ", so the dither would do nothing");
+        }
+
         [Test]
         public void TheCardShaderDoesNotWriteDepth()
         {

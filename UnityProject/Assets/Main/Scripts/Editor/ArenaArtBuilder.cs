@@ -213,9 +213,10 @@ namespace ProjectSurvive.Game.Editor
 
         /// <summary>
         /// The prefab every placed card is an instance of. Its pivot is the bottom centre of the quad
-        /// and its static flags include <see cref="StaticEditorFlags.BatchingStatic"/>: the arena never
-        /// moves, so Unity can combine cards that share a material into one draw call at build time
-        /// while the scene still contains real, inspectable prefab instances.
+        /// and it is <see cref="StaticEditorFlags.OccludeeStatic"/> but <b>not</b> batching-static,
+        /// because static batching draws a card through a combined mesh and ignores the per-renderer
+        /// <c>MaterialPropertyBlock</c> the occlusion fade writes. The arena never moves either way;
+        /// each card already carries its own sorting order, so batching could not have merged them.
         /// </summary>
         private static void BuildPrefab(
             string path, string name, Mesh mesh, Material material, ArenaCardZone zone)
@@ -232,8 +233,10 @@ namespace ProjectSurvive.Game.Editor
                 var card = go.AddComponent<ArenaCard>();
                 card.Configure(name, zone);
 
-                GameObjectUtility.SetStaticEditorFlags(
-                    go, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic);
+                // No BatchingStatic, for the same reason ArenaBuilder.PlaceCard omits it: static
+                // batching draws through a combined mesh and drops the renderer's
+                // MaterialPropertyBlock, which is what the per-card occlusion fade is written with.
+                GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.OccludeeStatic);
 
                 PrefabUtility.SaveAsPrefabAsset(go, path);
             }
