@@ -34,6 +34,18 @@ namespace ProjectSurvive.Game.Presentation.Battle
         public const int GroundSortingOrder = -10000;
 
         /// <summary>
+        /// Sorting order of the flat fake shadows (Stage 08f).
+        /// </summary>
+        /// <remarks>
+        /// A shadow lies on the floor under an actor and may never draw over one, wherever it stands.
+        /// Every actor order is <c>KindBias − round(simY × 16)</c>; the smallest the arena can produce
+        /// (a pickup at the far edge, simY = 40) is −640, so one constant far below that is enough for
+        /// the whole scene. It is a constant rather than a per-frame comparison because the rule can
+        /// never change — and because the arena's shadows are static geometry.
+        /// </remarks>
+        public const int ShadowSortingOrder = -9000;
+
+        /// <summary>
         /// Sorting orders per world unit of simulation Y. Large enough that two rows a
         /// tenth of a unit apart still order correctly, small enough that the ±40 unit
         /// arena stays far inside <see cref="int"/> range.

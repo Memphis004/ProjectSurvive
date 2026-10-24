@@ -118,5 +118,9 @@ MonoBehaviour:
     Material: {fileID: 2100000, guid: cca2d4410ae11d149ac759f25c8a4787, type: 2}
   GroundMaterial: {fileID: 2100000, guid: 141c30ae9e4e2ab40a7c297cbeb37575, type: 2}
   ShadowMaterial: {fileID: 2100000, guid: facd2acf23e66cf43806733e368324f9, type: 2}
-  DayProfile: {fileID: 11400000, guid: 0fe64c519ce85564aaa12b75a19d36c4, type: 2}
+  DuskProfile: {fileID: 11400000, guid: 0619345a6a0d8474689c91754240ea9b, type: 2}
   NightProfile: {fileID: 11400000, guid: 3272edaa50981fd4cb555e354a1009a0, type: 2}
+  MinPlayerContrast: 2.2
+  MinGhostContrast: 1.9
+  MinPickupContrast: 2.4
+  MinTelegraphContrast: 1.3

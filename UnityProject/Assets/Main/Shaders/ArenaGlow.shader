@@ -1,16 +1,21 @@
-// Stage 08e: the arena's fake light — additive ground pools and the glow around the player's
-// lantern. Real point lights are expensive and capped by the URP Forward per-object limit, so
-// the arena uses one lantern light plus a handful of these.
+// Stage 08e/08f: the arena's fake light — additive ground pools, the glow around the player's
+// lantern and the small floating motes. Real point lights are expensive and capped by the URP
+// Forward per-object and per-camera limits, so the arena uses one lantern light plus a handful of
+// these.
 //
-// Additive, no depth write, depth-offset like every other floor decal. _ArenaLightPool is the
-// lighting profile's intensity: 0 by day, warm at night, so the same quad and material produce
-// both looks.
+// Additive, no depth write, depth-offset like every other floor decal. Two profile intensities drive
+// it and each material listens to one of them: _ArenaLightPool for the ground pools and _ArenaGlow
+// for the lantern glow and the motes (which are authored brighter than 1.0 so they cross the
+// profile's Bloom threshold and read as small lights rather than as paint). Switching Dusk/Night
+// therefore changes no material.
 Shader "ProjectSurvive/ArenaGlow"
 {
     Properties
     {
         _BaseMap ("Texture", 2D) = "white" {}
         _BaseColor ("Colour (daylight)", Color) = (1, 1, 1, 1)
+        _PoolChannel ("Driven by the light-pool intensity", Range(0, 1)) = 1
+        _GlowChannel ("Driven by the glow intensity", Range(0, 1)) = 0
     }
 
     SubShader
@@ -44,12 +49,15 @@ Shader "ProjectSurvive/ArenaGlow"
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
                 half4 _BaseColor;
+                float _PoolChannel;
+                float _GlowChannel;
             CBUFFER_END
 
             TEXTURE2D(_BaseMap);
             SAMPLER(sampler_BaseMap);
 
             float _ArenaLightPool;
+            float _ArenaGlow;
 
             struct Attributes
             {
@@ -74,7 +82,8 @@ Shader "ProjectSurvive/ArenaGlow"
             half4 Frag(Varyings input) : SV_Target
             {
                 half4 colour = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv) * _BaseColor;
-                return half4(colour.rgb * colour.a * _ArenaLightPool, 1.0h);
+                half intensity = (_ArenaLightPool * _PoolChannel) + (_ArenaGlow * _GlowChannel);
+                return half4(colour.rgb * colour.a * intensity, 1.0h);
             }
             ENDHLSL
         }

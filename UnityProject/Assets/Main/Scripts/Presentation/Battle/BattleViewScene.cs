@@ -156,6 +156,12 @@ namespace ProjectSurvive.Game.Presentation.Battle
         /// <summary>The arena environment, when the scene wired one (Stage 08e).</summary>
         public ArenaEnvironmentView Environment => _environment;
 
+        /// <summary>
+        /// The generated sprites the view draws with. Exposed so the readability capture can draw the
+        /// <i>real</i> pickup and telegraph art for its probes instead of a copy of it (Stage 08f).
+        /// </summary>
+        public BattlePlaceholderArt Art => _art;
+
         /// <summary>The mini bag, when the scene wired one.</summary>
         public BattleMiniBagView MiniBag => _settings.MiniBag;
 

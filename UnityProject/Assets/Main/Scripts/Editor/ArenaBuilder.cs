@@ -185,15 +185,18 @@ namespace ProjectSurvive.Game.Editor
             var root = new GameObject(ArenaRootName);
             var cardsRoot = Child(root.transform, "Cards");
             var decalsRoot = Child(root.transform, "Decals");
+            var shadowsRoot = Child(root.transform, "CardShadows");
             var lightsRoot = Child(root.transform, "Lights");
             var poolsRoot = Child(root.transform, "LightPools");
+            var motesRoot = Child(root.transform, "Motes");
 
             GameObject cardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ArenaArtBuilder.CardPrefabPath);
             GameObject decalPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ArenaArtBuilder.DecalPrefabPath);
-            if (cardPrefab is null || decalPrefab is null)
+            GameObject cardShadowPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ArenaArtBuilder.CardShadowPrefabPath);
+            if (cardPrefab is null || decalPrefab is null || cardShadowPrefab is null)
             {
                 throw new InvalidOperationException(
-                    "The ArenaCard/GroundDecal prefabs are missing; run the art builder first.");
+                    "The ArenaCard/GroundDecal/ArenaCardShadow prefabs are missing; run the art builder first.");
             }
 
             int cardIndex = 0;
@@ -212,10 +215,24 @@ namespace ProjectSurvive.Game.Editor
                 }
             }
 
-            Light moon = BuildMoon(lightsRoot, theme);
+            BuildCardShadows(theme, placements, cardShadowPrefab, shadowsRoot);
+
+            // The shadows never move, so they are baked into one instanced call instead of costing a
+            // batch each (this project has static batching off, and ~190 extra batches would break
+            // the stage's 200-batch budget). The per-card renderers stay in the scene for the
+            // direction/zone tests and are disabled here.
+            var shadowLayer = root.AddComponent<ArenaCardShadowLayer>();
+            shadowLayer.Configure(
+                ArenaArtBuilder.LoadShadowQuad(),
+                AssetDatabase.LoadAssetAtPath<Material>(ArenaArtBuilder.MaterialFolder + "/card-shadow.mat"));
+            shadowLayer.Collect();
+
+            Light key = BuildKeyLight(lightsRoot, theme);
             Light lantern = BuildLantern(lightsRoot, out Transform lanternRoot, out Renderer lanternGlow);
             Light[] statics = BuildStaticLights(lightsRoot, theme);
             BuildLightPools(poolsRoot, theme);
+            BuildMotes(motesRoot, theme);
+            ArenaScreenGradient screenGradient = BuildScreenGradient(root.transform);
             BuildPostVolume(root.transform);
 
             // The dither that keeps the player visible under a canopy. It lives on the arena root so
@@ -233,7 +250,7 @@ namespace ProjectSurvive.Game.Editor
 
             var environment = root.AddComponent<ArenaEnvironmentView>();
             Wire(environment, "_theme", theme);
-            Wire(environment, "_moon", moon);
+            Wire(environment, "_keyLight", key);
             Wire(environment, "_lantern", lantern);
             Wire(environment, "_lanternRoot", lanternRoot);
             Wire(environment, "_lanternGlow", lanternGlow);
@@ -241,6 +258,7 @@ namespace ProjectSurvive.Game.Editor
             Wire(environment, "_volume", Object.FindFirstObjectByType<Volume>(FindObjectsInactive.Include));
             Wire(environment, "_shadows", shadows);
             Wire(environment, "_cardFade", cardFade);
+            Wire(environment, "_screenGradient", screenGradient);
             WireArray(environment, "_staticLights", statics);
 
             // The runner is what builds the view; hand it the environment without rebuilding the scene.
@@ -316,18 +334,95 @@ namespace ProjectSurvive.Game.Editor
                 decal, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic);
         }
 
-        private static Light BuildMoon(Transform parent, ArenaTheme theme)
+        private static Light BuildKeyLight(Transform parent, ArenaTheme theme)
         {
-            var go = new GameObject("Moon");
+            var go = new GameObject("KeyLight");
             go.transform.SetParent(parent, worldPositionStays: false);
-            go.transform.rotation = Quaternion.Euler(theme.DayProfile.MoonEuler);
+            go.transform.rotation = Quaternion.Euler(theme.DuskProfile.KeyLightEuler);
 
             var light = go.AddComponent<Light>();
             light.type = LightType.Directional;
-            light.color = theme.DayProfile.MoonColor;
-            light.intensity = theme.DayProfile.MoonIntensity;
+            light.color = theme.DuskProfile.KeyLightColor;
+            light.intensity = theme.DuskProfile.KeyLightIntensity;
+
+            // The arena's shadows are painted decals (Stage 08f), so this light casts nothing. A
+            // shadow map over 140 alpha-clipped cards would cost a full extra pass for a look the
+            // decals already give.
             light.shadows = LightShadows.None;
             return light;
+        }
+
+        /// <summary>
+        /// One flat fake shadow per standing card, and one wide crown patch under each border tree.
+        /// The direction is the profile's single angle, so every shadow in the scene agrees; the
+        /// length comes from the card's own height. No shadow is ever drawn over an actor: they all
+        /// share <see cref="BattleWorldMap.ShadowSortingOrder"/>, below every actor order.
+        /// </summary>
+        private static void BuildCardShadows(
+            ArenaTheme theme, ArenaPlacement[] placements, GameObject prefab, Transform parent)
+        {
+            ArenaLightingProfile profile = theme.DuskProfile;
+            float direction = profile.ShadowDirectionDegrees;
+            Quaternion rotation = ArenaShadowCard.Orientation(direction);
+            int index = 0;
+
+            for (int i = 0; i < placements.Length; i++)
+            {
+                ArenaPlacement placement = placements[i];
+                if (placement.IsDecal)
+                {
+                    continue;
+                }
+
+                float length = ArenaShadowCard.LengthFor(placement.Height, profile);
+                float width = Mathf.Max(0.18f, placement.Width * 0.78f);
+                PlaceShadow(
+                    prefab, parent, placement, index++, profile, rotation,
+                    new Vector3(placement.X, 0f, placement.Z), length, width, canopy: false);
+
+                // The crown patch is the big soft ellipse the brief allows only under a border tree's
+                // canopy: the middle of the arena is where the fight is read, and a wide dark patch
+                // there would compete with the ghosts standing on it.
+                if (placement.Zone != ArenaCardZone.Border)
+                {
+                    continue;
+                }
+
+                float canopyWidth = placement.Width * profile.CanopyShadowWidthFactor;
+                float canopyLength = canopyWidth * 0.82f;
+                Vector3 directionVector = profile.ShadowDirection;
+                var centre = new Vector3(
+                    placement.X + (directionVector.x * canopyLength * 0.30f),
+                    0f,
+                    placement.Z + (directionVector.z * canopyLength * 0.30f));
+
+                PlaceShadow(
+                    prefab, parent, placement, index++, profile, rotation, centre,
+                    canopyLength, canopyWidth, canopy: true);
+            }
+        }
+
+        private static void PlaceShadow(
+            GameObject prefab, Transform parent, ArenaPlacement placement, int index,
+            ArenaLightingProfile profile, Quaternion rotation, Vector3 centre,
+            float length, float width, bool canopy)
+        {
+            var shadow = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
+            shadow.name = (canopy ? "shadow-canopy-" : "shadow-") + index.ToString("0000")
+                + "-" + placement.StyleId;
+            shadow.transform.position = new Vector3(centre.x, 0.035f, centre.z);
+            shadow.transform.rotation = rotation;
+            shadow.transform.localScale = new Vector3(length, width, 1f);
+
+            var renderer = shadow.GetComponent<MeshRenderer>();
+            if (renderer is not null)
+            {
+                renderer.sortingOrder = BattleWorldMap.ShadowSortingOrder;
+            }
+
+            shadow.GetComponent<ArenaShadowCard>()?.Configure(
+                placement.Zone, placement.Width, placement.Height,
+                profile.ShadowDirectionDegrees, canopy);
         }
 
         private static Light BuildLantern(Transform parent, out Transform root, out Renderer glow)
@@ -425,6 +520,106 @@ namespace ProjectSurvive.Game.Editor
                 renderer.receiveShadows = false;
                 GameObjectUtility.SetStaticEditorFlags(pool, StaticEditorFlags.BatchingStatic);
             }
+        }
+
+        /// <summary>
+        /// The small cool lights that float over the ring and bloom: a handful of quads that face the
+        /// camera, additive, driven by the profile's glow intensity. They are static geometry — a
+        /// floating light does not have to move to read — so they cost no frame time at all and batch
+        /// into one call with the same material.
+        /// </summary>
+        private static void BuildMotes(Transform parent, ArenaTheme theme)
+        {
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(
+                ArenaArtBuilder.MaterialFolder + "/mote.mat");
+            if (material is null)
+            {
+                return;
+            }
+
+            // A fixed table, not a random draw: the arena is deterministic, and a mote that moved
+            // between two builds would make the visual signature unstable.
+            float[] angles = { 0.35f, 0.95f, 1.62f, 2.24f, 2.90f, 3.48f, 4.10f, 4.72f, 5.35f, 5.95f };
+            float[] radii = { 11.5f, 19.0f, 14.2f, 23.4f, 9.6f, 17.8f, 21.0f, 12.8f, 24.6f, 16.4f };
+            float[] heights = { 2.4f, 1.6f, 3.1f, 2.0f, 2.8f, 1.9f, 3.4f, 2.2f, 1.7f, 2.9f };
+            float[] scales = { 0.42f, 0.30f, 0.50f, 0.34f, 0.44f, 0.36f, 0.32f, 0.48f, 0.38f, 0.46f };
+
+            for (int i = 0; i < angles.Length; i++)
+            {
+                var mote = new GameObject("mote-" + i.ToString("00"));
+                mote.transform.SetParent(parent, worldPositionStays: false);
+                mote.transform.position = new Vector3(
+                    Mathf.Cos(angles[i]) * radii[i], heights[i], Mathf.Sin(angles[i]) * radii[i]);
+                mote.transform.rotation = ArenaCard.FacingCamera(0f);
+                mote.transform.localScale = new Vector3(scales[i], scales[i], 1f);
+                mote.AddComponent<MeshFilter>().sharedMesh = ArenaArtBuilder.LoadShadowQuad();
+
+                var renderer = mote.AddComponent<MeshRenderer>();
+                renderer.sharedMaterial = material;
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                GameObjectUtility.SetStaticEditorFlags(mote, StaticEditorFlags.BatchingStatic);
+            }
+
+            // Two warm embers on the ring: the only red-orange light in the arena, so the hot
+            // accents read as fire rather than as another flower.
+            Material ember = AssetDatabase.LoadAssetAtPath<Material>(
+                ArenaArtBuilder.MaterialFolder + "/ember-pool.mat");
+            if (ember is null)
+            {
+                return;
+            }
+
+            float[] emberAngles = { 1.20f, 4.35f };
+            for (int i = 0; i < emberAngles.Length; i++)
+            {
+                float radius = theme.CenterRadius + ((theme.RingOuterRadius - theme.CenterRadius) * 0.55f);
+                var pool = new GameObject("ember-" + i.ToString("0"));
+                pool.transform.SetParent(parent, worldPositionStays: false);
+                pool.transform.localPosition = new Vector3(
+                    Mathf.Cos(emberAngles[i]) * radius, 0.03f, Mathf.Sin(emberAngles[i]) * radius);
+                pool.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                pool.transform.localScale = new Vector3(3.2f, 2.2f, 1f);
+                pool.AddComponent<MeshFilter>().sharedMesh = ArenaArtBuilder.LoadShadowQuad();
+
+                var renderer = pool.AddComponent<MeshRenderer>();
+                renderer.sharedMaterial = ember;
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                GameObjectUtility.SetStaticEditorFlags(pool, StaticEditorFlags.BatchingStatic);
+            }
+        }
+
+        /// <summary>
+        /// The dark band along the top edge of the screen. A screen-space overlay rather than a fog
+        /// term: with the orthographic rig the distance-fog cannot isolate the top edge, and a canvas
+        /// image covers the same fraction of the frame at every captured resolution. Its sorting
+        /// order sits below the HUD's canvases, so it never dims a label.
+        /// </summary>
+        private static ArenaScreenGradient BuildScreenGradient(Transform parent)
+        {
+            var go = new GameObject("ScreenGradient");
+            go.transform.SetParent(parent, worldPositionStays: false);
+
+            var canvas = go.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = ArenaScreenGradient.SortingOrder;
+
+            var image = go.AddComponent<UnityEngine.UI.Image>();
+            image.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(ArenaArtBuilder.ScreenGradientSpritePath);
+            image.type = UnityEngine.UI.Image.Type.Simple;
+            image.raycastTarget = false;
+            image.color = Color.white;
+
+            RectTransform rect = image.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            var gradient = go.AddComponent<ArenaScreenGradient>();
+            gradient.Configure(image);
+            return gradient;
         }
 
         private static void BuildPostVolume(Transform parent)

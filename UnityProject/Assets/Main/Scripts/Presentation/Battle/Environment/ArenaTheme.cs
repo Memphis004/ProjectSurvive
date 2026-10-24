@@ -147,11 +147,27 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         public Material ShadowMaterial;
 
         [Header("Lighting")]
-        [Tooltip("The daylight profile. Every texture and material is authored for this one.")]
-        public ArenaLightingProfile DayProfile;
+        [Tooltip("The dusk profile, which the scene starts in. Every texture and material is authored for it.")]
+        public ArenaLightingProfile DuskProfile;
 
-        [Tooltip("The night profile: the same assets, a different ambient, moon, fog and grade.")]
+        [Tooltip("The night profile: the same assets, a different ambient, key light, fog and grade.")]
         public ArenaLightingProfile NightProfile;
+
+        [Header("Readability (WCAG luminance contrast, measured on a capture)")]
+        [Tooltip(
+            "Minimum contrast ratio between the ghost-doctor and the floor around them, in both " +
+            "profiles. Stage 08f's capture tool measures it from the rendered frame; if it fails, " +
+            "the lighting is adjusted, never this number.")]
+        public float MinPlayerContrast = 2.2f;
+
+        [Tooltip("Minimum contrast ratio between a ghost and the floor around it, in both profiles.")]
+        public float MinGhostContrast = 1.9f;
+
+        [Tooltip("Minimum contrast ratio between a pickup and the floor around it, in both profiles.")]
+        public float MinPickupContrast = 2.4f;
+
+        [Tooltip("Minimum contrast ratio between a telegraphed warning and the floor, in both profiles.")]
+        public float MinTelegraphContrast = 1.3f;
 
         /// <summary>
         /// The style a placed card uses, by <see cref="ArenaCardStyle.Zone"/>.

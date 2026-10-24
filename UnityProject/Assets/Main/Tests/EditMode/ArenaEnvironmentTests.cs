@@ -1,12 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Reflection;
 using NUnit.Framework;
 using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Environment;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
 namespace ProjectSurvive.Game.Tests.EditMode
 {
@@ -28,6 +33,10 @@ namespace ProjectSurvive.Game.Tests.EditMode
         private const string ThemePath = "Assets/Main/Content/Arena/ArenaTheme.asset";
         private const string CardPrefabPath = "Assets/Main/Prefabs/Arena/ArenaCard.prefab";
         private const string DecalPrefabPath = "Assets/Main/Prefabs/Arena/GroundDecal.prefab";
+        private const string CardShadowPrefabPath = "Assets/Main/Prefabs/Arena/ArenaCardShadow.prefab";
+        private const string BattleScenePath = "Assets/Main/Scenes/Battle.unity";
+        private const string MaterialFolder = "Assets/Main/Art/Arena/Materials";
+        private const string TextureFolder = "Assets/Main/Art/Arena/Textures";
 
         /// <summary>Seeds the acceptance is checked against, including the shipped one.</summary>
         private static readonly uint[] Seeds = { 20261024u, 1u, 7u, 4242u };
@@ -348,16 +357,371 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         [Test]
-        public void DayAndNightAreTwoProfilesOfOneTheme()
+        public void DuskAndNightAreTwoProfilesOfOneTheme()
         {
             ArenaTheme theme = Theme;
 
-            Assert.That(theme.DayProfile, Is.Not.Null);
+            Assert.That(theme.DuskProfile, Is.Not.Null, "the theme has no dusk profile");
             Assert.That(theme.NightProfile, Is.Not.Null);
-            Assert.That(theme.NightProfile, Is.Not.SameAs(theme.DayProfile));
+            Assert.That(theme.NightProfile, Is.Not.SameAs(theme.DuskProfile));
 
-            Assert.That(theme.DayProfile.IsNight, Is.False, "the day profile lights the arena as night");
+            Assert.That(theme.DuskProfile.TimeOfDay, Is.EqualTo(ArenaTimeOfDay.Dusk));
+            Assert.That(theme.NightProfile.TimeOfDay, Is.EqualTo(ArenaTimeOfDay.Night));
+            Assert.That(theme.DuskProfile.IsNight, Is.False, "the dusk profile lights the arena as night");
             Assert.That(theme.NightProfile.IsNight, Is.True, "the night profile does not light the arena");
+        }
+
+        [Test]
+        public void NightIsDarkerThanDuskInEveryTermThatMakesItDark()
+        {
+            // "Night (มืดกว่า)" is a claim a number can hold: the tint, the ambient, the key light
+            // and the exposure are all lower, and the two edge treatments are stronger. A profile
+            // that only looked darker because of one term would fail here.
+            ArenaLightingProfile dusk = Theme.DuskProfile;
+            ArenaLightingProfile night = Theme.NightProfile;
+
+            Assert.That(ArenaContrast.RelativeLuminance(Rgb(night.EnvironmentTint)),
+                Is.LessThan(ArenaContrast.RelativeLuminance(Rgb(dusk.EnvironmentTint))), "the night tint is not darker");
+            Assert.That(ArenaContrast.RelativeLuminance(Rgb(night.AmbientSky)),
+                Is.LessThan(ArenaContrast.RelativeLuminance(Rgb(dusk.AmbientSky))), "the night ambient is not darker");
+            Assert.That(night.KeyLightIntensity, Is.LessThan(dusk.KeyLightIntensity), "the night key light is not weaker");
+            Assert.That(night.PostExposure, Is.LessThan(dusk.PostExposure), "the night exposure is not lower");
+            Assert.That(night.ScreenTopGradient, Is.GreaterThanOrEqualTo(dusk.ScreenTopGradient));
+            Assert.That(night.VignetteIntensity, Is.GreaterThanOrEqualTo(dusk.VignetteIntensity));
+        }
+
+        [Test]
+        public void SwitchingProfilesTouchesNoAsset()
+        {
+            // "สลับ Dusk/Night แล้ว asset เดิมทุกชิ้น": every material, its shader and its texture, and
+            // every texture's pixels must be exactly the objects they were before the switch. The
+            // signature is identity plus content, so a re-tinted copy of a texture would fail too.
+            ArenaTheme theme = Theme;
+            var gameObject = new GameObject("arena-profile-switch");
+            try
+            {
+                var view = gameObject.AddComponent<ArenaEnvironmentView>();
+                var serialized = new SerializedObject(view);
+                serialized.FindProperty("_theme").objectReferenceValue = theme;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+
+                List<string> before = AssetSignatures();
+                Assert.That(before, Is.Not.Empty, "there are no arena assets to compare");
+
+                view.SetTimeOfDay(ArenaTimeOfDay.Night);
+                Assert.That(view.IsNight, Is.True, "the night switch did not take effect");
+                Assert.That(AssetSignatures(), Is.EqualTo(before), "switching to night changed an arena asset");
+
+                view.SetTimeOfDay(ArenaTimeOfDay.Dusk);
+                Assert.That(view.IsNight, Is.False);
+                Assert.That(AssetSignatures(), Is.EqualTo(before), "switching back to dusk changed an arena asset");
+            }
+            finally
+            {
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [Test]
+        public void ShadowsAreCoolTealAndNeverBlack()
+        {
+            // The brief's "teal/น้ำเงินเข้ม (multiply) ห้ามดำสนิท" is a property of the profile, so it
+            // can be asserted without a screenshot: the shadow tint stays well above black and the
+            // strength never reaches full occlusion.
+            foreach (ArenaLightingProfile profile in new[] { Theme.DuskProfile, Theme.NightProfile })
+            {
+                Color shadow = profile.ShadowColor;
+                Assert.That(shadow.r, Is.GreaterThan(0.15f), profile.name + " shadow has no red channel left");
+                Assert.That(shadow.g, Is.GreaterThan(0.15f), profile.name + " shadow has no green channel left");
+                Assert.That(shadow.b, Is.GreaterThan(shadow.g), profile.name + " shadow is not cool: blue does not exceed green");
+                Assert.That(profile.ShadowStrength, Is.LessThan(0.95f), profile.name + " shadow can reach full black");
+                Assert.That(profile.ShadowLengthPerHeight, Is.GreaterThan(0f), profile.name + " cards cast no shadow at all");
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // the fake shadows placed in the scene
+        // -------------------------------------------------------------------
+
+        [Test]
+        public void EveryShadowCardFollowsTheProfilesSingleDirection()
+        {
+            WithBattleArena(arena =>
+            {
+                ArenaShadowCard[] shadows = arena.GetComponentsInChildren<ArenaShadowCard>(true);
+                Assert.That(shadows.Length, Is.GreaterThan(100),
+                    "the arena placed " + shadows.Length + " card shadows, which is not one per card");
+
+                float profileDirection = Theme.DuskProfile.ShadowDirectionDegrees;
+                for (int i = 0; i < shadows.Length; i++)
+                {
+                    float drawn = ArenaShadowCard.DirectionDegreesOf(shadows[i].transform);
+                    Assert.That(Mathf.Abs(Mathf.DeltaAngle(drawn, profileDirection)), Is.LessThan(0.05f),
+                        shadows[i].name + " points at " + drawn.ToString("0.00", CultureInfo.InvariantCulture)
+                        + " but the profile says " + profileDirection.ToString("0.00", CultureInfo.InvariantCulture));
+
+                    Assert.That(shadows[i].DirectionDegrees, Is.EqualTo(profileDirection).Within(0.01f),
+                        shadows[i].name + " recorded a different direction than it was drawn with");
+                }
+
+                // The same shadows must face the same way, not merely their own recorded value: one
+                // angle for the whole scene is the requirement.
+                Assert.That(shadows.Length, Is.GreaterThan(0));
+            });
+        }
+
+        [Test]
+        public void TheOpenCentreHoldsNoLargeShadow()
+        {
+            // "เงาปื้นใหญ่ใต้เรือนยอดต้นไม้ที่ขอบสนามเท่านั้น ห้ามมีเงาปื้นใหญ่ในโซนกลาง": a wide crown patch
+            // inside the open centre would sit under the fight and compete with the ghosts.
+            WithBattleArena(arena =>
+            {
+                ArenaTheme theme = Theme;
+                ArenaShadowCard[] shadows = arena.GetComponentsInChildren<ArenaShadowCard>(true);
+                int canopies = 0;
+                int centre = 0;
+
+                for (int i = 0; i < shadows.Length; i++)
+                {
+                    ArenaShadowCard shadow = shadows[i];
+                    Vector3 position = shadow.transform.position;
+                    float radius = Mathf.Sqrt((position.x * position.x) + (position.z * position.z));
+
+                    if (shadow.IsCanopy)
+                    {
+                        canopies++;
+                        Assert.That(radius, Is.GreaterThanOrEqualTo(theme.CenterRadius),
+                            "a crown patch lies inside the open centre at radius " + radius.ToString("0.00"));
+
+                        Assert.That(shadow.SourceZone, Is.EqualTo(ArenaCardZone.Border),
+                            "a crown patch belongs to a card outside the border zone");
+                    }
+
+                    if (radius < theme.CenterRadius)
+                    {
+                        centre++;
+                        Assert.That(shadow.Width, Is.LessThanOrEqualTo(ArenaShadowCard.LargeShadowWidth),
+                            "a wide shadow patch lies in the centre (" + shadow.Width.ToString("0.00") + " units wide)");
+                    }
+                }
+
+                Assert.That(canopies, Is.GreaterThan(0), "no border tree has a crown patch, so the rule tests nothing");
+                Assert.That(centre, Is.GreaterThan(0), "the centre has no cards, so the rule tests nothing");
+            });
+        }
+
+        [Test]
+        public void ShadowsAreAlwaysDrawnUnderEveryActor()
+        {
+            // The order is a constant, so it can be checked against the smallest order an actor can
+            // ever have anywhere in the arena — not just against a sample from one frame.
+            int farActor = BattleWorldMap.SortingOrder(RenderEntityKind.Pickup, BattleViewCaps.ArenaRadius);
+            Assert.That(BattleWorldMap.ShadowSortingOrder, Is.LessThan(farActor),
+                "a shadow at the far edge could draw over an actor");
+
+            Material cardShadow = AssetDatabase.LoadAssetAtPath<Material>(MaterialFolder + "/card-shadow.mat");
+            Assert.That(cardShadow, Is.Not.Null, "the card shadow material is missing");
+            Assert.That(cardShadow.renderQueue, Is.LessThan(ProjectSurvive.Game.Editor.ArenaArtBuilder.CardQueue),
+                "card shadows are in the same queue as the cards, so a card could draw under its own shadow");
+
+            WithBattleArena(arena =>
+            {
+                ArenaShadowCard[] shadows = arena.GetComponentsInChildren<ArenaShadowCard>(true);
+                for (int i = 0; i < shadows.Length; i++)
+                {
+                    var renderer = shadows[i].GetComponent<MeshRenderer>();
+                    Assert.That(renderer, Is.Not.Null, shadows[i].name + " has no renderer");
+                    Assert.That(renderer.sortingOrder, Is.EqualTo(BattleWorldMap.ShadowSortingOrder),
+                        shadows[i].name + " carries its own sorting order");
+                    Assert.That(renderer.shadowCastingMode, Is.EqualTo(UnityEngine.Rendering.ShadowCastingMode.Off),
+                        shadows[i].name + " asks URP for a real shadow");
+                }
+            });
+        }
+
+        // -------------------------------------------------------------------
+        // readability: thresholds, and the arithmetic the capture measures with
+        // -------------------------------------------------------------------
+
+        [Test]
+        public void TheReadabilityThresholdsAreSetAndSane()
+        {
+            ArenaTheme theme = Theme;
+
+            // The brief: thresholds are values in the theme, and they are a floor, not a target.
+            Assert.That(theme.MinPlayerContrast, Is.GreaterThan(1.5f));
+            Assert.That(theme.MinGhostContrast, Is.GreaterThan(1.5f));
+            Assert.That(theme.MinPickupContrast, Is.GreaterThan(1.5f));
+            Assert.That(theme.MinTelegraphContrast, Is.GreaterThan(1.1f));
+            Assert.That(theme.MinGhostContrast, Is.LessThan(theme.MinPickupContrast),
+                "a pickup is a small bright object and has to clear a higher bar than a ghost");
+        }
+
+        [Test]
+        public void TheContrastMeasureIsTheWcagRatio()
+        {
+            Assert.That(ArenaContrast.RelativeLuminance(new Color32(255, 255, 255, 255)), Is.EqualTo(1f).Within(0.001f));
+            Assert.That(ArenaContrast.RelativeLuminance(new Color32(0, 0, 0, 255)), Is.EqualTo(0f).Within(0.001f));
+            Assert.That(ArenaContrast.Ratio(1f, 0f), Is.EqualTo(21f).Within(0.01f));
+            Assert.That(ArenaContrast.Ratio(0.4f, 0.4f), Is.EqualTo(1f).Within(0.0001f));
+
+            // A 16 × 16 image: a bright 4 × 4 square on a dark floor. The feature's measurement is
+            // the square's luminance, the floor's the surrounding median, and the ratio follows.
+            const int size = 16;
+            var pixels = new Color32[size * size];
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                pixels[i] = new Color32(40, 40, 40, 255);
+            }
+
+            var feature = new RectInt(6, 6, 4, 4);
+            var floor = ArenaContrast.FloorAround(feature, 4);
+            for (int y = feature.yMin; y < feature.yMax; y++)
+            {
+                for (int x = feature.xMin; x < feature.xMax; x++)
+                {
+                    pixels[(y * size) + x] = new Color32(220, 220, 220, 255);
+                }
+            }
+
+            ContrastSample sample = ArenaContrast.Measure(pixels, size, size, feature, floor);
+            Assert.That(sample.Feature, Is.GreaterThan(sample.Floor), "the feature was not brighter than the floor");
+            Assert.That(sample.Ratio, Is.EqualTo(ArenaContrast.Ratio(sample.Feature, sample.Floor)).Within(0.0001f));
+            Assert.That(sample.Ratio, Is.GreaterThan(4f), "a light square on a dark floor measured as low contrast");
+            Assert.That(sample.FloorPixels, Is.GreaterThan(0));
+        }
+
+        [Test]
+        public void TheScreenBandIsBelowTheHudAndDrivenByTheProfile()
+        {
+            Assert.That(ArenaScreenGradient.SortingOrder, Is.LessThan(0),
+                "the band would draw over the HUD's canvases");
+
+            var gameObject = new GameObject("arena-band-test", typeof(Canvas), typeof(UnityEngine.UI.Image));
+            try
+            {
+                var band = gameObject.AddComponent<ArenaScreenGradient>();
+                var image = gameObject.GetComponent<UnityEngine.UI.Image>();
+                band.Configure(image);
+
+                ArenaTheme theme = Theme;
+                band.Apply(theme.DuskProfile.ScreenGradientColor, theme.DuskProfile.ScreenTopGradient);
+                Assert.That(band.Visible, Is.True, "the dusk band is not drawn");
+                Assert.That(image.color.a, Is.EqualTo(theme.DuskProfile.ScreenTopGradient).Within(0.001f));
+
+                band.Apply(Color.black, 0f);
+                Assert.That(band.Visible, Is.False, "a zero-strength band still costs a draw call");
+            }
+            finally
+            {
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // helpers
+        // -------------------------------------------------------------------
+
+        private static Color32 Rgb(Color colour) => new Color32(
+            (byte)Mathf.RoundToInt(Mathf.Clamp01(colour.r) * 255f),
+            (byte)Mathf.RoundToInt(Mathf.Clamp01(colour.g) * 255f),
+            (byte)Mathf.RoundToInt(Mathf.Clamp01(colour.b) * 255f),
+            255);
+
+        /// <summary>
+        /// Opens the shipped Battle scene (or reuses it when it is already open) and hands its Arena
+        /// root to the test. Reading the scene is the only way to prove what the builder placed; the
+        /// layout tests above prove the placements it placed from.
+        /// </summary>
+        private static void WithBattleArena(Action<GameObject> action)
+        {
+            Scene scene = SceneManager.GetSceneByPath(BattleScenePath);
+            bool opened = !scene.IsValid() || !scene.isLoaded;
+            if (opened)
+            {
+                scene = EditorSceneManager.OpenScene(BattleScenePath, OpenSceneMode.Additive);
+            }
+
+            try
+            {
+                GameObject arena = null;
+                GameObject[] roots = scene.GetRootGameObjects();
+                for (int i = 0; i < roots.Length; i++)
+                {
+                    if (roots[i].name == ProjectSurvive.Game.Editor.ArenaBuilder.ArenaRootName)
+                    {
+                        arena = roots[i];
+                        break;
+                    }
+                }
+
+                Assert.That(arena, Is.Not.Null,
+                    "the Battle scene has no " + ProjectSurvive.Game.Editor.ArenaBuilder.ArenaRootName + " root");
+                action(arena);
+            }
+            finally
+            {
+                if (opened)
+                {
+                    EditorSceneManager.CloseScene(scene, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Every arena material and texture, by identity and content. Two snapshots of this list are
+        /// equal exactly when switching a profile changed nothing on disk.
+        /// </summary>
+        private static List<string> AssetSignatures()
+        {
+            var signatures = new List<string>();
+
+            string[] materials = Directory.GetFiles(MaterialFolder, "*.mat");
+            Array.Sort(materials, StringComparer.Ordinal);
+            for (int i = 0; i < materials.Length; i++)
+            {
+                string assetPath = materials[i].Replace('\\', '/');
+                int index = assetPath.IndexOf("Assets/", StringComparison.Ordinal);
+                assetPath = assetPath.Substring(index);
+
+                var material = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
+                if (material is null)
+                {
+                    continue;
+                }
+
+                Color colour = material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor") : Color.clear;
+                Texture texture = material.HasProperty("_BaseMap") ? material.GetTexture("_BaseMap") : null;
+                signatures.Add(
+                    assetPath + "|" + material.shader.name + "|" + material.renderQueue
+                    + "|" + (texture is null ? "none" : texture.GetInstanceID().ToString(CultureInfo.InvariantCulture))
+                    + "|" + colour.r.ToString("R", CultureInfo.InvariantCulture)
+                    + "," + colour.g.ToString("R", CultureInfo.InvariantCulture)
+                    + "," + colour.b.ToString("R", CultureInfo.InvariantCulture)
+                    + "," + colour.a.ToString("R", CultureInfo.InvariantCulture));
+            }
+
+            string[] textures = Directory.GetFiles(TextureFolder, "*.png");
+            Array.Sort(textures, StringComparer.Ordinal);
+            for (int i = 0; i < textures.Length; i++)
+            {
+                string assetPath = textures[i].Replace('\\', '/');
+                int index = assetPath.IndexOf("Assets/", StringComparison.Ordinal);
+                assetPath = assetPath.Substring(index);
+
+                var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
+                if (texture is null)
+                {
+                    continue;
+                }
+
+                signatures.Add(
+                    assetPath + "|" + texture.width + "x" + texture.height
+                    + "|" + texture.GetInstanceID().ToString(CultureInfo.InvariantCulture));
+            }
+
+            return signatures;
         }
 
         [Test]

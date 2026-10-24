@@ -12,29 +12,37 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 711aadc74abca9248b80fe23a6dbc0d1, type: 3}
   m_Name: ArenaLightingNight
   m_EditorClassIdentifier: ProjectSurvive.Game.Presentation::ProjectSurvive.Game.Presentation.Battle.Environment.ArenaLightingProfile
-  SkyColor: {r: 0.035, g: 0.045, b: 0.085, a: 1}
-  EnvironmentTint: {r: 0.3, g: 0.38, b: 0.58, a: 1}
+  TimeOfDay: 1
+  SkyColor: {r: 0.025, g: 0.033, b: 0.065, a: 1}
+  EnvironmentTint: {r: 0.34, g: 0.42, b: 0.62, a: 1}
   AmbientSky: {r: 0.1, g: 0.14, b: 0.24, a: 1}
   AmbientEquator: {r: 0.06, g: 0.09, b: 0.16, a: 1}
   AmbientGround: {r: 0.025, g: 0.035, b: 0.06, a: 1}
-  MoonColor: {r: 0.62, g: 0.72, b: 1, a: 1}
-  MoonIntensity: 0.38
-  MoonEuler: {x: 42, y: -58, z: 0}
+  KeyLightColor: {r: 0.62, g: 0.72, b: 1, a: 1}
+  KeyLightIntensity: 0.42
+  KeyLightEuler: {x: 46, y: -62, z: 0}
+  ShadowColor: {r: 0.24, g: 0.34, b: 0.52, a: 1}
+  ShadowStrength: 0.7
+  ShadowDirectionDegrees: 250
+  ShadowLengthPerHeight: 0.42
+  CanopyShadowWidthFactor: 0.95
   FogEnabled: 1
   FogColor: {r: 0.045, g: 0.065, b: 0.12, a: 1}
-  FogDensity: 0.016
-  LanternIntensity: 2.6
-  StaticLightIntensity: 1.15
-  LightPoolIntensity: 0.38
-  GlowIntensity: 0.55
-  PostExposure: -0.35
-  ColorFilter: {r: 0.78, g: 0.86, b: 1, a: 1}
-  Contrast: 14
-  Saturation: -10
-  WhiteBalance: -12
+  FogDensity: 0.015
+  ScreenTopGradient: 0.55
+  ScreenGradientColor: {r: 0.01, g: 0.02, b: 0.05, a: 1}
+  LanternIntensity: 2.4
+  StaticLightIntensity: 1.05
+  LightPoolIntensity: 0.42
+  GlowIntensity: 0.7
+  PostExposure: -0.3
+  ColorFilter: {r: 0.8, g: 0.88, b: 1, a: 1}
+  Contrast: 15
+  Saturation: -8
+  WhiteBalance: -14
   ColorLookup: {fileID: 0}
-  BloomIntensity: 0.5
+  BloomIntensity: 0.55
   BloomThreshold: 0.85
   BloomScatter: 0.65
-  VignetteIntensity: 0.36
+  VignetteIntensity: 0.4
   VignetteSmoothness: 0.48

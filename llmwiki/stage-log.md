@@ -641,3 +641,20 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   47,053 px confined to that one card (`stage08e-dither-compare.png`); edge batches unchanged at 166.
 - **Next:** check the effect in a WebGL build and on a real browser pass, and let the user review the
   screenshot pair before calling the look done.
+
+## Stage 08f — Dusk and Night from one set of assets (2026-10-25)
+
+- **Did:** added `ArenaLightingProfile` (two assets, Dusk default / Night colder) that owns every
+  atmosphere value through shader globals, one fake shadow decal per standing card oriented by a
+  single 245° angle (187 shadows, 74 border canopies, none over an actor, drawn by one instanced
+  call), a screen-space top band under the HUD, and `ArenaContrast` — readability measured as the
+  WCAG luminance ratio on the pixels of the saved PNG. No `lib/`, `data/` or material changed.
+- **Result:** EditMode **234/234** (27 arena tests, 9 new), `-Suite Fast` **13 PASS / 0 FAIL**,
+  `-Suite Full -Release` **15 PASS / 0 FAIL** with Playwright **21 passed** and hosting **13/13**;
+  300 ghosts at **138 batches / 2.45–2.82 ms**, payload **15.72 MiB gzip / 11.49 MiB Brotli**,
+  `viewsGrownDuringPlay = 0` ([report](../docs/stages/08f-report.md)). Found on the way: a fresh
+  build left the previous configuration's `.br`/`.gz` beside it, so the first Release Playwright
+  pass tested the Development player — `tools/build-web.ps1` now deletes those siblings before
+  building and `tools/test.ps1` compresses before the browser gate.
+- **Next:** let the user judge the look from `artifacts/ui/battle-env/stage08f-dusk-1920x1080.png` /
+  `stage08f-night-1920x1080.png`, then tighten the detached canopy shadows at the arena edge.

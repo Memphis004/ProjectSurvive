@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Environment;
 using UnityEditor;
 using UnityEngine;
@@ -44,17 +45,20 @@ namespace ProjectSurvive.Game.Editor
 
         public const string CardPrefabPath = PrefabFolder + "/ArenaCard.prefab";
         public const string DecalPrefabPath = PrefabFolder + "/GroundDecal.prefab";
+        public const string CardShadowPrefabPath = PrefabFolder + "/ArenaCardShadow.prefab";
         public const string CardQuadPath = MeshFolder + "/ArenaCardQuad.asset";
         public const string ShadowQuadPath = MeshFolder + "/ArenaShadowQuad.asset";
         public const string ThemePath = ContentFolder + "/ArenaTheme.asset";
-        public const string DayProfilePath = ContentFolder + "/ArenaLightingDay.asset";
+        public const string DuskProfilePath = ContentFolder + "/ArenaLightingDusk.asset";
         public const string NightProfilePath = ContentFolder + "/ArenaLightingNight.asset";
+        public const string ScreenGradientSpritePath = TextureFolder + "/screen-gradient.png";
 
         private const string CardShader = "ProjectSurvive/ArenaCard";
         private const string DecalShader = "ProjectSurvive/ArenaDecal";
         private const string DirtShader = "ProjectSurvive/ArenaDirt";
         private const string GlowShader = "ProjectSurvive/ArenaGlow";
         private const string GroundShader = "ProjectSurvive/ArenaGround";
+        private const string ShadowShader = "ProjectSurvive/ArenaShadow";
 
         /// <summary>Render queue of the ground decals: above the opaque floor, below the shadows.</summary>
         public const int DecalQueue = 2950;
@@ -72,16 +76,34 @@ namespace ProjectSurvive.Game.Editor
         /// <summary>Render queue of the instanced blob shadows: above decals, below actors.</summary>
         public const int ShadowQueue = 2990;
 
+        /// <summary>
+        /// Render queue of the fake card shadows: above the ground decals, below the light pools and
+        /// every actor. Their sorting order is <c>BattleWorldMap.ShadowSortingOrder</c>.
+        /// </summary>
+        public const int CardShadowQueue = 2960;
+
         // Daylight palette. Cosmetic only; nothing here is a balance number.
-        private static readonly Color LeafDark = new Color(0.20f, 0.30f, 0.16f, 1f);
-        private static readonly Color LeafMid = new Color(0.31f, 0.45f, 0.22f, 1f);
-        private static readonly Color LeafLight = new Color(0.44f, 0.58f, 0.30f, 1f);
-        private static readonly Color Bark = new Color(0.28f, 0.21f, 0.15f, 1f);
-        private static readonly Color GrassPale = new Color(0.46f, 0.56f, 0.30f, 1f);
-        private static readonly Color DirtWarm = new Color(0.33f, 0.27f, 0.19f, 1f);
-        private static readonly Color FlowerWhite = new Color(0.86f, 0.86f, 0.72f, 1f);
-        private static readonly Color FlowerWarm = new Color(0.84f, 0.66f, 0.34f, 1f);
-        private static readonly Color LeafAutumn = new Color(0.54f, 0.40f, 0.20f, 1f);
+        //
+        // Stage 08f moved the palette from a cool forest green to the warm green-yellow a jungle
+        // reads as at dusk, and made the small accents red-orange. Every texture here is still a
+        // daylight asset: the Dusk/Night difference is the lighting profile's tint and grade alone.
+        private static readonly Color LeafDark = new Color(0.24f, 0.33f, 0.15f, 1f);
+        private static readonly Color LeafMid = new Color(0.40f, 0.50f, 0.22f, 1f);
+        private static readonly Color LeafLight = new Color(0.60f, 0.66f, 0.30f, 1f);
+        private static readonly Color Bark = new Color(0.30f, 0.22f, 0.14f, 1f);
+        private static readonly Color GrassPale = new Color(0.60f, 0.66f, 0.30f, 1f);
+        private static readonly Color DirtWarm = new Color(0.38f, 0.31f, 0.20f, 1f);
+        private static readonly Color FlowerWhite = new Color(0.96f, 0.93f, 0.70f, 1f);
+
+        // The one hot colour in the arena. A handful of red-orange blossoms and the two ember pools
+        // are what makes the warm highlights read against the green; nothing else in the palette is
+        // saturated red.
+        private static readonly Color FlowerWarm = new Color(0.95f, 0.33f, 0.16f, 1f);
+        private static readonly Color EmberWarm = new Color(1.00f, 0.36f, 0.14f, 1f);
+        private static readonly Color LeafAutumn = new Color(0.70f, 0.42f, 0.16f, 1f);
+
+        /// <summary>The small blue-white floating lights: cool, so they never read as fire.</summary>
+        private static readonly Color MoteCool = new Color(0.72f, 0.88f, 1.00f, 1f);
 
         /// <summary>Builds every asset. Returns the theme asset, ready to lay out.</summary>
         public static ArenaTheme BuildAll()
@@ -101,6 +123,8 @@ namespace ProjectSurvive.Game.Editor
             Texture2D pool = GenerateTexture("light-pool", 128, LightPool);
             Texture2D glow = GenerateTexture("lantern-glow", 64, Glow);
             Texture2D shadow = GenerateTexture("blob-shadow", 64, BlobShadow);
+            Texture2D mote = GenerateTexture("mote", 32, Mote);
+            Sprite screenGradient = GenerateSprite(ScreenGradientSpritePath, "screen-gradient", 4, 128, ScreenGradient);
 
             Material cardA = BuildMaterial("card-tree-a", CardShader, treeA, Color.white, CardQueue);
             Material cardB = BuildMaterial("card-tree-b", CardShader, treeB, Color.white, CardQueue);
@@ -119,22 +143,37 @@ namespace ProjectSurvive.Game.Editor
             Material leafMat = BuildMaterial("decal-leaf", DecalShader, leaf, new Color(1f, 1f, 1f, 0.9f), DecalQueue);
             Material groundMat = BuildMaterial("ground", GroundShader, ground, Color.white, 2000);
             Material poolMat = BuildMaterial("light-pool", GlowShader, pool, new Color(1f, 0.83f, 0.55f, 1f), GlowQueue);
+            Material emberMat = BuildMaterial("ember-pool", GlowShader, pool, EmberWarm * 1.35f, GlowQueue);
             Material glowMat = BuildMaterial("lantern-glow", GlowShader, glow, new Color(1f, 0.88f, 0.66f, 1f), GlowQueue);
-            Material shadowMat = BuildMaterial("blob-shadow", DecalShader, shadow, new Color(0f, 0f, 0f, 1f), ShadowQueue);
+            // The motes are authored brighter than 1.0 so what the profile adds crosses the Bloom
+            // threshold in both looks: they read as small lights, not as pale dots painted on the air.
+            Material moteMat = BuildMaterial("mote", GlowShader, mote, MoteCool * 3.2f, GlowQueue);
+            Material shadowMat = BuildMaterial("blob-shadow", ShadowShader, shadow, Color.white, ShadowQueue);
+            Material cardShadowMat = BuildMaterial("card-shadow", ShadowShader, shadow, Color.white, CardShadowQueue);
 
-            // The shadow layer draws every actor's ellipse in one DrawMeshInstanced call, and Unity
-            // refuses that call on a material with instancing off.
+            // The light-pool channel drives the pools; the glow channel drives the lantern and the
+            // motes. One shader, two profile numbers, no material swap when the profile changes.
+            SetChannel(poolMat, poolChannel: 1f, glowChannel: 0f);
+            SetChannel(emberMat, poolChannel: 1f, glowChannel: 0f);
+            SetChannel(glowMat, poolChannel: 0f, glowChannel: 1f);
+            SetChannel(moteMat, poolChannel: 0f, glowChannel: 1f);
+
+            // The actor shadows and the card shadows are each drawn in one DrawMeshInstanced call, and
+            // Unity refuses that call on a material with instancing off.
             shadowMat.enableInstancing = true;
+            cardShadowMat.enableInstancing = true;
             EditorUtility.SetDirty(shadowMat);
+            EditorUtility.SetDirty(cardShadowMat);
 
             Mesh cardQuad = BuildMesh(CardQuadPath, ArenaGeometry.CreateBasePivotedQuad);
             Mesh shadowQuad = BuildMesh(ShadowQuadPath, ArenaGeometry.CreateCenteredQuad);
             BuildPrefab(CardPrefabPath, "ArenaCard", cardQuad, cardA, ArenaCardZone.Border);
             BuildPrefab(DecalPrefabPath, "GroundDecal", shadowQuad, dirtMat, ArenaCardZone.Decal);
+            BuildCardShadowPrefab(shadowQuad, cardShadowMat);
 
-            ArenaLightingProfile day = BuildDayProfile();
+            ArenaLightingProfile dusk = BuildDuskProfile();
             ArenaLightingProfile night = BuildNightProfile();
-            ArenaTheme theme = BuildTheme(day, night, groundMat, shadowMat);
+            ArenaTheme theme = BuildTheme(dusk, night, groundMat, shadowMat);
 
             // SaveAssets, deliberately not Refresh: a Refresh reimports and can reload the very theme
             // instance this method is about to hand back, which would return a destroyed object to the
@@ -189,6 +228,17 @@ namespace ProjectSurvive.Game.Editor
             return material;
         }
 
+        /// <summary>
+        /// Selects which lighting-profile number drives one glow material: the ground pools listen to
+        /// the light-pool intensity, the lantern and the motes to the glow intensity.
+        /// </summary>
+        private static void SetChannel(Material material, float poolChannel, float glowChannel)
+        {
+            material.SetFloat("_PoolChannel", poolChannel);
+            material.SetFloat("_GlowChannel", glowChannel);
+            EditorUtility.SetDirty(material);
+        }
+
         private static Mesh BuildMesh(string path, Func<Mesh> factory)
         {
             Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
@@ -218,6 +268,37 @@ namespace ProjectSurvive.Game.Editor
         /// <c>MaterialPropertyBlock</c> the occlusion fade writes. The arena never moves either way;
         /// each card already carries its own sorting order, so batching could not have merged them.
         /// </summary>
+        /// <summary>
+        /// The prefab every fake card shadow is an instance of: one quad lying on the floor with the
+        /// multiply shadow shader. Unlike a card it needs no occlusion dither, so it is batching
+        /// static — every shadow in the arena shares one material and one sorting order, which is what
+        /// keeps 140 of them inside a single draw call.
+        /// </summary>
+        private static void BuildCardShadowPrefab(Mesh mesh, Material material)
+        {
+            var go = new GameObject("ArenaCardShadow");
+            try
+            {
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var renderer = go.AddComponent<MeshRenderer>();
+                renderer.sharedMaterial = material;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                renderer.sortingOrder = BattleWorldMap.ShadowSortingOrder;
+
+                go.AddComponent<ArenaShadowCard>();
+
+                GameObjectUtility.SetStaticEditorFlags(
+                    go, StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic);
+
+                PrefabUtility.SaveAsPrefabAsset(go, CardShadowPrefabPath);
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+            }
+        }
+
         private static void BuildPrefab(
             string path, string name, Mesh mesh, Material material, ArenaCardZone zone)
         {
@@ -251,7 +332,7 @@ namespace ProjectSurvive.Game.Editor
         // ------------------------------------------------------------------
 
         private static ArenaTheme BuildTheme(
-            ArenaLightingProfile day, ArenaLightingProfile night, Material ground, Material shadow)
+            ArenaLightingProfile dusk, ArenaLightingProfile night, Material ground, Material shadow)
         {
             ArenaTheme theme = AssetDatabase.LoadAssetAtPath<ArenaTheme>(ThemePath);
             if (theme is null)
@@ -290,8 +371,16 @@ namespace ProjectSurvive.Game.Editor
             theme.MaxYawDegrees = 9f;
             theme.GroundMaterial = ground;
             theme.ShadowMaterial = shadow;
-            theme.DayProfile = day;
+            theme.DuskProfile = dusk;
             theme.NightProfile = night;
+
+            // The readability floors, measured on a rendered frame by the capture tool
+            // (ArenaContrast). They are the acceptance numbers and they are not to be lowered to
+            // make a capture pass — the light is adjusted instead.
+            theme.MinPlayerContrast = 2.2f;
+            theme.MinGhostContrast = 1.9f;
+            theme.MinPickupContrast = 2.4f;
+            theme.MinTelegraphContrast = 1.3f;
 
             theme.Styles = new[]
             {
@@ -337,69 +426,105 @@ namespace ProjectSurvive.Game.Editor
             };
         }
 
-        private static ArenaLightingProfile BuildDayProfile()
+        /// <summary>
+        /// Dusk: the shipped look. A warm green-yellow key over a cool teal shadow, brightest in the
+        /// middle of the screen and falling away at the corners (vignette) and along the top edge
+        /// (the screen band). The values are a look, not a rule.
+        /// </summary>
+        private static ArenaLightingProfile BuildDuskProfile()
         {
-            ArenaLightingProfile profile = LoadOrCreateProfile(DayProfilePath);
+            ArenaLightingProfile profile = LoadOrCreateProfile(DuskProfilePath);
+            profile.TimeOfDay = ArenaTimeOfDay.Dusk;
+
             // The clear colour matches the floor's own tone, because a camera following the player
             // can see past the arena's edge and a bright sky there would read as a hole in the world.
-            profile.SkyColor = new Color(0.13f, 0.16f, 0.12f, 1f);
-            profile.EnvironmentTint = Color.white;
-            profile.AmbientSky = new Color(0.54f, 0.60f, 0.56f, 1f);
-            profile.AmbientEquator = new Color(0.42f, 0.46f, 0.40f, 1f);
-            profile.AmbientGround = new Color(0.24f, 0.25f, 0.21f, 1f);
-            profile.MoonColor = new Color(1f, 0.96f, 0.86f, 1f);
-            profile.MoonIntensity = 1.25f;
-            profile.MoonEuler = new Vector3(54f, -34f, 0f);
-            profile.FogEnabled = false;
-            profile.FogColor = new Color(0.63f, 0.66f, 0.58f, 1f);
-            profile.FogDensity = 0.005f;
-            profile.LanternIntensity = 0f;
-            profile.StaticLightIntensity = 0f;
-            profile.LightPoolIntensity = 0f;
-            profile.GlowIntensity = 0f;
-            profile.PostExposure = 0.15f;
-            profile.ColorFilter = new Color(1f, 1f, 1f, 1f);
-            profile.Contrast = 6f;
-            profile.Saturation = 4f;
-            profile.WhiteBalance = 0f;
+            profile.SkyColor = new Color(0.10f, 0.13f, 0.07f, 1f);
+            profile.EnvironmentTint = new Color(1.04f, 1.02f, 0.80f, 1f);
+            profile.AmbientSky = new Color(0.62f, 0.64f, 0.47f, 1f);
+            profile.AmbientEquator = new Color(0.47f, 0.49f, 0.33f, 1f);
+            profile.AmbientGround = new Color(0.26f, 0.27f, 0.16f, 1f);
+            profile.KeyLightColor = new Color(1f, 0.93f, 0.68f, 1f);
+            profile.KeyLightIntensity = 1.35f;
+            profile.KeyLightEuler = new Vector3(58f, -40f, 0f);
+
+            // The cool end: a deep teal rather than black, so a shadowed floor still reads as floor.
+            profile.ShadowColor = new Color(0.33f, 0.50f, 0.66f, 1f);
+            profile.ShadowStrength = 0.60f;
+            profile.ShadowDirectionDegrees = 245f;
+            profile.ShadowLengthPerHeight = 0.42f;
+            profile.CanopyShadowWidthFactor = 0.95f;
+
+            profile.FogEnabled = true;
+            profile.FogColor = new Color(0.29f, 0.33f, 0.19f, 1f);
+            profile.FogDensity = 0.0055f;
+            profile.ScreenTopGradient = 0.42f;
+            profile.ScreenGradientColor = new Color(0.04f, 0.06f, 0.03f, 1f);
+
+            profile.LanternIntensity = 1.10f;
+            profile.StaticLightIntensity = 0.45f;
+            profile.LightPoolIntensity = 0.24f;
+            profile.GlowIntensity = 0.85f;
+
+            profile.PostExposure = 0.30f;
+            profile.ColorFilter = new Color(1.02f, 1f, 0.94f, 1f);
+            profile.Contrast = 9f;
+            profile.Saturation = 7f;
+            profile.WhiteBalance = 16f;
             profile.ColorLookup = null;
-            profile.BloomIntensity = 0.12f;
-            profile.BloomThreshold = 1.15f;
+            profile.BloomIntensity = 0.30f;
+            profile.BloomThreshold = 0.95f;
             profile.BloomScatter = 0.55f;
-            profile.VignetteIntensity = 0.14f;
+            profile.VignetteIntensity = 0.26f;
             profile.VignetteSmoothness = 0.45f;
             EditorUtility.SetDirty(profile);
             return profile;
         }
 
+        /// <summary>
+        /// Night: the same assets under a cold, much darker key. Every number that is Dusk's
+        /// brightness is lower here, which is what “Night (มืดกว่า)” means and what its test checks.
+        /// </summary>
         private static ArenaLightingProfile BuildNightProfile()
         {
             ArenaLightingProfile profile = LoadOrCreateProfile(NightProfilePath);
-            profile.SkyColor = new Color(0.035f, 0.045f, 0.085f, 1f);
-            profile.EnvironmentTint = new Color(0.30f, 0.38f, 0.58f, 1f);
+            profile.TimeOfDay = ArenaTimeOfDay.Night;
+
+            profile.SkyColor = new Color(0.025f, 0.033f, 0.065f, 1f);
+            profile.EnvironmentTint = new Color(0.34f, 0.42f, 0.62f, 1f);
             profile.AmbientSky = new Color(0.10f, 0.14f, 0.24f, 1f);
             profile.AmbientEquator = new Color(0.06f, 0.09f, 0.16f, 1f);
             profile.AmbientGround = new Color(0.025f, 0.035f, 0.06f, 1f);
-            profile.MoonColor = new Color(0.62f, 0.72f, 1f, 1f);
-            profile.MoonIntensity = 0.38f;
-            profile.MoonEuler = new Vector3(42f, -58f, 0f);
+            profile.KeyLightColor = new Color(0.62f, 0.72f, 1f, 1f);
+            profile.KeyLightIntensity = 0.42f;
+            profile.KeyLightEuler = new Vector3(46f, -62f, 0f);
+
+            profile.ShadowColor = new Color(0.24f, 0.34f, 0.52f, 1f);
+            profile.ShadowStrength = 0.70f;
+            profile.ShadowDirectionDegrees = 250f;
+            profile.ShadowLengthPerHeight = 0.42f;
+            profile.CanopyShadowWidthFactor = 0.95f;
+
             profile.FogEnabled = true;
             profile.FogColor = new Color(0.045f, 0.065f, 0.12f, 1f);
-            profile.FogDensity = 0.016f;
-            profile.LanternIntensity = 2.6f;
-            profile.StaticLightIntensity = 1.15f;
-            profile.LightPoolIntensity = 0.38f;
-            profile.GlowIntensity = 0.55f;
-            profile.PostExposure = -0.35f;
-            profile.ColorFilter = new Color(0.78f, 0.86f, 1f, 1f);
-            profile.Contrast = 14f;
-            profile.Saturation = -10f;
-            profile.WhiteBalance = -12f;
+            profile.FogDensity = 0.015f;
+            profile.ScreenTopGradient = 0.55f;
+            profile.ScreenGradientColor = new Color(0.01f, 0.02f, 0.05f, 1f);
+
+            profile.LanternIntensity = 2.4f;
+            profile.StaticLightIntensity = 1.05f;
+            profile.LightPoolIntensity = 0.42f;
+            profile.GlowIntensity = 0.70f;
+
+            profile.PostExposure = -0.30f;
+            profile.ColorFilter = new Color(0.80f, 0.88f, 1f, 1f);
+            profile.Contrast = 15f;
+            profile.Saturation = -8f;
+            profile.WhiteBalance = -14f;
             profile.ColorLookup = null;
-            profile.BloomIntensity = 0.5f;
+            profile.BloomIntensity = 0.55f;
             profile.BloomThreshold = 0.85f;
             profile.BloomScatter = 0.65f;
-            profile.VignetteIntensity = 0.36f;
+            profile.VignetteIntensity = 0.40f;
             profile.VignetteSmoothness = 0.48f;
             EditorUtility.SetDirty(profile);
             return profile;
@@ -444,6 +569,45 @@ namespace ProjectSurvive.Game.Editor
             importer.SaveAndReimport();
 
             return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
+
+        /// <summary>
+        /// The same pixel canvas, imported as a Sprite for a canvas Image (the screen-top band). A
+        /// sprite asset rather than a runtime texture keeps the overlay wiring readable in the saved
+        /// scene and adds nothing to a frame.
+        /// </summary>
+        private static Sprite GenerateSprite(
+            string path, string name, int width, int height, Action<ArtCanvas> draw)
+        {
+            // The canvas is square; the gradient only varies along one axis, so a square source
+            // stretched by the Image is the same picture at 4 × 128.
+            int size = Mathf.Max(width, height);
+            var canvas = new ArtCanvas(size);
+            draw(canvas);
+
+            File.WriteAllBytes(Path.GetFullPath(path), canvas.EncodePng());
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+
+            var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.spritePixelsPerUnit = 100f;
+            importer.sRGBTexture = true;
+            importer.alphaSource = TextureImporterAlphaSource.FromInput;
+            importer.alphaIsTransparency = true;
+            importer.mipmapEnabled = false;
+            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.filterMode = FilterMode.Bilinear;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+
+            Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+            if (sprite is null)
+            {
+                throw new InvalidOperationException("The generated sprite '" + name + "' did not import.");
+            }
+
+            return sprite;
         }
 
         // ---- the drawings -------------------------------------------------
@@ -549,9 +713,11 @@ namespace ProjectSurvive.Game.Editor
 
         private static void Flower(ArtCanvas c)
         {
+            // The hot accents: four of the five blossoms are red-orange, so a flower decal is a
+            // saturated red mark on a green floor rather than another pale pebble.
             c.Clear(new Color(0f, 0f, 0f, 0f));
             var random = new System.Random(401);
-            var petals = new[] { FlowerWhite, FlowerWarm };
+            var petals = new[] { FlowerWarm, FlowerWarm, FlowerWhite, FlowerWarm, FlowerWarm };
 
             for (int i = 0; i < 5; i++)
             {
@@ -601,7 +767,11 @@ namespace ProjectSurvive.Game.Editor
 
         private static void Ground(ArtCanvas c)
         {
-            c.Clear(new Color(0.20f, 0.22f, 0.17f, 1f));
+            // A warm green-yellow floor: high enough in green to read as sunlit grass, low enough in
+            // blue that the teal shadows and the cool motes cannot be mistaken for more grass. The
+            // profile's tint is what makes it Dusk or Night; this texture is the daylight base.
+            var baseColour = new Color(0.31f, 0.34f, 0.19f, 1f);
+            c.Clear(baseColour);
 
             for (int y = 0; y < c.Size; y++)
             {
@@ -611,12 +781,11 @@ namespace ProjectSurvive.Game.Editor
                     float v = (y + 0.5f) / c.Size;
                     float macro = (Mathf.PerlinNoise(u * 3.0f, v * 2.6f) - 0.5f) * 2f;
                     float micro = (Mathf.PerlinNoise((u * 8.0f) + 4f, (v * 7.0f) + 9f) - 0.5f) * 2f;
-                    float shift = (macro * 0.022f) + (micro * 0.008f);
-                    Color baseColour = new Color(0.20f, 0.22f, 0.17f, 1f);
+                    float shift = (macro * 0.020f) + (micro * 0.008f);
                     c.Set(x, y, new Color(
                         Mathf.Clamp01(baseColour.r + shift),
                         Mathf.Clamp01(baseColour.g + shift),
-                        Mathf.Clamp01(baseColour.b + shift), 1f));
+                        Mathf.Clamp01(baseColour.b + (shift * 0.6f)), 1f));
                 }
             }
         }
@@ -635,8 +804,36 @@ namespace ProjectSurvive.Game.Editor
 
         private static void BlobShadow(ArtCanvas c)
         {
+            // Shape only: the colour is the profile's teal, written as a global. A soft edge over
+            // most of the radius is what makes the multiply look like a shadow and not like a decal.
             c.Clear(new Color(0f, 0f, 0f, 0f));
-            c.Radial(0.5f, 0.5f, 0.5f, new Color(0f, 0f, 0f, 0.5f), 1.1f, aspect: 0.68f);
+            c.Radial(0.5f, 0.5f, 0.5f, new Color(1f, 1f, 1f, 0.85f), 1.6f, aspect: 0.62f);
+        }
+
+        private static void Mote(ArtCanvas c)
+        {
+            c.Clear(new Color(0f, 0f, 0f, 0f));
+            c.Radial(0.5f, 0.5f, 0.5f, new Color(1f, 1f, 1f, 0.9f), 2.2f);
+        }
+
+        /// <summary>
+        /// The screen-top band: a vertical alpha ramp, transparent at the lower two thirds and
+        /// opaque at the top edge. Drawn into a canvas Image, so it is projection-independent and
+        /// covers the same fraction of the frame at every resolution.
+        /// </summary>
+        private static void ScreenGradient(ArtCanvas c)
+        {
+            c.Clear(new Color(1f, 1f, 1f, 0f));
+            for (int y = 0; y < c.Size; y++)
+            {
+                float v = (y + 0.5f) / c.Size;
+                float t = Mathf.Clamp01((v - 0.45f) / 0.55f);
+                float alpha = Mathf.Pow(t, 1.7f);
+                for (int x = 0; x < c.Size; x++)
+                {
+                    c.Set(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
         }
 
         // ------------------------------------------------------------------

@@ -78,6 +78,13 @@ namespace ProjectSurvive.Game.Presentation.Battle.Vfx
             }
         }
 
+        /// <summary>
+        /// The colour a warning of this shape is drawn with. Public so the readability capture can
+        /// measure the same tint the pool uses, rather than a copy that could drift from it.
+        /// </summary>
+        public static Color TintFor(TelegraphShape shape) =>
+            shape == TelegraphShape.Line ? LineTint : CircleTint;
+
         /// <summary>Warnings currently drawn.</summary>
         public int ActiveCount { get; private set; }
 

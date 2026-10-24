@@ -348,3 +348,37 @@ RTX 5060 Ti). `AgentScripts/ArenaFadeCompare.Run` is the dither's own pair: it w
 freezes `Time.timeScale` so the sway stops, and captures the same frame with the fade on and off —
 the two images differ only where the dither removed pixels
 (`stage08e-dither-compare.png`).
+
+## 14. Two looks from one set of assets (Stage 08f)
+
+Dusk is the shipped look and Night is the same arena under a colder key; neither is a different
+scene, a different material or a different texture. `ArenaLightingProfile` is a ScriptableObject that
+owns ambient, the single directional light, the shadow colour and its one angle, fog, the screen
+top band, the fake-light intensities and the post grade, and the arena's shaders read it through
+globals only (`_ArenaTint`, `_ArenaLightPool`, `_ArenaGlow`, `_ArenaShadowColor`,
+`_ArenaShadowStrength`, `_ArenaScreenGradient`). `ArenaEnvironmentView.SetTimeOfDay` swaps two
+profiles; an EditMode test and the capture's own `assets unchanged by the profile switch: True`
+assert that no material's colour, texture or render queue moved.
+
+**Shadows are decals with one direction.** A card writes no depth and 300 ghosts leave no room for
+a shadow pass, so each standing card gets a soft quad on the floor: length =
+`height × ShadowLengthPerHeight`, width = the card's own, oriented from
+`ArenaLightingProfile.ShadowDirectionDegrees` (245° at both profiles). There is exactly one angle in
+the scene and a test reads it back off the placed transforms. The wide canopy patch exists only
+under border trees (`ArenaShadowCard.IsCanopy`, 74 of 187); the open centre may not hold one. All
+shadows sit in one render queue below every actor order (`BattleWorldMap.ShadowSortingOrder`), so a
+shadow can never cover a ghost, a pickup or the player.
+
+**~190 shadow quads are one draw call.** As scene renderers they cost a batch each and took the
+300-ghost frame to 205; `ArenaCardShadowLayer` bakes their matrices once and draws them with one
+`Graphics.DrawMeshInstanced`, disabling the individual renderers. The builder still places one
+`ArenaShadowCard` per shadow, so the direction/zone/sorting tests read the scene rather than a
+parallel list. `ArenaScreenGradient` is a camera-space canvas at sorting order −100 (below the HUD) —
+URP fog darkens by camera distance, which is not the screen's vertical axis under an orthographic
+rig — and `ArenaContrast` measures readability as the WCAG luminance ratio of a group's 90th
+percentile against the median floor ring around it, on the pixels of the saved PNG itself.
+
+Readability thresholds live in `ArenaTheme` (player 2.2, ghost 1.9, pickup 2.4, telegraph 1.3) and
+are adjusted by changing the lighting, never the number. Evidence: `docs/stages/08f-report.md`,
+`AgentScripts/ArenaStage08fCapture.Run` writes `stage08f-contrast.txt` / `stage08f-metrics.txt` next
+to the six captures in `artifacts/ui/battle-env/`.

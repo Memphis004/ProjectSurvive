@@ -36,8 +36,8 @@ namespace ProjectSurvive.Game.Presentation.Battle
         // Placeholder palette. Cosmetic only: nothing here is a balance number and
         // nothing here is read back by a rule.
         private static readonly Color32 Ink = new Color32(24, 20, 28, 255);
-        private static readonly Color32 Doctor = new Color32(242, 226, 168, 255);
-        private static readonly Color32 Ghost = new Color32(150, 196, 176, 255);
+        private static readonly Color32 Doctor = new Color32(246, 231, 176, 255);
+        private static readonly Color32 Ghost = new Color32(198, 238, 219, 255);
         private static readonly Color32 Bolt = new Color32(255, 214, 120, 255);
         private static readonly Color32 Drop = new Color32(255, 246, 210, 255);
         private static readonly Color32 Floor = new Color32(52, 56, 48, 255);
@@ -45,9 +45,14 @@ namespace ProjectSurvive.Game.Presentation.Battle
         // Stage 08e: a bright rim on every actor, so a sprite reads against a dark night floor even
         // though nothing lights it. Authored in daylight colours and left bright by the night
         // profile (the profile darkens the environment's global tint, not the actors' textures).
-        private static readonly Color32 DoctorRim = new Color32(255, 250, 226, 255);
-        private static readonly Color32 GhostRim = new Color32(214, 255, 234, 255);
-        private static readonly Color32 DropRim = new Color32(255, 255, 245, 255);
+        //
+        // Stage 08f: the bodies were lifted and the rim brightened after the readability capture put
+        // a ghost at 1.1 : 1 against the dusk floor. A pale body alone is only a few percent
+        // brighter than warm-green ground; the bright edge of the silhouette is what separates them
+        // (ArenaContrast measures the 90th percentile of the sprite's own box, which is that edge).
+        private static readonly Color32 DoctorRim = new Color32(255, 253, 240, 255);
+        private static readonly Color32 GhostRim = new Color32(242, 255, 250, 255);
+        private static readonly Color32 DropRim = new Color32(255, 255, 255, 255);
 
         private readonly List<UnityEngine.Object> _owned = new List<UnityEngine.Object>(8);
 
@@ -385,11 +390,12 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
             Color32 colour = coverage == 1f ? fill : Color32.Lerp(ink, fill, coverage);
 
-            // A two-and-a-half pixel bright edge inside the silhouette. `insideDistance * size` is
-            // how many pixels inside the outline this pixel is, so the band follows any shape.
+            // A bright edge a little over three pixels wide inside the silhouette. `insideDistance *
+            // size` is how many pixels inside the outline this pixel is, so the band follows any
+            // shape and an actor stays outlined at any camera distance (Stage 08f readability).
             if (rim.a > 0)
             {
-                float inner = Mathf.Clamp01((insideDistance * size) / 2.5f);
+                float inner = Mathf.Clamp01((insideDistance * size) / 3.2f);
                 colour = Color32.Lerp(rim, colour, inner);
             }
 

@@ -8,23 +8,25 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
 {
     /// <summary>
     /// The arena's presentation: which <see cref="ArenaLightingProfile"/> is in force, the fake
-    /// lights that profile turns on, the lantern that follows the player, and the instanced shadow
-    /// layer.
+    /// lights that profile turns on, the lantern that follows the player, the screen-top gradient
+    /// band and the instanced shadow layer.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This is the whole runtime half of Stage 08e. The cards, the decals and the tree wall are
-    /// authored into the Battle scene by <c>ArenaBuilder</c> and marked static, so at runtime they
-    /// cost nothing to build and almost nothing to draw. What is left is the part that has to move
-    /// or change: the lighting profile, the player's lantern and the shadows under the actors.
+    /// This is the whole runtime half of Stage 08e/08f. The cards, the decals, their fake shadows
+    /// and the tree wall are authored into the Battle scene by <c>ArenaBuilder</c> and marked static,
+    /// so at runtime they cost nothing to build and almost nothing to draw. What is left is the part
+    /// that has to move or change: the lighting profile, the player's lantern, the shadows under the
+    /// actors, and the screen band.
     /// </para>
     /// <para>
-    /// <b>Day and night are one call.</b> <see cref="SetNight"/> selects the theme's night profile
-    /// and <see cref="ApplyProfile"/> writes it into the engine: ambient, the one directional light,
-    /// fog, the camera's clear colour, the global tint the arena shaders read, the fake-light
-    /// intensities, and a runtime post-processing volume (Color Adjustments, optional LUT, Bloom,
-    /// Vignette). No material, texture or sprite is touched, which is what “สลับ Day/Night ได้โดยไม่
-    /// เปลี่ยน asset” means in practice.
+    /// <b>Dusk and night are one call.</b> <see cref="SetTimeOfDay"/> (and its older spelling
+    /// <see cref="SetNight"/>) selects one of the theme's two profiles and
+    /// <see cref="ApplyProfile"/> writes it into the engine: ambient, the one directional light, fog,
+    /// the camera's clear colour, the globals the arena shaders read (tint, fake-light intensities,
+    /// the cool shadow colour and strength, the screen band), and a runtime post-processing volume
+    /// (Color Adjustments, optional LUT, Bloom, Vignette). No material, texture or sprite is touched,
+    /// which is what “สลับ Dusk/Night ได้โดยไม่เปลี่ยน asset” means in practice.
     /// </para>
     /// <para>
     /// <b>Why almost no real lights.</b> The locked URP version's documentation (Unity 6.3 /
@@ -44,14 +46,23 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         /// <summary>Global that turns the card sway on and off.</summary>
         public const string ArenaSwayGlobal = "_ArenaSway";
 
-        /// <summary>Global intensity of the additive ground pools and glows.</summary>
+        /// <summary>Global intensity of the additive ground pools.</summary>
         public const string ArenaLightPoolGlobal = "_ArenaLightPool";
 
-        [Tooltip("The theme the scene was built from. Its Day/Night profiles are what switch.")]
+        /// <summary>Global intensity of the glow sprites: the lantern and the floating motes.</summary>
+        public const string ArenaGlowGlobal = "_ArenaGlow";
+
+        /// <summary>Global colour every fake shadow multiplies into the floor.</summary>
+        public const string ArenaShadowColorGlobal = "_ArenaShadowColor";
+
+        /// <summary>Global how dark a fully covered shadow pixel gets.</summary>
+        public const string ArenaShadowStrengthGlobal = "_ArenaShadowStrength";
+
+        [Tooltip("The theme the scene was built from. Its Dusk/Night profiles are what switch.")]
         [SerializeField] private ArenaTheme _theme;
 
-        [Tooltip("The one directional light: the sun by day, the moon by night.")]
-        [SerializeField] private Light _moon;
+        [Tooltip("The one directional light: the warm key at dusk, the moon at night.")]
+        [SerializeField] private Light _keyLight;
 
         [Tooltip("The player's lantern point light. Off by day.")]
         [SerializeField] private Light _lantern;
@@ -76,6 +87,9 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
 
         [Tooltip("The dither that keeps the player readable under a tree at the arena's edge.")]
         [SerializeField] private ArenaCardFade _cardFade;
+
+        [Tooltip("The dark band along the top edge of the screen (Stage 08f).")]
+        [SerializeField] private ArenaScreenGradient _screenGradient;
 
         [Tooltip("Start the floor at night. The gallery/capture tool drives both.")]
         [SerializeField] private bool _night;
@@ -114,7 +128,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
                     lights[index++] = _staticLights[i];
                 }
 
-                if (_lantern is not null)
+                if (_lantern != null)
                 {
                     lights[index] = _lantern;
                 }
@@ -125,7 +139,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
 
         private void Awake()
         {
-            if (_camera is null)
+            if (_camera == null)
             {
                 _camera = Camera.main;
             }
@@ -136,11 +150,15 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
 
         private void OnDestroy() => ReleaseProfile();
 
-        /// <summary>Switches to day or night. The one command the acceptance asks for.</summary>
+        /// <summary>Switches to dusk or night. The one command the acceptance asks for.</summary>
         public void SetNight(bool night) => Apply(night);
 
+        /// <summary>Switches to one of the two authored looks.</summary>
+        public void SetTimeOfDay(ArenaTimeOfDay timeOfDay) =>
+            Apply(timeOfDay == ArenaTimeOfDay.Night);
+
         /// <summary>Switches to the other profile.</summary>
-        public void ToggleNight() => Apply(!IsNight);
+        public void ToggleTimeOfDay() => Apply(!IsNight);
 
         /// <summary>Turns the card sway on or off (a settings switch, not an asset change).</summary>
         public void SetLeafSway(bool enabled)
@@ -161,7 +179,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         /// <summary>Applies a specific profile, whichever of the theme's two it is.</summary>
         public void ApplyProfile(ArenaLightingProfile profile)
         {
-            if (profile is null)
+            if (profile == null)
             {
                 return;
             }
@@ -175,13 +193,13 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         /// </summary>
         public void Apply(bool night)
         {
-            if (_theme is null)
+            if (_theme == null)
             {
                 return;
             }
 
-            ArenaLightingProfile profile = night ? _theme.NightProfile : _theme.DayProfile;
-            if (profile is null)
+            ArenaLightingProfile profile = night ? _theme.NightProfile : _theme.DuskProfile;
+            if (profile == null)
             {
                 return;
             }
@@ -191,6 +209,9 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
 
             Shader.SetGlobalColor(ArenaTintGlobal, profile.EnvironmentTint);
             Shader.SetGlobalFloat(ArenaLightPoolGlobal, profile.LightPoolIntensity);
+            Shader.SetGlobalFloat(ArenaGlowGlobal, profile.GlowIntensity);
+            Shader.SetGlobalColor(ArenaShadowColorGlobal, profile.ShadowColor);
+            Shader.SetGlobalFloat(ArenaShadowStrengthGlobal, profile.ShadowStrength);
             Shader.SetGlobalFloat(ArenaSwayGlobal, _leafSway ? 1f : 0f);
 
             RenderSettings.ambientMode = AmbientMode.Trilight;
@@ -202,16 +223,20 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
             RenderSettings.fogColor = profile.FogColor;
             RenderSettings.fogDensity = profile.FogDensity;
 
-            if (_moon is not null)
+            if (_keyLight != null)
             {
-                _moon.color = profile.MoonColor;
-                _moon.intensity = profile.MoonIntensity;
-                _moon.transform.rotation = Quaternion.Euler(profile.MoonEuler);
+                _keyLight.color = profile.KeyLightColor;
+                _keyLight.intensity = profile.KeyLightIntensity;
+                _keyLight.transform.rotation = Quaternion.Euler(profile.KeyLightEuler);
             }
+
+            // The screen band is the top-edge half of the vignette; the volume below is the radial
+            // half. Both come from the same profile, so they cannot disagree.
+            _screenGradient?.Apply(profile.ScreenGradientColor, profile.ScreenTopGradient);
 
             ApplyLight(_lantern, profile.LanternIntensity);
 
-            if (_staticLights is not null)
+            if (_staticLights != null)
             {
                 for (int i = 0; i < _staticLights.Length; i++)
                 {
@@ -219,20 +244,14 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
                 }
             }
 
-            if (_lanternGlow is not null)
+            if (_lanternGlow != null)
             {
-                bool lit = profile.GlowIntensity > 0.001f;
-                _lanternGlow.enabled = lit;
-                var block = new MaterialPropertyBlock();
-                _lanternGlow.GetPropertyBlock(block);
-
-                Color glow = Color.white;
-                glow.a = Mathf.Clamp01(profile.GlowIntensity);
-                block.SetColor("_BaseColor", glow);
-                _lanternGlow.SetPropertyBlock(block);
+                // Its intensity is the profile's glow global, read by ArenaGlow.shader, so the glow
+                // quad and the floating motes share one number and no per-renderer block is written.
+                _lanternGlow.enabled = profile.GlowIntensity > 0.001f;
             }
 
-            if (_camera is not null)
+            if (_camera != null)
             {
                 _camera.clearFlags = CameraClearFlags.SolidColor;
                 _camera.backgroundColor = profile.SkyColor;
@@ -254,12 +273,12 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         /// </summary>
         public void Tick(Vector3 playerWorldPosition, ReadOnlySpan<RenderEntity> entities)
         {
-            if (_lanternRoot is not null)
+            if (_lanternRoot != null)
             {
                 _lanternRoot.position = playerWorldPosition + new Vector3(0f, 1.15f, 0f);
             }
 
-            if (_shadows is not null)
+            if (_shadows != null)
             {
                 _shadows.Draw(entities);
             }
@@ -270,7 +289,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
 
         private static void ApplyLight(Light light, float intensity)
         {
-            if (light is null)
+            if (light == null)
             {
                 return;
             }
@@ -286,7 +305,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         /// </summary>
         private void BuildVolume(ArenaLightingProfile profile)
         {
-            if (_volume is null)
+            if (_volume == null)
             {
                 return;
             }
@@ -309,7 +328,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
                 balance.temperature.Override(profile.WhiteBalance);
             }
 
-            if (profile.ColorLookup is not null)
+            if (profile.ColorLookup != null)
             {
                 ColorLookup lookup = runtime.Add<ColorLookup>(true);
                 lookup.texture.Override(profile.ColorLookup);
@@ -334,12 +353,12 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
 
         private void ReleaseProfile()
         {
-            if (_runtimeProfile is null)
+            if (_runtimeProfile == null)
             {
                 return;
             }
 
-            if (_volume is not null && ReferenceEquals(_volume.sharedProfile, _runtimeProfile))
+            if (_volume != null && ReferenceEquals(_volume.sharedProfile, _runtimeProfile))
             {
                 _volume.sharedProfile = null;
             }
