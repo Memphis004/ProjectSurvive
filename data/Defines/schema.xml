@@ -66,15 +66,18 @@
 
   <!-- The telegraphed attack a ghost runs, if any (Stage 11b).
 
-       None    : contact damage only (walker / boss).
-       DashDrain: Krasue - wind up, dash along a line, then drain an aura, then retreat.
-       RingVines: Nang Tani - wind up a ring around herself, then lash vines along a line.
+       None      : contact damage only (walker / boss).
+       DashFollowUp: wind up, dash along a line, then a second attack where it lands:
+                     Krasue's drain aura (and a retreat), Krahang's gale (and a push).
+       RingVines : Nang Tani - wind up a ring around herself, then lash vines along a line.
 
        The numbers beside it in the enemy row are the whole attack: no behaviour is
-       encoded here, only which of the simulation's small per-kind state machines runs. -->
+       encoded here, only which of the simulation's small per-kind state machines runs.
+       (The dash value was named DashDrain until Stage 16, when Krahang became its second
+       user and its follow-up stopped being a drain.) -->
   <enum name="EnemyAttackPattern">
     <var name="None" value="0"/>
-    <var name="DashDrain" value="1"/>
+    <var name="DashFollowUp" value="1"/>
     <var name="RingVines" value="2"/>
   </enum>
 
@@ -295,6 +298,7 @@
     <var name="follow_up_radius" type="float"/>
     <var name="follow_up_length" type="float"/>
     <var name="follow_up_tick_seconds" type="float"/>
+    <var name="follow_up_push" type="float"/>
     <var name="retreat_seconds" type="float"/>
     <var name="retreat_speed" type="float"/>
 

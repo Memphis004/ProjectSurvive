@@ -42,6 +42,7 @@ public sealed partial class Enemy : Luban.BeanBase
         FollowUpRadius = _buf.ReadFloat();
         FollowUpLength = _buf.ReadFloat();
         FollowUpTickSeconds = _buf.ReadFloat();
+        FollowUpPush = _buf.ReadFloat();
         RetreatSeconds = _buf.ReadFloat();
         RetreatSpeed = _buf.ReadFloat();
         BossPossessTelegraphSeconds = _buf.ReadFloat();
@@ -83,6 +84,7 @@ public sealed partial class Enemy : Luban.BeanBase
     public readonly float FollowUpRadius;
     public readonly float FollowUpLength;
     public readonly float FollowUpTickSeconds;
+    public readonly float FollowUpPush;
     public readonly float RetreatSeconds;
     public readonly float RetreatSpeed;
     public readonly float BossPossessTelegraphSeconds;
@@ -128,6 +130,7 @@ public sealed partial class Enemy : Luban.BeanBase
         + "followUpRadius:" + FollowUpRadius + ","
         + "followUpLength:" + FollowUpLength + ","
         + "followUpTickSeconds:" + FollowUpTickSeconds + ","
+        + "followUpPush:" + FollowUpPush + ","
         + "retreatSeconds:" + RetreatSeconds + ","
         + "retreatSpeed:" + RetreatSpeed + ","
         + "bossPossessTelegraphSeconds:" + BossPossessTelegraphSeconds + ","

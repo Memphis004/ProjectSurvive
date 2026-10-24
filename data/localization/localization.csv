@@ -1,4 +1,4 @@
-##,key,th,en
+﻿##,key,th,en
 ,ui.title,พ่อหมอปราบผี,The Ghost-Doctor
 ,ui.generic.ok,ตกลง,OK
 ,ui.generic.close,ปิด,Close
@@ -47,6 +47,7 @@
 ,enemy.krasue.name,กระสือ,Krasue
 ,enemy.nang_tani.name,นางตานี,Nang Tani
 ,enemy.pob.name,ปอบ,Pob
+,enemy.krahang.name,กระหัง,Krahang
 ,floor.forest_1.name,ป่าช้าวัดร้าง ชั้น 1,Graveyard Forest F1
 ,floor.forest_2.name,ป่าช้าวัดร้าง ชั้น 2,Graveyard Forest F2
 ,floor.forest_3.name,ป่าช้าวัดร้าง ชั้น 3,Graveyard Forest F3

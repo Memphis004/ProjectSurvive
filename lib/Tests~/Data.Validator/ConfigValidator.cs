@@ -702,6 +702,7 @@ namespace ProjectSurvive.Data.Validator
                     && enemy.FollowUpRadius == 0f
                     && enemy.FollowUpLength == 0f
                     && enemy.FollowUpTickSeconds == 0f
+                    && enemy.FollowUpPush == 0f
                     && enemy.RetreatSeconds == 0f
                     && enemy.RetreatSpeed == 0f,
                     findings,
@@ -727,7 +728,7 @@ namespace ProjectSurvive.Data.Validator
             Check(enemy.AttackSeconds >= 0f, findings, "enemy.attack_seconds_negative",
                 row + ".attack_seconds", "attack_seconds must not be negative");
 
-            if (enemy.AttackPattern == EnemyAttackPattern.DashDrain)
+            if (enemy.AttackPattern == EnemyAttackPattern.DashFollowUp)
             {
                 Check(enemy.AttackLength > 0f, findings, "enemy.attack_length_not_positive",
                     row + ".attack_length", "a dash travels along a line, so attack_length must be > 0");
@@ -758,6 +759,19 @@ namespace ProjectSurvive.Data.Validator
                     Check(enemy.FollowUpTickSeconds > 0f, findings, "enemy.follow_up_tick_missing",
                         row + ".follow_up_tick_seconds", "a window that lasts applies damage on an interval");
                 }
+            }
+
+            Check(enemy.FollowUpPush >= 0f, findings, "enemy.push_negative",
+                row + ".follow_up_push", "a push moves the player away from the hit, so it cannot be negative");
+
+            if (enemy.FollowUpPush > 0f)
+            {
+                Check(
+                    enemy.FollowUpTelegraphSeconds > 0f && enemy.FollowUpDamage > 0,
+                    findings,
+                    "enemy.push_without_follow_up",
+                    row + ".follow_up_push",
+                    "a push belongs to the second attack: a row that pushes needs its warning and its damage");
             }
 
             if (enemy.RetreatSeconds > 0f)

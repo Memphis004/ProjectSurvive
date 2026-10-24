@@ -2,7 +2,7 @@
 
 # Enemies
 
-All 4 rows of `data/tables/enemy.csv`, in file order. "Appears on" is computed from `data/tables/wave.csv`; the full timed timeline is in [floors.md](floors.md).
+All 5 rows of `data/tables/enemy.csv`, in file order. "Appears on" is computed from `data/tables/wave.csv`; the full timed timeline is in [floors.md](floors.md).
 
 <a id="enemy.wandering_spirit"></a>
 ### enemy.wandering_spirit - วิญญาณเร่ร่อน (Wandering Spirit)
@@ -69,6 +69,27 @@ All 4 rows of `data/tables/enemy.csv`, in file order. "Appears on" is computed f
 
 - [ป่าช้าวัดร้าง ชั้น 3](floors.md#floor.forest_3) - wave `wave.forest_3.b`: 3 spawn(s) from 25s to 60s every 10.0s
 - [ป่าช้าวัดร้าง ชั้น 4](floors.md#floor.forest_4) - wave `wave.forest_4.c`: 2 spawn(s) from 45s to 60s every 10.0s
+
+<a id="enemy.krahang"></a>
+### enemy.krahang - กระหัง (Krahang)
+
+| Field | Value |
+| --- | --- |
+| role | `Fast` |
+| max_hp | 30 |
+| move_speed | 2.6 |
+| contact_damage | 3 |
+| attack_cooldown_seconds | 4.0 |
+| move_pattern | `Charge` |
+| is_elite | false |
+| is_boss | false |
+| boss_phase2_hp_percent | 0 |
+| drop_value | 2 bia per kill |
+
+**Appears on:**
+
+- [ป่าช้าวัดร้าง ชั้น 3](floors.md#floor.forest_3) - wave `wave.forest_3.c`: 2 spawn(s) from 34s to 60s every 10.0s
+- [ป่าช้าวัดร้าง ชั้น 4](floors.md#floor.forest_4) - wave `wave.forest_4.d`: 2 spawn(s) from 40s to 60s every 10.0s
 
 <a id="enemy.pob"></a>
 ### enemy.pob - ปอบ (Pob)

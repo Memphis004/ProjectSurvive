@@ -140,13 +140,13 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
                     case EnemyAttackState.FollowUpTelegraph:
                         StepFollowUpTelegraph(
                             context, entity, ref brain, ref attack, in position,
-                            playerX, playerY, playerRadius);
+                            playerX, playerY, playerRadius, ref playerPosition);
                         break;
 
                     case EnemyAttackState.FollowUp:
                         StepFollowUp(
                             context, entity, ref brain, in attack, in position,
-                            playerX, playerY, playerRadius);
+                            playerX, playerY, playerRadius, ref playerPosition);
                         break;
 
                     case EnemyAttackState.Retreat:
@@ -252,7 +252,8 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
 
         private void StepFollowUpTelegraph(
             BattleContext context, int entity, ref EnemyBrain brain, ref EnemyAttack attack,
-            in Position position, float playerX, float playerY, float playerRadius)
+            in Position position, float playerX, float playerY, float playerRadius,
+            ref Position playerPosition)
         {
             brain.StateTicks--;
 
@@ -271,20 +272,24 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
                 return;
             }
 
-            ResolveFollowUp(context, in attack, in brain, in position, playerX, playerY, playerRadius);
+            ResolveFollowUp(
+                context, in attack, in brain, in position, playerX, playerY, playerRadius, ref playerPosition);
             EnterRecover(ref brain, in attack);
         }
 
         private void StepFollowUp(
             BattleContext context, int entity, ref EnemyBrain brain, in EnemyAttack attack,
-            in Position position, float playerX, float playerY, float playerRadius)
+            in Position position, float playerX, float playerY, float playerRadius,
+            ref Position playerPosition)
         {
             brain.StateTicks--;
             brain.DamageTicks--;
 
             if (brain.DamageTicks <= 0)
             {
-                ResolveFollowUp(context, in attack, in brain, in position, playerX, playerY, playerRadius);
+                ResolveFollowUp(
+                    context, in attack, in brain, in position, playerX, playerY, playerRadius,
+                    ref playerPosition);
                 brain.DamageTicks = attack.FollowUpTickTicks > 0 ? attack.FollowUpTickTicks : 1;
             }
 
@@ -401,9 +406,20 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
             }
         }
 
+        /// <summary>
+        /// Applies the second attack's footprint, and throws a player it hits when the row
+        /// asks for it. A push moves the player and nothing else: no damage, no status, no
+        /// random, so it stays a pure function of the tick's positions.
+        /// </summary>
+        /// <remarks>
+        /// The hit test uses the player's position from the start of the tick, like every
+        /// other resolve in this system; a push therefore moves the player for the next
+        /// tick's tests rather than for another ghost's warning in the same one.
+        /// </remarks>
         private static void ResolveFollowUp(
             BattleContext context, in EnemyAttack attack, in EnemyBrain brain,
-            in Position position, float playerX, float playerY, float playerRadius)
+            in Position position, float playerX, float playerY, float playerRadius,
+            ref Position playerPosition)
         {
             bool hit = attack.FollowUpLength > 0f
                 ? EnemyAttackRules.LineHits(
@@ -412,10 +428,55 @@ namespace ProjectSurvive.Core.Simulation.Battle.Systems
                 : EnemyAttackRules.CircleHits(
                     position.X, position.Y, attack.FollowUpRadius, playerX, playerY, playerRadius);
 
-            if (hit && attack.FollowUpDamage > 0)
+            if (!hit)
+            {
+                return;
+            }
+
+            if (attack.FollowUpDamage > 0)
             {
                 context.PlayerHitDamage += attack.FollowUpDamage;
             }
+
+            if (attack.FollowUpPush > 0f)
+            {
+                PushAway(in attack, in brain, in position, ref playerPosition, playerRadius);
+            }
+        }
+
+        /// <summary>
+        /// Moves the player <see cref="EnemyAttack.FollowUpPush"/> units away from the ghost
+        /// that hit them, so a gale at the landing point throws them along the dive rather
+        /// than back down it. A player standing exactly on the ghost is thrown along the
+        /// ghost's locked aim, because there is no direction in a zero vector.
+        /// </summary>
+        private static void PushAway(
+            in EnemyAttack attack, in EnemyBrain brain, in Position position,
+            ref Position playerPosition, float playerRadius)
+        {
+            float dx = playerPosition.X - position.X;
+            float dy = playerPosition.Y - position.Y;
+            float squared = (dx * dx) + (dy * dy);
+
+            float directionX;
+            float directionY;
+
+            if (squared > 1e-8f)
+            {
+                float inverse = 1f / (float)Math.Sqrt(squared);
+                directionX = dx * inverse;
+                directionY = dy * inverse;
+            }
+            else
+            {
+                directionX = brain.AimX;
+                directionY = brain.AimY;
+            }
+
+            playerPosition.X += directionX * attack.FollowUpPush;
+            playerPosition.Y += directionY * attack.FollowUpPush;
+
+            BattleContext.ClampToArena(ref playerPosition.X, ref playerPosition.Y, playerRadius);
         }
 
         private static void LockAim(ref EnemyBrain brain, float dx, float dy)

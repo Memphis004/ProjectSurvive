@@ -310,6 +310,7 @@ namespace ProjectSurvive.Core.Infrastructure.Config
                     FollowUpRadius = row.FollowUpRadius,
                     FollowUpLength = row.FollowUpLength,
                     FollowUpTickSeconds = row.FollowUpTickSeconds,
+                    FollowUpPush = row.FollowUpPush,
                     RetreatSeconds = row.RetreatSeconds,
                     RetreatSpeed = row.RetreatSpeed,
                     BossPossessTelegraphSeconds = row.BossPossessTelegraphSeconds,

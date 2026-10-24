@@ -69,9 +69,16 @@ skips every stage whose tick count is zero:
 Chase -> Telegraph -> Strike -> FollowUpTelegraph -> FollowUp -> Retreat -> Recover -> Chase
 ```
 
-- **Krasue (`DashDrain`)**: warns a **line** (`attack_length` 6, half-width 0.9) for 0.6 s, dashes
-along it for 0.25 s, warns a **circle** around herself for 0.4 s, drains for 1.0 s (2 damage every
-0.3 s inside 2.2 units), retreats at 2.4 u/s, then waits `attack_cooldown_seconds`.
+- **Krasue (`DashFollowUp`, called `DashDrain` before Stage 16)**: warns a **line** (`attack_length`
+6, half-width 0.9) for 0.6 s, dashes along it for 0.25 s, warns a **circle** around herself for
+0.4 s, drains for 1.0 s (2 damage every 0.3 s inside 2.2 units), retreats at 2.4 u/s, then waits
+`attack_cooldown_seconds`.
+- **กระหัง (`DashFollowUp`, Stage 16)**: the same machine with a different payload — a dive along a
+5.5-unit line after a 0.7 s warning, then a single **gale** (circle, radius 4.2, one application)
+at the landing point that also **throws** the player `follow_up_push` units away from the ghost, and
+no retreat. The shove is the only rule in the battle that moves the player other than input; it is
+clamped to the arena and resolved against the tick's starting positions, so two gales in one tick
+both hit where the player stood.
 - **Nang Tani (`RingVines`)**: stands still (her `move_pattern` is `Stationary`), warns a **ring** of
 radius 4.5 for 1 s around herself, then warns a **vine line** (length 7, half-width 0.55) for 0.8 s
 and lashes it. Both hit once, for the row's damage, at the end of their own warning.
@@ -91,7 +98,9 @@ re-derives a reach from a def. Resolved damage goes through the existing queue
 
 The numbers all live on the `enemy` row ([ADR 0029](../../docs/adr/0029-enemy-telegraphed-attacks.md));
 the validator rejects a strong attack with no warning time, a ring with a line length, a drain with
-no cadence, a retreat with no speed, and a contact-only ghost that carries attack numbers.
+no cadence, a retreat with no speed, a push with no second attack, and a contact-only ghost that
+carries attack numbers. The push column and why it exists are in
+[ADR 0036](../../docs/adr/0036-krahang-pushes-with-the-gale.md).
 
 While `SweepActive`, `Step` runs only `SweepSystem` and `FramePublishSystem` — no wave, no
 steering, no casts, no collision, no damage, no death, no new drops. The ghosts that are left

@@ -25,7 +25,7 @@ This directory is the **synthesised content layer** of the wiki: one page per ki
 | skills | 5 | [skills.md](skills.md) |
 | synergy rules | 5 | [synergies.md](synergies.md) |
 | upgrade variants | 10 | [upgrades.md](upgrades.md) |
-| enemies | 4 | [enemies.md](enemies.md) |
+| enemies | 5 | [enemies.md](enemies.md) |
 | floors | 5 | [floors.md](floors.md) |
 
 Items per category: 4 ArcaneWeapon, 3 Charm, 1 SpellTome, 2 Offering, 1 Familiar.

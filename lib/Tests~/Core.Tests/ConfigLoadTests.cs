@@ -29,11 +29,12 @@ namespace ProjectSurvive.Core.Tests
             Assert.Equal(5, config.Skills.Count);
             Assert.Equal(5, config.Synergies.Count);
             Assert.Equal(28, config.MergeRecipes.Count);
-            Assert.Equal(4, config.Enemies.Count);
+            // Stage 16 added กระหัง, the fifth ghost, and its two wave windows.
+            Assert.Equal(5, config.Enemies.Count);
             Assert.Equal(5, config.Floors.Count);
-            // 10 wave windows: floor 5 gained a filler band in Stage 11c so the boss has corpses
-            // to eat on a real run, not only in a test.
-            Assert.Equal(10, config.Waves.Count);
+            // 12 wave windows: floor 5 gained a filler band in Stage 11c so the boss has corpses
+            // to eat on a real run, not only in a test; Stage 16 gave floors 3 and 4 one each.
+            Assert.Equal(12, config.Waves.Count);
             Assert.Equal(14, config.ShopPool.Count);
 
             // Stage 09f: 10 upgrade choices (4 per arcane tier step plus one per step scoped
@@ -73,23 +74,30 @@ namespace ProjectSurvive.Core.Tests
             // own controls (`ui.settings.decrease`/`.increase` and the two open/close captions),
             // taking it to 232 — the pin was left at 228 then, which this stage corrects. Stage 13c-2b
             // added the five pause rows (the HUD's own หยุด control, the overlay's title, its two ways
-            // out and the line that says a retreat forfeits the floor), taking it to 237.
-            Assert.Equal(237, config.Localization.Count);
+            // out and the line that says a retreat forfeits the floor), taking it to 237. Stage 16
+            // added the new ghost's name (`enemy.krahang.name`), taking it to 238.
+            Assert.Equal(238, config.Localization.Count);
         }
 
         /// <summary>
-        /// Stage 13 acceptance: the shipped content is the GDD v0.3 prototype and nothing more.
+        /// Stage 13 acceptance: the GDD v0.3 prototype content is still all shipped and correct.
         /// </summary>
         /// <remarks>
         /// The counts above prove the tables loaded; this case proves they are the *designed*
         /// content: the GDD's six categories at their stated counts, three ghosts with distinct
         /// roles plus the two-phase Pob boss, five floors whose escalation names the GDD's ghosts,
-        /// and the five combo rules. "Approximately 14 items" is pinned as 14 exactly, and a later
-        /// stage that wants a fifteenth piece has to say so here — which is the point: Stage 13's
-        /// scope is content complete, not content growth.
+        /// and the five combo rules. "Approximately 14 items" is pinned as 14 exactly.
+        /// <para>
+        /// <b>Amended by Stage 16.</b> The case was "and nothing more" while 13's scope was
+        /// content complete. Stage 16 adds a fifth ghost (กระหัง) to floors 3 and 4, so the two
+        /// floors whose ghost set grew are asserted as "still carries what the GDD asked for" and
+        /// the growth itself is pinned by <c>Stage16_krahang_is_the_fifth_ghost</c>. An exact
+        /// count here would have to be edited again by every content stage, which is what a
+        /// prototype pin should not be.
+        /// </para>
         /// </remarks>
         [Fact]
-        public void Gdd_prototype_content_is_complete_and_nothing_more()
+        public void Gdd_prototype_content_is_complete()
         {
             IGameConfig config = ConfigFixture.Load();
 
@@ -134,7 +142,7 @@ namespace ProjectSurvive.Core.Tests
 
             EnemyConfig krasue = ConfigFixture.Enemy(config, "enemy.krasue");
             Assert.Equal(EnemyRole.Fast, krasue.Role);
-            Assert.Equal(EnemyAttackPattern.DashDrain, krasue.AttackPattern);
+            Assert.Equal(EnemyAttackPattern.DashFollowUp, krasue.AttackPattern);
             Assert.True(krasue.RetreatSeconds > 0f, "a krasue bites and leaves");
 
             EnemyConfig tani = ConfigFixture.Enemy(config, "enemy.nang_tani");
@@ -148,7 +156,9 @@ namespace ProjectSurvive.Core.Tests
             Assert.InRange(pob.BossPhase2HpPercent, 1f, 99f);
             Assert.True(pob.BossCorpseHeal > 0, "the boss eats corpses to heal");
             Assert.True(pob.BossPossessSeconds > 0f, "the boss possesses the player");
-            Assert.Equal(4, config.Enemies.Count);
+
+            // Four were the prototype's set (Stage 16 makes five); every one of them is still here.
+            Assert.True(config.Enemies.Count >= 4, "the prototype's ghosts must all still exist");
 
             // Five floors: 1–4 are timed normal floors, 5 is the 90-second boss floor (GDD).
             Assert.Equal(5, config.Floors.Count);
@@ -174,18 +184,59 @@ namespace ProjectSurvive.Core.Tests
             Assert.Equal(
                 new[] { "enemy.krasue", "enemy.wandering_spirit" },
                 GhostsOnFloor(config, "floor.forest_2"));
-            Assert.Equal(
-                new[] { "enemy.krasue", "enemy.nang_tani" },
-                GhostsOnFloor(config, "floor.forest_3"));
-            Assert.Equal(
-                new[] { "enemy.krasue", "enemy.nang_tani", "enemy.wandering_spirit" },
-                GhostsOnFloor(config, "floor.forest_4"));
+
+            // Floors 3 and 4 gained กระหัง in Stage 16, so they are checked for what the GDD put
+            // there rather than for being nothing else.
+            Assert.Contains("enemy.krasue", GhostsOnFloor(config, "floor.forest_3"));
+            Assert.Contains("enemy.nang_tani", GhostsOnFloor(config, "floor.forest_3"));
+            Assert.Contains("enemy.krasue", GhostsOnFloor(config, "floor.forest_4"));
+            Assert.Contains("enemy.nang_tani", GhostsOnFloor(config, "floor.forest_4"));
+            Assert.Contains("enemy.wandering_spirit", GhostsOnFloor(config, "floor.forest_4"));
             Assert.Contains("enemy.pob", GhostsOnFloor(config, "floor.forest_5"));
 
             // Five combo rules, matching the GDD's table: four tag pairs and the bag-area bonus.
             Assert.Equal(5, config.Synergies.Count);
             Assert.Equal(4, config.Synergies.Count(s => s.Kind == SynergyKind.AdjacentPair));
             Assert.Equal(1, config.Synergies.Count(s => s.Kind == SynergyKind.BagArea));
+        }
+
+        /// <summary>
+        /// Stage 16: กระหัง is the fifth ghost — a flyer that dives a line, lands, and throws a
+        /// player caught in the gale around the landing point.
+        /// </summary>
+        /// <remarks>
+        /// The numbers themselves are balance and live in data/; what is pinned here is the shape
+        /// the stage added: a dash pattern with a burst follow-up and a push, no retreat, and a
+        /// place in the two floors whose escalation has room for it. Floors 1, 2 and 5 must not
+        /// have gained it, because none of those floors was edited.
+        /// </remarks>
+        [Fact]
+        public void Stage16_krahang_is_the_fifth_ghost()
+        {
+            IGameConfig config = ConfigFixture.Load();
+
+            Assert.Equal(5, config.Enemies.Count);
+
+            EnemyConfig krahang = ConfigFixture.Enemy(config, "enemy.krahang");
+            Assert.Equal("enemy.krahang.name", krahang.NameKey);
+            Assert.Equal(EnemyRole.Fast, krahang.Role);
+            Assert.False(krahang.IsBoss, "กระหัง is not a boss");
+            Assert.Equal(EnemyAttackPattern.DashFollowUp, krahang.AttackPattern);
+            Assert.True(krahang.AttackLength > 0f, "the dive is a line");
+            Assert.Equal(0f, krahang.FollowUpSeconds, 0.001f);
+            Assert.Equal(0f, krahang.FollowUpLength, 0.001f);
+            Assert.True(krahang.FollowUpRadius > 0f, "the gale is a circle");
+            Assert.True(krahang.FollowUpPush > 0f, "the gale throws the player");
+            Assert.Equal(0f, krahang.RetreatSeconds, 0.001f);
+
+            Assert.True(krahang.DropValue > 0, "a kill pays bia like every other ghost");
+
+            Assert.Contains("enemy.krahang", GhostsOnFloor(config, "floor.forest_3"));
+            Assert.Contains("enemy.krahang", GhostsOnFloor(config, "floor.forest_4"));
+
+            Assert.DoesNotContain("enemy.krahang", GhostsOnFloor(config, "floor.forest_1"));
+            Assert.DoesNotContain("enemy.krahang", GhostsOnFloor(config, "floor.forest_2"));
+            Assert.DoesNotContain("enemy.krahang", GhostsOnFloor(config, "floor.forest_5"));
         }
 
         private static string[] GhostsOnFloor(IGameConfig config, string floorId)

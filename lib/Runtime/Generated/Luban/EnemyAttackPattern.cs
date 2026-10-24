@@ -14,7 +14,7 @@ namespace ProjectSurvive.Config
     public enum EnemyAttackPattern
     {
         None = 0,
-        DashDrain = 1,
+        DashFollowUp = 1,
         RingVines = 2,
     }
 

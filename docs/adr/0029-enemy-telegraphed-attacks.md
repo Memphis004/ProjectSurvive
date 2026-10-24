@@ -24,6 +24,7 @@ questions had to be answered:
 
 ```
 attack_pattern                        None | DashDrain | RingVines
+                                    (the dash value is now DashFollowUp — see ADR 0036)
 attack_range                          start the cycle when the player is this close
 attack_telegraph_seconds              warning time
 attack_seconds                        strike window (a dash's travel); 0 = instant

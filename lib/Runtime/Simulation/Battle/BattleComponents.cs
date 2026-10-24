@@ -268,6 +268,12 @@ namespace ProjectSurvive.Core.Simulation.Battle
         /// <summary>Ticks between applications inside the second attack's window.</summary>
         public int FollowUpTickTicks;
 
+        /// <summary>
+        /// How far the second attack throws a player it hits, in world units (Stage 16). 0
+        /// leaves the player where they stood, which is every ghost except Krahang.
+        /// </summary>
+        public float FollowUpPush;
+
         /// <summary>How long it steps away after the cycle, in ticks; 0 for none.</summary>
         public int RetreatTicks;
 

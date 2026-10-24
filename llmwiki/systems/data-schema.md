@@ -75,8 +75,9 @@ present, and `shop_pool` covers all 14 pieces.
 
 ### A ghost's telegraphed attack (Stage 11b)
 
-`attack_pattern` says *which* machine runs — `None` (contact damage only), `DashDrain` (Krasue) or
-`RingVines` (Nang Tani) — and the columns beside it are the whole attack, in seconds and world units:
+`attack_pattern` says *which* machine runs — `None` (contact damage only), `DashFollowUp` (a dash
+then a follow-up at the landing point: Krasue's drain, กระหัง's gale) or `RingVines` (Nang Tani) —
+and the columns beside it are the whole attack, in seconds and world units:
 
 | Column | Meaning |
 | --- | --- |
@@ -84,7 +85,8 @@ present, and `shop_pool` covers all 14 pieces.
 | `attack_telegraph_seconds` | how long the warning is on the floor before the hit |
 | `attack_seconds` | the strike window (a dash's travel); `0` = the hit is instant |
 | `attack_damage`, `attack_radius`, `attack_length` | what it hits for, and its footprint |
-| `follow_up_telegraph_seconds`, `follow_up_seconds`, `follow_up_damage`, `follow_up_radius`, `follow_up_length`, `follow_up_tick_seconds` | the cycle's second attack (Krasue's drain, Nang Tani's vines); all zero = none |
+| `follow_up_telegraph_seconds`, `follow_up_seconds`, `follow_up_damage`, `follow_up_radius`, `follow_up_length`, `follow_up_tick_seconds` | the cycle's second attack (Krasue's drain, Nang Tani's vines, กระหัง's gale); all zero = none |
+| `follow_up_push` | how far the second attack throws a player it hits; `0` = it does not move anyone (Stage 16, [ADR 0036](../../docs/adr/0036-krahang-pushes-with-the-gale.md)) |
 | `retreat_seconds`, `retreat_speed` | the step back before the cooldown; `0` = none |
 
 **Shape is decided by `length`**: `0` is a circle centred on the ghost with `radius`, and a positive
@@ -93,9 +95,10 @@ publishes the resolved shape and size, so the floor decal and the damage read on
 `attack_cooldown_seconds` (which contact damage already used) is the cycle cooldown.
 
 Rules (`tools/validate-data.ps1`): a pattern other than `None` needs a range, a warning time, damage
-and a footprint; `DashDrain` needs a line (`attack_length > 0`) and `RingVines` a circle
-(`attack_length = 0`); a follow-up that lasts needs a cadence; a retreat that lasts needs a speed;
-and a `None` row must leave every attack column at zero (`enemy.attack_on_contact_only_ghost`).
+and a footprint; `DashFollowUp` needs a line (`attack_length > 0`) and `RingVines` a circle
+(`attack_length = 0`); a follow-up that lasts needs a cadence; a retreat that lasts needs a speed; a
+`follow_up_push` needs a follow-up that warns and damages; and a `None` row must leave every attack
+column — the push included — at zero (`enemy.attack_on_contact_only_ghost`).
 
 ## Footprint syntax
 

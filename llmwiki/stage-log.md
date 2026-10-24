@@ -588,3 +588,21 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   [known issues](../docs/release/known-issues.md)).
 - **Next:** browser stress under a labelled test artifact, a Firefox run, and the Stage 13 human
   playtest.
+
+## Stage 16 — กระหัง, the fifth ghost (2026-10-24)
+
+- **Did:** added the first post-prototype ghost as data + one arithmetic rule: a new
+  `enemy.follow_up_push` column (schema, Domain, Luban adapter, both broken-data fixtures) and a
+  push in `EnemyAttackSystem.ResolveFollowUp` that throws the player from where a gale lands, plus
+  the pattern rename `DashDrain` → `DashFollowUp` because Krahang is its second user and does not
+  drain ([ADR 0036](../docs/adr/0036-krahang-pushes-with-the-gale.md)). No scene, UI or save field;
+  only `data/`, `lib/Runtime/{Domain,Infrastructure,Simulation}` and tests moved.
+- **Result:** balance re-measured on the same 200 seeds × 4 builds — boss win **43.5 / 53.5 / 33.3 /
+  31.0 %** (was 44.5 / 58.0 / 37.8 / 31.0), floors 1–4 still ~100 %, +2.3 bia a floor; dotnet
+  **612/612** (8 new), fixtures **30/30**, EditMode **207/207** in batchmode, state-hash pin
+  unchanged at `3561164121`; `ci.ps1 -Job Validate,Test,Sim` **10 PASS / 0 FAIL** (50-seed sim
+  42.0 %). WebGL build and Playwright are **NOT RUN** (the stage's agreed scope had no Web gate);
+  a pre-stage checkpoint will not resume because `ConfigHash` moved
+  ([report](../docs/stages/16-report.md)).
+- **Next:** decide whether the sixth ghost or a Presentation-facing tell for the gale (the shove is
+  currently invisible until the player has moved) comes first, then re-run a player build.

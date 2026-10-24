@@ -1,0 +1,9 @@
+{
+  "name": "enemy-push-without-follow-up",
+  "stage": "semantic",
+  "why": "a push belongs to the second attack, so a row that pushes but deals no follow-up damage is describing nothing",
+  "expectedCodes": [
+    "enemy.push_without_follow_up",
+    "enemy.follow_up_damage_not_positive"
+  ]
+}

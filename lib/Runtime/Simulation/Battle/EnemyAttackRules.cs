@@ -50,6 +50,7 @@ namespace ProjectSurvive.Core.Simulation.Battle
                 FollowUpRadius = enemy.FollowUpRadius > 0f ? enemy.FollowUpRadius : 0f,
                 FollowUpLength = enemy.FollowUpLength > 0f ? enemy.FollowUpLength : 0f,
                 FollowUpTickTicks = Ticks(enemy.FollowUpTickSeconds),
+                FollowUpPush = enemy.FollowUpPush > 0f ? enemy.FollowUpPush : 0f,
                 RetreatTicks = Ticks(enemy.RetreatSeconds),
                 RetreatSpeed = enemy.RetreatSpeed > 0f ? enemy.RetreatSpeed : 0f,
                 CooldownTicks = Ticks(enemy.AttackCooldownSeconds),

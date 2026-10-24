@@ -1,0 +1,8 @@
+{
+  "name": "enemy-push-negative",
+  "stage": "semantic",
+  "why": "a gale that pulls the player towards the ghost is not the move the row describes; a push distance is never negative",
+  "expectedCodes": [
+    "enemy.push_negative"
+  ]
+}

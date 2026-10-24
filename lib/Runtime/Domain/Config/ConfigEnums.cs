@@ -76,8 +76,11 @@ namespace ProjectSurvive.Core.Domain.Config
         /// <summary>Contact damage only.</summary>
         None = 0,
 
-        /// <summary>Krasue: dash along a line, drain an aura, then step back.</summary>
-        DashDrain = 1,
+        /// <summary>
+        /// A dash along a line followed by a second attack at the landing point: Krasue's
+        /// drain aura, or Krahang's gale (Stage 16). The payload is the row's.
+        /// </summary>
+        DashFollowUp = 1,
 
         /// <summary>Nang Tani: a ring around herself, then vines along a line.</summary>
         RingVines = 2,

@@ -31,6 +31,7 @@ namespace ProjectSurvive.Core.Tests
         private const string Forest1 = "floor.forest_1";
         private const string Krasue = "enemy.krasue";
         private const string NangTani = "enemy.nang_tani";
+        private const string Krahang = "enemy.krahang";
 
         // -----------------------------------------------------------------
         // Krasue: dash -> drain -> retreat
@@ -218,6 +219,130 @@ namespace ProjectSurvive.Core.Tests
         }
 
         // -----------------------------------------------------------------
+        // Krahang: dash -> gale -> recover (Stage 16)
+        // -----------------------------------------------------------------
+
+        [Fact]
+        public void Krahang_dives_warns_a_gale_and_recovers_without_retreating()
+        {
+            EcsBattleSimulation simulation = Create(out IGameConfig config);
+            EnemyConfig row = ConfigFixture.Enemy(config, Krahang);
+
+            // Spawned outside the row's 11-unit range, so the cycle really starts with a walk.
+            int ghost = Spawn(simulation, config, Krahang, 14f, 0f);
+
+            var states = new List<int>();
+            EcsPool<EnemyBrain> brains = simulation.Context.World.GetPool<EnemyBrain>();
+
+            for (int i = 0; i < 400; i++)
+            {
+                simulation.Step(PlayerInputFrame.Idle);
+                int state = brains.Get(ghost).State;
+
+                if (states.Count == 0 || states[states.Count - 1] != state)
+                {
+                    states.Add(state);
+                }
+            }
+
+            Assert.Equal((int)EnemyAttackState.Chase, states[0]);
+            AssertInOrder(
+                states,
+                (int)EnemyAttackState.Chase,
+                (int)EnemyAttackState.Telegraph,
+                (int)EnemyAttackState.Strike,
+                (int)EnemyAttackState.FollowUpTelegraph,
+                (int)EnemyAttackState.Recover);
+
+            // A gale is a single burst with no window, and Krahang does not step back: the two
+            // stages its row leaves at zero are the two stages it must never enter.
+            Assert.DoesNotContain((int)EnemyAttackState.FollowUp, states);
+            Assert.DoesNotContain((int)EnemyAttackState.Retreat, states);
+            Assert.Equal(0f, row.FollowUpSeconds, 0.001f);
+            Assert.Equal(0f, row.RetreatSeconds, 0.001f);
+        }
+
+        [Fact]
+        public void Krahang_warns_a_circle_where_it_lands_and_the_gale_is_a_burst()
+        {
+            EcsBattleSimulation simulation = Create(out IGameConfig config);
+            EnemyConfig row = ConfigFixture.Enemy(config, Krahang);
+            Spawn(simulation, config, Krahang, 12f, 0f);
+
+            var recorder = new Recorder(simulation);
+            for (int i = 0; i < 120; i++)
+            {
+                recorder.Step(PlayerInputFrame.Idle);
+            }
+
+            List<Recorded> warnings = recorder.All(BattleEventType.TelegraphStarted);
+            Assert.True(warnings.Count >= 2, "Krahang did not warn its dive and its gale");
+
+            // The dive is the row's line; the gale is a circle at the point the dive ended.
+            Assert.Equal((int)TelegraphShape.Line, warnings[0].Event.Value);
+            Assert.Equal(row.AttackLength, warnings[0].Event.Length, 0.001f);
+            Assert.Equal((int)TelegraphShape.Circle, warnings[1].Event.Value);
+            Assert.Equal(0f, warnings[1].Event.Length, 0.001f);
+            Assert.Equal(row.FollowUpRadius, warnings[1].Event.Radius, 0.001f);
+            Assert.Equal(simulation.Context.DefIds.Enemy(Krahang), warnings[1].Event.DefId);
+        }
+
+        [Fact]
+        public void Krahang_gale_throws_the_player_away_from_where_it_landed()
+        {
+            EcsBattleSimulation simulation = Create(out IGameConfig config);
+            EnemyConfig row = ConfigFixture.Enemy(config, Krahang);
+            Spawn(simulation, config, Krahang, 12f, 0f);
+
+            int player = simulation.Context.PlayerEntity;
+            EcsPool<Position> positions = simulation.Context.World.GetPool<Position>();
+            float startX = positions.Get(player).X;
+            float startY = positions.Get(player).Y;
+
+            Assert.Equal(0f, startX, 0.001f);
+            Assert.True(row.FollowUpPush > 0f, "the shipped gale does not push, so this proves nothing");
+
+            float movedX = 0f;
+            for (int i = 0; i < 200 && Math.Abs(movedX) < 0.01f; i++)
+            {
+                simulation.Step(PlayerInputFrame.Idle);
+                movedX = positions.Get(player).X - startX;
+            }
+
+            // The dive lands past the player (on their side of the arena), so the throw is back
+            // along -X and exactly the row's distance.
+            Assert.InRange(movedX, -row.FollowUpPush - 0.05f, -row.FollowUpPush + 0.05f);
+            Assert.Equal(startY, positions.Get(player).Y, 0.001f);
+        }
+
+        [Fact]
+        public void A_ghost_that_does_not_ask_for_a_push_leaves_the_player_where_they_stood()
+        {
+            // Krasue's follow-up is a drain with follow_up_push 0. The player takes the damage
+            // and keeps their position: only a row that asks for a gale moves anyone.
+            EcsBattleSimulation simulation = Create(out IGameConfig config);
+            EnemyConfig row = ConfigFixture.Enemy(config, Krasue);
+            Assert.Equal(0f, row.FollowUpPush, 0.001f);
+
+            Spawn(simulation, config, Krasue, 4f, 0f);
+
+            int player = simulation.Context.PlayerEntity;
+            EcsPool<Position> positions = simulation.Context.World.GetPool<Position>();
+
+            var recorder = new Recorder(simulation);
+            for (int i = 0; i < 300; i++)
+            {
+                recorder.Step(PlayerInputFrame.Idle);
+            }
+
+            Assert.True(
+                recorder.Count(BattleEventType.PlayerDamaged) > 0,
+                "the drain never landed, so the test proves nothing");
+            Assert.Equal(0f, positions.Get(player).X, 0.001f);
+            Assert.Equal(0f, positions.Get(player).Y, 0.001f);
+        }
+
+        // -----------------------------------------------------------------
         // The footprint rules and the data behind them
         // -----------------------------------------------------------------
 
@@ -247,7 +372,7 @@ namespace ProjectSurvive.Core.Tests
 
             EnemyConfig krasueRow = ConfigFixture.Enemy(config, Krasue);
             EnemyAttack krasue = EnemyAttackRules.FromConfig(krasueRow);
-            Assert.Equal((int)EnemyAttackPattern.DashDrain, krasue.Pattern);
+            Assert.Equal((int)EnemyAttackPattern.DashFollowUp, krasue.Pattern);
             Assert.Equal(
                 (int)Math.Round(krasueRow.AttackTelegraphSeconds * BattleConstants.TickRate),
                 krasue.TelegraphTicks);

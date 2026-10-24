@@ -327,6 +327,12 @@ namespace ProjectSurvive.Core.Domain.Config
         /// <summary>Interval between damage applications inside the second attack's window.</summary>
         public float FollowUpTickSeconds { get; set; }
 
+        /// <summary>
+        /// How far the second attack throws the player it hits, in world units; 0 leaves the
+        /// player where they stood (Stage 16). Only a gale pushes, so every other row is 0.
+        /// </summary>
+        public float FollowUpPush { get; set; }
+
         /// <summary>How long it steps away after the cycle, in seconds; 0 for none.</summary>
         public float RetreatSeconds { get; set; }
 

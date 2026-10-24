@@ -54,6 +54,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **13c-2b** | **Pause overlay: freeze the floor, resume, or leave for the camp** | **CODE DONE** — PlayMode could not run; see [`docs/stages/13c-2b-report.md`](docs/stages/13c-2b-report.md) |
 | **14** | **Test harness & CI (development-only WebBridge, Playwright, `tools/ci.ps1`)** | **DONE** — the 20-visit heap case was not a leak but a missing `AudioListener` (its per-frame warning was what the runner measured), fixed 2026-10-23; see [`docs/stages/14-report.md`](docs/stages/14-report.md) |
 | **15** | **Web release candidate** | **DONE (browser gate green; browser stress & Firefox full suite NOT RUN)** — see [`docs/stages/15-report.md`](docs/stages/15-report.md), [`docs/build/performance-report.md`](docs/build/performance-report.md), [`docs/release/known-issues.md`](docs/release/known-issues.md), [ADR 0035](docs/adr/0035-the-release-candidate-configuration-and-its-numbers.md) |
+| **16** | **กระหัง, the fifth ghost, and the gale that throws the player (`follow_up_push`)** | **DONE (Core/data + simulation; no Web gate)** — see [`docs/stages/16-report.md`](docs/stages/16-report.md), [ADR 0036](docs/adr/0036-krahang-pushes-with-the-gale.md) |
 
 **Current state:** Stages 00–10, plus **09k-data** (one word in `data/`: the tome combo is
 `AdjacentPair`, so a weapon takes +20 % from a tome it **touches** on any of its four edges — never

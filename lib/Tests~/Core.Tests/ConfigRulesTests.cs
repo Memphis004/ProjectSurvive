@@ -699,6 +699,43 @@ namespace ProjectSurvive.Core.Tests
         }
 
         [Fact]
+        public void A_push_that_belongs_to_no_second_attack_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            EnemyConfig krasue = ConfigFixture.Enemy(config, "enemy.krasue");
+            krasue.FollowUpPush = 2f;
+            krasue.FollowUpDamage = 0;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("enemy.push_without_follow_up", Codes(findings));
+            Assert.Contains("enemy['enemy.krasue'].follow_up_push", Targets(findings));
+        }
+
+        [Fact]
+        public void A_negative_push_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Enemy(config, "enemy.krahang").FollowUpPush = -1f;
+
+            IReadOnlyList<Finding> findings = ConfigValidator.Validate(config);
+
+            Assert.Contains("enemy.push_negative", Codes(findings));
+            Assert.Contains("enemy['enemy.krahang'].follow_up_push", Targets(findings));
+        }
+
+        [Fact]
+        public void A_contact_only_ghost_that_carries_a_push_is_reported()
+        {
+            LubanGameConfig config = ConfigFixture.Load();
+            ConfigFixture.Enemy(config, "enemy.wandering_spirit").FollowUpPush = 2f;
+
+            Assert.Contains(
+                "enemy.attack_on_contact_only_ghost",
+                Codes(ConfigValidator.Validate(config)));
+        }
+
+        [Fact]
         public void The_shipped_enemies_all_carry_a_drop_value()
         {
             IGameConfig config = ConfigFixture.Load();
