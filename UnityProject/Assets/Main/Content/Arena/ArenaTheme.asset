@@ -1,0 +1,122 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d140aaa3dd9264488cc7ea153bcac9f, type: 3}
+  m_Name: ArenaTheme
+  m_EditorClassIdentifier: ProjectSurvive.Game.Presentation::ProjectSurvive.Game.Presentation.Battle.Environment.ArenaTheme
+  CenterRadius: 12
+  RingOuterRadius: 26
+  ArenaRadius: 40
+  CenterMaxHeight: 0.75
+  CenterGrassMin: 12
+  CenterGrassMax: 18
+  RingBushMin: 16
+  RingBushMax: 24
+  BorderTreeMin: 72
+  BorderTreeMax: 96
+  DirtDecalCount: 5
+  FlowerDecalCount: 12
+  LeafDecalCount: 10
+  BushMinSpacing: 3.2
+  TreeMinSpacing: 2.1
+  BorderLayers: 3
+  BorderSlotPitchFactor: 0.85
+  MaxYawDegrees: 9
+  Styles:
+  - Id: tree-a
+    Zone: 2
+    Width: 4.2
+    Height: 6.4
+    MinScale: 0.85
+    MaxScale: 1.2
+    Material: {fileID: 2100000, guid: 4dcfc3c3527f0bd4e9040f0924671fa2, type: 2}
+  - Id: tree-b
+    Zone: 2
+    Width: 5
+    Height: 7.2
+    MinScale: 0.8
+    MaxScale: 1.15
+    Material: {fileID: 2100000, guid: afc6bc77fa29db540a21a71ff7e76733, type: 2}
+  - Id: tree-c
+    Zone: 2
+    Width: 3.6
+    Height: 5.4
+    MinScale: 0.9
+    MaxScale: 1.25
+    Material: {fileID: 2100000, guid: cbacd2953e634b44cbdd5536bd2ca376, type: 2}
+  - Id: tree-big-a
+    Zone: 2
+    Width: 9.6
+    Height: 14.5
+    MinScale: 0.95
+    MaxScale: 1.25
+    Material: {fileID: 2100000, guid: 4dcfc3c3527f0bd4e9040f0924671fa2, type: 2}
+  - Id: tree-big-b
+    Zone: 2
+    Width: 10.4
+    Height: 15.5
+    MinScale: 0.9
+    MaxScale: 1.2
+    Material: {fileID: 2100000, guid: afc6bc77fa29db540a21a71ff7e76733, type: 2}
+  - Id: tree-big-c
+    Zone: 2
+    Width: 9
+    Height: 13.5
+    MinScale: 1
+    MaxScale: 1.3
+    Material: {fileID: 2100000, guid: cbacd2953e634b44cbdd5536bd2ca376, type: 2}
+  - Id: bush
+    Zone: 1
+    Width: 2.4
+    Height: 1.9
+    MinScale: 0.85
+    MaxScale: 1.2
+    Material: {fileID: 2100000, guid: 33c80f8b6b9d245489354d7ad7e0a8d6, type: 2}
+  - Id: grass
+    Zone: 0
+    Width: 1.1
+    Height: 0.55
+    MinScale: 0.8
+    MaxScale: 1.2
+    Material: {fileID: 2100000, guid: fcf27b239b9f2064ca2ce49f21107a60, type: 2}
+  - Id: grass-small
+    Zone: 0
+    Width: 0.9
+    Height: 0.42
+    MinScale: 0.8
+    MaxScale: 1.2
+    Material: {fileID: 2100000, guid: a6cf18b9b3f6cf244a2d57884f8efe2a, type: 2}
+  DecalStyles:
+  - Id: dirt
+    Zone: 3
+    Width: 7
+    Height: 5
+    MinScale: 0.8
+    MaxScale: 1.2
+    Material: {fileID: 2100000, guid: bd902c6e0f6643b41a9de68f97b22eea, type: 2}
+  - Id: flower
+    Zone: 3
+    Width: 0.9
+    Height: 0.9
+    MinScale: 0.7
+    MaxScale: 1.3
+    Material: {fileID: 2100000, guid: ab49ba98665c76446ac3246906ee7340, type: 2}
+  - Id: leaf
+    Zone: 3
+    Width: 0.7
+    Height: 0.7
+    MinScale: 0.7
+    MaxScale: 1.3
+    Material: {fileID: 2100000, guid: cca2d4410ae11d149ac759f25c8a4787, type: 2}
+  GroundMaterial: {fileID: 2100000, guid: 141c30ae9e4e2ab40a7c297cbeb37575, type: 2}
+  ShadowMaterial: {fileID: 2100000, guid: facd2acf23e66cf43806733e368324f9, type: 2}
+  DayProfile: {fileID: 11400000, guid: 0fe64c519ce85564aaa12b75a19d36c4, type: 2}
+  NightProfile: {fileID: 11400000, guid: 3272edaa50981fd4cb555e354a1009a0, type: 2}

@@ -40,19 +40,25 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private static readonly Color32 Ghost = new Color32(150, 196, 176, 255);
         private static readonly Color32 Bolt = new Color32(255, 214, 120, 255);
         private static readonly Color32 Drop = new Color32(255, 246, 210, 255);
-        private static readonly Color32 Floor = new Color32(46, 46, 56, 255);
-        private static readonly Color32 FloorLine = new Color32(60, 60, 74, 255);
+        private static readonly Color32 Floor = new Color32(52, 56, 48, 255);
+
+        // Stage 08e: a bright rim on every actor, so a sprite reads against a dark night floor even
+        // though nothing lights it. Authored in daylight colours and left bright by the night
+        // profile (the profile darkens the environment's global tint, not the actors' textures).
+        private static readonly Color32 DoctorRim = new Color32(255, 250, 226, 255);
+        private static readonly Color32 GhostRim = new Color32(214, 255, 234, 255);
+        private static readonly Color32 DropRim = new Color32(255, 255, 245, 255);
 
         private readonly List<UnityEngine.Object> _owned = new List<UnityEngine.Object>(8);
 
         /// <summary>Generates every sprite the battle needs.</summary>
         public BattlePlaceholderArt()
         {
-            Player = CreateDisc("ps-battle-player", 64, Doctor);
-            Enemy = CreateGhost("ps-battle-ghost", 64, Ghost);
-            Projectile = CreateDisc("ps-battle-bolt", 24, Bolt);
-            Pickup = CreateDiamond("ps-battle-drop", 24, Drop);
-            Ground = CreateGroundTile("ps-battle-ground", 256, Floor, FloorLine);
+            Player = CreateDisc("ps-battle-player", 64, Doctor, DoctorRim);
+            Enemy = CreateGhost("ps-battle-ghost", 64, Ghost, GhostRim);
+            Projectile = CreateDisc("ps-battle-bolt", 24, Bolt, default);
+            Pickup = CreateDiamond("ps-battle-drop", 24, Drop, DropRim);
+            Ground = CreateGroundNoise("ps-battle-ground", 256, Floor);
             TelegraphCircle = CreateTelegraphDisc("ps-battle-telegraph-circle", 128);
             TelegraphBar = CreateTelegraphBar("ps-battle-telegraph-bar", 128);
         }
@@ -180,7 +186,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
         // shape generators
         // ------------------------------------------------------------------
 
-        private Sprite CreateDisc(string name, int size, Color32 fill)
+        private Sprite CreateDisc(string name, int size, Color32 fill, Color32 rim)
         {
             Texture2D texture = NewTexture(name, size);
             Color32[] pixels = Filled(size, new Color32(0, 0, 0, 0));
@@ -193,14 +199,14 @@ namespace ProjectSurvive.Game.Presentation.Battle
                     float u = ((x + 0.5f) / size) - 0.5f;
                     float v = ((y + 0.5f) / size) - 0.5f;
                     float distance = radius - Mathf.Sqrt((u * u) + (v * v));
-                    pixels[(y * size) + x] = Antialias(distance, size, fill, Ink);
+                    pixels[(y * size) + x] = Antialias(distance, size, fill, Ink, rim);
                 }
             }
 
             return Finish(texture, pixels, size);
         }
 
-        private Sprite CreateDiamond(string name, int size, Color32 fill)
+        private Sprite CreateDiamond(string name, int size, Color32 fill, Color32 rim)
         {
             Texture2D texture = NewTexture(name, size);
             Color32[] pixels = Filled(size, new Color32(0, 0, 0, 0));
@@ -212,14 +218,14 @@ namespace ProjectSurvive.Game.Presentation.Battle
                     float u = Mathf.Abs(((x + 0.5f) / size) - 0.5f);
                     float v = Mathf.Abs(((y + 0.5f) / size) - 0.5f);
                     float distance = 0.44f - (u + v);
-                    pixels[(y * size) + x] = Antialias(distance, size, fill, Ink);
+                    pixels[(y * size) + x] = Antialias(distance, size, fill, Ink, rim);
                 }
             }
 
             return Finish(texture, pixels, size);
         }
 
-        private Sprite CreateGhost(string name, int size, Color32 fill)
+        private Sprite CreateGhost(string name, int size, Color32 fill, Color32 rim)
         {
             Texture2D texture = NewTexture(name, size);
             Color32[] pixels = Filled(size, new Color32(0, 0, 0, 0));
@@ -253,7 +259,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
                     }
 
                     float distance = Mathf.Max(headDistance, bodyDistance);
-                    pixels[(y * size) + x] = Antialias(distance, size, fill, Ink);
+                    pixels[(y * size) + x] = Antialias(distance, size, fill, Ink, rim);
                 }
             }
 
@@ -313,20 +319,35 @@ namespace ProjectSurvive.Game.Presentation.Battle
             return Finish(texture, pixels, size, pixelsPerUnit: size);
         }
 
-        private Sprite CreateGroundTile(string name, int size, Color32 fill, Color32 line)
+        /// <summary>
+        /// The floor: a flat colour with very faint low-frequency noise. Stage 08e's rule is “no
+        /// texture with a busy pattern that steals attention from the ghosts”, so there is no grid,
+        /// no tiling decoration and the noise stays within a few 8-bit levels. The whole arena is one
+        /// tile, so the pattern cannot repeat visibly either.
+        /// </summary>
+        private Sprite CreateGroundNoise(string name, int size, Color32 fill)
         {
             Texture2D texture = NewTexture(name, size);
             Color32[] pixels = Filled(size, fill);
 
-            const int cell = 32;
             for (int y = 0; y < size; y++)
             {
                 for (int x = 0; x < size; x++)
                 {
-                    if (x % cell == 0 || y % cell == 0)
-                    {
-                        pixels[(y * size) + x] = line;
-                    }
+                    float u = (x + 0.5f) / size;
+                    float v = (y + 0.5f) / size;
+
+                    // Two octaves of smooth noise, ±5 and ±2 levels. Deliberately not a per-pixel
+                    // hash: pixel noise is what makes a floor shimmer under a moving camera.
+                    float macro = (Mathf.PerlinNoise(u * 3.1f, v * 2.7f) - 0.5f) * 2f;
+                    float micro = (Mathf.PerlinNoise(u * 9.3f + 11f, v * 8.1f + 5f) - 0.5f) * 2f;
+                    int shift = Mathf.RoundToInt((macro * 5f) + (micro * 2f));
+
+                    pixels[(y * size) + x] = new Color32(
+                        (byte)Mathf.Clamp(fill.r + shift, 0, 255),
+                        (byte)Mathf.Clamp(fill.g + shift, 0, 255),
+                        (byte)Mathf.Clamp(fill.b + shift, 0, 255),
+                        255);
                 }
             }
 
@@ -334,7 +355,8 @@ namespace ProjectSurvive.Game.Presentation.Battle
             // wrap, or Unity tiles the sprite mesh but clamps the texture inside it.
             texture.wrapMode = TextureWrapMode.Repeat;
 
-            return Finish(texture, pixels, size, pixelsPerUnit: cell);
+            // One tile spans the whole 80-unit arena, so the noise stays macro.
+            return Finish(texture, pixels, size, pixelsPerUnit: size / (BattleViewCaps.ArenaRadius * 2f));
         }
 
         private static Color32[] Filled(int size, Color32 value)
@@ -353,7 +375,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
         /// and a dark rim for the single pixel that straddles the edge. Without the rim a
         /// generated shape looks like a colour blob at 50° with no readable outline.
         /// </summary>
-        private static Color32 Antialias(float insideDistance, int size, Color32 fill, Color32 ink)
+        private static Color32 Antialias(float insideDistance, int size, Color32 fill, Color32 ink, Color32 rim)
         {
             float coverage = Mathf.Clamp01((insideDistance * size) + 0.5f);
             if (coverage <= 0f)
@@ -362,6 +384,15 @@ namespace ProjectSurvive.Game.Presentation.Battle
             }
 
             Color32 colour = coverage == 1f ? fill : Color32.Lerp(ink, fill, coverage);
+
+            // A two-and-a-half pixel bright edge inside the silhouette. `insideDistance * size` is
+            // how many pixels inside the outline this pixel is, so the band follows any shape.
+            if (rim.a > 0)
+            {
+                float inner = Mathf.Clamp01((insideDistance * size) / 2.5f);
+                colour = Color32.Lerp(rim, colour, inner);
+            }
+
             colour.a = (byte)(255f * coverage);
             return colour;
         }

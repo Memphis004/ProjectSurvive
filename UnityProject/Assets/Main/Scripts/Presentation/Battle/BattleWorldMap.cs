@@ -65,6 +65,20 @@ namespace ProjectSurvive.Game.Presentation.Battle
             KindBias(kind) - Mathf.RoundToInt(simY * SortingUnitsPerRow);
 
         /// <summary>
+        /// The order a piece of arena scenery standing at <paramref name="simY"/> draws at.
+        /// </summary>
+        /// <remarks>
+        /// Stage 08e's cards are scenery, not actors, but they have to interleave with the actors
+        /// correctly: a tree the player walks behind must draw before the player, a tree the player
+        /// walks in front of must draw after. The cards therefore use the <i>same</i> row scale as
+        /// <see cref="SortingOrder(RenderEntityKind, float)"/> — one step behind the actors of their
+        /// own row — rather than the depth buffer, so there is exactly one rule for who hides whom
+        /// and it is this one.
+        /// </remarks>
+        public static int PropSortingOrder(float simY) =>
+            SortingOrder(RenderEntityKind.Pickup, simY) - 1;
+
+        /// <summary>
         /// Cosmetics-only lean of the billboard, in degrees, for an entity heading in the
         /// simulation plane. <see cref="RenderEntity.RotationY"/> carries a <i>heading</i>
         /// (the frame publishes <c>atan2(vy, vx)</c>), and a quad square to the camera

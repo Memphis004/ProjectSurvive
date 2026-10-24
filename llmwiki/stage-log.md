@@ -606,3 +606,24 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   ([report](../docs/stages/16-report.md)).
 - **Next:** decide whether the sixth ghost or a Presentation-facing tell for the gale (the shove is
   currently invisible until the player has moved) comes first, then re-run a player build.
+
+## Stage 08e — Card Forest Arena (2026-10-25)
+
+- **Did:** the arena around the fight is now authored, not improvised: `ArenaTheme` + `ArenaLayout`
+  (own LCG, theme + seed) place 141 cards through `ArenaBuilder` (menu **and** `-executeMethod`) —
+  a low-grass centre inside 12 units, a sparse bush ring 12–26, and a 3-layer tree wall 26–40 whose
+  slot count now comes from the *card width* (`BorderSlotPitchFactor` 0.85) plus three `tree-big`
+  styles, so it reads as forest instead of a row of trees; the dirt patch was turned down to a
+  multiply that takes a few percent of the floor's light. No card tilts or sorts on its own: the
+  angle is `BattleCameraRig.PitchDegrees` and the order is `BattleWorldMap.PropSortingOrder`.
+  Presentation only — `lib/` and `data/` untouched.
+- **Result:** EditMode **222/222** (15 arena tests, 3 new: centre holds no standing card, the wall is
+  dense and has big trees, plus the centre-ceiling rule), `-Suite Fast` **13 PASS / 0 FAIL**,
+  `-Suite Full` **23 PASS / 0 FAIL**, WebGL Release build PASS and Playwright **19 passed**;
+  300 ghosts at 1920×1080 / 1280×720 measured **133–172 batches, 2.4–2.6 ms/frame**,
+  `viewsGrownDuringPlay = 0` ([report](../docs/stages/08e-report.md)). Found and reported: the build's
+  stale `.br`/`.gz` siblings were being served, so the first Playwright pass had silently tested the
+  previous build.
+- **Next:** fix `tools/build-web.ps1` / `tools/serve-web.mjs` so compressed siblings can never outlive
+  the data they compress, then decide on a dither for border trees that hide the player at the arena
+  edge (the wall is walkable by design).

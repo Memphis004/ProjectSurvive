@@ -36,5 +36,8 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
         [Tooltip("Orthographic or perspective; decided by measurement in Stage 08 (ADR 0018).")]
         public BattleProjection Projection = BattleProjection.Orthographic;
+
+        [Tooltip("The card forest, its day/night lighting profile and the blob shadows (Stage 08e). Null in a fixture that has no arena.")]
+        public Environment.ArenaEnvironmentView Environment;
     }
 }

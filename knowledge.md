@@ -27,6 +27,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **07b** | **Bia from battle (drop value + clear reward)** | **DONE** — see [`docs/stages/07b-report.md`](docs/stages/07b-report.md), [ADR 0025](docs/adr/0025-bia-from-battle.md) |
 | **07c** | **End-of-floor sweep (every drop pays before the floor ends)** | **DONE** — see [`docs/stages/07c-report.md`](docs/stages/07c-report.md), [ADR 0027](docs/adr/0027-end-of-floor-sweep.md) |
 | **08** | **Battle presentation 2.5D** | **DONE** — see [`docs/stages/08-report.md`](docs/stages/08-report.md) |
+| **08e** | **Card forest arena (theme + seed, measured density zones, generated placeholder cards and floor)** | **DONE** — see [`docs/stages/08e-report.md`](docs/stages/08e-report.md) |
 | **09** | **Camp scene & จัดย่าม UI (walkable sala, world shop)** | **DONE** — see [`docs/stages/09-report.md`](docs/stages/09-report.md), [`09b`](docs/stages/09b-report.md) (the drag diagnosis), [`09c`](docs/stages/09c-report.md) (the walkable camp) |
 | **09d** | **Thai text sharpness (font report, 22 px floor, on-screen measurements)** | **DONE** — see [`docs/stages/09d-report.md`](docs/stages/09d-report.md) |
 | **09e** | **จัดย่าม layout & compositing (stats strip, panel alpha, tooltip, synergy marks)** | **DONE** — see [`docs/stages/09e-report.md`](docs/stages/09e-report.md) |

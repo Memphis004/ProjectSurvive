@@ -292,3 +292,43 @@ hp, requested scene, the five labels and the centres of the controls a click can
 rewrites it twice a second **only while open**. `tests/web/pause.spec.ts` is built on that: the freeze
 is proved by that document's `tick` staying put, then by the battle document's `stepsRun` passing it
 once เล่นต่อ was pressed.
+
+## 13. The card forest arena (Stage 08e)
+
+The arena around the fight is scenery, never geometry. `ArenaLayout` is a pure function from
+(`ArenaTheme`, seed) to a list of placements — its own 32-bit LCG, never `UnityEngine.Random`, so a
+rebuild does not depend on what else the Editor ran first — and `ArenaBuilder` instantiates
+`ArenaCard` / `GroundDecal` prefabs at those placements through the Editor API, marks them static and
+saves `Battle.unity`. Nothing is created or destroyed while a floor runs: the measured
+`viewsGrownDuringPlay` stays 0.
+
+**Zones are measured, not guessed.** The camera is orthographic at 50° with size 14, so at either
+16:9 evidence resolution it sees `x ±24.889`, `simY ±18.276` around the player (36.551 units of
+depth). That is the number the density bands are built from: the middle 0–12 units holds only low
+grass (ceiling 0.75) and ground decals, the ring 12–26 holds sparse bushes with a minimum spacing,
+and the wall is 26–40 — the outer ten units of a field whose radius is the simulation's
+`BattleArena.Radius` (40), mirrored in `BattleViewCaps.ArenaRadius` and asserted against it.
+
+**The wall is sized by card width, not by a spacing number.** Each layer's slot count is
+`circumference / (average card width × theme.BorderSlotPitchFactor)`; at the shipped 0.85 the
+neighbouring cards overlap and three layers read as forest instead of as a row of trees. It includes
+`tree-big-a/b/c` (9–10.4 units wide, 13.5–15.5 tall) so a player who walks to the edge has canopies
+passing in front of them. Caps live in the theme (`BorderTreeMin/Max` 72–96); the shipped seed
+places 141 pieces (15 centre, 24 ring, 74 border, 28 decals) at signature `c1ffaa84`.
+
+**Two rules keep the arena and the actors in one coordinate system.** A card's rotation is
+`ArenaCard.FacingCamera()`, which quotes `BattleCameraRig.PitchDegrees` — the same 50° the sprite
+path gets from `BillboardPitch`, so no second copy of the angle exists; and who hides whom is
+`BattleWorldMap.PropSortingOrder(z)` written into `MeshRenderer.sortingOrder`, with the card shader
+in the transparent queue writing no depth and testing none. The camera's depth buffer never decides
+an occlusion, which is what lets the cards interleave with ghosts and the player by row.
+
+The dirt patch is a *multiply* decal (`ProjectSurvive/ArenaDirt`, `Blend DstColor Zero`) rather than
+an alpha-blended polygon: the floor is the brightest surface the fight is read against, and a decal
+laid over it could only ever lift it.
+
+Evidence and the acceptance table are in [the stage report](../../docs/stages/08e-report.md); the
+capture is `ProjectSurvive/Stage 08e/1. Build arena (theme + seed)` plus
+`AgentScripts/ArenaEvidenceCapture.Run` (player centred and near the edge at 1920×1080 and
+1280×720, with 300 ghosts: 133–172 batches, 2.4–2.6 ms/frame in the Editor on an i5-14400F /
+RTX 5060 Ti).

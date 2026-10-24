@@ -4,6 +4,7 @@ using ProjectSurvive.Core.Domain.Config;
 using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Shared;
 using ProjectSurvive.Game.Presentation.Audio;
+using ProjectSurvive.Game.Presentation.Battle.Environment;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.Battle.Vfx;
 using UnityEngine;
@@ -52,9 +53,12 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private readonly FloatingDamagePool _damage;
         private readonly TelegraphPool _telegraphs;
         private readonly BattleAudioListener _audio;
+        private readonly ArenaEnvironmentView _environment;
 
         private IBattleSession _session;
         private GameObject _floor;
+        private MeshRenderer _floorMesh;
+        private Mesh _floorQuad;
         private bool _disposed;
 
         /// <summary>Builds the view: art, ground, pool, bridge, camera, HUD wiring, VFX.</summary>
@@ -107,6 +111,10 @@ namespace ProjectSurvive.Game.Presentation.Battle
             // with no App scope, and a null listener is simply not registered.
             _audio = audio is null ? null : new BattleAudioListener(audio);
 
+            // Stage 08e: the card forest, the lighting profile and the shadow layer. The scene owns
+            // them; the view only ticks what has to move (the lantern and the shadows).
+            _environment = settings.Environment;
+
             // This is the whole event-side subscription list: three cursors, one per channel.
             _events.AddListener(BattleEventChannel.Hud, _hud);
             _events.AddListener(BattleEventChannel.Vfx, _damage);
@@ -143,7 +151,10 @@ namespace ProjectSurvive.Game.Presentation.Battle
         public BattleCameraRig Camera => _camera;
 
         /// <summary>The layout of the floor the current session is running.</summary>
-        public SpriteRenderer FloorRenderer { get; private set; }
+        public Renderer FloorRenderer { get; private set; }
+
+        /// <summary>The arena environment, when the scene wired one (Stage 08e).</summary>
+        public ArenaEnvironmentView Environment => _environment;
 
         /// <summary>The mini bag, when the scene wired one.</summary>
         public BattleMiniBagView MiniBag => _settings.MiniBag;
@@ -236,7 +247,14 @@ namespace ProjectSurvive.Game.Presentation.Battle
         public void Render(float alpha, float deltaSeconds)
         {
             _bridge.Render(alpha);
-            _camera.Follow(PlayerPosition());
+
+            Vector3 player = PlayerPosition();
+            _camera.Follow(player);
+
+            // The lantern follows the doctor and every actor gets its blob shadow from the same
+            // frame the bridge just drew (Stage 08e).
+            _environment?.Tick(player, _snapshot.Current);
+
             _damage.Tick(deltaSeconds);
             _telegraphs.Tick(deltaSeconds);
             _settings.MiniBag?.RefreshIfResized();
@@ -264,10 +282,24 @@ namespace ProjectSurvive.Game.Presentation.Battle
             {
                 DestroyObject(_floor);
                 _floor = null;
+                _floorMesh = null;
                 FloorRenderer = null;
+            }
+
+            if (_floorQuad is not null)
+            {
+                DestroyObject(_floorQuad);
+                _floorQuad = null;
             }
         }
 
+        /// <summary>
+        /// The floor. With an arena theme this is an <b>opaque</b> mesh quad with the theme's flat
+        /// colour + macro-noise material: opaque so the ground decals, the instanced shadows and the
+        /// actors all draw over it by queue rather than by sorting order, and the cards can write
+        /// depth against it. Without a theme (a fixture) the Stage 08 sprite floor is the fallback,
+        /// unchanged.
+        /// </summary>
         private void CreateFloor(Transform root)
         {
             _floor = new GameObject("arena-floor");
@@ -275,12 +307,30 @@ namespace ProjectSurvive.Game.Presentation.Battle
             _floor.transform.SetPositionAndRotation(
                 Vector3.zero, Quaternion.Euler(90f, 0f, 0f));
 
-            FloorRenderer = _floor.AddComponent<SpriteRenderer>();
-            FloorRenderer.sprite = _art.Ground;
-            FloorRenderer.drawMode = SpriteDrawMode.Tiled;
-            FloorRenderer.size = new Vector2(BattleViewCaps.ArenaRadius * 2f, BattleViewCaps.ArenaRadius * 2f);
-            FloorRenderer.sortingOrder = BattleWorldMap.GroundSortingOrder;
-            FloorRenderer.color = new Color(0.85f, 0.85f, 0.9f, 1f);
+            Material ground = _environment?.Theme?.GroundMaterial;
+            if (ground is not null)
+            {
+                _floorQuad = ArenaGeometry.CreateCenteredQuad();
+                _floorQuad.hideFlags = HideFlags.DontSave;
+
+                _floor.AddComponent<MeshFilter>().sharedMesh = _floorQuad;
+                _floorMesh = _floor.AddComponent<MeshRenderer>();
+                _floorMesh.sharedMaterial = ground;
+                _floorMesh.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                _floorMesh.receiveShadows = false;
+                _floor.transform.localScale = new Vector3(
+                    BattleViewCaps.ArenaRadius * 2f, BattleViewCaps.ArenaRadius * 2f, 1f);
+                FloorRenderer = _floorMesh;
+                return;
+            }
+
+            var renderer = _floor.AddComponent<SpriteRenderer>();
+            renderer.sprite = _art.Ground;
+            renderer.drawMode = SpriteDrawMode.Tiled;
+            renderer.size = new Vector2(BattleViewCaps.ArenaRadius * 2f, BattleViewCaps.ArenaRadius * 2f);
+            renderer.sortingOrder = BattleWorldMap.GroundSortingOrder;
+            renderer.color = new Color(0.85f, 0.85f, 0.9f, 1f);
+            FloorRenderer = renderer;
         }
 
         /// <summary>
