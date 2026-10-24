@@ -26,8 +26,11 @@ namespace ProjectSurvive.Game.Presentation.Camp
     public sealed class CampPlaceholderArt : IDisposable
     {
         // Cosmetic palette. Nothing here is a balance number and nothing reads it back.
-        private static readonly Color32 Dusk = new Color32(34, 26, 34, 255);
-        private static readonly Color32 DuskLine = new Color32(52, 40, 50, 255);
+        // Stage 09o lit the sala: the yard is a clearing at dusk, so the packed earth is a warm
+        // brown rather than the near-black it was when this scene had no environment at all. The
+        // stipple stays a stipple; nothing here is a balance number.
+        private static readonly Color32 Dusk = new Color32(64, 51, 45, 255);
+        private static readonly Color32 DuskLine = new Color32(88, 72, 60, 255);
         private static readonly Color32 Wood = new Color32(96, 66, 44, 255);
         private static readonly Color32 WoodTop = new Color32(132, 96, 62, 255);
         private static readonly Color32 Board = new Color32(206, 186, 144, 255);

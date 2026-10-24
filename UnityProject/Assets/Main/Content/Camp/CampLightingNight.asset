@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 711aadc74abca9248b80fe23a6dbc0d1, type: 3}
+  m_Name: CampLightingNight
+  m_EditorClassIdentifier: ProjectSurvive.Game.Presentation::ProjectSurvive.Game.Presentation.Battle.Environment.ArenaLightingProfile
+  TimeOfDay: 1
+  SkyColor: {r: 0.02, g: 0.03, b: 0.06, a: 1}
+  EnvironmentTint: {r: 0.38, g: 0.43, b: 0.62, a: 1}
+  AmbientSky: {r: 0.1, g: 0.13, b: 0.22, a: 1}
+  AmbientEquator: {r: 0.08, g: 0.1, b: 0.16, a: 1}
+  AmbientGround: {r: 0.04, g: 0.045, b: 0.06, a: 1}
+  KeyLightColor: {r: 0.66, g: 0.74, b: 1, a: 1}
+  KeyLightIntensity: 0.55
+  KeyLightEuler: {x: 48, y: -58, z: 0}
+  ShadowColor: {r: 0.26, g: 0.34, b: 0.5, a: 1}
+  ShadowStrength: 0.62
+  ShadowDirectionDegrees: 245
+  ShadowLengthPerHeight: 0.36
+  CanopyShadowWidthFactor: 0.9
+  FogEnabled: 1
+  FogColor: {r: 0.05, g: 0.07, b: 0.12, a: 1}
+  FogDensity: 0.01
+  ScreenTopGradient: 0.42
+  ScreenGradientColor: {r: 0.01, g: 0.02, b: 0.05, a: 1}
+  LanternIntensity: 0
+  StaticLightIntensity: 1.5
+  LightPoolIntensity: 0.55
+  GlowIntensity: 0
+  PostExposure: -0.35
+  ColorFilter: {r: 0.78, g: 0.86, b: 1.03, a: 1}
+  Contrast: 12
+  Saturation: -8
+  WhiteBalance: -16
+  ColorLookup: {fileID: 0}
+  BloomIntensity: 0.5
+  BloomThreshold: 0.9
+  BloomScatter: 0.6
+  VignetteIntensity: 0.24
+  VignetteSmoothness: 0.5

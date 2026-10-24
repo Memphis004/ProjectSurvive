@@ -327,6 +327,75 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         }
 
         /// <summary>
+        /// Stage 09o: the yard is scenery. Every station and the เซียมซี cylinder is still reachable
+        /// by a click with the cards standing in front of it — nothing in the yard is a collider and
+        /// nothing in the yard is a raycast target.
+        /// </summary>
+        /// <remarks>
+        /// This tests the half the rectangle tests cannot: a card drawn between the camera and a
+        /// shelf must not intercept the pointer. The camp resolves a click by a camera ray against
+        /// named renderers, so a collider anywhere in the ray's path is what would break it — and
+        /// that is what is measured here, at the exact pixel a player would aim at.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator The_yard_never_stands_between_the_pointer_and_a_station()
+        {
+            yield return LoadCamp();
+
+            Camera camera = _world.Camera;
+            Assert.That(camera, Is.Not.Null, "the camp has no camera");
+
+            for (int i = 0; i < _world.ShelfCount; i++)
+            {
+                Assert.That(_world.TryGetShelfScreenRect(i, out Rect station), Is.True, "shelf " + i + " is not on screen");
+                Vector2 point = station.center;
+
+                Assert.That(_world.ShelfAtScreenPoint(point, out _), Is.EqualTo(i),
+                    "the click at shelf " + i + "'s centre no longer reaches it");
+                AssertNoColliderOnTheRay(camera, point, "shelf " + i);
+            }
+
+            Assert.That(_world.TryGetResetScreenRect(out Rect drum), Is.True, "the drum is not on screen");
+            Vector2 drumPoint = ClearDrumPoint(drum);
+            Assert.That(_world.IsResetAtScreenPoint(drumPoint), Is.True, "the drum's own pixel does not reach it");
+            AssertNoColliderOnTheRay(camera, drumPoint, "the drum");
+        }
+
+        /// <summary>
+        /// A point inside the drum's rectangle that no shelf owns, so the camp's shelf-first click
+        /// order cannot turn the drum's pixel into a rent.
+        /// </summary>
+        private Vector2 ClearDrumPoint(Rect drum)
+        {
+            for (float fx = 0.2f; fx <= 0.8f; fx += 0.1f)
+            {
+                for (float fy = 0.2f; fy <= 0.8f; fy += 0.1f)
+                {
+                    var candidate = new Vector2(
+                        Mathf.Lerp(drum.xMin, drum.xMax, fx),
+                        Mathf.Lerp(drum.yMin, drum.yMax, fy));
+
+                    if (_world.IsResetAtScreenPoint(candidate) && _world.ShelfAtScreenPoint(candidate, out _) < 0)
+                    {
+                        return candidate;
+                    }
+                }
+            }
+
+            Assert.Fail("the drum has no pixel of its own");
+            return drum.center;
+        }
+
+        /// <summary>Asserts that no collider stands on the camera ray through a screen point.</summary>
+        private static void AssertNoColliderOnTheRay(Camera camera, Vector2 point, string what)
+        {
+            Ray ray = camera.ScreenPointToRay(point);
+            RaycastHit[] hits = Physics.RaycastAll(ray, camera.farClipPlane);
+            Assert.That(hits, Is.Empty,
+                "something solid stands in front of " + what + " at " + point + ": " + hits.Length + " collider(s)");
+        }
+
+        /// <summary>
         /// A point inside the เซียมซี cylinder's screen rectangle that no shelf also covers.
         /// </summary>
         /// <remarks>

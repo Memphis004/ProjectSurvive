@@ -59,7 +59,8 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
     /// <summary>
     /// The arena's authored description: how big each band is, how much may stand in it, and what
     /// the pieces look like. <see cref="ArenaLayout"/> turns it and a seed into placements;
-    /// <c>ArenaBuilder</c> turns those placements into a scene.
+    /// <c>ArenaBuilder</c> turns those placements into a scene. The camp's yard is the same thing
+    /// with a different shape (<c>ProjectSurvive.Game.Presentation.Camp.CampTheme</c>).
     /// </summary>
     /// <remarks>
     /// <para>
@@ -73,12 +74,16 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
     /// fight in, a 12–26 unit bush ring with a minimum spacing so gaps exist, and a 26–40 unit wall
     /// of trees three layers deep. All distances are world units; all counts are caps per zone.
     /// </para>
+    /// <para>
+    /// Not sealed: the camp's yard is the same mechanism with a different shape and its own
+    /// readability floors (<c>CampTheme</c>, Stage 09o). A subclass writes no layout rule of its own.
+    /// </para>
     /// </remarks>
     [CreateAssetMenu(
         menuName = "ProjectSurvive/Arena Theme",
         fileName = "ArenaTheme",
         order = 40)]
-    public sealed class ArenaTheme : ScriptableObject
+    public class ArenaTheme : ScriptableObject
     {
         [Header("Zones (world units, measured from the arena centre)")]
         [Tooltip("Radius of the open middle. Only decals and low grass may stand inside it.")]

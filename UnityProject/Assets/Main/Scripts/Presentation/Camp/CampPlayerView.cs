@@ -146,6 +146,22 @@ namespace ProjectSurvive.Game.Presentation.Camp
         // ------------------------------------------------------------------
 
         /// <summary>
+        /// Puts the figure at <paramref name="position"/> without walking there, clamped into the
+        /// sala exactly like a walk. Only the capture tool and a test use it: a player never
+        /// teleports, but a screenshot of "the player standing at shelf 3" has to start from that
+        /// spot rather than from a two-second key hold.
+        /// </summary>
+        public void Teleport(Vector3 position)
+        {
+            _position = _world == null ? position : _world.ClampToWalkArea(position);
+
+            if (_world != null && _world.PlayerTransform != null)
+            {
+                _world.PlayerTransform.position = _position;
+            }
+        }
+
+        /// <summary>
         /// WASD on the ground plane, camera-relative: the camera looks along +Z, so W walks away
         /// from the player and into the sala.
         /// </summary>

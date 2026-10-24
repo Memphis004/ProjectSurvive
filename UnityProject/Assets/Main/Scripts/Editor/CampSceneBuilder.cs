@@ -114,6 +114,12 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(director, "_tooltip", tooltip);
             ProjectSetup.SetObjectReference(director, "_saveWarning", saveWarning);
 
+            // Stage 09o: the yard. The same card/decal/shadow prefabs and lighting profile the arena
+            // uses, placed around the sala and saved <b>into this scene</b> — so the yard exists in
+            // the asset, is destroyed with the scene, and nothing is Instantiated or Destroyed while
+            // the game runs.
+            CampEnvironmentBuilder.Build(camera, world);
+
             EditorSceneManager.SaveScene(scene, ProjectSetup.CampScenePath);
         }
 

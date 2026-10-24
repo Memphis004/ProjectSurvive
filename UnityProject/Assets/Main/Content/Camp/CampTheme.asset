@@ -1,0 +1,137 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be9b374f9980c6b448392ec8c52bd63e, type: 3}
+  m_Name: CampTheme
+  m_EditorClassIdentifier: ProjectSurvive.Game.Presentation::ProjectSurvive.Game.Presentation.Camp.CampTheme
+  CenterRadius: 10.2
+  RingOuterRadius: 14
+  ArenaRadius: 18
+  CenterMaxHeight: 0.75
+  CenterGrassMin: 26
+  CenterGrassMax: 40
+  RingBushMin: 30
+  RingBushMax: 40
+  BorderTreeMin: 60
+  BorderTreeMax: 76
+  DirtDecalCount: 4
+  FlowerDecalCount: 14
+  LeafDecalCount: 14
+  BushMinSpacing: 3.4
+  TreeMinSpacing: 2.6
+  BorderLayers: 2
+  BorderSlotPitchFactor: 0.9
+  MaxYawDegrees: 8
+  Styles:
+  - Id: tree-a
+    Zone: 2
+    Width: 4.2
+    Height: 6.4
+    MinScale: 0.85
+    MaxScale: 1.15
+    Material: {fileID: 2100000, guid: 4dcfc3c3527f0bd4e9040f0924671fa2, type: 2}
+  - Id: tree-b
+    Zone: 2
+    Width: 5
+    Height: 7.2
+    MinScale: 0.8
+    MaxScale: 1.1
+    Material: {fileID: 2100000, guid: afc6bc77fa29db540a21a71ff7e76733, type: 2}
+  - Id: tree-c
+    Zone: 2
+    Width: 3.6
+    Height: 5.4
+    MinScale: 0.9
+    MaxScale: 1.2
+    Material: {fileID: 2100000, guid: cbacd2953e634b44cbdd5536bd2ca376, type: 2}
+  - Id: tree-big-a
+    Zone: 2
+    Width: 8.2
+    Height: 11
+    MinScale: 0.95
+    MaxScale: 1.2
+    Material: {fileID: 2100000, guid: 4dcfc3c3527f0bd4e9040f0924671fa2, type: 2}
+  - Id: tree-big-b
+    Zone: 2
+    Width: 9
+    Height: 12.4
+    MinScale: 0.9
+    MaxScale: 1.15
+    Material: {fileID: 2100000, guid: afc6bc77fa29db540a21a71ff7e76733, type: 2}
+  - Id: bush
+    Zone: 1
+    Width: 2.4
+    Height: 1.9
+    MinScale: 0.85
+    MaxScale: 1.2
+    Material: {fileID: 2100000, guid: 33c80f8b6b9d245489354d7ad7e0a8d6, type: 2}
+  - Id: grass
+    Zone: 0
+    Width: 1.1
+    Height: 0.55
+    MinScale: 0.8
+    MaxScale: 1.2
+    Material: {fileID: 2100000, guid: fcf27b239b9f2064ca2ce49f21107a60, type: 2}
+  - Id: grass-small
+    Zone: 0
+    Width: 0.9
+    Height: 0.42
+    MinScale: 0.8
+    MaxScale: 1.2
+    Material: {fileID: 2100000, guid: a6cf18b9b3f6cf244a2d57884f8efe2a, type: 2}
+  DecalStyles:
+  - Id: dirt
+    Zone: 3
+    Width: 7
+    Height: 5
+    MinScale: 0.8
+    MaxScale: 1.2
+    Material: {fileID: 2100000, guid: bd902c6e0f6643b41a9de68f97b22eea, type: 2}
+  - Id: flower
+    Zone: 3
+    Width: 0.9
+    Height: 0.9
+    MinScale: 0.7
+    MaxScale: 1.3
+    Material: {fileID: 2100000, guid: ab49ba98665c76446ac3246906ee7340, type: 2}
+  - Id: leaf
+    Zone: 3
+    Width: 0.7
+    Height: 0.7
+    MinScale: 0.7
+    MaxScale: 1.3
+    Material: {fileID: 2100000, guid: cca2d4410ae11d149ac759f25c8a4787, type: 2}
+  GroundMaterial: {fileID: 2100000, guid: db5657d79e201a748b4a06c21197336e, type: 2}
+  ShadowMaterial: {fileID: 2100000, guid: facd2acf23e66cf43806733e368324f9, type: 2}
+  DuskProfile: {fileID: 11400000, guid: 287dca75d54412d43a75247c11a90402, type: 2}
+  NightProfile: {fileID: 11400000, guid: 7ef70a88deaa30348b2f9eb531a02d19, type: 2}
+  MinPlayerContrast: 2.2
+  MinGhostContrast: 1.9
+  MinPickupContrast: 2.4
+  MinTelegraphContrast: 1.3
+  FixtureStyles:
+  - Id: lamp
+    Zone: 2
+    Width: 0.55
+    Height: 2.6
+    MinScale: 1
+    MaxScale: 1
+    Material: {fileID: 2100000, guid: 7a8c6881c96759247b45432d6fb046e5, type: 2}
+  - Id: sign
+    Zone: 2
+    Width: 1.5
+    Height: 1.15
+    MinScale: 1
+    MaxScale: 1
+    Material: {fileID: 2100000, guid: bbac24ecff5b10047b9c517ed0a47ac7, type: 2}
+  MinPropContrast: 1.9
+  MinLabelContrast: 2
+  LabelFloorPixels: 22

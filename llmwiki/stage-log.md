@@ -658,3 +658,17 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   building and `tools/test.ps1` compresses before the browser gate.
 - **Next:** let the user judge the look from `artifacts/ui/battle-env/stage08f-dusk-1920x1080.png` /
   `stage08f-night-1920x1080.png`, then tighten the detached canopy shadows at the arena edge.
+- **Stage 09o — ศาลาพัก's yard.** The arena's card system moved onto the camp as a second theme:
+  `CampTheme` (centre 10.2, ring 14, 26–40 grass) + `CampYard`, which is `ArenaLayout.Build` under a
+  fixed seed filtered to "grass inside the walk area, standing cards only in the frame" (|x| ≥ 9.5,
+  5.4 ≤ z ≤ 12) plus two lamps, one sign and eight warm pools under the shelves, the เซียมซี cylinder
+  and the pot. `ArenaCard`/`GroundDecal`/`ArenaShadowCard`/`ArenaEnvironmentView` are unchanged; two
+  camp profiles (Dusk-Camp, Night) are one `SetTimeOfDay` apart. Camera, walk area and every usage
+  point untouched.
+- **Result:** EditMode **250/250** (16 new `CampYardTests`), `-Suite Fast` **13 PASS / 0 FAIL**,
+  `CampWorldPlayModeTests` **9/9**, `SceneFlowPlayModeTests` **6/6**; 20 captured views pass their
+  contrast floors, **71–100 batches / 1.90–2.67 ms**. Found on the way: the price boards are unlit UI
+  and measure **2.4:1** with **12 px** ink at 1080p — recorded as a proposal, and `MinLabelContrast`
+  re-set to the pre-yard non-regression floor (2.00) rather than a WCAG number light cannot reach.
+- **Next:** the look is the user's call (`artifacts/ui/camp-env/after-dusk-camp-centre-1920x1080.png`),
+  and the board's ink/type size is a separate, pre-existing readability item.

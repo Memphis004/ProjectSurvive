@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ProjectSurvive.Game.Presentation.Battle.Environment;
 using R3;
 using TMPro;
 using UnityEngine;
@@ -53,6 +54,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
         [SerializeField] private Camera _camera;
 
         [SerializeField] private TMP_FontAsset _font;
+
+        [Tooltip("The yard's lighting: the camp's own Dusk-Camp/Night profiles (Stage 09o).")]
+        [SerializeField] private ArenaEnvironmentView _environment;
+
+        [Tooltip("The packed-earth material, drawn opaque so the yard's decals sit above it (Stage 09o).")]
+        [SerializeField] private Material _groundMaterial;
 
         [Header("Framing (authored by ProjectSetup)")]
         [SerializeField] private Vector3 _cameraOffset = new Vector3(0f, 7.2f, -10.5f);
@@ -117,6 +124,20 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
         /// <summary>The framing camera.</summary>
         public Camera Camera => _camera;
+
+        /// <summary>The yard's lighting, or null in a camp built before Stage 09o.</summary>
+        public ArenaEnvironmentView Environment => _environment;
+
+        /// <summary>
+        /// Switches the yard's look in one call. The command is
+        /// <see cref="ArenaEnvironmentView.SetTimeOfDay"/>; the camp only passes it through, so there
+        /// is exactly one implementation of what Dusk-Camp and Night mean.
+        /// </summary>
+        public void SetTimeOfDay(ArenaTimeOfDay timeOfDay) => _environment?.SetTimeOfDay(timeOfDay);
+
+        /// <summary>Which look is in force.</summary>
+        public ArenaTimeOfDay TimeOfDay =>
+            _environment == null || !_environment.IsNight ? ArenaTimeOfDay.Dusk : ArenaTimeOfDay.Night;
 
         /// <summary>Where the camera is now, which the layout report keys on.</summary>
         public Vector3 CameraPosition => _camera == null ? Vector3.zero : _camera.transform.position;
@@ -193,7 +214,16 @@ namespace ProjectSurvive.Game.Presentation.Camp
             Vector3 facing = _cameraEuler;
 
             // Ground first: it is the furthest thing on the plane, so everything else draws over it.
-            Place("Ground", _art.Ground, At(0f, 0f, 0f), Quaternion.Euler(90f, 0f, 0f), 20f, 16f, 1);
+            // It is drawn opaque (one camp-only material, queue 2000) so the yard's decals, fake
+            // shadows and light pools — the arena's queues, authored for an opaque floor — land on
+            // top of it instead of behind it.
+            SpriteRenderer ground = Place(
+                "Ground", _art.Ground, At(0f, 0f, 0f), Quaternion.Euler(90f, 0f, 0f), 20f, 16f,
+                CampSorting.GroundOrder);
+            if (_groundMaterial != null)
+            {
+                ground.sharedMaterial = _groundMaterial;
+            }
 
             // The stall and its keeper sit behind the shelf row, out of the walking area.
             Place("Stall", _art.Stall, At(-7.4f, 0.55f, 4.6f), Quaternion.Euler(facing), 1f, 1f, 10);
@@ -216,7 +246,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             // The player, in front of the furniture: the walk bounds keep it there, so its sorting
             // order can be a constant instead of a per-frame depth sort.
-            _player = Place("Player", _art.Player, _spawn, Quaternion.Euler(facing), 1.5f, 1.5f, 18);
+            _player = Place("Player", _art.Player, _spawn, Quaternion.Euler(facing), 1.5f, 1.5f, CampSorting.PlayerOrder);
 
             BuildResetDrum(facing);
 
@@ -500,6 +530,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             return TryProject(renderer.bounds, out rect);
         }
+
 
         /// <summary>
         /// Projects a world box to a screen rectangle, in pixels with the origin at the
