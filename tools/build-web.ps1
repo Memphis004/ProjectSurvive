@@ -193,6 +193,21 @@ if (-not (Test-Path -LiteralPath $ArtifactsDir)) { New-Item -ItemType Directory 
 $logPath = Join-Path $ArtifactsDir 'unity-build-web.log'
 if (Test-Path -LiteralPath $logPath) { Remove-Item -LiteralPath $logPath -Force }
 
+# A build replaces the payload files but leaves whatever sits beside them, so a
+# pre-compressed sibling from the previous configuration would still be the bytes a
+# static host serves (Stage 08e hit this: Playwright passed against a Development
+# player that the Release run had just replaced). The siblings are derived data -
+# tools/compress-web.mjs writes them again - so they are removed before the build
+# rather than trusted to be rewritten after it.
+if (Test-Path -LiteralPath $OutputDirectory) {
+    $stale = @(Get-ChildItem -LiteralPath $OutputDirectory -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -eq '.br' -or $_.Extension -eq '.gz' })
+    foreach ($file in $stale) { Remove-Item -LiteralPath $file.FullName -Force }
+    if ($stale.Count -gt 0) {
+        Write-Host ("  removed {0} pre-compressed sibling(s) left by the previous build" -f $stale.Count) -ForegroundColor DarkGray
+    }
+}
+
 $arguments = @(
     '-batchmode'
     '-quit'

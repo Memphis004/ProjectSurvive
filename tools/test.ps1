@@ -735,6 +735,21 @@ else {
                 }
             }
 
+            # Compress here, before the browser gate. tools/build-web.ps1 removes the previous
+            # build's siblings, so without this step Playwright would run against an
+            # uncompressed player; with it, the bytes the browser fetches are the bytes this
+            # build produced.
+            if ($null -ne $node) {
+                $compressAfterBuild = Invoke-Native $node @(
+                    (Join-Path $PSScriptRoot 'compress-web.mjs'), '--dir', $script:WebRoot,
+                    '--label', $script:WebConfiguration, '--quiet'
+                ) $script:Root
+                Write-Artifact $script:DotnetDir 'compress-web.log' $compressAfterBuild.Output
+                if (-not $compressAfterBuild.Ok) {
+                    return @{ Status = 'FAIL'; Detail = 'tools/compress-web.mjs could not write the pre-compressed siblings; see artifacts/dotnet/compress-web.log' }
+                }
+            }
+
             $script:WebBuildOk = $true
             return @{ Status = 'PASS'; Detail = ("{0} configuration -> {1}" -f $script:WebConfiguration, $script:WebRoot) }
         } | Out-Null
