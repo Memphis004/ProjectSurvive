@@ -46,6 +46,12 @@ namespace ProjectSurvive.Game.Presentation.Battle
         public BattleSpeed Speed { get; set; }
 
         /// <summary>
+        /// The presenter that drives the doctor's Spine figure (Stage 17b). Null in a scene that has
+        /// no figure, in which case the player is drawn by the pooled placeholder sprite as before.
+        /// </summary>
+        public PlayerFigurePresenter PlayerFigure { get; set; }
+
+        /// <summary>
         /// The run's bag, as the floor was departed from: the mini bag draws this board (Stage 08c).
         /// The same object the loadout was resolved from, so the HUD cannot show a build the battle
         /// is not running (ADR 0024).</summary>

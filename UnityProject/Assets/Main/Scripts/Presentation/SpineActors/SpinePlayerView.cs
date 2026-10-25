@@ -113,8 +113,54 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
             get { return m_Hurt; }
         }
 
+        /// <summary>
+        /// The animation playing on the skeleton's one track, or null before <see cref="Begin"/>,
+        /// when nothing plays, or when a profile leaves a pose empty.
+        /// </summary>
+        public string CurrentAnimation
+        {
+            get
+            {
+                if (!IsBegun)
+                {
+                    return null;
+                }
+
+                Spine.TrackEntry entry = m_Actor.AnimationState.GetCurrent(0);
+                return entry == null || entry.Animation == null ? null : entry.Animation.Name;
+            }
+        }
+
+        /// <summary>
+        /// Seconds the animation on track 0 has been playing. A caller that steps the view by hand
+        /// reads this to tell "the animation moved" from "the figure was drawn again", and a paused
+        /// view's value stops moving with it.
+        /// </summary>
+        public float AnimationTime
+        {
+            get
+            {
+                if (!IsBegun)
+                {
+                    return 0f;
+                }
+
+                Spine.TrackEntry entry = m_Actor.AnimationState.GetCurrent(0);
+                return entry == null ? 0f : entry.TrackTime;
+            }
+        }
+
         /// <summary>The height the figure was drawn at, in world units (0 before Begin).</summary>
         public float DrawnHeightWorld { get; private set; }
+
+        /// <summary>
+        /// The animation state's own speed, as the last <see cref="SetSpeed"/> or
+        /// <see cref="SetPaused"/> left it: 0 while paused.
+        /// </summary>
+        public float CurrentTimeScale
+        {
+            get { return CurrentSpeed(); }
+        }
 
         /// <summary>Assigns the profile before <see cref="Begin"/> (a test or a scene builder does this).</summary>
         public void Configure(SpinePlayerProfile playerProfile)
@@ -330,6 +376,12 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
             {
                 m_Actor.SetSpeed(m_Speed);
             }
+        }
+
+        /// <summary>Sorting order the figure draws at.</summary>
+        public int SortingOrder
+        {
+            get { return sortingOrder; }
         }
 
         /// <summary>Sorting order of the figure's renderer (and of the mount, if one is added).</summary>

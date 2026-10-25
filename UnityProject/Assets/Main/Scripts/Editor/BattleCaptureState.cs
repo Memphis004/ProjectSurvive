@@ -12,6 +12,7 @@ using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Infrastructure;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
+using ProjectSurvive.Game.Presentation.SpineActors;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
@@ -161,6 +162,8 @@ namespace ProjectSurvive.Game.Editor
         private readonly BattleFrameSnapshot _current = new BattleFrameSnapshot();
         private readonly LoadoutCooldown[] _manaShort = new LoadoutCooldown[BattleConstants.MaxLoadoutEntries];
 
+        private PlayerFigurePresenter _figure;
+
         private int _steppedTo;
         private int _manaShortIndex = -1;
         private bool _disposed;
@@ -238,6 +241,44 @@ namespace ProjectSurvive.Game.Editor
 
             state = new BattleCaptureState(
                 hud, miniBag, config, run, setup, startingBia, DevBattleSessionBinding.CreateFactory(config));
+            return true;
+        }
+
+        /// <summary>
+        /// Builds a capture state over <b>floor 1 played by the shipped simulation</b> (Stage 17b).
+        /// </summary>
+        /// <remarks>
+        /// The dev session ignores the player's input — it publishes one still doctor — so a picture of
+        /// the figure <i>walking</i> cannot come from it. This is the same floor the HUD shots show
+        /// (same seed, same departure, same bag), stepped by the battle the game really runs: the
+        /// figure's pose, facing and position on the picture are therefore the floor's own, not a
+        /// scenario's.
+        /// </remarks>
+        public static bool TryBuildRealFloorOne(
+            BattleHudView hud, BattleMiniBagView miniBag, out BattleCaptureState state, out string error)
+        {
+            state = null;
+            error = string.Empty;
+
+            if (hud is null || miniBag is null)
+            {
+                error = "the Battle scene is missing its HUD or its mini bag";
+                return false;
+            }
+
+            IGameConfig config = ResourcesGameConfigLoader.Load();
+            var run = new RunSession(config, new MessagePackBackpackSnapshotCodec(), Seed);
+
+            if (!BattleRunSource.TryStartFrom(
+                    run, config, equipSecondWeapon: true,
+                    out BattleSetup setup, out int startingBia, out string departure))
+            {
+                error = "the run refused to depart: " + departure;
+                return false;
+            }
+
+            state = new BattleCaptureState(
+                hud, miniBag, config, run, setup, startingBia, BattleFactoryBinding.Create(config));
             return true;
         }
 
@@ -538,6 +579,106 @@ namespace ProjectSurvive.Game.Editor
         }
 
         /// <summary>
+        /// Builds the scene's own Spine figure and drives it from the frame the shots are taken on
+        /// (Stage 17b).
+        /// </summary>
+        /// <remarks>
+        /// The figure is begun through <see cref="PlayerFigurePresenter"/> — the object the Battle
+        /// scene really runs — rather than by calling <c>SpinePlayerView.Begin</c> here, so the
+        /// picture is of the code path the player gets: the billboard pitch, the pose rule, the row
+        /// sorting and the animation tick are the runtime's, not a copy of them. The camera pitch is
+        /// the rig's own constant, because a capture has no built <see cref="BattleViewScene"/> to ask.
+        /// </remarks>
+        public bool TryBeginPlayerFigure(SpinePlayerView view, out string error)
+        {
+            error = string.Empty;
+
+            if (view is null)
+            {
+                error = "the Battle scene has no player figure to photograph";
+                return false;
+            }
+
+            _figure = new PlayerFigurePresenter(_speed);
+            _figure.Attach(view, BattleCameraRig.PitchDegrees);
+
+            if (!_figure.Begin())
+            {
+                error = _figure.ErrorCode ?? "the figure refused to build";
+                return false;
+            }
+
+            PlaceFigure(_current);
+            return true;
+        }
+
+        /// <summary>True when the figure was built for the shots.</summary>
+        public bool HasPlayerFigure => _figure is not null && _figure.IsReady;
+
+        /// <summary>The pose the figure was last placed at, for the capture report.</summary>
+        public PlayerPose PlayerFigurePose => _figure is null ? PlayerPose.Idle : _figure.Pose;
+
+        /// <summary>The animation the figure is on, for the capture report.</summary>
+        public string PlayerFigureAnimation => _figure is null ? string.Empty : _figure.Animation;
+
+        /// <summary>How much the player moved in the last frame, in simulation units a second.</summary>
+        public float PlayerFigureSpeed => _figure is null ? 0f : _figure.SpeedUnitsPerSecond;
+
+        /// <summary>
+        /// Steps the floor a few ticks with the player walking right, so the photograph is of a
+        /// walking figure rather than of one standing still.
+        /// </summary>
+        /// <remarks>
+        /// Taken <b>last</b>, after every HUD shot: it moves the player, and the earlier shots are of
+        /// the frame they were composed from.
+        /// </remarks>
+        public void Walk(int ticks)
+        {
+            for (int i = 0; i < ticks && _session.Phase == BattlePhase.Running; i++)
+            {
+                _session.Step(PlayerInputFrame.FromAxis(1f, 0f));
+                _steppedTo = (int)_session.Tick;
+            }
+
+            _current.CopyFrom(_session.Frame);
+            PlaceFigure(_current);
+        }
+
+        /// <summary>
+        /// Removes what the figure built from the open scene. The view is the scene's own component
+        /// and stays; its built actor is a child created by <c>Begin</c>, and a capture must not leave
+        /// a scene dirty with a second one.
+        /// </summary>
+        public void DetachPlayerFigure()
+        {
+            SpinePlayerView view = _figure is null ? null : _figure.View;
+            _figure?.Dispose();
+            _figure = null;
+
+            if (view is null)
+            {
+                return;
+            }
+
+            for (int i = view.transform.childCount - 1; i >= 0; i--)
+            {
+                UnityEngine.Object.DestroyImmediate(view.transform.GetChild(i).gameObject);
+            }
+        }
+
+        /// <summary>Places and poses the figure from <paramref name="frame"/>.</summary>
+        private void PlaceFigure(BattleFrameSnapshot frame)
+        {
+            if (_figure is null || !_figure.IsReady)
+            {
+                return;
+            }
+
+            _figure.AcceptSnapshot(frame);
+            _figure.Render(1f, 1f / BattleConstants.TickRate);
+        }
+
+        /// <summary>
         /// Puts the chosen state on the screen: the frame's cooldowns on the mini bag, its numbers in
         /// the labels and the bars, and the floor's own progress on the timeline.
         /// </summary>
@@ -586,6 +727,10 @@ namespace ProjectSurvive.Game.Editor
             // otherwise, exactly as BattleHudView would mirror it.
 
             WriteLabels();
+
+            // The figure is placed from the same snapshot the HUD was written from, so the two
+            // halves of the picture are one frame.
+            PlaceFigure(frame);
         }
 
         /// <inheritdoc />
@@ -597,6 +742,9 @@ namespace ProjectSurvive.Game.Editor
             }
 
             _disposed = true;
+
+            _figure?.Dispose();
+            _figure = null;
 
             _session?.Dispose();
 

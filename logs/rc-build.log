@@ -1,0 +1,15 @@
+
+ProjectSurvive - WebGL build (Stage 03)
+========================================================================
+  [PASS] editor                             6000.3.9f1 at C:\Program Files\Unity\Hub\Editor\6000.3.9f1
+  [PASS] project                            C:\Workspace\ProjectSurvive\UnityProject
+  removed 18 pre-compressed sibling(s) left by the previous build
+  running: Unity.exe -batchmode -quit -projectPath C:\Workspace\ProjectSurvive\UnityProject -buildTarget WebGL -executeMethod ProjectSurvive.Game.Editor.WebBuildPipeline.BuildWebForSize -logFile C:\Workspace\ProjectSurvive\artifacts\unity-build-web.log -sizeProfile optimize-size -outputDir C:\Workspace\ProjectSurvive\UnityProject\Builds\Web
+  [PASS] player settings restored           2 file(s) put back after the profile build
+  [PASS] unity build                        exit 0
+  [PASS] C# errors in log                   0 occurrence(s)
+  [PASS] player output                      index.html + 1 wasm file(s) in C:\Workspace\ProjectSurvive\UnityProject\Builds\Web
+  [PASS] build settings match profile       optimize-size: stripping High, codegen OptimizeSize, exceptions ExplicitlyThrownExceptionsOnly
+  [PASS] build-info.json                    configHash 411BA005... size 48192887 bytes
+========================================================================
+  RESULT: OK

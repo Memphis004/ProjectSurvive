@@ -13,6 +13,7 @@ using ProjectSurvive.Game.Infrastructure;
 using ProjectSurvive.Game.Presentation;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
+using ProjectSurvive.Game.Presentation.SpineActors;
 using ProjectSurvive.Game.Presentation.Camp;
 using TMPro;
 using UnityEditor;
@@ -87,6 +88,13 @@ namespace ProjectSurvive.Game.Editor
 
         /// <summary>The Camp scene's name, which is what a play-mode load by name needs.</summary>
         private const string CampSceneName = "Camp";
+
+        /// <summary>
+        /// How many ticks the battle capture steps the player before the figure's own shot
+        /// (Stage 17b). A quarter of a second at 30 Hz: far enough for the pose rule to read a run,
+        /// and short enough that the doctor has not walked out of the camera's framing.
+        /// </summary>
+        private const int FigureWalkTicks = 8;
 
         /// <summary>The two sizes the GDD names, in the order it names them.</summary>
         private static readonly Vector2Int[] CapturedSizes =
@@ -752,6 +760,7 @@ namespace ProjectSurvive.Game.Editor
             var hud = Object.FindFirstObjectByType<BattleHudView>(FindObjectsInactive.Include);
             var miniBag = Object.FindFirstObjectByType<BattleMiniBagView>(FindObjectsInactive.Include);
             var devMenu = Object.FindFirstObjectByType<DevMenuView>(FindObjectsInactive.Include);
+            var playerFigure = Object.FindFirstObjectByType<SpinePlayerView>(FindObjectsInactive.Include);
 
             if (hud == null || miniBag == null)
             {
@@ -782,6 +791,14 @@ namespace ProjectSurvive.Game.Editor
                 {
                     report.Failures.Add("the Battle floor could not be started for the shots: " + error);
                     return;
+                }
+
+                // Stage 17b: the doctor is the Spine figure now, so every arena picture is of it.
+                // A scene that does not wire one is a failure, not a note: the stage's whole
+                // deliverable is that this screen draws the figure.
+                if (!state.TryBeginPlayerFigure(playerFigure, out string figureError))
+                {
+                    report.Failures.Add("the player figure could not be built for the shots: " + figureError);
                 }
 
                 // The mid-fight frame is found once and both later shots are taken from it, so the two
@@ -835,6 +852,42 @@ namespace ProjectSurvive.Game.Editor
                             });
                     }
                 }
+
+                // Stage 17b: the figure itself, on floor 1 **played by the shipped simulation** — the
+                // dev session steps a still player, so the walking pose can only come from the real
+                // floor. Taken last: it replaces the state the HUD shots were composed from.
+                state.DetachPlayerFigure();
+                state.Dispose();
+                state = null;
+
+                if (!BattleCaptureState.TryBuildRealFloorOne(hud, miniBag, out state, out string realError))
+                {
+                    report.Failures.Add("floor 1 could not be started by the shipped simulation: " + realError);
+                    return;
+                }
+
+                if (state.TryBeginPlayerFigure(playerFigure, out string walkedFigureError))
+                {
+                    state.Walk(FigureWalkTicks);
+                    state.Apply(BattleShot.MidFight);
+
+                    report.Notes.Add(
+                        "`battle-player` is the doctor's Spine figure on **floor 1 played by the shipped "
+                        + "simulation**: pose " + state.PlayerFigurePose + ", animation '"
+                        + state.PlayerFigureAnimation + "', moving at "
+                        + state.PlayerFigureSpeed.ToString("0.00") + " u/s after " + FigureWalkTicks
+                        + " ticks of walking right — the same presenter, pose rule and row sorting the "
+                        + "running scene uses, on the frame the session published (" + state.Describe(BattleShot.MidFight) + ")");
+
+                    for (int i = 0; i < CapturedSizes.Length; i++)
+                    {
+                        Capture(SceneKind.Battle, "player", "battle-player", camera, CapturedSizes[i], regions, report);
+                    }
+                }
+                else
+                {
+                    report.Failures.Add("the player figure could not be built for its own shot: " + walkedFigureError);
+                }
             }
             catch (Exception error)
             {
@@ -842,6 +895,7 @@ namespace ProjectSurvive.Game.Editor
             }
             finally
             {
+                state?.DetachPlayerFigure();
                 state?.ClearBagObjects();
                 state?.Dispose();
 

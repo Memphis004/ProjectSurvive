@@ -134,6 +134,26 @@ hysteresis (enter at the threshold, leave below **half** of it) and `Facing(dx, 
 which keeps its direction inside the dead zone. No UnityEngine, no Spine types, no scene: a rule about
 when a figure walks is testable without an Editor and cannot quietly become gameplay.
 
+### 7. One figure draws the player, and the bridge yields to it (Stage 17b)
+
+The player is still one `RenderEntityKind.Player` entity in `IBattleFrame`; the figure only decides
+**who draws it**. `BattleRenderBridge.PlayerDrawnElsewhere` is set from whether the figure actually
+built, and while it is true the bridge skips acquiring a pooled view for that kind. A floor therefore
+cannot show two doctors, and a figure that fails leaves the sprite that was always there.
+
+| Option | Why not |
+| --- | --- |
+| Draw the figure *and* the pooled player sprite, hiding the latter | The sprite is still acquired, animated and sorted per frame, and a z or sorting bug makes the doctor a pair. |
+| Remove `Player` from the render stream | Presentation would stop receiving the player's own position and speed from the frame, and the simulation's contract would change for a cosmetic reason. |
+| Drive the figure from its own `Update()` next to the sprite | Two clocks: the pose would lead or lag the interpolated sprites by a frame, and nothing could pause it (see §5). |
+
+**What a failed build does is asymmetric on purpose.** In the Editor and a development build the
+failure is an error with the view's `noun.problem` code, because that is where it can be fixed; in a
+release build the pooled placeholder sprite draws the doctor and one warning says so, because losing
+the player is worse than drawing a stand-in. A silent fallback is the outcome this rule forbids:
+`__projectSurviveBattle` publishes `spineReady` / `spineErrorCode` so the browser suite can tell the
+two apart, and the Editor capture fails its own run if the figure will not build.
+
 ## Consequences
 
 - **17b–17d wire one asset**: a `SpinePlayerView` with the profile assigned, and the figure has its

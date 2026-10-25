@@ -1,7 +1,9 @@
+using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.Battle.Pause;
+using ProjectSurvive.Game.Presentation.SpineActors;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -114,6 +116,11 @@ namespace ProjectSurvive.Game.Editor
 
             var viewRoot = new GameObject("ViewRoot");
 
+            // Stage 17b: the ghost-doctor's Spine figure, parented to the view root so it lives and
+            // dies with the floor's own visuals. Its profile is the asset the 17a tool created; the
+            // figure is begun at floor start by the view, never by the scene.
+            SpinePlayerView playerFigure = BuildPlayerFigure(viewRoot);
+
             Canvas canvas = ProjectSetup.CreateCanvas(out GameObject canvasObject);
             BattleHudView hud = BuildBattleHud(
                 canvas, canvasObject, font, scope, out BattleMiniBagView miniBag, out Button pauseButton);
@@ -130,6 +137,7 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(runner, "_viewSettings.Hud", hud);
             ProjectSetup.SetObjectReference(runner, "_viewSettings.MiniBag", miniBag);
             ProjectSetup.SetObjectReference(runner, "_viewSettings.Font", font);
+            ProjectSetup.SetObjectReference(runner, "_viewSettings.PlayerFigure", playerFigure);
             ProjectSetup.SetEnum(runner, "_viewSettings.Projection", (int)BattleProjection.Orthographic);
 
             ProjectSetup.SetObjectReference(director, "_scope", scope);
@@ -260,6 +268,47 @@ namespace ProjectSurvive.Game.Editor
                 ProjectSetup.UiFontSize, font, TextAlignmentOptions.Center);
 
             return button;
+        }
+
+        /// <summary>
+        /// The ghost-doctor's figure (Stage 17b): one <see cref="SpinePlayerView"/> under the view
+        /// root, with the profile the Spine tool created.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The scene carries the <b>profile</b>, not a skeleton: the skeleton is loaded from
+        /// <c>Resources</c> by the view, so the three scenes that will draw the doctor (Battle, Camp,
+        /// Title) name one asset each and no path is written down twice (ADR 0037 §2).
+        /// </para>
+        /// <para>
+        /// A missing profile is an <b>error</b> here rather than a silently empty figure: the figure
+        /// would fail its own <c>Begin</c> at floor start and the arena would quietly fall back to the
+        /// placeholder sprite, which is the state the stage exists to replace.
+        /// </para>
+        /// </remarks>
+        private static SpinePlayerView BuildPlayerFigure(GameObject viewRoot)
+        {
+            var figureObject = new GameObject("PlayerFigure");
+            figureObject.transform.SetParent(viewRoot.transform, worldPositionStays: false);
+
+            SpinePlayerView figure = figureObject.AddComponent<SpinePlayerView>();
+            var profile = AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.ProfileAssetPath);
+
+            if (profile is null)
+            {
+                Debug.LogError(
+                    "[BattleSceneBuilder] " + SpineProfileTool.ProfileAssetPath + " is missing: run " +
+                    "ProjectSurvive/Spine/2. Create player profile. The arena will fall back to the " +
+                    "placeholder sprite for the player.");
+                return figure;
+            }
+
+            ProjectSetup.SetObjectReference(figure, "profile", profile);
+
+            // The draw order the figure starts at: the same row rule the sprites use, at the arena's
+            // centre. The presenter recomputes it per row crossed while the floor runs.
+            ProjectSetup.SetInt(figure, "sortingOrder", BattleWorldMap.SortingOrder(RenderEntityKind.Player, 0f));
+            return figure;
         }
 
         /// <summary>

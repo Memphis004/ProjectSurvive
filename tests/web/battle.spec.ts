@@ -14,6 +14,7 @@ import { expectTextFits } from "./textfit.mjs";
  *                            viewsCreated / viewsGrownDuringPlay / viewsBound /
  *                            poolCapacity, damageNumbers, timelineMarkers,
  *                            droppedEvents, hp / mp / bia / kills / waveIndex,
+ *                            spineReady / spineErrorCode / spinePlayCalls / spineAnimation,
  *                            and — once the floor is over — outcome / endReason / finalHp
  *
  * The numeric fields the writer emits as strings (tick, stepsRun, …) are read through
@@ -61,6 +62,10 @@ interface BattleReport {
   timelineMarkers: number;
   droppedEvents: string | number;
   ended: boolean;
+  spineReady: boolean;
+  spineErrorCode: string;
+  spinePlayCalls: number;
+  spineAnimation: string;
   hp?: number;
   maxHp?: number;
   mp?: number;
@@ -123,6 +128,13 @@ test.describe("ProjectSurvive floor 1 in the browser", () => {
     expect(started.poolCapacity).toBeGreaterThan(1000);
     expect(started.timelineMarkers).toBe(1);
     expect(Number(started.stepsRun)).toBe(0);
+
+    // Stage 17b: the doctor in the built player is the Spine figure, not the fallback sprite.
+    // A stripped skeleton data asset or a missing shader would show here as `false` with the
+    // figure's own error code, which is exactly the failure a Development build could hide.
+    expect(started.spineReady, `the doctor fell back: '${started.spineErrorCode}'`).toBe(true);
+    expect(started.spineErrorCode).toBe("");
+    expect(started.spineAnimation).toBeTruthy();
 
     // Stage 13: the battle HUD's labels, measured by the player.
     await expectTextFits(page, "Battle");
@@ -208,6 +220,12 @@ test.describe("ProjectSurvive floor 1 in the browser", () => {
     expect(midFloor.bia).toBeGreaterThanOrEqual(0);
     expect(midFloor.viewsBound).toBeGreaterThan(0);
     expect(midFloor.viewsGrownDuringPlay).toBe(0);
+
+    // Stage 17b in the built player: the figure is still the Spine one, and it has played a
+    // handful of animations, not one per frame — the same claim the PlayMode suite makes.
+    expect(midFloor.spineReady, `the doctor fell back: '${midFloor.spineErrorCode}'`).toBe(true);
+    expect(midFloor.spineAnimation).toBeTruthy();
+    expect(midFloor.spinePlayCalls).toBeLessThan(40);
 
     // A dropped tick is a long frame, not a lost floor: the runner counts what it threw
     // away rather than replaying it, and the run must still be progressing.

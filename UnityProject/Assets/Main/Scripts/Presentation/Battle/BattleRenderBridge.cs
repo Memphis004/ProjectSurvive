@@ -55,6 +55,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private readonly byte[] _seen = new byte[BattleConstants.MaxRenderEntities + 1];
 
         private float _billboardPitch;
+        private bool _playerDrawnElsewhere;
         private int _boundCount;
         private bool _disposed;
 
@@ -80,6 +81,22 @@ namespace ProjectSurvive.Game.Presentation.Battle
         }
 
         /// <summary>
+        /// True while something else draws the player — the Spine figure of Stage 17b. The player's
+        /// entity stays in the frame either way; this only says that the pooled sprite must not be
+        /// acquired for it, so a floor cannot show two doctors.
+        /// </summary>
+        /// <remarks>
+        /// Set once, by <see cref="BattleViewScene"/>, from whether the figure actually built. A figure
+        /// that failed leaves this false, and the placeholder sprite draws the player — which is the
+        /// release build's documented fallback (docs/stages/17b-report.md §3).
+        /// </remarks>
+        public bool PlayerDrawnElsewhere
+        {
+            get => _playerDrawnElsewhere;
+            set => _playerDrawnElsewhere = value;
+        }
+
+        /// <summary>
         /// Rebinds views for one tick's snapshot. Call once per tick, before
         /// <see cref="Render"/>.
         /// </summary>
@@ -99,6 +116,13 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
                 int index = entity.Entity.Index;
                 if (index <= 0 || index > BattleConstants.MaxRenderEntities)
+                {
+                    continue;
+                }
+
+                // The figure stands where this entity is; its view is not acquired, and one bound
+                // on the frame the figure arrived is handed back by the release pass below.
+                if (_playerDrawnElsewhere && entity.Kind == RenderEntityKind.Player)
                 {
                     continue;
                 }

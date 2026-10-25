@@ -714,3 +714,27 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   `Resources/`, and a release candidate may not carry it until that row in `ATTRIBUTION.md` is resolved;
   then 17b–17d wire the profile into Battle/Camp/Title, attach a weapon to the four empty `w_*` slots,
   and measure the payload this skeleton adds before quoting it.
+
+## Stage 17b — the doctor in the arena is the Spine figure (2026-10-26)
+
+- **Did:** `PlayerFigurePresenter` (a VContainer scope singleton built by an explicit factory lambda)
+  drives the scene's `SpinePlayerView` from the battle frame alone — `speed = |(current − previous)| ×
+  30 Hz`, pose by `PlayerPoseSelector`, facing by the sign of `dx`, `dead` from `BattlePhase.Lost`,
+  draw order from `BattleWorldMap.SortingOrder` written only when the row changes, position from
+  `BattleWorldMap.Interpolate`, and the sprites' own billboard rotation
+  `Quaternion.Euler(BattleCameraRig.BillboardPitch, 0, 0)`. The hurt flinch enters through the VFX event
+  channel next to `BattleAudioListener`; pause and 1×/2× go through the animation state's `TimeScale`
+  (`Time.timeScale` untouched). `BattleRenderBridge.PlayerDrawnElsewhere` makes the sprite pool yield
+  the player, so a floor cannot draw two doctors, and a failed `Begin` leaves the old sprite (loud error
+  in dev, one warning in release, `spineReady`/`spineErrorCode` in `__projectSurviveBattle`). The scene
+  was rebuilt through `ProjectSurvive/Stage 08/3`; no `lib/`, `data/`, Simulation or contract change.
+- **Result:** EditMode **271/271** (9 new), `BattlePlayModeTests` **10/10**, `-Suite Full` with the
+  Editor open **PASS 23 | FAIL 0 | NOT RUN 3**; with it closed the WebGL build and Playwright **21/21**
+  pass, publishing `spineReady:true, spinePlayCalls:1, spineAnimation:"idle1"`. Editor capture floor 1 at
+  1920×1080 shows the doctor running ([`battle-player-1920x1080.png`](../artifacts/ui/battle-player-1920x1080.png)).
+  The Release candidate is **16.18 MiB gzip / 11.83 MiB Brotli** (+0.66 / +0.54 over the Stage 15 RC,
+  gate < 30, target < 15) and still reports `spineReady:true` — stripping keeps the skeleton and its
+  shader ([report](../docs/stages/17b-report.md)).
+- **Next:** the art is still a **licensing blocker** (`ATTRIBUTION.md`) — the RC above is evidence about
+  stripping, not a shippable candidate; then 17c/17d give the figure to the Camp and the Title, and a
+  weapon to the four empty `w_*` slots.

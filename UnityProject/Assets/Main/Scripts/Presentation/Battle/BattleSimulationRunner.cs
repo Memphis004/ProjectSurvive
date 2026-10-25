@@ -131,6 +131,10 @@ namespace ProjectSurvive.Game.Presentation.Battle
             {
                 _ticker?.Reset();
             }
+
+            // Only on a change: the doctor's animation state is told here rather than in Update, so
+            // a paused floor cannot owe the overlay's time to the walk cycle when it resumes.
+            _view?.SetPaused(paused);
         }
 
         /// <summary>The floor's result, once it ended (null while running).</summary>
@@ -179,6 +183,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
                 context.Hud,
                 context.Speed,
                 context.VisualSeed,
+                context.PlayerFigure,
                 Audio.AudioDirector.Instance);
 
             _session = _view.Begin(
@@ -364,6 +369,16 @@ namespace ProjectSurvive.Game.Presentation.Battle
             _report.Write("timelineMarkers", _context?.HudState is null ? 0 : _context.HudState.Timeline.Count);
             _report.Write("droppedEvents", _view is null ? 0L.ToString() : _view.Events.DroppedTotal.ToString());
             _report.Write("ended", HasEnded);
+
+            // Stage 17b: whether the doctor is the Spine figure, which animation it is on, and how
+            // many animations the floor has started. `spinePlayCalls` is the claim "Play is not
+            // called per frame" made measurable in a player build: a floor that stands still plays
+            // one animation, and the counter stays at a handful.
+            PlayerFigurePresenter figure = _view is null ? null : _view.PlayerFigure;
+            _report.Write("spineReady", figure is not null && figure.IsReady);
+            _report.Write("spineErrorCode", figure is null ? string.Empty : figure.ErrorCode ?? string.Empty);
+            _report.Write("spinePlayCalls", figure is null ? 0 : figure.PlayCalls);
+            _report.Write("spineAnimation", figure is null ? string.Empty : figure.Animation ?? string.Empty);
 
             if (_view is not null && _view.Snapshot.HasFrame)
             {

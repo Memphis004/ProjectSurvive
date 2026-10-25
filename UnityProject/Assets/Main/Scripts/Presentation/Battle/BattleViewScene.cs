@@ -55,6 +55,8 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private readonly BattleAudioListener _audio;
         private readonly ArenaEnvironmentView _environment;
 
+        private PlayerFigurePresenter _figure;
+
         private IBattleSession _session;
         private GameObject _floor;
         private MeshRenderer _floorMesh;
@@ -62,6 +64,11 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private bool _disposed;
 
         /// <summary>Builds the view: art, ground, pool, bridge, camera, HUD wiring, VFX.</summary>
+        /// <param name="playerFigure">
+        /// The presenter that drives the scene's Spine figure (Stage 17b), or null in a fixture. It
+        /// is attached here and begun with the floor, so "the figure is built at the floor's start"
+        /// is one call site rather than each scene's own habit.
+        /// </param>
         /// <param name="audio">
         /// The app's audio director, or null in a scene that has none (an EditMode fixture) — in
         /// which case the battle is silent and every other part of the view is unchanged.
@@ -72,6 +79,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
             BattleHudPresenter hud,
             BattleSpeed speed,
             uint visualSeed,
+            PlayerFigurePresenter playerFigure = null,
             AudioDirector audio = null)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -130,6 +138,26 @@ namespace ProjectSurvive.Game.Presentation.Battle
             // Warm every view before the first ghost exists, so the first wave cannot spike a
             // frame and "no Instantiate after warm-up" is measurable.
             _pool.Warmup();
+
+            // Stage 17b: the doctor's figure is built here, with the pool it stands beside and before
+            // the first tick — never mid-floor. It is not a pooled view: its own build is counted by
+            // the figure and never by `viewsCreated` / `viewsGrownDuringPlay`.
+            if (settings.PlayerFigure is not null && playerFigure is not null)
+            {
+                _figure = playerFigure;
+                _figure.Attach(settings.PlayerFigure, _camera.BillboardPitch);
+
+                bool began = _figure.Begin();
+                _bridge.PlayerDrawnElsewhere = began;
+
+                if (began)
+                {
+                    // The hurt reaction is a picture, so it rides the VFX channel: a burst of hits the
+                    // HUD is still drawing cannot cost the figure its event, and a dropped one costs
+                    // a flash and nothing else.
+                    _events.AddListener(BattleEventChannel.Vfx, _figure);
+                }
+            }
         }
 
         /// <summary>The latest copied frame. Never the session's own spans.</summary>
@@ -170,6 +198,12 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
         /// <summary>How many damage numbers are alive right now.</summary>
         public int ActiveDamageNumbers => _damage.ActiveCount;
+
+        /// <summary>
+        /// The presenter that drives the doctor's Spine figure, or null in a fixture (Stage 17b).
+        /// Its own counters are separate from the pool's: the figure is one built actor, not a view.
+        /// </summary>
+        public PlayerFigurePresenter PlayerFigure => _figure;
 
         /// <summary>How many floor warnings are drawn right now (Stage 11b).</summary>
         public int ActiveTelegraphs => _telegraphs.ActiveCount;
@@ -218,6 +252,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
             _snapshot.CopyFrom(_session.Frame);
             _bridge.ApplySnapshot(_snapshot);
+            _figure?.AcceptSnapshot(_snapshot);
             _camera.SnapTo(PlayerPosition());
             _hud.Present(_snapshot);
             _events.Drain(_session.Events);
@@ -234,6 +269,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
             _snapshot.CopyFrom(frame);
             _bridge.ApplySnapshot(_snapshot);
             _hud.Present(_snapshot);
+            _figure?.AcceptSnapshot(_snapshot);
 
             // The plates come from the frame that was just copied, on this frame — the same span a
             // HUD label is read from, and never a clock of the mini bag's own (Stage 08b/08c).
@@ -247,12 +283,20 @@ namespace ProjectSurvive.Game.Presentation.Battle
         public void DrainEvents(IBattleEventSource source) => _events.Drain(source);
 
         /// <summary>
+        /// Holds the doctor's animation still, or lets it run again. Called by the runner when its
+        /// own pause changes — once per change, never per frame — and never by touching
+        /// <c>Time.timeScale</c>.
+        /// </summary>
+        public void SetPaused(bool paused) => _figure?.SetPaused(paused);
+
+        /// <summary>
         /// Draws the frame at <paramref name="alpha"/> between the last two ticks, and
         /// advances the effect pool.
         /// </summary>
         public void Render(float alpha, float deltaSeconds)
         {
             _bridge.Render(alpha);
+            _figure?.Render(alpha, deltaSeconds);
 
             Vector3 player = PlayerPosition();
             _camera.Follow(player);
@@ -266,8 +310,12 @@ namespace ProjectSurvive.Game.Presentation.Battle
             _settings.MiniBag?.RefreshIfResized();
         }
 
-        /// <summary>Writes the end banner and parks the camera.</summary>
-        public void End(BattleResult result) => _hud.PresentEnd(result);
+        /// <summary>Writes the end banner, parks the camera and lets a lost floor's doctor fall.</summary>
+        public void End(BattleResult result)
+        {
+            _figure?.End(result);
+            _hud.PresentEnd(result);
+        }
 
         /// <inheritdoc />
         public void Dispose()
@@ -281,6 +329,11 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
             _session?.Dispose();
             _session = null;
+
+            // The figure is the scene's own object and the scope's service: this only stops it being
+            // driven, so a disposed view cannot be ticked by a late frame.
+            _figure?.Detach();
+            _figure = null;
 
             _owned.Dispose();
 

@@ -382,3 +382,41 @@ Readability thresholds live in `ArenaTheme` (player 2.2, ghost 1.9, pickup 2.4, 
 are adjusted by changing the lighting, never the number. Evidence: `docs/stages/08f-report.md`,
 `AgentScripts/ArenaStage08fCapture.Run` writes `stage08f-contrast.txt` / `stage08f-metrics.txt` next
 to the six captures in `artifacts/ui/battle-env/`.
+
+## 15. The doctor is a Spine figure (Stage 17b)
+
+`SpinePlayerView` replaces the pooled placeholder sprite for **one** entity — the player — and nothing
+else about the frame changes. The player is still `RenderEntityKind.Player` in the snapshot; the only
+difference is who draws it. `BattleRenderBridge.PlayerDrawnElsewhere` is set from whether the figure
+actually built, and while it is true the bridge does not acquire a view for that kind, so a floor can
+never show two doctors. The figure is the scene's own object under `ViewRoot` (built by
+`ProjectSurvive/Stage 08/3`), not a pooled view: its counters are its own (`BuildCount`,
+`PlayCalls`), which is why `viewsCreated` / `viewsGrownDuringPlay` stay 0.
+
+**Everything the figure is told comes out of the frame.** `PlayerFigurePresenter` reads the player's
+`RenderEntity` and its previous tick, so
+`speed = |(current − previous)| × TickRate` (units/second), the pose is `PlayerPoseSelector`'s call on
+that speed, the facing is the sign of `dx`, the death pose is `BattlePhase.Lost` from the floor's own
+result, and the draw order is `BattleWorldMap.SortingOrder(Player, z)` written **only when the row
+changes**. It stands at `Quaternion.Euler(BattleCameraRig.BillboardPitch, 0, 0)` — literally the
+rotation `BattleRenderBridge.Orientation` gives a sprite, so a figure and a ghost cannot lean
+differently. Position is `BattleWorldMap.Interpolate(from, to, alpha)`, the same interpolation the
+sprites use.
+
+**The hurt flinch is an event, and it decides nothing.** `PlayerDamaged` is read through the VFX
+channel's listener (`BattleEventChannel.Vfx`, the one `BattleAudioListener` uses for audio), and it
+plays the profile's `hit` animation once; a dropped event costs a flash, never HP. `Play` is called
+once per pose change, never per frame — the report's `spinePlayCalls` is what makes that measurable in
+a player build.
+
+**No clock of its own.** The animation state's `TimeScale` carries the 1×/2× control and the pause:
+`BattleSimulationRunner.SetPaused` → `PlayerFigurePresenter.SetPaused` → `SpinePlayerView.SetPaused`,
+and `BattleSpeed.Multiplier` → `SetSpeed`, both only when the value changed. `Time.timeScale` is
+never touched, so the HUD and the pause overlay keep running while the floor is held.
+
+**A figure that fails to build is loud in dev and documented in release.** `Begin()` failing logs the
+view's `noun.problem` code as an error in the Editor and a development build (the floor then draws the
+placeholder sprite, and the capture's report says so); a release build logs one warning instead of
+losing the doctor silently. `__projectSurviveBattle` publishes `spineReady`, `spineErrorCode`,
+`spinePlayCalls` and `spineAnimation` so a browser test can tell the Spine render from the fallback.
+Evidence: `docs/stages/17b-report.md`, `artifacts/ui/battle-player-1920x1080.png`.

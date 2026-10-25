@@ -76,6 +76,14 @@ namespace ProjectSurvive.Game.Battle
             builder.Register(_ => new BattleSpeed(), Lifetime.Singleton);
             builder.Register(_ => new BattleHudState(), Lifetime.Singleton);
 
+            // The doctor's Spine figure (Stage 17b). It follows the scene's speed control, so it is
+            // a scope singleton built by an explicit factory lambda — never a reflected constructor
+            // (llmwiki/gotchas/il2cpp-di-and-reflection.md). The view it drives is the scene's own
+            // object; the director hands this presenter to the runner, which attaches it.
+            builder.Register(
+                resolver => new PlayerFigurePresenter(resolver.Resolve<BattleSpeed>()),
+                Lifetime.Singleton);
+
             // The dev menu's logic (Stage 10c). Registered here rather than in the shell because it
             // is a control of this screen; it is only ever *shown* where DevCheats.Allowed says so,
             // and every command it sends is refused by the floor otherwise.

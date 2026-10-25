@@ -7,6 +7,7 @@ using ProjectSurvive.Core.Simulation.Battle;
 using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
+using ProjectSurvive.Game.Presentation.SpineActors;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -140,6 +141,16 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 Is.Zero,
                 "the mini bag created a view while the floor ran");
 
+            // Stage 17b: the doctor is the Spine figure, built once at the floor's start, and its
+            // Play is not called per frame. Ten seconds at 2× is roughly 1 200 rendered frames.
+            PlayerFigurePresenter figure = runner.View.PlayerFigure;
+            Assert.That(figure, Is.Not.Null, "the scene wired no player figure");
+            Assert.That(figure.IsReady, Is.True, "the player figure is not drawing the doctor: " + figure.ErrorCode);
+            Assert.That(
+                figure.PlayCalls,
+                Is.LessThan(40),
+                "the figure played " + figure.PlayCalls + " animations in ten seconds: Play is running per frame");
+
             // "HUD ไม่ subscribe ตำแหน่งทุก entity": the subscription count is a constant, whatever
             // the floor did in those ten seconds.
             Assert.That(hud.SubscriptionCount, Is.EqualTo(subscriptionsAtStart), "the HUD subscribed per entity");
@@ -153,7 +164,9 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 + " maxBound=" + maxBoundViews + " viewsCreated=" + runner.View.Pool.CreatedTotal
                 + " grownAfterWarmup=" + runner.View.Pool.CreatedAfterWarmup
                 + " damageNumbers=" + runner.View.ActiveDamageNumbers
-                + " hudSubscriptions=" + hud.SubscriptionCount);
+                + " hudSubscriptions=" + hud.SubscriptionCount
+                + " spinePlays=" + figure.PlayCalls + " spineAnimation=" + figure.Animation
+                + " spinePose=" + figure.Pose);
 
             // No LogAssert here on purpose. The runner publishes its progress report through
             // WebGlBridge, which logs a line in a player and in the editor, so "no unexpected log"
@@ -332,6 +345,207 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             TestContext.WriteLine(
                 "mini bag rect: panel=" + panel + " content=" + content + " caption=" + caption
                 + " grid=" + grid + " cell=" + layout.CellSize);
+        }
+
+        // -------------------------------------------------------------------
+        // Stage 17b: the doctor is the Spine figure
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// The scene really wires the figure, and it really built: the reference in
+        /// <see cref="BattleViewSettings.PlayerFigure"/>, the presenter the scene's scope registered,
+        /// and the object the player sees are the same three things. This is the wiring check Stage
+        /// 08c's mini-bag defect taught — a component that is correct in a fixture and unwired in the
+        /// scene passes every EditMode assertion.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator The_battle_scene_builds_the_doctor_figure_once_and_stands_still_at_first()
+        {
+            yield return LoadScene(BattleSceneName);
+            yield return WaitForFloorToStart();
+
+            BattleSimulationRunner runner = Find<BattleSimulationRunner>();
+            SpinePlayerView figureInScene = Find<SpinePlayerView>();
+
+            Assert.That(figureInScene, Is.Not.Null, "the Battle scene has no SpinePlayerView");
+            Assert.That(
+                runner.View.PlayerFigure,
+                Is.Not.Null,
+                "the scene's BattleViewSettings.PlayerFigure is not assigned to the view");
+
+            PlayerFigurePresenter figure = runner.View.PlayerFigure;
+            Assert.That(
+                figure.View,
+                Is.SameAs(figureInScene),
+                "the presenter drives a different figure than the one in the scene");
+            Assert.That(figure.ErrorCode, Is.Null, "the figure refused to build: " + figure.ErrorCode);
+            Assert.That(figure.IsReady, Is.True, "the player figure never built");
+            Assert.That(figureInScene.BuildCount, Is.EqualTo(1), "the figure was built more than once");
+            Assert.That(
+                figureInScene.DrawnHeightWorld,
+                Is.EqualTo(figureInScene.Profile.TargetHeightWorld).Within(0.01f),
+                "the figure is not drawn at its profile's height");
+
+            // No view was created while the floor ran, and the figure is not one of them.
+            Assert.That(runner.View.Pool.CreatedAfterWarmup, Is.Zero);
+
+            yield return WaitForTicks(runner, runner.StepsRun + BattleConstants.TickRate);
+
+            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Idle), "a standing doctor must stand");
+            Assert.That(
+                figure.Animation,
+                Is.EqualTo(figureInScene.Profile.IdleAnimation),
+                "the idle pose must be the profile's idle animation");
+            Assert.That(
+                figureInScene.BuildCount,
+                Is.EqualTo(1),
+                "a second of floor built the figure again");
+
+            TestContext.WriteLine(
+                "figure: ready=" + figure.IsReady + " plays=" + figure.PlayCalls
+                + " pose=" + figure.Pose + " animation='" + figure.Animation + "'"
+                + " height=" + figureInScene.DrawnHeightWorld.ToString("0.###")
+                + " sorting=" + figure.SortingOrder + " poolGrowth=" + runner.View.Pool.CreatedAfterWarmup);
+        }
+
+        /// <summary>
+        /// The doctor walks, turns and stops on the arena floor: the pose comes from the frame's own
+        /// movement, not from a copy of the input.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Walking_runs_the_doctor_turning_follows_and_stopping_returns_to_idle()
+        {
+            yield return LoadScene(BattleSceneName);
+            yield return WaitForFloorToStart();
+
+            BattleSimulationRunner runner = Find<BattleSimulationRunner>();
+            PlayerFigurePresenter figure = runner.View.PlayerFigure;
+            Assert.That(figure, Is.Not.Null, "the scene wired no player figure");
+            Assert.That(figure.IsReady, Is.True, "the player figure never built");
+
+            var input = (BattleInputAdapter)runner.View.Input;
+
+            input.SetOverride(1f, 0f);
+            yield return WaitForTicks(runner, runner.StepsRun + (BattleConstants.TickRate / 2));
+
+            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Run), "a walking doctor must run");
+            Assert.That(figure.Facing, Is.EqualTo(1), "walking right must face right");
+            Assert.That(
+                figure.Animation,
+                Is.EqualTo(figure.View.Profile.RunAnimation),
+                "the run pose must be the profile's run animation");
+            Assert.That(figure.SpeedUnitsPerSecond, Is.GreaterThan(0f), "the frame reported no movement");
+
+            input.SetOverride(-1f, 0f);
+            yield return WaitForTicks(runner, runner.StepsRun + (BattleConstants.TickRate / 2));
+
+            Assert.That(figure.Facing, Is.EqualTo(-1), "walking left must turn the doctor");
+            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Run));
+
+            input.SetOverride(0f, 0f);
+            yield return WaitForTicks(runner, runner.StepsRun + (BattleConstants.TickRate / 2));
+
+            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Idle), "a stopped doctor must stand");
+            Assert.That(figure.SpeedUnitsPerSecond, Is.EqualTo(0f).Within(0.0001f));
+
+            TestContext.WriteLine(
+                "walked: pose=" + figure.Pose + " facing=" + figure.Facing
+                + " plays=" + figure.PlayCalls + " sorting=" + figure.SortingOrder);
+        }
+
+        /// <summary>
+        /// A hit the floor publishes is a flinch, and the flinch ends where it started — through the
+        /// same listener the event pump calls, not through a test-only shortcut.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator A_player_damaged_event_makes_the_doctor_flinch_and_return()
+        {
+            yield return LoadScene(BattleSceneName);
+            yield return WaitForFloorToStart();
+
+            BattleSimulationRunner runner = Find<BattleSimulationRunner>();
+            PlayerFigurePresenter figure = runner.View.PlayerFigure;
+            Assert.That(figure, Is.Not.Null, "the scene wired no player figure");
+            Assert.That(figure.IsReady, Is.True, "the player figure never built");
+
+            int playsBefore = figure.PlayCalls;
+
+            // The listener is the pump's contract: one event in, one reaction. Playing the event the
+            // floor publishes for the player's own damage is what a real hit does (the VFX channel).
+            figure.OnBattleEvent(new BattleEvent(1, BattleEventType.PlayerDamaged, value: 1));
+
+            Assert.That(figure.IsHurt, Is.True, "PlayerDamaged did not start the hurt pose");
+            Assert.That(
+                figure.Animation,
+                Is.EqualTo(figure.View.Profile.HurtAnimation),
+                "the hurt pose must be the profile's hurt animation");
+
+            float deadline = Time.realtimeSinceStartup + 8f;
+            while (figure.IsHurt && Time.realtimeSinceStartup < deadline)
+            {
+                yield return null;
+            }
+
+            Assert.That(figure.IsHurt, Is.False, "the hurt animation never ended");
+            Assert.That(
+                figure.PlayCalls,
+                Is.GreaterThanOrEqualTo(playsBefore + 2),
+                "the flinch and the return to the pose are two plays");
+            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Idle), "the figure did not return to its pose");
+
+            TestContext.WriteLine("hurt: plays=" + playsBefore + "->" + figure.PlayCalls + " pose=" + figure.Pose);
+        }
+
+        /// <summary>
+        /// The pause control holds the figure still, and only the pause's own two calls do it: the
+        /// animation state's clock, never <c>Time.timeScale</c>.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Pausing_the_runner_holds_the_figures_animation()
+        {
+            yield return LoadScene(BattleSceneName);
+            yield return WaitForFloorToStart();
+
+            BattleSimulationRunner runner = Find<BattleSimulationRunner>();
+            PlayerFigurePresenter figure = runner.View.PlayerFigure;
+            Assert.That(figure, Is.Not.Null, "the scene wired no player figure");
+            Assert.That(figure.IsReady, Is.True, "the player figure never built");
+
+            yield return WaitForTicks(runner, runner.StepsRun + (BattleConstants.TickRate / 2));
+
+            float timeScaleBefore = Time.timeScale;
+            runner.SetPaused(true);
+
+            Assert.That(figure.IsPaused, Is.True, "the figure was not told about the pause");
+            Assert.That(
+                Time.timeScale,
+                Is.EqualTo(timeScaleBefore),
+                "pausing the floor must not touch Time.timeScale");
+
+            float held = figure.View.AnimationTime;
+            long stepsWhenPaused = runner.StepsRun;
+
+            yield return new WaitForSecondsRealtime(0.4f);
+
+            Assert.That(runner.StepsRun, Is.EqualTo(stepsWhenPaused), "a paused floor kept stepping");
+            Assert.That(
+                figure.View.AnimationTime,
+                Is.EqualTo(held),
+                "a paused figure's animation moved");
+
+            runner.SetPaused(false);
+            yield return new WaitForSecondsRealtime(0.4f);
+
+            Assert.That(figure.IsPaused, Is.False);
+            Assert.That(runner.StepsRun, Is.GreaterThan(stepsWhenPaused), "a resumed floor is not stepping");
+            Assert.That(
+                figure.View.AnimationTime,
+                Is.GreaterThan(held),
+                "a resumed figure must animate again");
+
+            TestContext.WriteLine(
+                "pause: held=" + held.ToString("0.000") + " resumed=" + figure.View.AnimationTime.ToString("0.000")
+                + " timeScale=" + Time.timeScale);
         }
 
         [UnityTest]
