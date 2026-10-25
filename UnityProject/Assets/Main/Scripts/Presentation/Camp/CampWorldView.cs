@@ -44,6 +44,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             public SpriteRenderer Plate;
             public TextMeshPro Price;
             public TextMeshPro Lock;
+            public TextMeshPro Detail;
             public Vector3 Anchor;
             public Color RackColour;
         }
@@ -110,17 +111,23 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private const float PriceFontSize = 3.8f;
 
         /// <summary>
-        /// The focused store's sentence, as a percentage of <see cref="PriceFontSize"/>. It is the
-        /// secondary line on the board (the price is the one being read), and at 100% it would wrap
-        /// into the board's edges.
+        /// The focused store's sentence: 12 px of ink at 1080p, the size that sentence was authored
+        /// at. It is secondary text on the board, so it is held to a step below the price rather than
+        /// to the price's 22 px floor.
         /// </summary>
-        private const int DetailFontPercent = 50;
+        private const float DetailFontSize = 1.6f;
 
         /// <summary>
-        /// The lock control's type size, unchanged: it is a control on the board, not the price, and
-        /// its click rectangle is part of the station's own hit test.
+        /// The price's own name line, as a percentage of <see cref="PriceFontSize"/>: it names what
+        /// the number prices, so it is read second and drawn a step smaller.
         /// </summary>
-        private const float LockOriginalFontSize = 1.35f;
+        private const int NameFontPercent = 68;
+
+        /// <summary>
+        /// The lock control's type size, in TextMeshPro font units: one step below the price (3.8),
+        /// and large enough to be a control rather than a caption — 1.35 drew 8 px of ink at 1080p.
+        /// </summary>
+        private const float LockFontSize = 2.6f;
 
         private readonly List<IDisposable> _subscriptions = new List<IDisposable>(2);
         private readonly List<Station> _stations = new List<Station>(4);
@@ -314,22 +321,32 @@ namespace ProjectSurvive.Game.Presentation.Camp
             // a light cream board lets a near-black ink clear WCAG AA at the type size below.
             station.Board.color = BoardTint;
 
-            // 3.5 rather than 1.9: at 1080p one world unit is 81.8 px, and the price's ink has to be
+            // 3.8 rather than 1.9: at 1080p one world unit is 81.8 px, and the price's ink has to be
             // at least CampTheme.LabelFloorPixels (22) tall. 1.9 measured 12 px, so the type is
-            // scaled by 22/12 and then a little, to clear the floor rather than touch it.
+            // scaled by 22/12 and then a little, to clear the floor rather than touch it. The label
+            // sits high on the board so the focused store's sentence has room below the price.
             station.Price = CreateLabel(
-                "ShelfPrice" + index, new Vector3(x, _signHeight + 0.35f, _shelfZ - 0.4f),
+                "ShelfPrice" + index, new Vector3(x, _signHeight + 0.7f, _shelfZ - 0.4f),
                 Quaternion.Euler(_cameraEuler), PriceFontSize, PriceInk,
-                new Vector2(_shelfSpacing * 0.86f, 2f), 17);
+                new Vector2(_shelfSpacing * 0.86f, 1.3f), 17);
 
-            // The lock control is its own label, drawn under the price: 09c work item 4 wants
-            // ล็อกสินค้าก่อนรีเซ็ต reachable from the shelf's own sign. It sits on the same board, so
-            // it uses the same ink and a size that keeps it a step below the price rather than a
-            // faint label on a light background.
+            // 09c work item 4 wants ล็อกสินค้าก่อนรีเซ็ต reachable from the shelf's own sign, so the
+            // lock is the board's first row under the price: it is a control the player taps, drawn
+            // a step below the price and above the focused store's caption. It is deliberately not
+            // at the board's bottom edge — that row is the station's own click centre, and the lock
+            // is tested before the station, so a click meant for the shelf would pin it.
             station.Lock = CreateLabel(
-                "ShelfLock" + index, new Vector3(x, _signHeight - 0.62f, _shelfZ - 0.42f),
-                Quaternion.Euler(_cameraEuler), LockOriginalFontSize, PriceInk,
-                new Vector2(_shelfSpacing * 0.7f, 0.6f), 18);
+                "ShelfLock" + index, new Vector3(x, _signHeight + 0.02f, _shelfZ - 0.42f),
+                Quaternion.Euler(_cameraEuler), LockFontSize, PriceInk,
+                new Vector2(_shelfSpacing * 0.7f, 0.7f), 18);
+
+            // The focused store's sentence has its own label in the board's lower band: folded into
+            // the price label it made that label's ink one tall run with the price's, and the board's
+            // ink height is the number the readability gate reads.
+            station.Detail = CreateLabel(
+                "ShelfDetail" + index, new Vector3(x, _signHeight - 0.45f, _shelfZ - 0.42f),
+                Quaternion.Euler(_cameraEuler), DetailFontSize, PriceInk,
+                new Vector2(_shelfSpacing * 0.92f, 0.6f), 17);
 
             return station;
         }
@@ -651,6 +668,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 {
                     station.Price.text = _state == null ? string.Empty : _state.EmptySlotLabel.Value;
                     station.Lock.text = string.Empty;
+                    station.Detail.text = string.Empty;
                     station.Plate.enabled = false;
                     continue;
                 }
@@ -658,20 +676,21 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 CampShopSlotModel slot = slots[i];
                 station.Plate.enabled = !slot.IsPurchased;
 
-                // Stage 09n: the store the player stands at carries its detail on its own board, from
-                // the same readout the pointer's tooltip uses. Only the focused station's board grows.
-                //
-                // The sentence is one step down in size (`DetailFontPercent`) rather than its own
-                // label: at the price's new type size it no longer fits a board-sized label of its
-                // own, and a second label under the board is hidden by the player standing at the
-                // counter of the very store it describes.
-                string detail = i == _focusedShelf && _focusDetail.Length > 0
-                    ? "\n<size=" + DetailFontPercent + "%>" + _focusDetail + "</size>"
-                    : string.Empty;
+                // The number is the line the player came to read; the name identifies it one step
+                // down, which is what leaves the board room for the focused store's sentence. The
+                // name is a rich-text size tag rather than a second label, so both lines share one
+                // label and the price's own ink height stays the taller of the two.
+                string name = "<size=" + NameFontPercent + "%>" + slot.Name + "</size>";
 
-                station.Price.text = (slot.IsPurchased
-                    ? slot.Name + "\n" + Label(_state == null ? null : _state.RentedLabel)
-                    : slot.Name + "\n" + slot.PriceLabel) + detail;
+                station.Price.text = name + "\n"
+                    + (slot.IsPurchased
+                        ? Label(_state == null ? null : _state.RentedLabel)
+                        : slot.PriceLabel);
+
+                // Stage 09n: the store the player stands at carries its detail on its own board, from
+                // the same readout the pointer's tooltip uses. Only the focused station's caption
+                // fills in.
+                station.Detail.text = i == _focusedShelf ? _focusDetail : string.Empty;
 
                 station.Lock.text = slot.IsLocked
                     ? Label(_state == null ? null : _state.UnpinLabel)

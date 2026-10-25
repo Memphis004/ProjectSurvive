@@ -219,6 +219,15 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             Assert.That(_world.TryGetShelfLockScreenRect(1, out Rect lockRect), Is.True, "shelf 1 has no lock control on screen");
 
+            // The control has to be a target a player can hit, and it must not have grown over the
+            // shelf's own target: a click meant for the shelf would pin it instead of renting.
+            Assert.That(lockRect.height, Is.GreaterThanOrEqualTo(12f),
+                "the lock control is drawn caption-sized (" + lockRect.height.ToString("0") + " px tall)");
+
+            Assert.That(_world.TryGetShelfScreenRect(1, out Rect station), Is.True, "shelf 1 is not on screen");
+            Assert.That(lockRect.Contains(station.center), Is.False,
+                "the lock control covers the shelf's own click target");
+
             yield return Click(lockRect.center);
 
             Assert.That(_player.LockRequests, Is.EqualTo(1), "the click did not reach the lock control");
@@ -329,8 +338,9 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         /// <summary>
         /// The price board is what the player reads to decide a purchase: its ink is near-black on a
         /// brightened board, and its type is sized past the 22 px ink floor this project states for a
-        /// 1080p screen (both measured on the capture). Asserted here because the labels only exist
-        /// once the view has built them, which needs play mode.
+        /// 1080p screen (both measured on the capture). The lock control shares that ink and is a
+        /// control, so it is held to a size of its own rather than the price's. Asserted here because
+        /// the labels only exist once the view has built them, which needs play mode.
         /// </summary>
         [UnityTest]
         public IEnumerator The_price_boards_use_the_readable_ink_and_type_size()
@@ -340,15 +350,18 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             TMPro.TextMeshPro[] labels = Object.FindObjectsByType<TMPro.TextMeshPro>(
                 FindObjectsInactive.Include, FindObjectsSortMode.None);
 
-            int found = 0;
+            int prices = 0;
+            int locks = 0;
             for (int i = 0; i < labels.Length; i++)
             {
-                if (!labels[i].name.StartsWith("ShelfPrice", System.StringComparison.Ordinal))
+                bool price = labels[i].name.StartsWith("ShelfPrice", System.StringComparison.Ordinal);
+                bool control = labels[i].name.StartsWith("ShelfLock", System.StringComparison.Ordinal);
+
+                if (!price && !control)
                 {
                     continue;
                 }
 
-                found++;
                 float ink = ProjectSurvive.Game.Presentation.Battle.Environment.ArenaContrast
                     .RelativeLuminance(new Color32(
                         (byte)Mathf.RoundToInt(labels[i].color.r * 255f),
@@ -358,12 +371,23 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
                 Assert.That(ink, Is.LessThan(0.02f),
                     labels[i].name + "'s ink is no longer near-black, so its contrast against the board fell");
-                Assert.That(labels[i].fontSize, Is.GreaterThanOrEqualTo(3.8f),
-                    labels[i].name + " was shrunk below the size that drew 22 px of ink at 1080p");
                 Assert.That(labels[i].raycastTarget, Is.False, labels[i].name + " would swallow a click");
+
+                if (price)
+                {
+                    prices++;
+                    Assert.That(labels[i].fontSize, Is.GreaterThanOrEqualTo(3.8f),
+                        labels[i].name + " was shrunk below the size that drew 22 px of ink at 1080p");
+                    continue;
+                }
+
+                locks++;
+                Assert.That(labels[i].fontSize, Is.GreaterThanOrEqualTo(2.5f),
+                    labels[i].name + " is back to caption-sized type (it drew 8 px of ink at 1080p)");
             }
 
-            Assert.That(found, Is.EqualTo(_world.ShelfCount), "not every station has a price board");
+            Assert.That(prices, Is.EqualTo(_world.ShelfCount), "not every station has a price board");
+            Assert.That(locks, Is.EqualTo(_world.ShelfCount), "not every station has a lock control");
         }
 
         /// <summary>
