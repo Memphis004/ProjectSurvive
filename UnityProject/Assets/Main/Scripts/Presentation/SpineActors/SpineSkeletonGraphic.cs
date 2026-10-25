@@ -1,15 +1,14 @@
 using Spine.Unity;
 
-namespace MyClone.SpineSystem
+namespace ProjectSurvive.Game.Presentation.SpineActors
 {
 	/// <summary>
 	/// Minimal patch over stock spine-unity 3.8 <see cref="SkeletonGraphic"/>.
 	///
-	/// The game ships a forked SkeletonGraphic with a public
-	/// SetSerparatorSlotNames(...) and a rect-size helper. Stock 3.8 keeps
-	/// separatorSlotNames protected and only reads it inside Initialize(), so runtime
-	/// separator setup is impossible without a subclass. This class adds exactly that
-	/// and nothing else.
+	/// Stock 3.8 keeps <c>separatorSlotNames</c> protected and only reads it inside
+	/// <c>Initialize()</c>, so a separator slot cannot be set after the graphic exists
+	/// without a subclass. This class adds exactly that and a rect-size helper, and
+	/// nothing else.
 	/// </summary>
 	public class SpineSkeletonGraphic : SkeletonGraphic
 	{
@@ -27,7 +26,7 @@ namespace MyClone.SpineSystem
 			return separatorSlotNames;
 		}
 
-		/// <summary>Equivalent of the game's UpdateRectTransformSize().</summary>
+		/// <summary>Resizes the RectTransform to the current mesh bounds.</summary>
 		public bool UpdateRectTransformSize ()
 		{
 			return MatchRectTransformWithBounds ();

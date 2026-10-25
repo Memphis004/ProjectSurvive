@@ -1,11 +1,11 @@
 using Spine.Unity;
 using UnityEngine;
 
-namespace MyClone.SpineSystem
+namespace ProjectSurvive.Game.Presentation.SpineActors
 {
 	/// <summary>
 	/// Convenience creators. No asset loading here: callers own the SkeletonDataAsset
-	/// (Resources, Addressables, or a test factory).
+	/// (<c>SpineSkeletonLoader</c> for the player, a test fixture for a test).
 	/// </summary>
 	public static class SpineActorFactory
 	{

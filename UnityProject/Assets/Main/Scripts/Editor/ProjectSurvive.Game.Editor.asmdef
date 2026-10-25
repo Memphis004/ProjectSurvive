@@ -25,7 +25,8 @@
         "Unity.RenderPipelines.Core.Editor",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.RenderPipelines.Universal.Editor",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "spine-unity"
     ],
     "includePlatforms": [
         "Editor"

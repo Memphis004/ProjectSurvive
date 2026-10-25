@@ -6,18 +6,19 @@ using UnityEngine;
 using AnimationState = Spine.AnimationState;
 using Object = UnityEngine.Object;
 
-namespace MyClone.SpineSystem
+namespace ProjectSurvive.Game.Presentation.SpineActors
 {
 	/// <summary>
 	/// Rendering-agnostic half of a spine actor.
 	/// Owns the skeleton data, the animation state machine, flip/gray/slot state and
 	/// the mount lifecycle. Concrete subclasses only create/destroy the renderer.
-	///
-	/// Deliberately NOT copied from the game: the original UI subclass re-applied
-	/// animations only to sub-skeletons, ignored the requested playback speed, and
-	/// implemented neither DrawToBuffer nor SetShaderType. See
-	/// notes/uispineactor/MYCLONE_DESIGN.md section 3.
 	/// </summary>
+	/// <remarks>
+	/// Presentation only: this class draws a skeleton and decides no rule. It reads no
+	/// game state, owns no clock of its own (<see cref="Tick"/> is driven by its owner)
+	/// and puts no balance number in code — a caller says which animation to play and
+	/// how fast, and that is the whole contract.
+	/// </remarks>
 	public abstract class SpineActorBase : MonoBehaviour
 	{
 		[Header("Spine")]
@@ -361,7 +362,7 @@ namespace MyClone.SpineSystem
 			SetSpeed (speed);
 		}
 
-		/// <summary>Global playback speed. Unlike the game's UI actor, the value is actually applied.</summary>
+		/// <summary>Global playback speed of the animation state.</summary>
 		public void SetSpeed (float speed)
 		{
 			if (IsBuilt)
@@ -446,7 +447,7 @@ namespace MyClone.SpineSystem
 		// ------------------------------------------------------------------
 
 		/// <summary>
-		/// Direct attachment swap by name (the game does the same, without validation).
+		/// Direct attachment swap by name.
 		/// Returns false (and logs) when the slot or attachment does not exist.
 		/// </summary>
 		public bool SetSlotAttachment (string slotName, string attachmentName)
@@ -728,8 +729,8 @@ namespace MyClone.SpineSystem
 		// ------------------------------------------------------------------
 
 		/// <summary>
-		/// Mounts a second actor as a child. The instance is cached: unmounting hides it,
-		/// matching the original behaviour (UnMount never destroys the mount actor).
+		/// Mounts a second actor as a child. The instance is cached: unmounting hides it
+		/// (<see cref="UnMount"/> never destroys the mount actor).
 		/// </summary>
 		public SpineActorBase Mount (SkeletonDataAsset data, string skin = null)
 		{

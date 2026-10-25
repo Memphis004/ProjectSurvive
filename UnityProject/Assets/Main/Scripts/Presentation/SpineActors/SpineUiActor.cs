@@ -4,17 +4,18 @@ using UnityEngine;
 using UnityEngine.UI;
 using AnimationState = Spine.AnimationState;
 
-namespace MyClone.SpineSystem
+namespace ProjectSurvive.Game.Presentation.SpineActors
 {
 	/// <summary>
 	/// SkeletonGraphic / CanvasRenderer implementation of a spine actor.
-	///
-	/// Differences from the original UISpineActor that matter:
-	/// - materials are per-actor instances, so flags/keywords never mutate user assets;
-	/// - grayscale has a real UI shader (Spine/SkeletonGraphic Grayscale) instead of a
-	///   material swap the project cannot supply;
-	/// - no async AssetBundle refcounting, no GUIConfig matrix, no sub-skeletons yet.
 	/// </summary>
+	/// <remarks>
+	/// Materials are per-actor instances of the two serialized references this component
+	/// carries, so a keyword or colour set here never mutates a shared asset. Grayscale
+	/// swaps to the gray material ("Spine/SkeletonGraphic Grayscale", created by
+	/// ProjectSurvive/Spine/3. Create UI materials). Nothing is looked up by shader name
+	/// at runtime: a stripped player build returns null for those lookups.
+	/// </remarks>
 	public class SpineUiActor : SpineActorBase
 	{
 		[Header("UI Renderer")]
@@ -66,16 +67,22 @@ namespace MyClone.SpineSystem
 				return;
 			}
 
+			var normal = ResolveNormalMaterial ();
+			if (normal == null) {
+				SafeDestroy (go);
+				return;
+			}
+
 			graphic.raycastTarget = raycastTarget;
-			graphic.material = ResolveNormalMaterial ();
+			graphic.material = normal;
 			graphic.skeletonDataAsset = skeletonDataAsset;
 
 			var settings = graphic.MeshGenerator.settings;
 			settings.useClipping = useClipping;
 			settings.tintBlack = tintBlack;
 			settings.canvasGroupTintBlack = canvasGroupCompatible && tintBlack;
-			// Matches the original: straight alpha vertex colors are needed when the
-			// CanvasGroup-compatible variant is used without tint black.
+			// The CanvasGroup-compatible variant without tint black needs straight alpha
+			// vertex colours; every other combination keeps premultiplied alpha.
 			settings.pmaVertexColors = !(canvasGroupCompatible && !tintBlack);
 			graphic.MeshGenerator.settings = settings;
 
@@ -166,23 +173,37 @@ namespace MyClone.SpineSystem
 		// Materials
 		// ------------------------------------------------------------------
 
+		/// <summary>
+		/// Assigns the material this actor draws with (and the one it fades to for gray).
+		/// Both are serialized references on purpose: <c>Shader.Find</c> returns null in a
+		/// player build whose shader was stripped, so nothing here is looked up by name.
+		/// Assigning while built rebuilds the renderer.
+		/// </summary>
+		public void SetMaterials (Material normal, Material gray = null)
+		{
+			normalMaterial = normal;
+			if (gray != null)
+				grayMaterial = gray;
+
+			if (IsBuilt)
+				Build ();
+		}
+
 		Material ResolveNormalMaterial ()
 		{
 			if (m_NormalInstance != null)
 				return m_NormalInstance;
 
-			if (normalMaterial != null) {
-				m_NormalInstance = new Material (normalMaterial);
-			} else {
-				string shaderName = tintBlack ? "Spine/SkeletonGraphic TintBlack" : "Spine/SkeletonGraphic";
-				var shader = Shader.Find (shaderName);
-				if (shader == null) {
-					Debug.LogError ("[SpineUiActor] Shader not found: " + shaderName + ". Falling back to UI/Default.", this);
-					shader = Shader.Find ("UI/Default");
-				}
-				m_NormalInstance = new Material (shader);
+			if (normalMaterial == null) {
+				Debug.LogError (
+					"[SpineUiActor] No normal material assigned. Assign one with SetMaterials " +
+					"(ProjectSurvive/Spine/3. Create UI materials writes the TintBlack and non-TintBlack pair). " +
+					"There is no shader-name fallback: it would return null in a stripped player build.",
+					this);
+				return null;
 			}
 
+			m_NormalInstance = new Material (normalMaterial);
 			m_NormalInstance.name = name + " (Normal)";
 			ConfigureMaterial (m_NormalInstance);
 			return m_NormalInstance;
@@ -193,22 +214,15 @@ namespace MyClone.SpineSystem
 			if (m_GrayInstance != null)
 				return m_GrayInstance;
 
-			if (grayMaterial != null) {
-				m_GrayInstance = new Material (grayMaterial);
-			} else {
-				var grayShader = Shader.Find ("Spine/SkeletonGraphic Grayscale");
-				if (grayShader == null) {
-					Debug.LogError (
-						"[SpineUiActor] Shader 'Spine/SkeletonGraphic Grayscale' not found. " +
-						"Assign a grayMaterial or import Assets/Scripts/SpineSystem/Shaders/Spine-SkeletonGraphic-Grayscale.shader.",
-						this);
-					return ResolveNormalMaterial ();
-				}
-
-				m_GrayInstance = new Material (ResolveNormalMaterial ());
-				m_GrayInstance.shader = grayShader;
+			if (grayMaterial == null) {
+				Debug.LogError (
+					"[SpineUiActor] Grayscale requested but no gray material assigned. " +
+					"Assign one with SetMaterials; the actor keeps drawing its normal material.",
+					this);
+				return ResolveNormalMaterial ();
 			}
 
+			m_GrayInstance = new Material (grayMaterial);
 			m_GrayInstance.name = name + " (Gray)";
 			ConfigureMaterial (m_GrayInstance);
 			return m_GrayInstance;

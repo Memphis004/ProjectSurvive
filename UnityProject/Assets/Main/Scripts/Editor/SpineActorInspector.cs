@@ -1,15 +1,19 @@
 using System;
 using System.Collections.Generic;
-using MyClone.SpineSystem;
+using ProjectSurvive.Game.Presentation.SpineActors;
 using Spine.Unity;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-namespace MyClone.EditorTools
+namespace ProjectSurvive.Game.Editor
 {
 	/// <summary>
 	/// Inspector for SpineActorBase and every subclass.
+	/// <para>
+	/// Editor tooling only: it reads the skeleton's own names to fill the dropdowns and
+	/// changes no game state. Resources and shaders stay serialized references.
+	/// </para>
 	///
 	/// Skin selection: when the SkeletonDataAsset holds two or more part groups
 	/// (body_*/head_*/face_* — grouped by the text before the first '_'), the single
