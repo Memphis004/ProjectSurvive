@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using ProjectSurvive.Game.Camp;
 using ProjectSurvive.Game.Presentation.Battle.Environment;
@@ -28,6 +29,12 @@ namespace ProjectSurvive.Game.Editor
     {
         /// <summary>WCAG AA's ratio for body text. Reported, never used as this stage's gate.</summary>
         private const float WcagAaText = 4.5f;
+
+        /// <summary>
+        /// The tag of a capture that was asked for in edit mode, kept in <see cref="SessionState"/> so
+        /// it survives the domain reload entering play mode brings.
+        /// </summary>
+        private const string PendingTagKey = "ProjectSurvive.CampCapture.PendingTag";
 
         private static readonly Vector2Int[] Sizes =
         {
@@ -69,32 +76,121 @@ namespace ProjectSurvive.Game.Editor
         /// Runs the whole capture from the Editor menu. The menu call returns at once and the capture
         /// finishes on its own — a play-mode capture takes minutes, far longer than a menu click.
         /// </summary>
+        /// <remarks>
+        /// The continuation is on the default scheduler on purpose: <c>Debug.Log</c> is thread-safe,
+        /// and <c>FromCurrentSynchronizationContext</c> throws when the caller has none — which is the
+        /// case for a menu item executed by the command line, the one caller that needs this most.
+        /// </remarks>
         [MenuItem("ProjectSurvive/Stage 09o/2. Capture the camp yard (both profiles, both sizes)", priority = 106)]
-        private static void CaptureFromMenu()
+        private static void CaptureFromMenu() => Run("after").ContinueWith(LogResult, TaskScheduler.Default);
+
+        /// <summary>
+        /// Runs the whole capture. <paramref name="tag"/> prefixes every file.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Two things have to survive for this to finish, and neither belongs to the caller: <b>the
+        /// domain reload that entering play mode brings</b> — which ends a running task where it
+        /// stands, leaving no exception and no log — and <b>the context the continuations resume on</b>.
+        /// So the run does not start while the editor is stopped: it records its tag in
+        /// <see cref="SessionState"/> (the one store that crosses the reload), asks for play mode, and
+        /// <see cref="ResumePendingCapture"/> picks the tag up in the new domain.
+        /// </para>
+        /// <para>
+        /// The body then runs under <see cref="MainThreadPump"/>: every wait here is an
+        /// <c>await Task.Delay</c>, and what a continuation resumes on is the
+        /// <see cref="SynchronizationContext"/> installed at the moment of the await. From a menu click
+        /// that is Unity's own context, which the player loop pumps; from the command line it is the
+        /// pipeline's context, which nothing pumps once the command returns — the capture then stops
+        /// silently after its first wait.
+        /// </para>
+        /// </remarks>
+        public static Task<string> Run(string tag)
         {
-            Run("after").ContinueWith(
-                task =>
-                {
-                    if (task.IsFaulted)
-                    {
-                        Debug.LogError("[ProjectSurvive] the camp capture failed: " + task.Exception);
-                        return;
-                    }
-
-                    Debug.Log("[ProjectSurvive] the camp capture finished: " + task.Result);
-                },
-                TaskScheduler.FromCurrentSynchronizationContext());
-        }
-
-        /// <summary>Runs the whole capture. <paramref name="tag"/> prefixes every file.</summary>
-        public static async Task<string> Run(string tag)
-        {
-            Directory.CreateDirectory(OutputDirectory);
-
             if (!EditorApplication.isPlaying)
             {
+                SessionState.SetString(PendingTagKey, tag);
                 EditorApplication.EnterPlaymode();
+                return Task.FromResult("play mode is starting; the capture resumes in the new domain");
             }
+
+            return RunInPlayMode(tag);
+        }
+
+        private static async Task<string> RunInPlayMode(string tag)
+        {
+            SynchronizationContext previous = SynchronizationContext.Current;
+            var pump = new MainThreadPump();
+            SynchronizationContext.SetSynchronizationContext(pump);
+
+            try
+            {
+                return await RunOnMainThread(tag);
+            }
+            finally
+            {
+                pump.Dispose();
+                SynchronizationContext.SetSynchronizationContext(previous);
+            }
+        }
+
+        /// <summary>
+        /// Picks the capture back up after the domain reload that entering play mode caused, and waits
+        /// for the player loop to be running before it starts (during a domain load it is not yet).
+        /// </summary>
+        [InitializeOnLoadMethod]
+        private static void ResumePendingCapture()
+        {
+            if (SessionState.GetString(PendingTagKey, string.Empty).Length == 0)
+            {
+                return;
+            }
+
+            var waited = System.Diagnostics.Stopwatch.StartNew();
+
+            void Resume()
+            {
+                if (EditorApplication.isPlaying)
+                {
+                    EditorApplication.update -= Resume;
+                    string tag = SessionState.GetString(PendingTagKey, string.Empty);
+                    SessionState.EraseString(PendingTagKey);
+
+                    if (tag.Length > 0)
+                    {
+                        RunInPlayMode(tag).ContinueWith(LogResult, TaskScheduler.Default);
+                    }
+
+                    return;
+                }
+
+                if (waited.Elapsed.TotalSeconds > 120d)
+                {
+                    // Play mode never came up (a cancelled run, a compile error): drop the request
+                    // rather than leaving a flag that would fire on the next play session.
+                    EditorApplication.update -= Resume;
+                    SessionState.EraseString(PendingTagKey);
+                    Debug.LogWarning("[ProjectSurvive] the camp capture never reached play mode; it was dropped.");
+                }
+            }
+
+            EditorApplication.update += Resume;
+        }
+
+        private static void LogResult(Task<string> task)
+        {
+            if (task.IsFaulted)
+            {
+                Debug.LogError("[ProjectSurvive] the camp capture failed: " + task.Exception);
+                return;
+            }
+
+            Debug.Log("[ProjectSurvive] the camp capture finished: " + task.Result);
+        }
+
+        private static async Task<string> RunOnMainThread(string tag)
+        {
+            Directory.CreateDirectory(OutputDirectory);
 
             CampSceneDirector director = null;
             for (int i = 0; i < 400; i++)
@@ -644,6 +740,88 @@ namespace ProjectSurvive.Game.Editor
 
             samples.Sort();
             return samples[samples.Count / 2];
+        }
+
+        /// <summary>
+        /// A <see cref="SynchronizationContext"/> that queues async continuations and runs them from
+        /// <see cref="EditorApplication.update"/>, i.e. on the Editor's main thread, whichever thread
+        /// or context started the work.
+        /// </summary>
+        /// <remarks>
+        /// Unity pumps its own context in the player loop, so an <c>await</c> started by a menu click
+        /// resumes on its own. A menu item executed by the command line runs under the pipeline's
+        /// context instead, which nothing pumps after the command returns: continuations posted there
+        /// are never run, and the task simply stops — with no exception and no log. Installing this
+        /// context around the run makes resumption depend on the editor's own update, which ticks in
+        /// both cases. <see cref="Send"/> is inline because every call comes from the main thread.
+        /// </remarks>
+        private sealed class MainThreadPump : SynchronizationContext, IDisposable
+        {
+            private readonly Queue<(SendOrPostCallback Callback, object State)> _queue =
+                new Queue<(SendOrPostCallback, object)>();
+
+            private readonly object _gate = new object();
+            private bool _disposed;
+
+            public MainThreadPump()
+            {
+                EditorApplication.update += Drain;
+            }
+
+            public override void Post(SendOrPostCallback d, object state)
+            {
+                lock (_gate)
+                {
+                    if (_disposed)
+                    {
+                        return;
+                    }
+
+                    _queue.Enqueue((d, state));
+                }
+            }
+
+            public override void Send(SendOrPostCallback d, object state) => d(state);
+
+            public void Dispose()
+            {
+                EditorApplication.update -= Drain;
+
+                lock (_gate)
+                {
+                    _disposed = true;
+                    _queue.Clear();
+                }
+            }
+
+            private void Drain()
+            {
+                while (true)
+                {
+                    SendOrPostCallback callback;
+                    object state;
+
+                    lock (_gate)
+                    {
+                        if (_disposed || _queue.Count == 0)
+                        {
+                            return;
+                        }
+
+                        (callback, state) = _queue.Dequeue();
+                    }
+
+                    try
+                    {
+                        callback(state);
+                    }
+                    catch (Exception exception)
+                    {
+                        // One broken continuation must not swallow the queue behind it.
+                        Debug.LogException(exception);
+                    }
+                }
+            }
         }
 
         // ------------------------------------------------------------------
