@@ -54,6 +54,13 @@ namespace ProjectSurvive.Game.Editor
             public ContrastSample Drum;
             public ContrastSample Pot;
             public ContrastSample Price;
+
+            /// <summary>
+            /// The label's <b>design</b> contrast: the ink colour the label is drawn in against the
+            /// board's rendered median. This is the quantity WCAG's ratio is defined on, and unlike
+            /// <see cref="Price"/> it does not shrink when the same text lands on fewer pixels.
+            /// </summary>
+            public ContrastSample PriceDesign;
             public float PriceInkHeight;
             public string Rects;
         }
@@ -128,8 +135,9 @@ namespace ProjectSurvive.Game.Editor
             contrast.AppendLine("# Stage 09o readability: WCAG contrast of the things the sala asks the player to read.");
             contrast.AppendLine("# thresholds: ArenaTheme.MinPlayerContrast (player) and CampTheme.MinPropContrast / MinLabelContrast.");
             contrast.AppendLine("# price is dark ink on its own board: feature = 10th percentile inside the label, floor = the board around it.");
-            contrast.AppendLine("# the price board is an unlit UI canvas, so MinLabelContrast is a non-regression floor, not a lighting target;");
-            contrast.AppendLine("# aa=" + Format(WcagAaText) + " is reported for information (the boards are 12 px type at 1080p: a separate proposal).");
+            contrast.AppendLine("# price is the DESIGN ratio (the label's ink colour against the board's rendered median), which is what WCAG defines and");
+            contrast.AppendLine("# what the AA gate uses; pricePx is the same label measured on its own anti-aliased pixels, reported alongside it because it falls");
+            contrast.AppendLine("# when the same text lands on fewer pixels. aa=" + Format(WcagAaText) + " also requires the ink to clear the theme's LabelFloorPixels at 1080p.");
             contrast.AppendLine("# machine: i5-14400F / RTX 5060 Ti / 32 GB, Unity " + Application.unityVersion + " Editor Play Mode");
             metrics.AppendLine("# Stage 09o - batches / draw calls / ms per frame");
             metrics.AppendLine("# budget from Stage 08e: <= 200 batches");
@@ -324,6 +332,17 @@ namespace ProjectSurvive.Game.Editor
                     Rect board = ProjectBox(camera, boardRenderer.bounds, size);
                     result.Price = MeasureLabel(pixels, label, board, size);
                     result.PriceInkHeight = InkHeight(pixels, label, size);
+
+                    // The design ratio: the ink the label is coloured with (its own TMP colour)
+                    // against the board's rendered median. Reporting both keeps the AA claim about
+                    // the colours and the rendered number about how the glyphs actually landed.
+                    var labelText = labelRenderer.GetComponent<TMPro.TextMeshPro>();
+                    if (labelText != null)
+                    {
+                        result.PriceDesign = new ContrastSample(
+                            ArenaContrast.RelativeLuminance(Rgba(labelText.color)),
+                            result.Price.Floor, result.Price.FeaturePixels, result.Price.FloorPixels);
+                    }
                     result.Rects = "label=" + Short(label) + " board=" + Short(board);
                 }
 
@@ -635,26 +654,29 @@ namespace ProjectSurvive.Game.Editor
             string profile, string state, Vector2Int size, CaptureResult result, CampTheme theme)
         {
             float propMinimum = theme == null ? 1.9f : theme.MinPropContrast;
-            float labelMinimum = theme == null ? 2f : theme.MinLabelContrast;
+            float labelMinimum = theme == null ? 4.5f : theme.MinLabelContrast;
             float playerMinimum = theme == null ? 2.2f : theme.MinPlayerContrast;
 
             bool pass = result.Player.Ratio >= playerMinimum
                 && (result.Rack.FeaturePixels == 0 || result.Rack.Ratio >= propMinimum)
                 && (result.Drum.FeaturePixels == 0 || result.Drum.Ratio >= propMinimum)
                 && (result.Pot.FeaturePixels == 0 || result.Pot.Ratio >= propMinimum)
-                && (result.Price.FeaturePixels == 0 || result.Price.Ratio >= labelMinimum);
+                && (result.PriceDesign.FeaturePixels == 0 || result.PriceDesign.Ratio >= labelMinimum)
+                && (size.y != 1080 || result.PriceInkHeight >= (theme == null ? 22f : theme.LabelFloorPixels));
 
             return profile + " " + state + " " + size.x + "x" + size.y
                 + "  player=" + Format(result.Player.Ratio) + " (min " + Format(playerMinimum) + ")"
                 + "  shelf=" + Format(result.Rack.Ratio) + " (min " + Format(propMinimum) + ")"
                 + "  drum=" + Format(result.Drum.Ratio) + " (min " + Format(propMinimum) + ")"
                 + "  pot=" + Format(result.Pot.Ratio) + " (min " + Format(propMinimum) + ")"
-                + "  price=" + Format(result.Price.Ratio) + " (min " + Format(labelMinimum) + ")"
+                + "  price=" + Format(result.PriceDesign.Ratio) + " (min " + Format(labelMinimum) + ")"
+                + "  pricePx=" + Format(result.Price.Ratio)
                 + "  priceInkPx=" + result.PriceInkHeight.ToString("0", CultureInfo.InvariantCulture)
-                + "  aa=" + (result.Price.Ratio >= WcagAaText)
+                + "  aa=" + (result.PriceDesign.Ratio >= WcagAaText
+                    && (size.y != 1080 || result.PriceInkHeight >= (theme == null ? 22f : theme.LabelFloorPixels)))
                 + "  | luminance player=" + Format(result.Player.Feature) + "/" + Format(result.Player.Floor)
                 + " shelf=" + Format(result.Rack.Feature) + "/" + Format(result.Rack.Floor)
-                + " price=" + Format(result.Price.Feature) + "/" + Format(result.Price.Floor)
+                + " price=" + Format(result.PriceDesign.Feature) + "/" + Format(result.PriceDesign.Floor)
                 + "  pass=" + pass;
         }
 
@@ -677,5 +699,12 @@ namespace ProjectSurvive.Game.Editor
             + rect.height.ToString("0", CultureInfo.InvariantCulture);
 
         private static string Format(float value) => value.ToString("0.00", CultureInfo.InvariantCulture);
+
+        /// <summary>An authored colour as the 8-bit pixel the ratio is computed on.</summary>
+        private static Color32 Rgba(Color colour) => new Color32(
+            (byte)Mathf.RoundToInt(Mathf.Clamp01(colour.r) * 255f),
+            (byte)Mathf.RoundToInt(Mathf.Clamp01(colour.g) * 255f),
+            (byte)Mathf.RoundToInt(Mathf.Clamp01(colour.b) * 255f),
+            255);
     }
 }

@@ -46,18 +46,16 @@ namespace ProjectSurvive.Game.Presentation.Camp
         public float MinPropContrast = 1.9f;
 
         [Tooltip(
-            "Non-regression floor for the world-space price board: ink against the board it is " +
-            "printed on, measured on a capture. The boards are UI canvases, not lit surfaces, so no " +
-            "lighting change can move this number — the yard has to leave them as readable as they " +
-            "were before it existed (1.95–2.16 measured in the Stage 09o before capture; this is the " +
-            "floor, not a target). Their distance below WCAG AA is a property of the boards' own " +
-            "colours and 12 px type, reported as a separate proposal (work item 5).")]
-        public float MinLabelContrast = 2f;
+            "Minimum WCAG contrast between the near-black ink of a world-space price board and the " +
+            "cream board it is printed on, in both profiles. The boards are unlit UI, so this ratio " +
+            "is made of the label's own ink, board and type size — not of the scene's lighting. Set to " +
+            "WCAG AA for body text (4.5): the labels are what the player reads to decide a purchase.")]
+        public float MinLabelContrast = 4.5f;
 
         [Tooltip(
-            "The player-facing text floor this project states for a 1080p screen (Stage 09d). The " +
-            "world-space shelf boards are measured against it and reported as an open proposal; this " +
-            "stage must not resize them.")]
+            "The player-facing text floor this project states for a 1080p screen (Stage 09d): the " +
+            "height of a label's ink, in pixels, at 1920×1080. The price boards' type is sized to " +
+            "clear it and measured against it on every capture.")]
         public float LabelFloorPixels = 22f;
     }
 }

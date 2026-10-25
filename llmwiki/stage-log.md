@@ -659,16 +659,18 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
 - **Next:** let the user judge the look from `artifacts/ui/battle-env/stage08f-dusk-1920x1080.png` /
   `stage08f-night-1920x1080.png`, then tighten the detached canopy shadows at the arena edge.
 - **Stage 09o — ศาลาพัก's yard.** The arena's card system moved onto the camp as a second theme:
-  `CampTheme` (centre 10.2, ring 14, 26–40 grass) + `CampYard`, which is `ArenaLayout.Build` under a
+  `CampTheme` (centre 10.2, ring 14, 34–56 grass) + `CampYard`, which is `ArenaLayout.Build` under a
   fixed seed filtered to "grass inside the walk area, standing cards only in the frame" (|x| ≥ 9.5,
-  5.4 ≤ z ≤ 12) plus two lamps, one sign and eight warm pools under the shelves, the เซียมซี cylinder
-  and the pot. `ArenaCard`/`GroundDecal`/`ArenaShadowCard`/`ArenaEnvironmentView` are unchanged; two
+  4.8 ≤ z ≤ 12) plus two lamps, one sign and eight warm pools under the shelves, the เซียมซี cylinder
+  and the pot (65 cards: 32 standing, 33 decals, 32 instanced shadows). `ArenaCard`/`GroundDecal`/`ArenaShadowCard`/`ArenaEnvironmentView` are unchanged; two
   camp profiles (Dusk-Camp, Night) are one `SetTimeOfDay` apart. Camera, walk area and every usage
   point untouched.
 - **Result:** EditMode **250/250** (16 new `CampYardTests`), `-Suite Fast` **13 PASS / 0 FAIL**,
-  `CampWorldPlayModeTests` **9/9**, `SceneFlowPlayModeTests` **6/6**; 20 captured views pass their
-  contrast floors, **71–100 batches / 1.90–2.67 ms**. Found on the way: the price boards are unlit UI
-  and measure **2.4:1** with **12 px** ink at 1080p — recorded as a proposal, and `MinLabelContrast`
-  re-set to the pre-yard non-regression floor (2.00) rather than a WCAG number light cannot reach.
-- **Next:** the look is the user's call (`artifacts/ui/camp-env/after-dusk-camp-centre-1920x1080.png`),
-  and the board's ink/type size is a separate, pre-existing readability item.
+  `CampWorldPlayModeTests` **11/11**, `SceneFlowPlayModeTests` **6/6**; 20 captured views pass,
+  **92–104 batches / 2.44–2.73 ms**. The price boards were then fixed on their own terms (unlit UI:
+  no lighting term can move them): ink `(0.04,0.03,0.03)` on a `(1.10,1.08,1.04)` board and type
+  3.8 instead of 1.9, i.e. **12.39:1** and **23–24 px** of ink at 1080p against a 22 px floor;
+  `MinLabelContrast` is now **4.50** (WCAG AA), and the yard itself is denser and warmer (65 cards
+  against 28, ground tint 1.50/1.34/1.08, backdrop at z = 4.8).
+- **Next:** the look is the user's call (`artifacts/ui/camp-env/after-dusk-camp-centre-1920x1080.png`);
+  the lock control's own label is still ≈9 px at 1080p and is separate work.

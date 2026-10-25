@@ -327,6 +327,46 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         }
 
         /// <summary>
+        /// The price board is what the player reads to decide a purchase: its ink is near-black on a
+        /// brightened board, and its type is sized past the 22 px ink floor this project states for a
+        /// 1080p screen (both measured on the capture). Asserted here because the labels only exist
+        /// once the view has built them, which needs play mode.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator The_price_boards_use_the_readable_ink_and_type_size()
+        {
+            yield return LoadCamp();
+
+            TMPro.TextMeshPro[] labels = Object.FindObjectsByType<TMPro.TextMeshPro>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+            int found = 0;
+            for (int i = 0; i < labels.Length; i++)
+            {
+                if (!labels[i].name.StartsWith("ShelfPrice", System.StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                found++;
+                float ink = ProjectSurvive.Game.Presentation.Battle.Environment.ArenaContrast
+                    .RelativeLuminance(new Color32(
+                        (byte)Mathf.RoundToInt(labels[i].color.r * 255f),
+                        (byte)Mathf.RoundToInt(labels[i].color.g * 255f),
+                        (byte)Mathf.RoundToInt(labels[i].color.b * 255f),
+                        255));
+
+                Assert.That(ink, Is.LessThan(0.02f),
+                    labels[i].name + "'s ink is no longer near-black, so its contrast against the board fell");
+                Assert.That(labels[i].fontSize, Is.GreaterThanOrEqualTo(3.8f),
+                    labels[i].name + " was shrunk below the size that drew 22 px of ink at 1080p");
+                Assert.That(labels[i].raycastTarget, Is.False, labels[i].name + " would swallow a click");
+            }
+
+            Assert.That(found, Is.EqualTo(_world.ShelfCount), "not every station has a price board");
+        }
+
+        /// <summary>
         /// Stage 09o: the yard is scenery. Every station and the เซียมซี cylinder is still reachable
         /// by a click with the cards standing in front of it — nothing in the yard is a collider and
         /// nothing in the yard is a raycast target.

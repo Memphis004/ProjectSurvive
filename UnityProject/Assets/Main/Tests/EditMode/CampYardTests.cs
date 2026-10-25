@@ -347,18 +347,17 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         [Test]
-        public void TheWorldSpaceLabelsStayAtTheirSizeAndTheirFloor()
+        public void TheWorldSpaceLabelsAreHeldToWcagAaAndTheProjectsTypeFloor()
         {
-            // Work item 5: the boards are reported, not resized or recoloured. The label floor is the
-            // 1080p text floor this project states; the contrast floor is the pre-yard measurement,
-            // because the boards are unlit UI and a lighting change cannot move them.
+            // The price boards are what the player reads to decide a purchase, so they are held to
+            // WCAG AA (4.5:1) and to the 22 px ink floor this project states for 1080p. Both are
+            // numbers of the label's own ink, board and type size — the boards are unlit UI, so the
+            // scene's lighting can neither make this pass nor fail.
             CampTheme theme = Theme;
 
             Assert.That(theme.LabelFloorPixels, Is.EqualTo(22f), "the project's 1080p text floor changed");
-            Assert.That(theme.MinLabelContrast, Is.GreaterThan(1.9f),
-                "the non-regression floor is below what the price boards measured before the yard");
-            Assert.That(theme.MinLabelContrast, Is.LessThan(2.5f),
-                "the price boards cannot reach a higher contrast from lighting, so this is a target, not a floor");
+            Assert.That(theme.MinLabelContrast, Is.GreaterThanOrEqualTo(4.5f),
+                "the price boards are gated below WCAG AA");
             Assert.That(theme.MinPropContrast, Is.GreaterThan(1.5f));
             Assert.That(theme.MinPlayerContrast, Is.GreaterThan(1.5f));
             Assert.That(theme.MinPropContrast, Is.LessThan(theme.MinPlayerContrast),

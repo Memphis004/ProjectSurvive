@@ -16,12 +16,12 @@ MonoBehaviour:
   RingOuterRadius: 14
   ArenaRadius: 18
   CenterMaxHeight: 0.75
-  CenterGrassMin: 26
-  CenterGrassMax: 40
-  RingBushMin: 30
-  RingBushMax: 40
-  BorderTreeMin: 60
-  BorderTreeMax: 76
+  CenterGrassMin: 34
+  CenterGrassMax: 56
+  RingBushMin: 40
+  RingBushMax: 54
+  BorderTreeMin: 72
+  BorderTreeMax: 92
   DirtDecalCount: 4
   FlowerDecalCount: 14
   LeafDecalCount: 14
@@ -133,5 +133,5 @@ MonoBehaviour:
     MaxScale: 1
     Material: {fileID: 2100000, guid: bbac24ecff5b10047b9c517ed0a47ac7, type: 2}
   MinPropContrast: 1.9
-  MinLabelContrast: 2
+  MinLabelContrast: 4.5
   LabelFloorPixels: 22

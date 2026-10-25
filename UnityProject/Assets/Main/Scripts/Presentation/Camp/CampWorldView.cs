@@ -87,6 +87,41 @@ namespace ProjectSurvive.Game.Presentation.Camp
         [SerializeField] private Color _idleRack = new Color(0.86f, 0.80f, 0.68f, 1f);
         [SerializeField] private Color _focusedRack = new Color(1f, 0.93f, 0.66f, 1f);
 
+        /// <summary>
+        /// The price board's ink: near-black on the board's cream, so the label clears WCAG AA.
+        /// </summary>
+        /// <remarks>
+        /// The old ink (0.10, 0.08, 0.08) was dark but thin: at the size the label was drawn, most of
+        /// its pixels were the board showing through the anti-aliased glyphs, and the measured ratio
+        /// was 2.4:1. The ink is darker here and the type is larger below; both are what the ratio is
+        /// made of, and neither depends on the scene's lighting (the labels are unlit UI).
+        /// </remarks>
+        private static readonly Color PriceInk = new Color(0.04f, 0.03f, 0.03f, 1f);
+
+        /// <summary>
+        /// The board behind the ink, brightened a little: the other half of the same contrast ratio.
+        /// </summary>
+        private static readonly Color BoardTint = new Color(1.1f, 1.08f, 1.04f, 1f);
+
+        /// <summary>
+        /// The price's type size, in TextMeshPro font units. 1.9 drew 12 px of ink at 1080p; this is
+        /// that scaled past <c>CampTheme.LabelFloorPixels</c> (22) rather than up to it.
+        /// </summary>
+        private const float PriceFontSize = 3.8f;
+
+        /// <summary>
+        /// The focused store's sentence, as a percentage of <see cref="PriceFontSize"/>. It is the
+        /// secondary line on the board (the price is the one being read), and at 100% it would wrap
+        /// into the board's edges.
+        /// </summary>
+        private const int DetailFontPercent = 50;
+
+        /// <summary>
+        /// The lock control's type size, unchanged: it is a control on the board, not the price, and
+        /// its click rectangle is part of the station's own hit test.
+        /// </summary>
+        private const float LockOriginalFontSize = 1.35f;
+
         private readonly List<IDisposable> _subscriptions = new List<IDisposable>(2);
         private readonly List<Station> _stations = new List<Station>(4);
 
@@ -274,18 +309,26 @@ namespace ProjectSurvive.Game.Presentation.Camp
 
             station.RackColour = _idleRack;
             station.Rack.color = _idleRack;
-            station.Board.color = Color.white;
 
+            // The board is the price's own background, so it is also half of the label's contrast:
+            // a light cream board lets a near-black ink clear WCAG AA at the type size below.
+            station.Board.color = BoardTint;
+
+            // 3.5 rather than 1.9: at 1080p one world unit is 81.8 px, and the price's ink has to be
+            // at least CampTheme.LabelFloorPixels (22) tall. 1.9 measured 12 px, so the type is
+            // scaled by 22/12 and then a little, to clear the floor rather than touch it.
             station.Price = CreateLabel(
-                "ShelfPrice" + index, new Vector3(x, _signHeight - 0.05f, _shelfZ - 0.4f),
-                Quaternion.Euler(_cameraEuler), 1.9f, new Color(0.10f, 0.08f, 0.08f, 1f),
-                new Vector2(_shelfSpacing * 0.86f, 1.7f), 17);
+                "ShelfPrice" + index, new Vector3(x, _signHeight + 0.35f, _shelfZ - 0.4f),
+                Quaternion.Euler(_cameraEuler), PriceFontSize, PriceInk,
+                new Vector2(_shelfSpacing * 0.86f, 2f), 17);
 
             // The lock control is its own label, drawn under the price: 09c work item 4 wants
-            // ล็อกสินค้าก่อนรีเซ็ต reachable from the shelf's own sign.
+            // ล็อกสินค้าก่อนรีเซ็ต reachable from the shelf's own sign. It sits on the same board, so
+            // it uses the same ink and a size that keeps it a step below the price rather than a
+            // faint label on a light background.
             station.Lock = CreateLabel(
                 "ShelfLock" + index, new Vector3(x, _signHeight - 0.62f, _shelfZ - 0.42f),
-                Quaternion.Euler(_cameraEuler), 1.35f, new Color(0.32f, 0.16f, 0.10f, 1f),
+                Quaternion.Euler(_cameraEuler), LockOriginalFontSize, PriceInk,
                 new Vector2(_shelfSpacing * 0.7f, 0.6f), 18);
 
             return station;
@@ -615,16 +658,20 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 CampShopSlotModel slot = slots[i];
                 station.Plate.enabled = !slot.IsPurchased;
 
-                station.Price.text = slot.IsPurchased
-                    ? slot.Name + "\n" + Label(_state == null ? null : _state.RentedLabel)
-                    : slot.Name + "\n" + slot.PriceLabel;
-
-                // Stage 09n: the store the player stands at carries its detail on the same board, from
+                // Stage 09n: the store the player stands at carries its detail on its own board, from
                 // the same readout the pointer's tooltip uses. Only the focused station's board grows.
-                if (i == _focusedShelf && _focusDetail.Length > 0)
-                {
-                    station.Price.text += "\n" + _focusDetail;
-                }
+                //
+                // The sentence is one step down in size (`DetailFontPercent`) rather than its own
+                // label: at the price's new type size it no longer fits a board-sized label of its
+                // own, and a second label under the board is hidden by the player standing at the
+                // counter of the very store it describes.
+                string detail = i == _focusedShelf && _focusDetail.Length > 0
+                    ? "\n<size=" + DetailFontPercent + "%>" + _focusDetail + "</size>"
+                    : string.Empty;
+
+                station.Price.text = (slot.IsPurchased
+                    ? slot.Name + "\n" + Label(_state == null ? null : _state.RentedLabel)
+                    : slot.Name + "\n" + slot.PriceLabel) + detail;
 
                 station.Lock.text = slot.IsLocked
                     ? Label(_state == null ? null : _state.UnpinLabel)

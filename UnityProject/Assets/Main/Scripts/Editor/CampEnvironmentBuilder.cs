@@ -575,15 +575,15 @@ namespace ProjectSurvive.Game.Editor
             theme.RingOuterRadius = 14f;
             theme.ArenaRadius = 18f;
             theme.CenterMaxHeight = 0.75f;
-            theme.CenterGrassMin = 26;
-            theme.CenterGrassMax = 40;
+            theme.CenterGrassMin = 34;
+            theme.CenterGrassMax = 56;
             // The generator fills a full ring; CampYard keeps only the band that can frame this
             // camera (the two sides and the strip behind the sala), so the counts are higher than
             // the kept numbers: a third of the ring is the frame and the rest is filtered out.
-            theme.RingBushMin = 30;
-            theme.RingBushMax = 40;
-            theme.BorderTreeMin = 60;
-            theme.BorderTreeMax = 76;
+            theme.RingBushMin = 40;
+            theme.RingBushMax = 54;
+            theme.BorderTreeMin = 72;
+            theme.BorderTreeMax = 92;
             theme.DirtDecalCount = 4;
             theme.FlowerDecalCount = 14;
             theme.LeafDecalCount = 14;
@@ -600,10 +600,9 @@ namespace ProjectSurvive.Game.Editor
 
             theme.MinPlayerContrast = 2.2f;
             theme.MinPropContrast = 1.9f;
-            // A non-regression floor, not WCAG AA: the price boards are unlit UI, so no lighting
-            // change can move their 2.4:1 — the before capture measured 1.95–2.16 and the yard has
-            // to leave them at least that readable. See CampTheme.MinLabelContrast.
-            theme.MinLabelContrast = 2f;
+            // The price boards are unlit UI, so their ratio is ink against board at a type size —
+            // not a lighting term. The label is drawn near-black at 3.5 font units for this floor.
+            theme.MinLabelContrast = 4.5f;
             theme.LabelFloorPixels = 22f;
 
             // The player, a ghost, a pickup and a telegraph are the arena's thresholds; the camp has

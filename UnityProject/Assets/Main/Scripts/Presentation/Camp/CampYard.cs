@@ -100,8 +100,11 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// </remarks>
         public const float FrameSideX = 9.5f;
 
-        /// <summary>The strip behind the sala where a card may stand at any x.</summary>
-        public const float FrameBackZ = 5.4f;
+        /// <summary>
+        /// The strip behind the sala where a card may stand at any x. It starts one row behind the
+        /// shelf boards (z = 4.0) so the sala has a backdrop rather than an empty horizon.
+        /// </summary>
+        public const float FrameBackZ = 4.8f;
 
         /// <summary>Nothing stands nearer to the camera than this row.</summary>
         public const float FrameNearZ = -4f;
