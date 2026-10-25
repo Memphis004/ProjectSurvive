@@ -31,7 +31,7 @@ named.
 | 4 | Dusk-Camp warmer and brighter than the arena's dusk, pools around the sala and shelves, softer vignette, one call to Night | PASS | `CampYardTests.DuskCampIsWarmerAndBrighterThanTheArenasDusk`, `.EveryUsagePointHasWarmLightUnderIt`, `.OneCallSwitchesTheCampsLook` |
 | 5 | Readability measured on the capture, thresholds in the theme, real numbers | PASS | `stage09o-after-contrast.txt` — 20/20 views, see §3 |
 | 6 | Price boards: ink/board contrast and type size clear WCAG AA at 1080p | PASS | price **12.39:1** (AA 4.5), ink **23–24 px** at 1080p (floor 22); `CampYardTests.TheWorldSpaceLabelsAreHeldToWcagAaAndTheProjectsTypeFloor`, `CampWorldPlayModeTests.The_price_boards_use_the_readable_ink_and_type_size` |
-| 6b | The lock control is a target, not a caption, and its click rectangle stays off the shelf's own | PASS | lock ink **20 px** at 1080p (was 8), drawn rectangle **57 × 23 px**, its centre **58 px clear** of the station's centre; `CampWorldPlayModeTests.Clicking_a_shelfs_lock_pins_it_against_the_reset` |
+| 6b | The lock control meets the 22 px floor and its click rectangle stays off the shelf's own | PASS | lock ink **25 px** at 1080p (was 8), drawn rectangle **63 × 25 px**, its centre **58 px clear** of the station's centre; `CampWorldPlayModeTests.Clicking_a_shelfs_lock_pins_it_against_the_reset` |
 | 7 | Denser, brighter yard: more standing frame behind the sala, warmer floor | PASS (numbers in §4; the look is the user's call) | 65 cards vs 28; ground tint 1.32/1.19/0.97 → 1.50/1.34/1.08; `after-dusk-camp-*.png` |
 | 8 | One shadow direction, no large patch on the walkable floor | PASS | `CampYardTests.NoShadowDrawsALargePatchOnTheWalkableFloor`, `.EveryShadowFollowsTheProfilesOneDirection` |
 | 9 | Yard belongs to the scene, built once, destroyed with it | PASS | `CampEnvironmentBuilder` authors into `Camp.unity`; nothing is Instantiated/Destroyed at runtime |
@@ -85,7 +85,7 @@ together, and `pricePx` is published next to it.
 
 **What the bigger type did to the rest of the board.** A shop board is one cream rectangle 278 ×
 223 px at 1080p, and it now carries four rows: the item's name (68 % of the price size, ≈16 px),
-the price (23 px), the lock control (20 px), and — for the store the player stands at — the
+the price (23 px), the lock control (25 px), and — for the store the player stands at — the
 sentence from the status bar (12 px, two lines). They are three labels on separate rows rather
 than one, because folded into the price label they merged into a single tall ink run and the ink
 height the gate reads stopped describing the price. The lock sits directly under the price and not
@@ -129,9 +129,11 @@ vignette 0.14. Night is lower in every term that makes it darker and keeps the p
   `after-dusk-camp-centre-1920x1080.png` and `after-dusk-camp-shelf1-1920x1080.png`.
 - **720p is reported, not gated.** `LabelFloorPixels` is a statement about 1080p; at 1280×720 the
   same type draws 15 px of ink (`priceInkPx=15`) and the AA gate is not applied there.
-- **The lock control is 20 px, not 22.** It is a tap target, so it is sized to its own step below
-  the price rather than to `LabelFloorPixels`; its drawn rectangle is 57 × 23 px at 1080p, which is
-  what a player aims at, and the hit test uses exactly that rectangle.
+- **The lock's 25 px is not the price's 23 px at a smaller size.** The two numbers are ink heights
+  of different glyph sets: the lock is one Thai word whose upper vowel reaches the top of its cell,
+  while the price line is digits. At 2.9 font units the word clears the 22 px floor with 3 px to
+  spare, and it still reads as one small word under a much wider price. Its drawn rectangle is
+  63 × 25 px at 1080p — that is what the player aims at, and what the hit test uses.
 - **The capture tool's two entry points are now equal.** `CaptureFromMenu` works from a menu click
   and from `unity command menu` alike: entering play mode reloads the domain, which ends a running
   task silently, so the tag is parked in `SessionState` and picked up by `[InitializeOnLoadMethod]`

@@ -382,8 +382,8 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 }
 
                 locks++;
-                Assert.That(labels[i].fontSize, Is.GreaterThanOrEqualTo(2.5f),
-                    labels[i].name + " is back to caption-sized type (it drew 8 px of ink at 1080p)");
+                Assert.That(labels[i].fontSize, Is.GreaterThanOrEqualTo(2.8f),
+                    labels[i].name + " fell below the size that draws the project's 22 px floor at 1080p");
             }
 
             Assert.That(prices, Is.EqualTo(_world.ShelfCount), "not every station has a price board");

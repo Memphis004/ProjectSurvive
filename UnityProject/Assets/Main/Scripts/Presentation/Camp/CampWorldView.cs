@@ -124,10 +124,11 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private const int NameFontPercent = 68;
 
         /// <summary>
-        /// The lock control's type size, in TextMeshPro font units: one step below the price (3.8),
-        /// and large enough to be a control rather than a caption — 1.35 drew 8 px of ink at 1080p.
+        /// The lock control's type size, in TextMeshPro font units. At 1080p one font unit draws
+        /// ≈ 7.7 px of ink, so this is the project's 22 px floor (<c>CampTheme.LabelFloorPixels</c>)
+        /// met rather than approached: 1.35 drew 8 px, and the control was a caption to aim at.
         /// </summary>
-        private const float LockFontSize = 2.6f;
+        private const float LockFontSize = 2.9f;
 
         private readonly List<IDisposable> _subscriptions = new List<IDisposable>(2);
         private readonly List<Station> _stations = new List<Station>(4);
