@@ -1431,6 +1431,152 @@ ci.ps1 → อัปเดตเอกสาร
 หลังลงมือ: รายงานผลที่วัดได้จริง และ PASS / FAIL / NOT RUN
 ```
 
+
+## Stage 17a — โมดูล Spine + โหลด skeleton ผู้เล่น (ยังไม่แตะ Scene)
+
+ทำ Stage 17a เท่านั้น: นำโมดูล Spine actor (SpineActorBase / SpineWorldActor / SpineUiActor /
+SpineSkeletonGraphic / SpineActorFactory ที่อยู่ใน workspace แล้ว) เข้ามาอยู่ในสถาปัตยกรรมของโปรเจค
+และเตรียม skeleton ของพ่อหมอจาก Resources/body_1110901/body_1110901_SkeletonData.asset
+ขอบเขต: Presentation + Editor tool + tests เท่านั้น ห้ามแก้ lib/ (Domain/Application/Simulation), data/,
+EcsLite, localization และห้ามแก้ Scene (Battle/Camp/Title) ในสเตจนี้ — การต่อเข้าฉากเป็น 17b–17d
+
+บริบท: ไฟล์ Spine มาจากโปรเจคอื่น (namespace MyClone.SpineSystem) เขียนสำหรับ spine-unity 3.8
+ยังไม่เคยผ่าน Release WebGL (IL2CPP stripping) และยังไม่รู้ชื่อ animation / skin ของ skeleton นี้ ห้ามเดา
+
+A. สำรวจก่อนแก้ → docs/stages/17a-report.md (สั้น)
+   - ไฟล์ Spine ใน workspace อยู่ที่ไหน, มี asmdef หรือไม่, ชื่อ asmdef ของ spine runtime ที่ติดตั้งจริง
+     และ version ของ spine-unity ที่ติดตั้ง เทียบกับ version ที่ export skeleton (ต้องตรงกัน major.minor
+     ไม่ตรงให้หยุดและรายงาน blocker ห้ามอัปเกรด/ดาวน์เกรดเอง — AGENTS ข้อ 2)
+   - ไฟล์ .asset อยู่ใน Resources โฟลเดอร์ไหนจริง; Resources path ที่ใช้โหลดคือ "body_1110901/body_1110901_SkeletonData"
+     (ไม่มีนามสกุล) ยืนยันว่าโหลดได้
+   - shader ของ Spine (Spine/Skeleton, Spine/SkeletonGraphic) ทำงานใน URP 17.3 ของโปรเจคนี้หรือไม่
+     (ดูจากการ render จริงใน Editor ไม่ใช่เดา)
+   - สิทธิ์ใช้งาน: (1) Spine Runtimes License ต้องมี Spine Editor license; (2) asset body_1110901 มาจากไหน
+     มีสิทธิ์ใช้หรือไม่ (AGENTS ข้อ 13) ถ้ายืนยันไม่ได้ ให้ลงเป็น blocker ใน ATTRIBUTION.md และห้ามให้ asset นี้
+     เข้า Release build จนกว่าจะยืนยัน (ทำงานใน dev ได้)
+
+B. ปรับโมดูลให้เข้ากับโปรเจค (ย้ายไป Assets/Main/Scripts/Presentation/SpineActors/)
+   1. namespace = ProjectSurvive.Game.Presentation.SpineActors
+      ห้ามใช้ namespace ที่ลงท้าย .Spine (จะบัง namespace `Spine` ของ runtime — บทเรียนเดียวกับ ...Game.Result
+      ใน llmwiki/systems/loop-and-scopes.md §5)
+   2. แก้ asmdef ของ Presentation / Editor / Tests.EditMode ให้อ้าง spine runtime (ใช้ชื่อที่ตรวจจริงใน A)
+      ห้ามให้ Presentation อ้าง ProjectSurvive.Core.Simulation (architecture test เดิมต้องผ่าน)
+   3. ห้ามใช้ Shader.Find ในโค้ดที่ ship (คืน null ใน player build ที่ถูก strip — เป็นบั๊กชนิด Editor เขียว/player พัง
+      แบบเดียวกับ il2cpp-di-and-reflection.md): materials/shader ต้องเป็น serialized reference
+      (SpineUiActor.SetMaterials, SpineWorldActor.SetGrayShader) และถ้าไม่ได้ assign ให้ log error ชัดเจน
+      ไม่ fallback เงียบๆ
+   4. ลบคอมเมนต์ที่อ้างถึงเกม/โปรเจคต้นทาง (MYCLONE_DESIGN.md ฯลฯ) และเขียนว่า actor เหล่านี้เป็น
+      Presentation ล้วน ไม่ตัดสินกฎใดๆ (AGENTS ข้อ 10)
+   5. ห้ามพึ่ง Time.timeScale: การหยุด/ความเร็วของ Spine ใช้ Pause()/SetSpeed() ของ actor เท่านั้น
+      (หมายเหตุ: Play(...) รีเซ็ต TimeScale เป็นค่า speed ที่ส่งเข้าไป ผู้เรียกต้องส่งค่าปัจจุบันทุกครั้ง)
+
+C. ส่วนเฉพาะผู้เล่น (ไม่มี logic เกม)
+   1. SpineAssetPaths.PlayerSkeletonData + SpineSkeletonLoader.TryLoad(path, out asset, out errorCode)
+      รหัสผิดพลาดรูปแบบ noun.problem: spine.skeleton_path_empty / spine.skeleton_missing / spine.skeleton_invalid
+      (ตรวจจาก SkeletonDataAsset.GetSkeletonData ว่า null ไหม) ห้ามใช้ Result<T> ถ้ายังไม่ได้ตรวจ API จริงของ Shared
+   2. SpinePlayerProfile : ScriptableObject (Assets/Main/Spine/SpinePlayerProfile.asset): resource path,
+      ชื่อ animation (idle, run จำเป็น; hurt, death ไม่บังคับ), skinParts (body/head/face — skeleton นี้เก็บหน้าตา
+      หลาย part skin ดู SpineActorBase.SkinPart/DetectSkinGroups), targetHeightWorld, runSpeedThreshold,
+      artFacesRight และเมธอด TryValidate(SkeletonData, out code, out detail) ที่ล้มดังๆ เมื่อชื่อไม่มีจริง
+      ค่าพวกนี้เป็นค่าฝั่งภาพ ไม่ใช่ balance (ไม่ลง data/) แต่ชื่อ animation/skin ห้ามฝังเป็น string ในโค้ด
+   3. PlayerPose {Idle, Run, Dead} + PlayerPoseSelector (static, pure, ไม่พึ่ง Spine/Unity): Select(speed, current,
+      dead, threshold) มี hysteresis (เข้า Run ที่ threshold ออกที่ครึ่งหนึ่ง) และ Facing(dx, current, deadZone)
+   4. SpinePlayerView : MonoBehaviour (หุ้ม SpineWorldActor — สร้างผ่าน SpineActorFactory ตอน Begin() ครั้งเดียว)
+      API: Configure(profile), bool Begin() (idempotent, ErrorCode เมื่อล้ม), Present(PlayerPose, int facing),
+      PlayHurt() (one-shot แล้วกลับ pose ปัจจุบันเมื่อ AnimationComplete — ห้ามเรียก Play/SetAnimation
+      ซ้อนใน callback ให้ตั้งธงแล้วทำใน LateUpdate), SetPaused(bool), SetSpeed(float), SetSortingOrder(int),
+      Tick(float) สำหรับเทสต์, ตัวนับ PlayCalls/BuildCount
+      - Present ต้อง allocation เป็น 0 และเรียก Play เฉพาะตอน pose เปลี่ยน (เทียบค่าเดิมก่อน)
+      - scale ให้พอดี targetHeightWorld โดยวัดความสูงจาก MeshFilter.sharedMesh.bounds ของ SkeletonAnimation
+        แล้วตั้ง scale ที่ root ของ actor เท่านั้น (ห้ามตั้งที่ SkeletonTransform เพราะ ApplyFlip ใช้ localScale ตรงนั้น)
+      - Begin() ล้มเมื่อ bounds ว่าง / animation หาย / skin ไม่ render (ไม่ fallback เงียบ)
+
+D. Editor tool (เมนู ProjectSurvive/Spine/..., ใช้ Editor API เท่านั้น — AGENTS ข้อ 11)
+   1. Dump player skeleton → artifacts/spine/player-skeleton.md: spine version, scale, bones/slots,
+      ทุก animation + duration, ทุก skin + จำนวน attachment, atlas pages, shader ของ material
+   2. Create player profile: เติมชื่อ animation จากข้อมูลจริงของ skeleton (จับคู่ด้วยคีย์เวิร์ด idle/stand,
+      run/walk, hurt/hit, death/die) และเลือก skin part ต่อกลุ่ม แล้ว log ว่าเลือกอะไร; ถ้าหา idle หรือ run ไม่เจอ
+      ให้ล้มพร้อมรายชื่อทั้งหมด ไม่สร้าง asset; ถ้ามี asset อยู่แล้วไม่เขียนทับ
+   3. Create UI materials (Spine/SkeletonGraphic normal + TintBlack) ลง Assets/Main/Spine/Materials
+      (Shader.Find ใช้ได้ใน Editor tool เท่านั้น)
+
+E. Tests (EditMode; ทดสอบกับ asset จริง ไม่ใช้ stub)
+   - selector: dead ชนะ speed, hysteresis, facing dead zone
+   - loader: path ว่าง/ไม่มี → รหัสผิดพลาดถูกต้อง; asset ผู้เล่นโหลดได้จริง
+   - profile ที่สร้างผ่าน tool ผ่าน TryValidate กับ skeleton จริง
+   - SpinePlayerView.Begin() สำเร็จ; Present pose เดิม 10 000 ครั้ง → PlayCalls = 1 และ 0 bytes allocated;
+     PlayHurt → Tick จน animation จบ → กลับ pose เดิม
+   - เทสต์ architecture เดิมต้องผ่าน (Presentation ไม่อ้าง Simulation, ไม่มีข้อความไทยฝังในโค้ด)
+   ถ้า API ที่ใช้ (เช่น GC.GetAllocatedBytesForCurrentThread ใน Unity Mono) ใช้ไม่ได้ ให้รายงานและเปลี่ยนวิธีวัด
+
+F. เอกสาร
+   - ADR 0037 (ทางเลือกจริง ≥ 2: โหลด Resources vs reference ใน scene; Shader.Find vs serialized material;
+     Spine ขับ clock เอง vs ตาม Pause/Speed ของ runner) บันทึกผลสำรวจใน A
+   - docs/architecture/dependencies.md: เพิ่มแถว Spine runtime (Verified เฉพาะที่ตรวจจริง, ที่เหลือ Unverified)
+   - ATTRIBUTION.md: Spine runtime + asset body_1110901 พร้อมสถานะสิทธิ์
+   - llmwiki/stage-log.md 3 บรรทัด + แถวใน index.md ถ้ามีโน้ตใหม่ (INGEST.md)
+
+กติกาเพิ่ม: Resources ทุกอย่างถูก ship (unity-shell.md) — ห้ามสรุปว่าขนาดผ่านโดยไม่วัด; ถ้าจะรายงานขนาดต้องวัดด้วย
+build-web.ps1 -ReleaseCandidate และ measure-web-size.mjs ตามฐานของ ADR 0011/0035 ไม่เช่นนั้น NOT RUN
+commit แยก 2 อัน: `generic: spine actors (presentation)` สำหรับโมดูลที่ไม่อ้าง type ของเกม (AGENTS ข้อ 14)
+และ `stage-17a: ...` สำหรับส่วนผู้เล่น/tool/test/เอกสาร
+
+รัน: tools/test.ps1 -Suite Fast; ห้าม build WebGL/Playwright ในสเตจนี้ (NOT RUN)
+Acceptance: โมดูล compile ใน Unity; tool ทั้งสามทำงานกับ asset จริง; เทสต์ข้างต้นผ่าน; Fast suite ไม่แดง;
+ไม่มี Shader.Find ในโค้ด runtime (grep เป็นหลักฐาน); รายงานสั้น PASS / FAIL / NOT RUN
+
+## Stage 17b — พ่อหมอใน Battle (ต่อเข้า VContainer / frame / events)
+
+ทำ Stage 17b เท่านั้น: ใช้ SpinePlayerView เป็นภาพของพ่อหมอใน Battle scene (ต่อจาก 17a)
+ห้ามแก้ lib/, data/, Simulation หรือ contract; Presentation อ่านผ่าน IBattleFrame / IBattleEventSource เท่านั้น
+
+เริ่มจากสำรวจ (ลง report): EntityView / EntityViewPool / BattleRenderBridge วาดผู้เล่นอย่างไร,
+BattleSceneScope ลงทะเบียนอะไร, BattleWorldMap.SortingOrder, BattleCameraRig.BillboardPitch, ช่องทาง
+BattleEventPump (HUD/VFX/Audio), BattleSimulationRunner.SetPaused / BattleSpeed, report __projectSurviveBattle
+
+1. สร้าง SpinePlayerView ตอนเริ่มชั้น (warm-up) — ห้ามสร้างหลัง warm-up; EntityViewPool.CreatedAfterWarmup
+   ต้องยังเป็น 0 และ viewsGrownDuringPlay = 0 (actor ไม่อยู่ใน pool ให้ตัวนับของ Spine แยก)
+2. ผู้เล่นใน frame ยังคงเป็น entity เดิม: ความเร็ว = (Cur − Prev) × TickRate จาก BattleFrameSnapshot
+   → PlayerPoseSelector; ทิศหันจาก dx; Dead จาก phase Lost; sorting จาก BattleWorldMap.SortingOrder
+   (ส่งเฉพาะเมื่อค่าเปลี่ยน); ใช้ billboard pitch เดียวกับ sprite อื่น (ตรวจจากโค้ด ห้ามเดาเครื่องหมาย)
+3. Hurt มาจาก event PlayerDamaged ผ่าน listener ของช่องที่เหมาะสม (แบบเดียวกับ BattleAudioListener)
+   Presentation ห้ามใช้ event ตัดสินกฎ
+4. Pause/ความเร็ว: BattleSimulationRunner.SetPaused → SpinePlayerView.SetPaused, BattleSpeed → SetSpeed
+   เรียกเมื่อค่าเปลี่ยน ไม่ใช่ทุกเฟรม; ห้ามแตะ Time.timeScale
+5. DI: ลงทะเบียนใน BattleSceneScope ด้วย factory lambda เท่านั้น (ห้าม Register<TInterface,TImpl>(Lifetime) แบบ
+   reflect constructor — IL2CPP strip); ไม่สร้าง interface/abstraction ใหม่ถ้าไม่จำเป็น (AGENTS ข้อ 12)
+6. ถ้า Begin() ล้ม: dev build ล้มดังๆ (log + แสดงใน report) ส่วน Release ให้ใช้ placeholder sprite เดิม และต้อง
+   ระบุใน report ว่าเกิด fallback — ห้ามเงียบ
+7. สร้างฉากผ่าน ProjectSurvive/Stage 08/3 (BattleSceneBuilder) ไม่แก้ YAML; เพิ่มฟิลด์ spine ใน
+   __projectSurviveBattle (spineReady, spineErrorCode, spinePlayCalls, spineAnimation) และเพิ่มเทสต์เบราว์เซอร์
+
+Tests: PlayMode (BattlePlayModeTests): Begin สำเร็จใน scene จริงและ reference ใน BattleViewSettings ถูก assign
+(บทเรียน 08c — ตรวจ wiring ของ scene), เดิน → Run, หยุด → Idle, โดนตี → hurt แล้วกลับ, pause → animation หยุด,
+10 วินาทีไม่มี exception, CreatedAfterWarmup/viewsGrownDuringPlay = 0, PlayCalls ไม่โตตามจำนวนเฟรม
+Editor capture ชั้น 1 ที่ 1920×1080 (ดูภาพจริง ห้ามประกาศ PASS ด้านภาพจากเทสต์อย่างเดียว)
+ปิดสเตจ: -Suite Full ตอนปิด Editor (WebGL Development + Playwright battle spec); ต่อด้วย build -ReleaseCandidate
+เพื่อพิสูจน์ stripping (Spine shader/serialization) ถ้ารันไม่ได้ให้ NOT RUN ตามจริง และรายงานขนาด payload เทียบ ADR 0035
+Acceptance: เล่นชั้น 1 ได้ด้วย Spine; บันทึก PASS / FAIL / NOT RUN
+
+## Stage 17c — ตัวละครใน Camp (สั้น)
+
+ทำ Stage 17c เท่านั้น: ใช้ SpinePlayerView แทนภาพตัวละครใน Camp (CampPlayerView) — Presentation เท่านั้น
+สำรวจ CampPlayerView/CampWorldView/CampSceneBuilder ก่อน; Run/Idle จากการเดิน WASD ที่ view มีอยู่แล้ว
+(ไม่คำนวณกฎซ้ำ), หันตามทิศเดิน, ไม่มี hurt/dead; หยุดเดินตอนหน้าจัดย่ามเปิด → Idle; Begin() ตอนเข้าฉาก
+สร้างฉากผ่าน CampSceneBuilder; ห้ามกระทบ __projectSurviveCamp / geometry report (พิกัด figure ต้องยังถูก)
+Tests: CampWorldPlayModeTests (เดิน → pose Run, หยุด → Idle), เทสต์เดิมของ Camp ผ่านทีละ fixture,
+Editor capture 1920×1080 + 1280×720 ไม่มี element ทับ, tests/web/camp.spec.ts (ถ้ารันได้) รายงาน PASS / FAIL / NOT RUN
+
+Stage 17d — รูปตัวละครใน HUD (SpineUiActor)
+
+ทำ Stage 17d เท่านั้น: แทน placeholder รูปตัวละครในพาเนลสถานะซ้ายล่างของ Battle HUD ด้วย SpineUiActor
+(SkeletonGraphic) ผ่านวัสดุจาก tool 17a (SetMaterials) ห้ามใช้ Shader.Find
+View ไม่มี logic: แสดง Idle วนอย่างเดียว (หรือตาม hurt event ถ้าทำได้ผ่านช่องทางเดิม); anchor ผูกขอบ canvas
+ต้องไม่ทับหลอด HP/MP ที่ 1920×1080 และ 1280×720 (UiLayoutCheck: เพิ่ม region ของ portrait),
+เปิด Canvas additionalShaderChannels เฉพาะเมื่อ tintBlack; ตรวจ __projectSurviveTextFit ยังผ่าน
+Tests: EditMode layout, PlayMode (actor built, CreatedAfterBuild = 0), Editor capture 2 ขนาด
+Acceptance: ภาพจริงไม่ทับกัน, เทสต์ผ่าน, รายงาน PASS / FAIL / NOT RUN
+
 ## Test harness และ Performance budget
 
 ไม่พึ่งการให้ agent ลองเล่นเอง แบ่งการทดสอบเป็น 4 ระดับ และใช้ Playwright กับ Web build จริงเป็นด่านสุดท้าย ชุด Web test ตามแบบ Astra แต่เริ่มเร็วกว่าที่ Opus วางไว้ (Opus มี Playwright smoke เฉพาะ Stage 14)
