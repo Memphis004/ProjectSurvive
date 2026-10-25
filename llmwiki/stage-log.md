@@ -682,3 +682,35 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   runner (Tools/3) was the only `UiCaptureTool` entry missing the flag-and-resume pattern; added.
   It still needs a foregrounded Editor, because it photographs the screen with `ScreenCapture`
   (empty frames in the background) and now says so instead of blaming the layout.
+
+## Stage 17a — the Spine actor module, and the Mor's skeleton loads (2026-10-26)
+
+- **Did:** moved the Spine actor module that arrived from another project (`Assets/Scripts/SpineSystem`,
+  `MyClone.SpineSystem`) into `Presentation/SpineActors` inside `ProjectSurvive.Game.Presentation` —
+  namespace `ProjectSurvive.Game.Presentation.SpineActors`, never `.Spine`, because a `.Spine` segment
+  would shadow the runtime's own `Spine.*` types (the `…Game.Result` lesson,
+  [`systems/loop-and-scopes.md`](systems/loop-and-scopes.md) §5) — added `spine-unity` to the
+  Presentation/Editor/Tests asmdefs, removed every `Shader.Find` from runtime code (materials and the
+  gray shader are serialized references that log an error when unset), and wrote the player half:
+  `SpineAssetPaths`/`SpineSkeletonLoader` with `spine.skeleton_path_empty`/`_missing`/`_invalid`,
+  `SpinePlayerProfile` (an asset filled from the skeleton by `ProjectSurvive/Spine/2. Create player
+  profile`, checked by `TryValidate`), the pure `PlayerPoseSelector` (hysteresis at half the threshold,
+  facing dead zone) and `SpinePlayerView` (one actor built once in `Begin()`, allocation-free `Present`
+  with one `Play` per pose change, `Tick` as the only clock — the spine component's `timeScale` is
+  pinned to 0 so `Time.timeScale` cannot animate a paused game). No scene, no `lib/`, no `data/`.
+- **Result:** the survey measured what the brief said not to guess. Runtime **3.8.0** vs skeleton
+  **3.8.75** (`SkeletonData.Version`) — same major.minor, no version blocker; the export holds 23
+  animations, 8 skins in three part groups and one atlas page ([`spine/player-skeleton.md`](../artifacts/spine/player-skeleton.md)).
+  The finding that changed the design: the export's `body_1110901_Material` uses the UI-only
+  `Spine/SkeletonGraphic` shader and draws **nothing** on a `MeshRenderer` (empty
+  `artifacts/spine/world-atlas-material.png` beside the drawn `player-view.png`), so the profile names a
+  `Spine/Skeleton` world material, and the swap goes through spine's `CustomMaterialOverride` because a
+  direct `sharedMaterials` write is undone by the next mesh update. Evidence: EditMode **262/262** (12
+  new, including **0 bytes** allocated over 10 000 `Present` calls measured with
+  `GC.GetAllocatedBytesForCurrentThread`), `-Suite Fast` **PASS 13 | FAIL 0 | NOT RUN 3**. WebGL build,
+  Playwright and any payload number are **NOT RUN** by the stage's scope
+  ([report](../docs/stages/17a-report.md), [ADR 0037](../docs/adr/0037-spine-actors-and-the-player-figure.md)).
+- **Next:** the art is a **licensing blocker** — `body_1110901` has no provenance, it ships from
+  `Resources/`, and a release candidate may not carry it until that row in `ATTRIBUTION.md` is resolved;
+  then 17b–17d wire the profile into Battle/Camp/Title, attach a weapon to the four empty `w_*` slots,
+  and measure the payload this skeleton adds before quoting it.

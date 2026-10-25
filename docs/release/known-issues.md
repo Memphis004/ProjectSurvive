@@ -23,6 +23,17 @@ measured" and "not working" are not confused with "fine".
   test artifact that carries a stress injector, plus the same frame-time tool run
   against it. See [ADR 0035](../adr/0035-the-release-candidate-configuration-and-its-numbers.md) §5.
 
+### 1b. The Mor's skeleton has no established licence
+
+- **Basis:** `UnityProject/Assets/Resources/body_1110901/` is a Spine export that arrived from outside
+  this project; the skeleton's own data still names its authoring path and Chinese part names, and no
+  licence, author or purchase record came with it (`ATTRIBUTION.md`).
+- **Consequence:** `Resources/` ships everything in it, so a release build would carry this art
+  today. Until the provenance is settled (a written licence, or a project-owned replacement), **this
+  asset must not go into a release build**; it is fine in a development build.
+- **Fix:** establish the licence, or replace the figure. Either way record the outcome in
+  `ATTRIBUTION.md` before a release candidate is cut.
+
 ### 2. Firefox: installed for Playwright, full suite not run
 
 - Stage 14 booted the Release player once in Playwright's bundled Firefox

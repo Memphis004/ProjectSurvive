@@ -23,6 +23,7 @@
         "UniTask",
         "UnityEngine.UI",
         "Unity.TextMeshPro",
+        "spine-unity",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

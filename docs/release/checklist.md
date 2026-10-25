@@ -43,6 +43,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-web.ps1 -Release
 
 - [ ] No non-OFL asset ships: `ATTRIBUTION.md` §"Fonts" has no row marked *must be
       removed*, and `UnityProject/Assets/Resources/Fonts/` is gone.
+- [ ] **The Mor's skeleton has a licence.** `ATTRIBUTION.md` marks `body_1110901` as a
+      blocker (unknown provenance); a release candidate may not ship it until that row
+      turns into a recorded licence or the art is replaced. It ships from `Resources/`, so
+      check it is in neither the build nor the size measurement until then.
 - [ ] `data/` regenerated and validated (`tools/validate-data.ps1`,
       `tools/check-fixtures.ps1`), `llmwiki/content/` regenerated and committed.
 - [ ] The localization table has both languages for every key the runtime asks for
