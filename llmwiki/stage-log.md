@@ -728,11 +728,14 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   the player, so a floor cannot draw two doctors, and a failed `Begin` leaves the old sprite (loud error
   in dev, one warning in release, `spineReady`/`spineErrorCode` in `__projectSurviveBattle`). The scene
   was rebuilt through `ProjectSurvive/Stage 08/3`; no `lib/`, `data/`, Simulation or contract change.
+  The capture then showed a white robe with no edge on the arena's pale haze, so the figure draws with a
+  **one-screen-pixel ink outline** — `ProjectSurvive/SpinePlayerOutline`, one pass, because URP renders
+  one pass per material and spine's two-pass `Spine/Outline/Skeleton` drew dark lines with no body.
 - **Result:** EditMode **271/271** (9 new), `BattlePlayModeTests` **10/10**, `-Suite Full` with the
   Editor open **PASS 23 | FAIL 0 | NOT RUN 3**; with it closed the WebGL build and Playwright **21/21**
   pass, publishing `spineReady:true, spinePlayCalls:1, spineAnimation:"idle1"`. Editor capture floor 1 at
   1920×1080 shows the doctor running ([`battle-player-1920x1080.png`](../artifacts/ui/battle-player-1920x1080.png)).
-  The Release candidate is **16.18 MiB gzip / 11.83 MiB Brotli** (+0.66 / +0.54 over the Stage 15 RC,
+  The Release candidate is **16.18 MiB gzip / 11.85 MiB Brotli** (+0.66 / +0.56 over the Stage 15 RC,
   gate < 30, target < 15) and still reports `spineReady:true` — stripping keeps the skeleton and its
   shader ([report](../docs/stages/17b-report.md)).
 - **Next:** the art is still a **licensing blocker** (`ATTRIBUTION.md`) — the RC above is evidence about

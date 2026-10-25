@@ -109,6 +109,20 @@ The override goes through spine's `CustomMaterialOverride` map, **not** a direct
 next mesh update, so a direct write survives exactly one frame (measured — the figure disappeared
 again on the next animated tick).
 
+### 4b. The outline is one URP pass of the project's own, not spine's outline shader (Stage 17b)
+
+A 45-pixel-tall figure in a white robe, on an arena whose middle is a pale haze band, does not read.
+The profile now draws with `ProjectSurvive/SpinePlayerOutline`: one pass whose body half is a verbatim
+copy of `Spine/Skeleton`'s Normal pass (premultiplied alpha, vertex-colour tint,
+`One / OneMinusSrcAlpha`) and whose ink is the atlas alpha sampled eight ways in **screen** pixels taken
+from the UV derivatives.
+
+| Option | Why not |
+| --- | --- |
+| spine-unity's `Spine/Outline/Skeleton` | It draws ink and body as two passes of one SubShader, and URP renders exactly one untagged (SRPDefaultUnlit) pass per material. Measured: the figure came out as thin dark lines with no body at all. |
+| Two materials (ink-only next to the body) | Needs a second renderer fed from the same skeleton mesh every frame, so the actor stops being one drawable; and the ink has to sit behind the body, which is a second sorting decision per row. |
+| Outline in atlas texels | The figure is drawn ~15× smaller than the atlas, so a texel-wide ink is invisible at 45 px and a fixed multiple is wrong at every other camera size. Screen-pixel steps are resolution-independent. |
+
 ### 5. Spine does not own a clock; the caller does
 
 `SpinePlayerView` drives the animation state with `Tick(deltaTime)` and nothing else: the

@@ -178,6 +178,49 @@ namespace ProjectSurvive.Game.Tests.EditMode
             }
         }
 
+        /// <summary>
+        /// The profile draws with the outlined material, and that material is not a UI shader and
+        /// carries the page texture plus a visible ink width (Stage 17b follow-up).
+        /// </summary>
+        /// <remarks>
+        /// The failure this catches is the one a rendered capture cannot: a profile re-pointed at the
+        /// plain world material still draws the doctor, and every animation test still passes — the
+        /// figure has simply lost the edge that makes it readable on the arena's bright haze. Spine's
+        /// own <c>Spine/Outline/Skeleton</c> is refused by name here too: it is two passes in one
+        /// SubShader, and URP renders one, so it would draw the ink with no body at all.
+        /// </remarks>
+        [Test]
+        public void The_profile_draws_with_the_outlined_world_material()
+        {
+            SpinePlayerProfile profile = LoadProfile();
+            Material material = profile.WorldMaterial;
+
+            Assert.That(material, Is.Not.Null, "the profile has no world material");
+            Assert.That(
+                material.shader.name,
+                Is.EqualTo("ProjectSurvive/SpinePlayerOutline"),
+                "the profile's material is not the outlined one (shader '" + material.shader.name + "')");
+            Assert.That(
+                material.shader.name,
+                Is.Not.EqualTo("Spine/Outline/Skeleton"),
+                "URP draws one pass per material, so spine's two-pass outline shader loses the body");
+
+            Assert.That(material.GetTexture("_MainTex"), Is.Not.Null, "the outline material has no atlas page");
+            Assert.That(material.GetFloat("_OutlineWidth"), Is.GreaterThan(0f), "an outline of zero width draws nothing");
+            Assert.That(
+                material.GetFloat("_OutlineWidth"),
+                Is.LessThanOrEqualTo(2f),
+                "an ink wider than two screen pixels closes the gaps inside a 45-pixel figure");
+            Assert.That(material.GetFloat("_Cutoff"), Is.InRange(0.05f, 0.95f), "the edge cutoff is outside the alpha range");
+
+            Color ink = material.GetColor("_OutlineColor");
+            Assert.That(ink.a, Is.EqualTo(1f).Within(0.001f), "a translucent outline does not separate the figure");
+            Assert.That(
+                0.2126f * ink.r + 0.7152f * ink.g + 0.0722f * ink.b,
+                Is.LessThan(0.2f),
+                "the outline is not dark enough to read as ink against a lit floor");
+        }
+
         [Test]
         public void The_profile_refuses_an_animation_the_skeleton_does_not_have()
         {

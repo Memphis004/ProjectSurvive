@@ -24,7 +24,7 @@ MonoBehaviour:
     skin: face_1110901_1
   - part: head
     skin: head_1110901_1
-  worldMaterial: {fileID: 2100000, guid: 1068fbf7c637a4e43a3598811b81ebf9, type: 2}
+  worldMaterial: {fileID: 2100000, guid: 84c8c6a15b60b564088b0ce9eec38121, type: 2}
   targetHeightWorld: 1.6
   runSpeedThreshold: 0.1
   artFacesRight: 1

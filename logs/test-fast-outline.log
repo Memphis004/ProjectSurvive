@@ -1,0 +1,27 @@
+
+ProjectSurvive - test suite: Fast (Debug)
+==============================================================================
+  [PASS   ] toolchain: .NET SDK                        0.0s  6.0.428 [C:\Program Files\dotnet\sdk]; 9.0.311 [C:\Program Files\dotnet\sdk]
+  [PASS   ] dotnet build                               7.1s  Debug configuration
+  [PASS   ] dotnet test (xUnit)                        2.9s  612 passed
+  [PASS   ] contract: FakeBattleSession                0.1s  24/24 passed
+  [PASS   ] contract: BattleSimulation                 0.0s  24/24 passed
+  [PASS   ] sim: determinism                          35.8s  seed 20261013 -> determinismDigest=0x841b4e46; seed 20261014 -> determinismDigest=0x23f674fd
+  [PASS   ] sim: stream separation                     0.1s  shopDigest=0x2d476321 battleDigest=0xbeb639e1 visualDigest=0xe8742eda
+  [PASS   ] sim: bot smoke run                        51.3s  2 seeds -> 10 floor rows
+  [PASS   ] data: generated tables validate           67.7s  no findings
+  [PASS   ] data: generated code reproducible          4.3s  regeneration reproduces the tracked output
+  [PASS   ] data: broken fixtures rejected            89.7s  26 fixture(s) rejected
+  [PASS   ] wiki: content reproducible                 1.4s  content matches data/; links, ids, notes clean; 1.16 s
+  [PASS   ] unity: EditMode                           16.3s  272/272 passed (4.1 s)
+  [NOT RUN] unity: PlayMode (one fixture per run)      0.0s  the Full suite was not requested (-Suite Full)
+  [NOT RUN] web: WebGL build (Development)             0.0s  the Full suite was not requested (-Suite Full)
+  [NOT RUN] web: Playwright (all specs)                0.0s  the Full suite was not requested (-Suite Full)
+==============================================================================
+  [NOT RUN] unity: PlayMode (one fixture per run)      0.0s  the Full suite was not requested (-Suite Full)
+  [NOT RUN] web: WebGL build (Development)             0.0s  the Full suite was not requested (-Suite Full)
+  [NOT RUN] web: Playwright (all specs)                0.0s  the Full suite was not requested (-Suite Full)
+==============================================================================
+  PASS 13  |  FAIL 0  |  NOT RUN 3  |  WARN 0   (276.7 s of steps)
+  RESULT: OK (Fast suite)
+

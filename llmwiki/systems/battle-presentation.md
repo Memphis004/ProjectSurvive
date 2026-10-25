@@ -414,6 +414,16 @@ a player build.
 and `BattleSpeed.Multiplier` → `SetSpeed`, both only when the value changed. `Time.timeScale` is
 never touched, so the HUD and the pause overlay keep running while the floor is held.
 
+**The ink is one screen pixel, in one pass.** The figure draws with
+`ProjectSurvive/SpinePlayerOutline` (`Assets/Main/Spine/Shaders/`), not with spine's
+`Spine/Outline/Skeleton`: that shader puts ink and body in two passes of one SubShader, and **URP renders
+exactly one untagged (`SRPDefaultUnlit`) pass per material**, so the first attempt drew the doctor as
+thin dark lines with no body at all (`artifacts/ui/battle-player-1920x1080.png` before the shader
+existed). The project's shader keeps the body as a verbatim copy of `Spine/Skeleton`'s Normal pass and
+computes the ink from eight samples stepped by the UV derivatives — a screen pixel at any camera size —
+created by `ProjectSurvive/Spine/4. Create player outline material`, which is also what points the
+profile at it.
+
 **A figure that fails to build is loud in dev and documented in release.** `Begin()` failing logs the
 view's `noun.problem` code as an error in the Editor and a development build (the floor then draws the
 placeholder sprite, and the capture's report says so); a release build logs one warning instead of
