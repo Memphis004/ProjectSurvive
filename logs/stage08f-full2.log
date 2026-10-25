@@ -1,0 +1,26 @@
+
+ProjectSurvive - test suite: Full (Debug)
+==============================================================================
+  [PASS   ] toolchain: .NET SDK                        0.1s  6.0.428 [C:\Program Files\dotnet\sdk]; 9.0.311 [C:\Program Files\dotnet\sdk]
+  [PASS   ] dotnet build                               2.0s  Debug configuration
+  [PASS   ] dotnet test (xUnit)                        3.6s  612 passed
+  [PASS   ] contract: FakeBattleSession                0.1s  24/24 passed
+  [PASS   ] contract: BattleSimulation                 0.0s  24/24 passed
+  [PASS   ] sim: determinism                           1.4s  seed 20261013 -> determinismDigest=0x841b4e46; seed 20261014 -> determinismDigest=0x23f674fd
+  [PASS   ] sim: stream separation                     0.1s  shopDigest=0x2d476321 battleDigest=0xbeb639e1 visualDigest=0xe8742eda
+  [PASS   ] sim: bot smoke run                         2.5s  2 seeds -> 10 floor rows
+  [PASS   ] data: generated tables validate            3.7s  no findings
+  [PASS   ] data: generated code reproducible          4.3s  regeneration reproduces the tracked output
+  [PASS   ] data: broken fixtures rejected            86.1s  26 fixture(s) rejected
+  [PASS   ] wiki: content reproducible                 1.5s  content matches data/; links, ids, notes clean; 1.19 s
+  [NOT RUN] unity: EditMode                            1.6s  no Unity Editor with this project is connected (open UnityProject in Unity 6.3 with the Pipeline package, then run again)
+  [PASS   ] web: WebGL build (Development)           476.3s  Development configuration -> C:\Workspace\ProjectSurvive\UnityProject\Builds\Web
+  [PASS   ] web: Playwright (all specs)              249.3s  21 passed in Chrome (8080)
+  [FAIL   ] web: hosting (compression, headers, stale cache)   240.6s  2 hosting checks failed; see artifacts/dotnet/verify-hosting.log
+==============================================================================
+  [NOT RUN] unity: EditMode                            1.6s  no Unity Editor with this project is connected (open UnityProject in Unity 6.3 with the Pipeline package, then run again)
+  [FAIL   ] web: hosting (compression, headers, stale cache)   240.6s  2 hosting checks failed; see artifacts/dotnet/verify-hosting.log
+==============================================================================
+  PASS 14  |  FAIL 1  |  NOT RUN 1  |  WARN 0   (1073.2 s of steps)
+  RESULT: FAILED (Full suite)
+

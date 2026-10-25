@@ -1,0 +1,37 @@
+
+ProjectSurvive - test suite: Full (Debug)
+==============================================================================
+  [PASS   ] toolchain: .NET SDK                        0.0s  6.0.428 [C:\Program Files\dotnet\sdk]; 9.0.311 [C:\Program Files\dotnet\sdk]
+  [PASS   ] dotnet build                               2.1s  Debug configuration
+  [PASS   ] dotnet test (xUnit)                        3.6s  612 passed
+  [PASS   ] contract: FakeBattleSession                0.1s  24/24 passed
+  [PASS   ] contract: BattleSimulation                 0.0s  24/24 passed
+  [PASS   ] sim: determinism                           1.3s  seed 20261013 -> determinismDigest=0x841b4e46; seed 20261014 -> determinismDigest=0x23f674fd
+  [PASS   ] sim: stream separation                     0.1s  shopDigest=0x2d476321 battleDigest=0xbeb639e1 visualDigest=0xe8742eda
+  [PASS   ] sim: bot smoke run                         2.5s  2 seeds -> 10 floor rows
+  [PASS   ] data: generated tables validate            2.4s  no findings
+  [PASS   ] data: generated code reproducible          2.2s  regeneration reproduces the tracked output
+  [PASS   ] data: broken fixtures rejected            86.8s  26 fixture(s) rejected
+  [PASS   ] wiki: content reproducible                 1.5s  content matches data/; links, ids, notes clean; 1.22 s
+  [PASS   ] unity: EditMode                           11.9s  234/234 passed (2.05 s)
+  [PASS   ] unity: PlayMode BattlePlayModeTests       27.9s  6/6 passed (11.53 s)
+  [PASS   ] unity: PlayMode CampBagDragPlayModeTests    22.3s  25/25 passed (8.1 s)
+  [PASS   ] unity: PlayMode CampMergeChooserPlayModeTests    17.1s  4/4 passed (2.04 s)
+  [PASS   ] unity: PlayMode CampShelfTooltipPlayModeTests    17.1s  5/5 passed (2.01 s)
+  [PASS   ] unity: PlayMode CampSynergyLinePlayModeTests    17.3s  9/9 passed (3.09 s)
+  [PASS   ] unity: PlayMode CampWorldPlayModeTests    27.7s  9/9 passed (15.32 s)
+  [PASS   ] unity: PlayMode ResultScenePlayModeTests    22.1s  3/3 passed (10.88 s)
+  [PASS   ] unity: PlayMode SceneFlowPlayModeTests    65.5s  6/6 passed (52.64 s)
+  [PASS   ] unity: PlayMode ShellPlayModeTests        22.3s  4/4 passed (0.23 s)
+  [PASS   ] unity: PlayMode TitleScenePlayModeTests    22.1s  5/5 passed (7.1 s)
+  [NOT RUN] web: WebGL build (Development)             2.1s  a Unity Editor holds the project lock; close it and run the Full suite again (tools/build-web.ps1 cannot share a project)
+  [NOT RUN] web: Playwright (all specs)                0.0s  the WebGL build step did not produce a player to test
+  [NOT RUN] web: hosting (compression, headers, stale cache)     0.0s  the WebGL build step did not produce a player to serve
+==============================================================================
+  [NOT RUN] web: WebGL build (Development)             2.1s  a Unity Editor holds the project lock; close it and run the Full suite again (tools/build-web.ps1 cannot share a project)
+  [NOT RUN] web: Playwright (all specs)                0.0s  the WebGL build step did not produce a player to test
+  [NOT RUN] web: hosting (compression, headers, stale cache)     0.0s  the WebGL build step did not produce a player to serve
+==============================================================================
+  PASS 23  |  FAIL 0  |  NOT RUN 3  |  WARN 0   (378 s of steps)
+  RESULT: OK (Full suite)
+
