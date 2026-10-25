@@ -675,7 +675,10 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
 - **Next:** the look is the user's call (`artifacts/ui/camp-env/after-dusk-camp-centre-1920x1080.png`).
   The lock control grew with the board (1.35 → 2.9, 8 → 25 px of ink, meeting the 22 px floor) and
   now sits under the price, not at the board's bottom edge — that edge is the station's own click
-  centre and the lock is hit-tested first. The capture menu item also runs from `unity command menu`
+  centre and the lock is hit-tested first. The capture menu items also run from `unity command menu`
   now: the play-mode entry reloads the domain (which silently kills a running task), so the tag waits
-  in `SessionState` and the run installs its own main-thread `SynchronizationContext` instead of the
-  caller's.
+  in `SessionState`, `[InitializeOnLoadMethod]` resumes it, and the camp run installs its own
+  main-thread `SynchronizationContext` instead of the caller's. The audit found the merge-chooser
+  runner (Tools/3) was the only `UiCaptureTool` entry missing the flag-and-resume pattern; added.
+  It still needs a foregrounded Editor, because it photographs the screen with `ScreenCapture`
+  (empty frames in the background) and now says so instead of blaming the layout.

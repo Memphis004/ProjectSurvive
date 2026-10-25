@@ -1698,6 +1698,15 @@ namespace ProjectSurvive.Game.Editor
             private const int WindowWaitFrames = 300;
             private const int SettleFrames = 2;
 
+            /// <summary>
+            /// Session marker for "a capture is waiting for Play Mode". Entering Play Mode reloads the
+            /// script domain in this project (verified: <c>EditorSettings.enterPlayModeOptions</c> is
+            /// enabled with no exemption), and a reload ends the run where it stands — no exception,
+            /// no log. The flag is the only state that survives, and the command line is exactly the
+            /// caller that cannot re-click the menu item when the run goes quiet.
+            /// </summary>
+            private const string PendingKey = "ProjectSurvive.ChooserCapture.Pending";
+
             private static ChooserCaptureRun sRunning;
 
             private readonly CaptureReport _report = new CaptureReport();
@@ -1738,6 +1747,15 @@ namespace ProjectSurvive.Game.Editor
                 Done,
             }
 
+            private ChooserCaptureRun()
+            {
+            }
+
+            private ChooserCaptureRun(Step start)
+            {
+                _step = start;
+            }
+
             /// <summary>Starts the run when one is not already in flight.</summary>
             internal static void Start()
             {
@@ -1756,6 +1774,24 @@ namespace ProjectSurvive.Game.Editor
                 }
 
                 sRunning = new ChooserCaptureRun();
+                SessionState.SetBool(PendingKey, true);
+                EditorApplication.update += sRunning.Tick;
+            }
+
+            /// <summary>
+            /// Picks the run back up after the domain reload that entering Play Mode causes, at the
+            /// first step that needs the player loop rather than at the edit-mode preparing steps.
+            /// A no-op when no capture was waiting.
+            /// </summary>
+            [InitializeOnLoadMethod]
+            private static void ResumeAfterReload()
+            {
+                if (!SessionState.GetBool(PendingKey, false) || sRunning != null)
+                {
+                    return;
+                }
+
+                sRunning = new ChooserCaptureRun(Step.StartCamp);
                 EditorApplication.update += sRunning.Tick;
             }
 
@@ -2073,6 +2109,22 @@ namespace ProjectSurvive.Game.Editor
                     return false;
                 }
 
+                if (IsBlank(shot))
+                {
+                    // This run photographs the Game View through ScreenCapture rather than rendering it
+                    // into a target, and ScreenCapture returns an empty frame whenever the Editor window
+                    // is not in the foreground — which is exactly what a command-line trigger looks
+                    // like. Saying so beats the layout judge reporting a window that is "not drawn
+                    // where it says": the window was never photographed at all.
+                    Fail(
+                        "the screen capture came back empty (" + shot.width + "x" + shot.height
+                        + "): ScreenCapture photographs the Game View, and it returns no pixels while the "
+                        + "Editor window is in the background. Bring the Editor to the front and run "
+                        + "Tools/3 again");
+                    Object.DestroyImmediate(shot);
+                    return false;
+                }
+
                 if (shot.width != _size.x || shot.height != _size.y)
                 {
                     // Fatal on purpose: the whole reason this run does not re-render the screen through a
@@ -2091,6 +2143,23 @@ namespace ProjectSurvive.Game.Editor
                 else
                 {
                     _withoutWindow = shot;
+                }
+
+                return true;
+            }
+
+            /// <summary>True when every sampled pixel of a capture is transparent black — no pixels came back.</summary>
+            private static bool IsBlank(Texture2D texture)
+            {
+                Color32[] pixels = texture.GetPixels32();
+
+                for (int i = 0; i < pixels.Length; i += 1013)
+                {
+                    Color32 pixel = pixels[i];
+                    if (pixel.r != 0 || pixel.g != 0 || pixel.b != 0 || pixel.a != 0)
+                    {
+                        return false;
+                    }
                 }
 
                 return true;
@@ -2343,6 +2412,8 @@ namespace ProjectSurvive.Game.Editor
                 }
 
                 RestoreScene(_startedIn, _report);
+
+                SessionState.EraseBool(PendingKey);
 
                 string title = _size.x > 0 && _size.y > 0
                     ? "the merge chooser, in Play Mode (" + _size.x + "x" + _size.y + ")"

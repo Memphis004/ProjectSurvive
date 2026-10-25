@@ -134,11 +134,23 @@ vignette 0.14. Night is lower in every term that makes it darker and keeps the p
   while the price line is digits. At 2.9 font units the word clears the 22 px floor with 3 px to
   spare, and it still reads as one small word under a much wider price. Its drawn rectangle is
   63 × 25 px at 1080p — that is what the player aims at, and what the hit test uses.
-- **The capture tool's two entry points are now equal.** `CaptureFromMenu` works from a menu click
-  and from `unity command menu` alike: entering play mode reloads the domain, which ends a running
-  task silently, so the tag is parked in `SessionState` and picked up by `[InitializeOnLoadMethod]`
-  after the reload; the run then installs its own `SynchronizationContext` drained by
-  `EditorApplication.update`, so continuations no longer depend on who started it.
+- **The capture tools survive the play-mode reload, whichever way they are started.** Entering play
+  mode reloads the domain, which ends a running task where it stands — no exception, no log — so a
+  run that starts in edit mode dies at the reload unless its intent is parked somewhere that
+  survives. The camp tool now parks its tag in `SessionState`, resumes from
+  `[InitializeOnLoadMethod]`, and installs its own `SynchronizationContext` drained by
+  `EditorApplication.update` so continuations no longer depend on who started it. The same audit
+  over `UiCaptureTool`'s five play-mode entry points found four already carrying the flag-and-resume
+  pattern (Tools/4, 5, 7 and the piece-colour run) and **Tools/3, the merge chooser, missing it** —
+  added. Verified by running both from a stopped editor with `unity command menu`: Tools/3 enters
+  play mode, resumes, captures, judges, writes `ui-report-playmode.md` and exits play mode; Tools/4
+  reports **PASS** the same way.
+- **One capture still needs a foregrounded Editor.** Tools/3 photographs the screen with
+  `ScreenCapture.CaptureScreenshotAsTexture`, which comes back as an empty 1920 × 1080 frame while
+  the Editor window is in the background — measured with a probe (`sampleSum=0`) against the same
+  frame the Game View *did* render, so the canvas renders and `ScreenCapture` is what returns
+  nothing. The run now says exactly that instead of reporting that the window is "not drawn where it
+  says". Moving it onto the tooltip runner's render-into-a-target path is separate work.
 - WebGL build and Playwright were **not run**: Stage 09o is not a web gate and only `-Suite Full`
   asks for them.
 - Lighting is evaluated in Editor Play Mode only; the Editor's Game View resolution differs from a
