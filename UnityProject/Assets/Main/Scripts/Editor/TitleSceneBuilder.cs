@@ -171,15 +171,20 @@ namespace ProjectSurvive.Game.Editor
             Button sfxUp = ProjectSetup.CreateUiButton(
                 panelRect, "SfxUp", new Vector2(420f, -454f), new Vector2(120f, 50f), tmpFont, out _);
 
+            // -512 and -632, not -522 and -642: the last two rows had their caption box ending 4 px
+            // *inside* the button below it (measured by the capture tool at both sizes — the caption
+            // at y 380..428 against a button at 328..384 in 1080p). Ten pixels up leaves 8 and 6 px
+            // of clear space instead of an overlap; the gap is smaller than the 18 the upper rows use
+            // because five rows and the close control have to fit inside the panel's 820 px.
             TMP_Text languageLabel = ProjectSetup.CreateUiText(
-                panelRect, "LanguageLabel", new Vector2(20f, -522f), new Vector2(720f, 48f), 28f, tmpFont,
+                panelRect, "LanguageLabel", new Vector2(20f, -512f), new Vector2(720f, 48f), 28f, tmpFont,
                 TextAlignmentOptions.Center);
 
             Button languageButton = ProjectSetup.CreateUiButton(
                 panelRect, "LanguageButton", new Vector2(100f, -566f), new Vector2(560f, 56f), tmpFont, out _);
 
             TMP_Text speedLabel = ProjectSetup.CreateUiText(
-                panelRect, "SpeedLabel", new Vector2(20f, -642f), new Vector2(720f, 48f), 28f, tmpFont,
+                panelRect, "SpeedLabel", new Vector2(20f, -632f), new Vector2(720f, 48f), 28f, tmpFont,
                 TextAlignmentOptions.Center);
 
             Button speedButton = ProjectSetup.CreateUiButton(
