@@ -247,10 +247,42 @@ the project's backend), and its halfbody case now builds the Spine path on a hos
 | In-scene picture | `artifacts/stage17f/battle-genericcute-portrait-1920x1080.png` (1920 × 1080, Play mode, GenericCute) and its 3× crop `…-crop.png` |
 | Switch | `ProjectSurvive/Player Figure/3` run twice with no error in the console; `Battle` and `Camp` both report the GenericCute profile |
 
+**The portrait fills the column (same sub-stage).** The sprite first drew whole inside the 80 × 110
+box, which letterboxed a 512 × 512 picture to 80 × 80 and left ~15 px of empty panel above and below
+the face. It now **covers** the column: it scales to the box's height, keeps its aspect, and the sides
+that no longer fit are cropped by the box's own `RectMask2D` (added by the sprite path), so the face
+reaches both edges and nothing is squashed or spilled over the HP rows. `BattleHudPortraitTests`
+asserts the drawn rectangle's height equals the box's, its aspect equals the sprite's, the mask
+exists, and a second `Begin` adds neither a second image nor a second mask. Picture:
+`artifacts/stage17f/battle-genericcute-portrait-fill-1920x1080.png` (+ `…-fill-crop.png`).
+
+### Cost of the two figures (measured 2026-10-27)
+
+Machine: Intel Core i5-14400F, NVIDIA RTX 5060 Ti, 32 GB, Windows 11, Unity 6000.3.9f1 Editor in
+Play mode at 1920 × 1080. **Editor numbers; no browser measurement** (the Full suite was not run).
+
+| What | Spine (`idle5`) | GenericCute (`idle`) |
+| --- | --- | --- |
+| C# update path, `Tick` + `Present` at 1/60 s, 3000 frames after 300 warm-up | **32.6 µs/frame** | **15.4 µs/frame** |
+| Managed allocation on that path | 0 B/frame | 0 B/frame |
+| Drawers per figure (counted on the built objects) | 1 mesh, 1 renderer, **634 triangles**, 1 material | **18 SpriteRenderers**, 36 quad triangles, one `SortingGroup` |
+| Whole arena, `cpuFrameTime` median of 32-frame windows (sim steps) | 2.48 (519) · 2.83 (818) · 2.61 (1021) · 2.89 (1330) ms | 2.63 (≈500) · 2.80 (957) · 2.97 (1181) · 3.23 (1416) ms |
+
+**Reading it.** The rig's C# path is about **half** the Spine view's (15 vs 33 µs, ≈17 µs a frame
+saved), because Spine walks an `AnimationState`, applies it to a skeleton and re-poses the mesh while
+the rig only steps an `Animator` by 1/60 s. Spine pays its cost back in the draw submission: one
+634-triangle mesh against eighteen sprite renderers and one extra batch (`batches` 2 vs 3 on runs with
+comparable content). At **whole-arena** level the two are within the noise of this method — the windows
+spread ±0.2 ms and were taken in separate play sessions with spawns drifting, so interpolation at
+matched steps suggests the rig is ≈0.1–0.2 ms a frame slower while the C# path says the opposite by a
+comparable amount. **No claim is made that one is faster than the other in the arena**; the separable
+facts are the 17 µs C# difference and the drawer count. GPU frame time was 0.25–0.28 ms for the whole
+arena in both, with no per-figure split.
+
 **Known limits.** No WebGL build and no Playwright run (that is the Full suite, and the two halves
-need opposite Editor states); no per-frame cost number; the pack's portrait has an opaque dark
-background, so the 80 × 80 square reads slightly lighter than the panel — an art call, not a bug, and
-the letterboxing leaves ~15 px above and below inside the 110 px column.
+need opposite Editor states); no browser or WebGL cost for either backend; the pack's portrait has an
+opaque dark background, so the filled square reads slightly lighter than the panel — an art call, not
+a bug.
 
 ## 7. What is still open
 

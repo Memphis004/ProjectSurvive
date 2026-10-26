@@ -465,18 +465,39 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 Image image = host.GetComponentInChildren<Image>(true);
                 Assert.That(image, Is.Not.Null, "the portrait drew no Image");
                 Assert.That(image.sprite, Is.SameAs(sprite));
-                Assert.That(image.preserveAspect, Is.True, "a 512 × 512 portrait must letterbox, not stretch");
+                Assert.That(image.preserveAspect, Is.True, "the art must never be stretched");
                 Assert.That(image.raycastTarget, Is.False, "the bust must not eat pointer events");
 
-                // It fills the box it was authored into, so the measured region is unchanged.
-                Assert.That(image.rectTransform.anchorMin, Is.EqualTo(Vector2.zero));
-                Assert.That(image.rectTransform.anchorMax, Is.EqualTo(Vector2.one));
-                Assert.That(image.rectTransform.offsetMin, Is.EqualTo(Vector2.zero));
-                Assert.That(image.rectTransform.offsetMax, Is.EqualTo(Vector2.zero));
+                // The picture covers the column: the face reaches both edges of the 110 px box and the
+                // overflow on the other axis is what the box's own mask crops — no empty band, and no
+                // distortion (the drawn rectangle keeps the art's aspect).
+                Rect drawn = image.rectTransform.rect;
+                Assert.That(
+                    drawn.height, Is.EqualTo(BattleHudPortrait.BoxHeight).Within(0.5f),
+                    "the portrait does not fill the column's height: " + drawn.size);
+                Assert.That(
+                    drawn.width, Is.GreaterThanOrEqualTo(BattleHudPortrait.BoxWidth - 0.5f),
+                    "the portrait does not cover the column's width: " + drawn.size);
+                Assert.That(
+                    drawn.width / drawn.height,
+                    Is.EqualTo(sprite.rect.width / sprite.rect.height).Within(0.001f),
+                    "the portrait was stretched instead of cropped");
+
+                Assert.That(
+                    host.GetComponent<RectMask2D>(), Is.Not.Null,
+                    "the cover-sized picture needs the box's mask, or it would draw over the HP rows");
+                Assert.That(
+                    image.rectTransform.anchorMin, Is.EqualTo(new Vector2(0.5f, 0.5f)));
+                Assert.That(
+                    image.rectTransform.anchoredPosition, Is.EqualTo(Vector2.zero),
+                    "the picture must be centred on the column it covers");
 
                 Assert.That(portrait.Begin(), Is.True, "a second Begin must succeed");
                 Assert.That(portrait.BuildCount, Is.EqualTo(1), "a second Begin built a second sprite");
                 Assert.That(host.GetComponentsInChildren<Image>(true).Length, Is.EqualTo(1));
+                Assert.That(
+                    host.GetComponents<RectMask2D>().Length, Is.EqualTo(1),
+                    "a second Begin added another mask");
             }
             finally
             {

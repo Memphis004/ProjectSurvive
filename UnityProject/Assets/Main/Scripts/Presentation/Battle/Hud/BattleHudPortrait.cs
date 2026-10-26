@@ -187,12 +187,23 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         /// the same box the Spine bust is fitted into.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// The two backends draw the same doctor, so the panel must not show a Spine half-body beside a
         /// 2D Animation figure. A sprite portrait is a single picture rather than separated parts — the
-        /// pack has no part-separated half-body — and the picture is fitted with
-        /// <c>preserveAspect</c>, so the 512 × 512 art letterboxes inside the 80 × 110 column instead of
-        /// being stretched. It is built once and never re-evaluated: a still picture has no per-frame
-        /// cost beyond the canvas.
+        /// pack has no part-separated half-body.
+        /// </para>
+        /// <para>
+        /// <b>The picture covers the column, it does not sit inside it.</b> The column is 80 × 110 and the
+        /// art is square, so fitting it whole left 15 px of empty panel above and below the face and made
+        /// the bust read as a small square stuck to the top of the status panel. The picture now scales to
+        /// the column's <b>height</b> and the sides that no longer fit are cropped by this object's own
+        /// <see cref="RectMask2D"/> — the aspect is kept, so the face is not squashed, and the crop is the
+        /// box the panel always declared.
+        /// </para>
+        /// <para>
+        /// It is built once and never re-evaluated: a still picture has no per-frame cost beyond the
+        /// canvas, and the mask is a UI clip, not a per-frame texture copy.
+        /// </para>
         /// </remarks>
         private bool BeginSprite()
         {
@@ -205,22 +216,59 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
                 return false;
             }
 
+            // The box clips: the cover-sized picture is wider than the column by construction.
+            if (GetComponent<RectMask2D>() == null)
+            {
+                gameObject.AddComponent<RectMask2D>();
+            }
+
             var spriteObject = new GameObject("HudPortraitSprite", typeof(RectTransform));
             var spriteRect = (RectTransform)spriteObject.transform;
             spriteRect.SetParent(transform, false);
-            spriteRect.anchorMin = Vector2.zero;
-            spriteRect.anchorMax = Vector2.one;
-            spriteRect.offsetMin = Vector2.zero;
-            spriteRect.offsetMax = Vector2.zero;
+            spriteRect.anchorMin = new Vector2(0.5f, 0.5f);
+            spriteRect.anchorMax = new Vector2(0.5f, 0.5f);
+            spriteRect.pivot = new Vector2(0.5f, 0.5f);
+            spriteRect.anchoredPosition = Vector2.zero;
 
             var image = spriteObject.AddComponent<Image>();
             image.sprite = spritePortrait;
             image.preserveAspect = true;
             image.raycastTarget = false;
 
+            spriteRect.sizeDelta = CoverSize(spritePortrait, ColumnSize());
+
             m_Sprite = image;
             m_BuildCount++;
             return true;
+        }
+
+        /// <summary>This object's own rectangle, or the authored column before a canvas has laid it out.</summary>
+        private Vector2 ColumnSize()
+        {
+            Vector2 size = ((RectTransform)transform).rect.size;
+            return size.x > 0f && size.y > 0f ? size : new Vector2(BoxWidth, BoxHeight);
+        }
+
+        /// <summary>
+        /// The smallest rectangle, with the sprite's own aspect, that covers <paramref name="box"/>: one
+        /// dimension is the box's and the other is at least as large, so the picture fills the column and
+        /// the overflow is what the box's mask crops.
+        /// </summary>
+        private static Vector2 CoverSize(Sprite sprite, Vector2 box)
+        {
+            Vector2 art = sprite.rect.size;
+            if (art.x <= 0f || art.y <= 0f)
+            {
+                return box;
+            }
+
+            float artAspect = art.x / art.y;
+            float boxAspect = box.x / box.y;
+
+            // A relatively wider picture is bound by the height, a relatively taller one by the width.
+            return artAspect > boxAspect
+                ? new Vector2(box.y * artAspect, box.y)
+                : new Vector2(box.x, box.x / artAspect);
         }
 
         private bool BeginSpine()

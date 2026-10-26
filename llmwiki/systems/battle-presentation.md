@@ -568,9 +568,11 @@ edit instead.
 The status panel's bust is part of the same choice: `BattleHudPortrait.backend` names the backend and
 `BattleHudPortrait.spritePortrait` holds the pack's `001 Student 1 Portrait.png`. With `Spine` the
 halfbody is built as before (Stage 17e); with `GenericCute` the panel draws **one `Image`** of that
-sprite inside the same 80 × 110 box, `preserveAspect` (a 512 × 512 portrait letterboxes to 80 × 80
-instead of stretching), `raycastTarget` off, built once and never advanced — a still picture has no
-per-frame cost beyond the canvas. A missing sprite fails loudly as
+sprite, `raycastTarget` off, built once and never advanced — a still picture has no per-frame cost
+beyond the canvas. The picture **covers** the 80 × 110 column rather than sitting inside it: it scales
+to the box's height, keeps the art's aspect, and the sides that no longer fit are cropped by the box's
+own `RectMask2D` (fitted whole, a 512 × 512 portrait letterboxed to 80 × 80 and left a band of empty
+panel above and below the face). A missing sprite fails loudly as
 `generic_cute.portrait_sprite_missing` rather than falling back to the Spine art; a rigged figure
 standing beside a Spine halfbody is exactly what the branch prevents.
 
@@ -583,5 +585,12 @@ and the scene-wiring case in `SpinePlayerTests` found `SpinePlayerView` by type,
 moment the arena shipped the rig. They now read the figure through `FigureProbe`
 (`Assets/Main/Tests/PlayMode/FigureProbe.cs`), which finds whichever component the scene carries and
 returns its own profile's idle/run/hurt state, height, facing rule and mirror child.
-Evidence: `docs/stages/17f-report.md`, `artifacts/stage17f/battle-genericcute-portrait-1920x1080.png`,
+**Cost, measured** (i5-14400F / RTX 5060 Ti / Unity Editor play mode): the rig's C# update path is
+**15.4 µs a frame** against Spine's **32.6 µs** (`Tick` + `Present` at 1/60 s, 3000 frames, 0 B managed
+either way), because Spine walks an `AnimationState` and re-poses its skeleton while the rig steps one
+`Animator`. Spine pays it back at submission — one 634-triangle mesh against the rig's 18 sprite
+renderers and one extra batch. At whole-arena level the two are inside the ±0.2 ms noise of the
+method, so no arena-level winner is claimed.
+Evidence: `docs/stages/17f-report.md`,
+`artifacts/stage17f/battle-genericcute-portrait-fill-1920x1080.png`,
 `BattleHudPortraitTests.The_status_panels_figure_follows_the_backend_the_project_builds_with`.
