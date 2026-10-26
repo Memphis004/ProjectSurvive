@@ -1,4 +1,5 @@
 using ProjectSurvive.Core.Domain.Config;
+using ProjectSurvive.Game.Presentation.SpineActors;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -32,12 +33,33 @@ namespace ProjectSurvive.Game.Presentation.Camp
     /// <para>
     /// <b>While the จัดย่าม panel is open the figure stands still</b> (work item 5) and no key or
     /// click reaches the shop: the panel is the screen then, and it has its own rotate/undo/restore
-    /// controls.
+    /// controls. Standing still is also why the doctor is drawn <b>idle</b> then.
+    /// </para>
+    /// <para>
+    /// <b>The doctor is the Spine figure</b> (Stage 17c): every frame the walk this class already
+    /// performs is handed to <see cref="SpinePlayerView.Present"/> — the pose from the distance the
+    /// walk actually covered, the facing from the direction it was asked for — through the pure
+    /// <see cref="PlayerPoseSelector"/>. No threshold, no speed and no animation name is written here:
+    /// the profile owns them, and this view decides nothing (AGENTS rule 10). There is no hurt and no
+    /// death in the sala.
     /// </para>
     /// </remarks>
     [DisallowMultipleComponent]
     public sealed class CampPlayerView : MonoBehaviour
     {
+        /// <summary>
+        /// How far a frame's movement has to lean sideways before the figure turns. A twitch of
+        /// float noise, not a threshold: whether the doctor is walking at all is the pose rule's
+        /// call, and the facing follows a direction that was already asked for.
+        /// </summary>
+        private const float FacingDeadZone = 0.0001f;
+
+        /// <summary>
+        /// The run threshold to use when a scene carries no profile. The profile is what owns this
+        /// number; the fallback only keeps the selector total in a camp with no art configured.
+        /// </summary>
+        private const float DefaultRunThreshold = 0.1f;
+
         [SerializeField] private LifetimeScope _scope;
         [SerializeField] private CampWorldView _world;
         [SerializeField] private CampBagScreenView _bag;
@@ -199,6 +221,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             }
 
             _moving = input.sqrMagnitude > 0f;
+            Vector3 from = _position;
 
             if (_moving)
             {
@@ -213,6 +236,44 @@ namespace ProjectSurvive.Game.Presentation.Camp
             {
                 _world.PlayerTransform.position = _position;
             }
+
+            PresentFigure(from, input);
+        }
+
+        /// <summary>
+        /// Draws the frame the walk just produced: run while the doctor covers ground, idle while
+        /// they do not, facing the way the keys asked for.
+        /// </summary>
+        /// <remarks>
+        /// The speed is the distance the walk <b>left</b> after the sala's own clamp, divided by the
+        /// frame time — so a player pressing W into the far edge of the walk area stands rather than
+        /// running on the spot, and no second copy of "how fast is walking" exists. The thresholds
+        /// come from the profile through <see cref="PlayerPoseSelector"/>, and
+        /// <see cref="SpinePlayerView.Present"/> writes nothing when the pose and the facing are the
+        /// ones already drawn.
+        /// </remarks>
+        private void PresentFigure(Vector3 from, Vector2 direction)
+        {
+            SpinePlayerView figure = _world == null ? null : _world.PlayerFigure;
+            if (figure == null || !figure.IsBegun)
+            {
+                return;
+            }
+
+            float deltaTime = Time.deltaTime;
+            float speed = deltaTime > 0f ? Vector3.Distance(from, _position) / deltaTime : 0f;
+
+            SpinePlayerProfile profile = figure.Profile;
+            float threshold = profile != null ? profile.RunSpeedThreshold : DefaultRunThreshold;
+
+            PlayerPose pose = PlayerPoseSelector.Select(speed, figure.Pose, false, threshold);
+            int facing = PlayerPoseSelector.Facing(direction.x, figure.FaceDirection, FacingDeadZone);
+
+            figure.Present(pose, facing);
+
+            // The view owns no clock: this is the one thing that advances the animation state (its
+            // component runs at a zero time scale, so Unity's frame time cannot animate it twice).
+            figure.Tick(deltaTime);
         }
 
         // ------------------------------------------------------------------

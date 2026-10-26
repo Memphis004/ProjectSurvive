@@ -4,6 +4,7 @@ using ProjectSurvive.Core.Application.Run;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Game.Camp;
 using ProjectSurvive.Game.Presentation.Camp;
+using ProjectSurvive.Game.Presentation.SpineActors;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -113,6 +114,81 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             yield return Hold(0.4f, right: true);
 
             Assert.That(_player.Position.x, Is.GreaterThan(afterForward.x + 0.2f), "D did not walk the player to the right");
+        }
+
+        /// <summary>
+        /// Stage 17c: the doctor in the sala is the <b>Spine figure</b>, and its pose is the walk the
+        /// view already does — running while the keys move them, standing the moment they stop, facing
+        /// the way they walked, and standing while the จัดย่าม panel is open (the panel stops the walk,
+        /// so it stops the pose with it).
+        /// </summary>
+        /// <remarks>
+        /// The keys are pressed and <b>left held</b> while the pose is read: <see cref="Hold"/> releases
+        /// them at the end, and a released key is exactly the "stopped" state this test also has to see.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator Walking_draws_the_figure_running_and_stopping_stands_it()
+        {
+            yield return LoadCamp();
+
+            SpinePlayerView figure = Object.FindFirstObjectByType<SpinePlayerView>();
+            Assert.That(figure, Is.Not.Null, "the sala draws no Spine figure for the player");
+            Assert.That(
+                figure.IsBegun, Is.True,
+                "the figure did not build, so the placeholder silhouette draws the doctor: " + figure.ErrorCode);
+            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Idle), "a player who has not walked yet must stand");
+
+            string idle = figure.CurrentAnimation;
+            Assert.That(idle, Is.Not.Null.And.Not.Empty, "the standing figure plays no animation");
+
+            // Walking right: the walk pose, facing that way, and an animation that advanced.
+            Press(_keyboard.dKey);
+            yield return Wait(0.35f);
+
+            Assert.That(_player.Moving, Is.True, "the walk key did not reach the walker");
+            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Run), "walking must draw the run pose");
+            Assert.That(figure.FaceDirection, Is.EqualTo(1), "walking right must face right");
+            Assert.That(figure.AnimationTime, Is.GreaterThan(0f), "the walk's animation never advanced");
+
+            string run = figure.CurrentAnimation;
+            Assert.That(run, Is.Not.EqualTo(idle), "the run pose draws the idle animation");
+
+            // Stopping: the same figure stands again.
+            Release(_keyboard.dKey);
+            yield return null;
+            yield return null;
+
+            Assert.That(_player.Moving, Is.False, "the walker is still walking after the key came up");
+            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Idle), "a stopped player must stand");
+            Assert.That(
+                figure.CurrentAnimation, Is.EqualTo(idle),
+                "standing after a walk did not restore the standing animation");
+
+            // The other direction: the same figure turns rather than a second one being built.
+            Press(_keyboard.aKey);
+            yield return Wait(0.35f);
+            Assert.That(figure.FaceDirection, Is.EqualTo(-1), "walking left must face left");
+            Release(_keyboard.aKey);
+            yield return null;
+
+            // The จัดย่าม panel stops the walk, so the doctor stands while a walk key is still held.
+            Press(_keyboard.wKey);
+            yield return Wait(0.2f);
+            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Run), "holding a walk key did not start the walk");
+
+            Assert.That(
+                _bag.TryGetButtonScreenPoint(CampBagButton.Open, out Vector2 toggle), Is.True,
+                "the จัดย่าม button is not on screen");
+            yield return Click(toggle);
+
+            Assert.That(_bag.PanelVisible, Is.True, "clicking จัดย่าม did not open the panel");
+            yield return null;
+            Assert.That(
+                figure.Pose, Is.EqualTo(PlayerPose.Idle),
+                "the figure kept running while the จัดย่าม panel was open");
+
+            Release(_keyboard.wKey);
+            yield return null;
         }
 
         /// <summary>The player cannot walk out of the sala (the walk area clamps).</summary>

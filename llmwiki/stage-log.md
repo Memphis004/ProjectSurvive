@@ -757,3 +757,32 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
 - **Next:** the art is still a **licensing blocker** (`ATTRIBUTION.md`) — the RC above is evidence about
   stripping, not a shippable candidate; then 17c/17d give the figure to the Camp and the Title, and a
   weapon to the four empty `w_*` slots.
+
+## Stage 17c — the doctor in ศาลาพัก (2026-10-26)
+
+- **Did:** the camp draws the player with the same `SpinePlayerView` the arena uses, put by
+  `CampWorldView.Build` on the **very transform `CampPlayerView` already walks** and begun once in
+  `Bind` (i.e. `CampSceneDirector.TryStart`). No walking rule was copied: the pose is
+  `PlayerPoseSelector.Select` on the distance the walk *left* after `ClampToWalkArea` (so pressing into
+  the sala's edge stands instead of running on the spot) and the facing is `PlayerPoseSelector.Facing`
+  on the direction the keys asked for; `Present` is the only thing written, one `Play` per pose change.
+  Walking → `Run`, standing → `Idle`, the จัดย่าม panel → `Idle` (it blocks the walk) and no hurt/dead in
+  the sala all fall out of that. The generated silhouette stays as the fallback and stops drawing the
+  moment the figure is up (a failed `Begin` keeps it, one warning in a release build). `CampSceneBuilder`
+  assigns the **profile asset** (`Assets/Main/Spine/SpinePlayerProfile.asset`, the same one the arena
+  names) and the scene was regenerated from *ProjectSurvive/Stage 09/5*; `CampReport` was not touched, so
+  `__projectSurviveCamp` / `__projectSurviveCampGeometry` are byte-for-byte the same shape and the
+  published figure rect still carries the walker anchor's box and its own `worldX`/`worldZ`.
+- **Result:** EditMode **275/275** (1 new: the camp scene names the profile its figure is built from),
+  the five camp PlayMode fixtures **55/55** one at a time (1 new: `Run` on a held key, `Idle` on release,
+  facing `±1`, `Idle` while the panel is open), the Editor capture **PASS, 0 overlaps** at 1920×1080 and
+  1280×720, and `-Suite Full -Release` with the Editor closed **PASS 15 | FAIL 0 | NOT RUN 1** — Playwright
+  **21/21**, hosting 13/13, RC **16.18 MiB gzip / 11.85 MiB Brotli** (no new asset: +0.02 Brotli is
+  noise). Play-mode captures: [`camp-idle-1920x1080.png`](../artifacts/stage17c/camp-idle-1920x1080.png),
+  [`camp-run-1920x1080.png`](../artifacts/stage17c/camp-run-1920x1080.png).
+- **Next:** the figure draws at the profile's **1.6 world units** where the silhouette it replaces drew
+  ~2.6, and `SpinePlayerView` always draws at `TargetHeightWorld` (a scaled parent is compensated), so
+  sizing it for the sala is a profile/art decision; the report also records that the published figure
+  rect is still the anchor's box and that no browser assertion covers the figure (`__projectSurviveCamp`
+  gained no `spine*` field on purpose). 17d gives the figure to the Title, then the `w_*` slots; the
+  art's licence is still the open blocker.

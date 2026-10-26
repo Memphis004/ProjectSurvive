@@ -1,11 +1,14 @@
 using System;
 using NUnit.Framework;
 using ProjectSurvive.Game.Editor;
+using ProjectSurvive.Game.Presentation.Camp;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using Spine;
 using Spine.Unity;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 namespace ProjectSurvive.Game.Tests.EditMode
@@ -417,6 +420,61 @@ namespace ProjectSurvive.Game.Tests.EditMode
             finally
             {
                 Object.DestroyImmediate(host);
+            }
+        }
+
+        // -------------------------------------------------------------------
+        // The camp scene (Stage 17c)
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// ศาลาพัก draws the doctor with the same figure and the same look as the arena: the scene
+        /// carries the <b>profile asset</b>, not a skeleton path, and the world builds the view from it
+        /// when the camp starts (ADR 0037 §2).
+        /// </summary>
+        /// <remarks>
+        /// This is the check a scene that was never rebuilt after this stage fails: the component
+        /// compiles and the pose rule is green, but the serialized profile is empty, so the sala would
+        /// quietly keep drawing the placeholder silhouette. The figure itself needs play mode (it is
+        /// built at the camp's start), which is what `CampWorldPlayModeTests` is for.
+        /// </remarks>
+        [Test]
+        public void The_camp_scene_names_the_profile_its_figure_is_built_from()
+        {
+            const string campScenePath = "Assets/Main/Scenes/Camp.unity";
+
+            Scene scene = SceneManager.GetSceneByPath(campScenePath);
+            bool opened = !scene.IsValid() || !scene.isLoaded;
+            if (opened)
+            {
+                scene = EditorSceneManager.OpenScene(campScenePath, OpenSceneMode.Additive);
+            }
+
+            try
+            {
+                CampWorldView world = null;
+                GameObject[] roots = scene.GetRootGameObjects();
+                for (int i = 0; i < roots.Length; i++)
+                {
+                    world = world != null ? world : roots[i].GetComponentInChildren<CampWorldView>(true);
+                }
+
+                Assert.That(world, Is.Not.Null, "the Camp scene has no CampWorldView");
+                Assert.That(
+                    world.PlayerFigureProfile, Is.Not.Null,
+                    "" + campScenePath + " names no SpinePlayerProfile, so the sala would draw the " +
+                    "placeholder silhouette: rebuild it with ProjectSurvive/Stage 09/5. Create Camp scene");
+
+                Assert.That(
+                    world.PlayerFigureProfile, Is.SameAs(LoadProfile()),
+                    "the camp draws the doctor with a different look from the arena's");
+            }
+            finally
+            {
+                if (opened)
+                {
+                    EditorSceneManager.CloseScene(scene, true);
+                }
             }
         }
 

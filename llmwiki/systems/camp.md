@@ -8,6 +8,12 @@ shelf, arrange the bag, rotate, merge, give a piece back, restore, and leave for
 - Composition: `CampSceneScope` (VContainer) → `CampSceneDirector` (start + the two documents) →
   `CampPresenter` (every command) → the views (`CampWorldView`, `CampPlayerView`,
   `CampBagScreenView`, `CampStatusBarView`, `CampTooltipView`).
+- The figure is the doctor's `SpinePlayerView` (Stage 17c), built once by `CampWorldView.Bind` on the
+  transform `CampPlayerView` walks: the pose and the facing come from that walk through
+  `PlayerPoseSelector` (run while it covers ground, idle when it does not — including while the จัดย่าม
+  panel blocks it), there is no hurt and no death here, and the generated silhouette is only the
+  fallback. The scene names the profile asset the arena names; the two documents below are unchanged
+  ([17c report](../../docs/stages/17c-report.md)).
 - Rules live in `ProjectSurvive.Core.Application.Run.RunSession`; no view computes a price, a combo
   or a drop verdict ([ADR 0019](../../docs/adr/0019-camp-screen-read-model-and-gesture-preview.md)).
 - Stage report: [`docs/stages/09-report.md`](../../docs/stages/09-report.md) (+ `09b`, `09c`, `09e`).

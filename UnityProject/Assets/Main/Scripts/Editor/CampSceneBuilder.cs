@@ -1,5 +1,6 @@
 using ProjectSurvive.Game.Camp;
 using ProjectSurvive.Game.Presentation.Camp;
+using ProjectSurvive.Game.Presentation.SpineActors;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -80,8 +81,24 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(world, "_camera", camera);
             ProjectSetup.SetObjectReference(world, "_font", font);
 
+            // Stage 17c: the doctor is the Spine figure, built by the world when the camp starts.
+            // The scene names the same profile the arena uses (one class, one look, ADR 0037 §2); a
+            // missing profile is an error here rather than a sala that quietly draws the stand-in.
+            var playerProfile =
+                AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.ProfileAssetPath);
+            if (playerProfile == null)
+            {
+                Debug.LogError(
+                    "[CampSceneBuilder] " + SpineProfileTool.ProfileAssetPath + " is missing: run " +
+                    "ProjectSurvive/Spine/2. Create player profile. The sala will fall back to the " +
+                    "placeholder silhouette for the player.");
+            }
+
+            ProjectSetup.SetObjectReference(world, "_spineProfile", playerProfile);
+
             // The walker: a figure the player drives with WASD, standing in the sala. It owns the
-            // walking speed and the reach (both from data/tables/constant.csv, AGENTS rule 5).
+            // walking and the pose it asks the world's figure to draw (Stage 17c); the speed and the
+            // reach are the run's own tuning, from data/tables/constant.csv (AGENTS rule 5).
             var playerObject = new GameObject("CampPlayer");
             CampPlayerView walker = playerObject.AddComponent<CampPlayerView>();
             ProjectSetup.SetObjectReference(walker, "_scope", scope);

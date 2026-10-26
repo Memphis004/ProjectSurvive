@@ -57,6 +57,7 @@ This file is the fast on-ramp. Read it first, then follow the links.
 | **15** | **Web release candidate** | **DONE (browser gate green; browser stress & Firefox full suite NOT RUN)** — see [`docs/stages/15-report.md`](docs/stages/15-report.md), [`docs/build/performance-report.md`](docs/build/performance-report.md), [`docs/release/known-issues.md`](docs/release/known-issues.md), [ADR 0035](docs/adr/0035-the-release-candidate-configuration-and-its-numbers.md) |
 | **17a** | **Spine actor module into Presentation + the Mor's skeleton loaded (no scene)** | **CODE DONE — art licensing is an open BLOCKER; no Web build or size measurement** — see [`docs/stages/17a-report.md`](docs/stages/17a-report.md), [ADR 0037](docs/adr/0037-spine-actors-and-the-player-figure.md) |
 | **16** | **กระหัง, the fifth ghost, and the gale that throws the player (`follow_up_push`)** | **DONE (Core/data + simulation; no Web gate)** — see [`docs/stages/16-report.md`](docs/stages/16-report.md), [ADR 0036](docs/adr/0036-krahang-pushes-with-the-gale.md) |
+| **17c** | **The doctor in ศาลาพัก: the same `SpinePlayerView`, posed by the walk the camp already has** | **DONE** — see [`docs/stages/17c-report.md`](docs/stages/17c-report.md); the figure is 1.6 u against a silhouette that drew 2.6 and the published figure rect is still the anchor's box (both open, §3) |
 
 **Current state:** Stages 00–10, plus **09k-data** (one word in `data/`: the tome combo is
 `AdjacentPair`, so a weapon takes +20 % from a tome it **touches** on any of its four edges — never
