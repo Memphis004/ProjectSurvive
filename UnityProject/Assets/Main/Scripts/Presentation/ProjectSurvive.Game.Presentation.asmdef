@@ -19,7 +19,9 @@
         "Unity.InputSystem",
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Universal.Runtime",
-        "spine-unity"
+        "spine-unity",
+        "ProjectSurvive.Game.Presentation.Figure",
+        "ProjectSurvive.Game.Presentation.GenericCute"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

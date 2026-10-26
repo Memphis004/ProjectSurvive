@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ProjectSurvive.Core.Domain.Combat.Battle;
+using ProjectSurvive.Game.Presentation.Figure;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using R3;
 using UnityEngine;

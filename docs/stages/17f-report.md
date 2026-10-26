@@ -140,7 +140,71 @@ was restarted and both fixtures then passed; this is an Editor-session defect, n
 change; the camp still adds `SpinePlayerView` directly, and the fallback log string is still
 `spine.player_unknown` — both move to the backend selection in 17f-2.
 
-## 5. What is still open
+## 5. 17f-2 — the GenericCute backend
 
-17f-2 (profile, view, asmdef, backend selection, scene builders, EditMode validation) and 17f-3
-(parity suite, captures, per-frame cost, two payload builds, attribution row).
+**What changed.**
+
+- **The seam moved to its own assembly.** `PlayerPose`, `IPlayerFigure` and the new
+`PlayerFigureBackend` enum now live in `Presentation/Figure`
+(`ProjectSurvive.Game.Presentation.Figure`). Presentation, Editor and both test assemblies reference
+it. This is what makes the prompt's two asmdef rules true at the same time: the Spine code is in
+`ProjectSurvive.Game.Presentation` and does not reference 2D Animation, and the new
+`ProjectSurvive.Game.Presentation.GenericCute` references only `…Figure`, so it cannot see Spine.
+Namespaces were renamed to `ProjectSurvive.Game.Presentation.Figure` (the only thing 17f-1 left in
+`SpineActors` that was not Spine).
+- **`GenericCutePlayerProfile`** (`Presentation/GenericCute`) — prefab, controller, exact state names
+(`idle`, `run`, `hurt`, `death`), `TargetHeightWorld`, `RunSpeedThreshold`, `ArtFacesRight`. Death and
+hurt are documented optional; nothing is invented for a rig that lacks them.
+- **`GenericCutePlayerView`** — the second `IPlayerFigure`: instantiates the rig under a uniformly
+scaled root and a flip child, **disables the Animator** and steps it only from `Tick`, plays states by
+hash with `Animator.Play(hash, 0, 0)` (no parameters, no transitions), refuses a name the controller
+does not have, scales once to the profile height with the parent's lossy scale compensated, mirrors on
+the flip child alone, and puts the whole figure behind one `SortingGroup`. Hurt ends when its own
+normalised time reaches 1 and the presented pose is restored; pause and speed never touch
+`Time.timeScale`.
+- **One detail worth recording:** a queued `Animator.Play` only applies on the next evaluation, and
+that evaluation resets the state's clock. `PlayState` therefore does one `Update(0f)` right after
+`Play` (state changes only), so the caller's next `Tick` advances the state it asked for — without it
+a 0.2 s tick after a 0.167 s hurt clip left the figure still hurt.
+- **Backend selection is Editor-baked.** `PlayerFigureBuildSettings` (Editor assembly) names the
+backend and the four profiles; `CampSceneBuilder` and `BattleSceneBuilder` read it and write both the
+component and its profile into the scenes. The camp carries `_figureBackend` +
+`_spineProfile`/`_genericCuteProfile`; the arena carries whichever component in
+`BattleViewSettings.PlayerFigure`. Nothing is chosen at runtime, and a missing profile for the chosen
+backend is an error — the other backend never draws in its place.
+- **The tool** (`ProjectSurvive/Player Figure/`): `1. Create GenericCute profiles` writes the two
+profiles from the pack's prefab and controller (fills only empty fields, logs each change, refuses to
+write an invalid one); `2. Use Spine backend` / `3. Use GenericCute backend` write the settings and
+rebuild both scenes.
+- **`GenericCuteProfileValidator`** (Editor) checks the profile against the real
+`AnimatorController`: every named state exists (failure lists all states), `idle`/`run` clips loop,
+`hurt`/`death` clips do not, and a death state may have no transition out. A hurt state with
+transitions is a warning, because the view decides when the pose returns.
+
+**Facing, measured not guessed.** The un-mirrored idle renders the student facing the viewer's
+**right**, so `artFacesRight = true` (`artifacts/stage17f/probe-idle-facing-right.png`); facing −1 is
+the mirror with the face still visible and the hair trailing the other way
+(`artifacts/stage17f/probe-idle-facing-left.png`). The mirror is the flip child's `localScale.x` only;
+the scaled root is untouched, which the facing test asserts.
+
+**Verified.**
+
+| Check | Result |
+| --- | --- |
+| `tools/test.ps1 -Suite Fast` | **PASS 13 / FAIL 0** — EditMode **295/295** (12 new), xUnit 612 |
+| `GenericCuteProfileTests` (5) | shipped profiles validate against the pack's controller; a wrong name fails with the state list; a non-looping run state fails; a looping-required state that cannot loop fails |
+| `GenericCutePlayerViewTests` (7) | one build and one idle play; 10 000 identical presents add 0 plays; flip sign follows `artFacesRight` with the root scale unchanged; hurt returns to the presented pose (run, not idle); pause freezes `AnimationTime` and speed 2 turns 0.25 s into 0.5 s; draw order reaches the group; a controller-less profile fails with `generic_cute.player_build_failed`, leaves nothing built and can be begun again |
+| `CampWorldPlayModeTests` | **12/12** |
+| `BattlePlayModeTests` | **11/11** |
+
+**Known limits of this sub-stage.** No scene has been rebuilt with the GenericCute backend yet, so no
+in-scene picture of it exists — that is 17f-3 (captures, parity, per-frame cost, two payload builds,
+attribution). The camp scene still carries only the Spine profile reference plus the default
+`Spine` enum value, which is why the PlayMode suites are unchanged. Budget: no perf or payload number
+is claimed here.
+
+## 6. What is still open
+
+17f-3: the parity PlayMode suite over Camp × Battle × both backends, the 1920×1080 captures in both
+backends, the per-frame cost comparison, the two ReleaseCandidate payload builds (and the assertion
+that a Spine build carries no GenericCute asset), plus the attribution row for the pack.

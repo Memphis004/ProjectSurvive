@@ -1,9 +1,9 @@
 using UnityEngine;
 
-namespace ProjectSurvive.Game.Presentation.SpineActors
+namespace ProjectSurvive.Game.Presentation.Figure
 {
     /// <summary>
-    /// What <see cref="Camp.CampPlayerView"/> and <c>PlayerFigurePresenter</c> ask of the thing that
+    /// What <c>CampPlayerView</c> and <c>PlayerFigurePresenter</c> ask of the thing that
     /// draws the doctor in the world — the seam a second backend plugs into.
     /// </summary>
     /// <remarks>

@@ -1,4 +1,4 @@
-namespace ProjectSurvive.Game.Presentation.SpineActors
+namespace ProjectSurvive.Game.Presentation.Figure
 {
     /// <summary>The three things the player figure can be drawn doing.</summary>
     public enum PlayerPose

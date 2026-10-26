@@ -7,6 +7,7 @@ using ProjectSurvive.Core.Simulation.Battle;
 using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
+using ProjectSurvive.Game.Presentation.Figure;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using TMPro;
 using UnityEngine;

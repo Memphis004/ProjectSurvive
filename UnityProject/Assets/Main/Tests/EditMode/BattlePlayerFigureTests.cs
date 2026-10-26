@@ -2,6 +2,7 @@ using NUnit.Framework;
 using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Game.Editor;
 using ProjectSurvive.Game.Presentation.Battle;
+using ProjectSurvive.Game.Presentation.Figure;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using UnityEditor;
 using UnityEngine;

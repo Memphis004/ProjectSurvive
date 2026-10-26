@@ -14,6 +14,7 @@ using ProjectSurvive.Game.Presentation;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Environment;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
+using ProjectSurvive.Game.Presentation.Figure;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using ProjectSurvive.Game.Presentation.Camp;
 using TMPro;

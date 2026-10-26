@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using ProjectSurvive.Game.Presentation.Battle.Environment;
+using ProjectSurvive.Game.Presentation.Figure;
+using ProjectSurvive.Game.Presentation.GenericCute;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using R3;
 using TMPro;
@@ -147,6 +149,9 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private CampPlaceholderArt _art;
         private CampUiState _state;
         private SpriteRenderer _player;
+        [SerializeField] private PlayerFigureBackend _figureBackend;
+        [SerializeField] private GenericCutePlayerProfile _genericCuteProfile;
+
         private MonoBehaviour _figureHost;
         private IPlayerFigure _figure;
         private SpriteRenderer _drum;
@@ -399,12 +404,25 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
-            SpinePlayerView spineFigure = anchor.AddComponent<SpinePlayerView>();
-            spineFigure.Configure(_spineProfile);
-            spineFigure.SetSortingOrder(CampSorting.PlayerOrder);
+            // The backend is baked into the scene by CampSceneBuilder: the camp never chooses at
+            // runtime, and a scene whose profile is missing fails in the figure's own Begin (loudly,
+            // with its code) rather than being swapped for the other backend.
+            if (_figureBackend == PlayerFigureBackend.GenericCute)
+            {
+                GenericCutePlayerView cuteFigure = anchor.AddComponent<GenericCutePlayerView>();
+                cuteFigure.Configure(_genericCuteProfile);
+                cuteFigure.SetSortingOrder(CampSorting.PlayerOrder);
+                _figureHost = cuteFigure;
+            }
+            else
+            {
+                SpinePlayerView spineFigure = anchor.AddComponent<SpinePlayerView>();
+                spineFigure.Configure(_spineProfile);
+                spineFigure.SetSortingOrder(CampSorting.PlayerOrder);
+                _figureHost = spineFigure;
+            }
 
-            _figureHost = spineFigure;
-            _figure = spineFigure.GetComponent<IPlayerFigure>();
+            _figure = _figureHost.GetComponent<IPlayerFigure>();
         }
 
         /// <summary>

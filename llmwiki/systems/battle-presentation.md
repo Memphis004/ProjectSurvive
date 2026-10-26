@@ -535,3 +535,22 @@ presenter throws on. `SpinePlayerView` implements the interface without changing
 new member is `RunSpeedThreshold`, and every 17e test and capture still reads the same values.
 Evidence: `docs/stages/17f-report.md`, `BattlePlayModeTests.The_battle_scene_builds_the_doctor_figure_once_and_stands_still_at_first`,
 `CampWorldPlayModeTests.Walking_draws_the_figure_running_and_stopping_stands_it`.
+
+## 20. The second backend: a Unity 2D Animation rig (Stage 17f-2)
+
+`Presentation/GenericCute/` holds a second `IPlayerFigure`: a rigged prefab from the purchased
+*Generic Cute 2D* pack (SpriteSkin bones), animated from `GenericCutePlayerProfile` — prefab,
+controller and the exact state names `idle`, `run`, `hurt` (`hit light`) and an empty `death`
+(Student 1 has no death state; `Dead` keeps the last pose, the same documented option the Spine
+profile has). The seam itself moved to `Presentation/Figure` (`ProjectSurvive.Game.Presentation.Figure`),
+so the Spine code does not reference 2D Animation and the new assembly references only the seam.
+The Animator is disabled and stepped only by `Tick`, states are played by hash (no parameters, no
+transitions — the pack's controller has none), the rig is scaled once under a uniform root with the
+mirror on a unit-scale flip child, and one `SortingGroup` carries the whole figure's draw order.
+`artFacesRight = true` for this art, measured from the un-mirrored idle.
+Which backend runs is baked into the scenes by the builders from `PlayerFigureBuildSettings`
+(Editor-only; Spine is the default), written by `ProjectSurvive/Player Figure/` — there is no runtime
+switch and no fallback. Validation is Editor-side against the real controller
+(`GenericCuteProfileValidator`: names, loop flags, no exit transition on death).
+Evidence: `docs/stages/17f-report.md`, `GenericCuteProfileTests`, `GenericCutePlayerViewTests`,
+`artifacts/stage17f/probe-idle-facing-right.png` / `probe-idle-facing-left.png`.

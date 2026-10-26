@@ -1,3 +1,5 @@
+using ProjectSurvive.Game.Presentation.Figure;
+
 namespace ProjectSurvive.Game.Presentation.SpineActors
 {
     /// <summary>

@@ -1,5 +1,7 @@
 using ProjectSurvive.Game.Camp;
 using ProjectSurvive.Game.Presentation.Camp;
+using ProjectSurvive.Game.Presentation.Figure;
+using ProjectSurvive.Game.Presentation.GenericCute;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using TMPro;
 using UnityEditor;
@@ -85,9 +87,16 @@ namespace ProjectSurvive.Game.Editor
             // Stage 17e: the camp names its own profile, because it stands with `stand` while the
             // arena stands with `idle5`; one class, one look, two idle pictures (ADR 0037 §2). A
             // missing profile is an error here rather than a sala that quietly draws the stand-in.
-            var playerProfile =
-                AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.CampProfileAssetPath);
-            if (playerProfile == null)
+            // Stage 17f: which backend draws the doctor comes from the one settings asset, and both
+            // scenes are rebuilt when it changes. A scene always carries both profiles and the
+            // choice, so the camp never picks at runtime; a missing profile for the chosen backend is
+            // an error here rather than a sala that quietly draws the stand-in.
+            PlayerFigureBuildSettings figureSettings = PlayerFigureBuildSettings.Load();
+
+            var playerProfile = figureSettings.CampSpineProfile != null
+                ? figureSettings.CampSpineProfile
+                : AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.CampProfileAssetPath);
+            if (playerProfile == null && figureSettings.Backend == PlayerFigureBackend.Spine)
             {
                 Debug.LogError(
                     "[CampSceneBuilder] " + SpineProfileTool.CampProfileAssetPath + " is missing: run " +
@@ -96,6 +105,20 @@ namespace ProjectSurvive.Game.Editor
             }
 
             ProjectSetup.SetObjectReference(world, "_spineProfile", playerProfile);
+
+            var cuteProfile = figureSettings.CampGenericCuteProfile != null
+                ? figureSettings.CampGenericCuteProfile
+                : AssetDatabase.LoadAssetAtPath<GenericCutePlayerProfile>(PlayerFigureBackendTool.CampProfilePath);
+            if (cuteProfile == null && figureSettings.Backend == PlayerFigureBackend.GenericCute)
+            {
+                Debug.LogError(
+                    "[CampSceneBuilder] " + PlayerFigureBackendTool.CampProfilePath + " is missing: run " +
+                    "ProjectSurvive/Player Figure/1. Create GenericCute profiles. The sala will fall back " +
+                    "to the placeholder silhouette for the player.");
+            }
+
+            ProjectSetup.SetObjectReference(world, "_genericCuteProfile", cuteProfile);
+            ProjectSetup.SetEnum(world, "_figureBackend", (int)figureSettings.Backend);
 
             // The walker: a figure the player drives with WASD, standing in the sala. It owns the
             // walking and the pose it asks the world's figure to draw (Stage 17c); the speed and the

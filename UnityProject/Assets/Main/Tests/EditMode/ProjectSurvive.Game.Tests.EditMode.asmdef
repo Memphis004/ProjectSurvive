@@ -25,7 +25,9 @@
         "Unity.TextMeshPro",
         "spine-unity",
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "ProjectSurvive.Game.Presentation.Figure",
+        "ProjectSurvive.Game.Presentation.GenericCute"
     ],
     "includePlatforms": [
         "Editor"

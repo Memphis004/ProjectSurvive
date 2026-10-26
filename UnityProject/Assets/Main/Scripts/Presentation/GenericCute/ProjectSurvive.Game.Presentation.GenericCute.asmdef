@@ -1,0 +1,16 @@
+{
+    "name": "ProjectSurvive.Game.Presentation.GenericCute",
+    "rootNamespace": "ProjectSurvive.Game.Presentation.GenericCute",
+    "references": [
+        "ProjectSurvive.Game.Presentation.Figure"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

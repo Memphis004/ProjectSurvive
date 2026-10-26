@@ -1,4 +1,5 @@
 using ProjectSurvive.Core.Domain.Config;
+using ProjectSurvive.Game.Presentation.Figure;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using UnityEngine;
 using UnityEngine.EventSystems;

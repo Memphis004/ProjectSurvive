@@ -4,6 +4,7 @@ using ProjectSurvive.Core.Application.Run;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Game.Camp;
 using ProjectSurvive.Game.Presentation.Camp;
+using ProjectSurvive.Game.Presentation.Figure;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using UnityEngine;
 using UnityEngine.EventSystems;

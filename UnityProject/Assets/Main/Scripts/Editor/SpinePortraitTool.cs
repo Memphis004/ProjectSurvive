@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using ProjectSurvive.Game.Presentation.Figure;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using Spine;
 using Spine.Unity;

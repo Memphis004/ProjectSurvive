@@ -3,6 +3,8 @@ using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Presentation.Battle;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.Battle.Pause;
+using ProjectSurvive.Game.Presentation.Figure;
+using ProjectSurvive.Game.Presentation.GenericCute;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using TMPro;
 using UnityEditor;
@@ -120,7 +122,7 @@ namespace ProjectSurvive.Game.Editor
             // Stage 17b: the ghost-doctor's Spine figure, parented to the view root so it lives and
             // dies with the floor's own visuals. Its profile is the asset the 17a tool created; the
             // figure is begun at floor start by the view, never by the scene.
-            SpinePlayerView playerFigure = BuildPlayerFigure(viewRoot);
+            MonoBehaviour playerFigure = BuildPlayerFigure(viewRoot);
 
             Canvas canvas = ProjectSetup.CreateCanvas(out GameObject canvasObject);
             BattleHudView hud = BuildBattleHud(
@@ -287,13 +289,42 @@ namespace ProjectSurvive.Game.Editor
         /// placeholder sprite, which is the state the stage exists to replace.
         /// </para>
         /// </remarks>
-        private static SpinePlayerView BuildPlayerFigure(GameObject viewRoot)
+        private static MonoBehaviour BuildPlayerFigure(GameObject viewRoot)
         {
             var figureObject = new GameObject("PlayerFigure");
             figureObject.transform.SetParent(viewRoot.transform, worldPositionStays: false);
 
+            // Stage 17f: one settings asset names the backend; the arena carries the component and its
+            // profile, so nothing is chosen at floor time. The draw order the figure starts at is the
+            // same row rule the sprites use at the arena's centre, and the presenter recomputes it per
+            // row crossed while the floor runs.
+            PlayerFigureBuildSettings figureSettings = PlayerFigureBuildSettings.Load();
+            int sorting = BattleWorldMap.SortingOrder(RenderEntityKind.Player, 0f);
+
+            if (figureSettings.Backend == PlayerFigureBackend.GenericCute)
+            {
+                GenericCutePlayerView cuteFigure = figureObject.AddComponent<GenericCutePlayerView>();
+                var cuteProfile = figureSettings.BattleGenericCuteProfile != null
+                    ? figureSettings.BattleGenericCuteProfile
+                    : AssetDatabase.LoadAssetAtPath<GenericCutePlayerProfile>(PlayerFigureBackendTool.BattleProfilePath);
+
+                if (cuteProfile is null)
+                {
+                    Debug.LogError(
+                        "[BattleSceneBuilder] " + PlayerFigureBackendTool.BattleProfilePath + " is missing: run " +
+                        "ProjectSurvive/Player Figure/1. Create GenericCute profiles. The arena will fall back " +
+                        "to the placeholder sprite for the player.");
+                }
+
+                ProjectSetup.SetObjectReference(cuteFigure, "profile", cuteProfile);
+                ProjectSetup.SetInt(cuteFigure, "sortingOrder", sorting);
+                return cuteFigure;
+            }
+
             SpinePlayerView figure = figureObject.AddComponent<SpinePlayerView>();
-            var profile = AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.BattleProfileAssetPath);
+            var profile = figureSettings.BattleSpineProfile != null
+                ? figureSettings.BattleSpineProfile
+                : AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.BattleProfileAssetPath);
 
             if (profile is null)
             {
@@ -305,10 +336,7 @@ namespace ProjectSurvive.Game.Editor
             }
 
             ProjectSetup.SetObjectReference(figure, "profile", profile);
-
-            // The draw order the figure starts at: the same row rule the sprites use, at the arena's
-            // centre. The presenter recomputes it per row crossed while the floor runs.
-            ProjectSetup.SetInt(figure, "sortingOrder", BattleWorldMap.SortingOrder(RenderEntityKind.Player, 0f));
+            ProjectSetup.SetInt(figure, "sortingOrder", sorting);
             return figure;
         }
 

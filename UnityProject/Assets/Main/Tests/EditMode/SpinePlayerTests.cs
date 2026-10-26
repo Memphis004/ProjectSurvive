@@ -2,6 +2,7 @@ using System;
 using NUnit.Framework;
 using ProjectSurvive.Game.Editor;
 using ProjectSurvive.Game.Presentation.Camp;
+using ProjectSurvive.Game.Presentation.Figure;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using Spine;
 using Spine.Unity;

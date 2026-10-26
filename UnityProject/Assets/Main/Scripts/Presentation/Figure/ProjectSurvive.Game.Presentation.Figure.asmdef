@@ -1,0 +1,14 @@
+{
+    "name": "ProjectSurvive.Game.Presentation.Figure",
+    "rootNamespace": "ProjectSurvive.Game.Presentation.Figure",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
