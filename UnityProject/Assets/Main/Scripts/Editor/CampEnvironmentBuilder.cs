@@ -427,16 +427,33 @@ namespace ProjectSurvive.Game.Editor
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
+            var mid = new GameObject("MidBand");
+            mid.transform.SetParent(go.transform, false);
+
+            var midImage = mid.AddComponent<UnityEngine.UI.Image>();
+            midImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(ArenaArtBuilder.ScreenMidBandSpritePath);
+            midImage.type = UnityEngine.UI.Image.Type.Simple;
+            midImage.raycastTarget = false;
+            midImage.color = Color.white;
+
+            RectTransform midRect = midImage.rectTransform;
+            midRect.anchorMin = Vector2.zero;
+            midRect.anchorMax = Vector2.one;
+            midRect.offsetMin = Vector2.zero;
+            midRect.offsetMax = Vector2.zero;
+
             var gradient = go.AddComponent<ArenaScreenGradient>();
             gradient.Configure(image);
+            gradient.ConfigureMid(midImage);
 
-            // The authored band, for the same reason the arena builder writes it: the runtime
+            // The authored bands, for the same reason the arena builder writes them: the runtime
             // Apply only runs from Awake, and a scene left at the Image's white default shows (and
             // photographs) a pale wash the game never draws.
             ArenaLightingProfile dusk = theme != null ? theme.DuskProfile : null;
             if (dusk != null)
             {
                 gradient.Apply(dusk.ScreenGradientColor, dusk.ScreenTopGradient);
+                gradient.ApplyMid(dusk.ScreenMidColor, dusk.ScreenMidGradient);
             }
 
             return gradient;

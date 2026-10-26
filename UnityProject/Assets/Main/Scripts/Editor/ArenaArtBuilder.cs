@@ -53,6 +53,13 @@ namespace ProjectSurvive.Game.Editor
         public const string NightProfilePath = ContentFolder + "/ArenaLightingNight.asset";
         public const string ScreenGradientSpritePath = TextureFolder + "/screen-gradient.png";
 
+        /// <summary>
+        /// The mid-field haze's alpha ramp: one soft band across the vertical middle of the frame,
+        /// transparent at both ends (<c>screen-mid-band.png</c>). A separate sprite from the top
+        /// band's because that one is a ramp and this one is a bump — the same texture cannot be both.
+        /// </summary>
+        public const string ScreenMidBandSpritePath = TextureFolder + "/screen-mid-band.png";
+
         private const string CardShader = "ProjectSurvive/ArenaCard";
         private const string DecalShader = "ProjectSurvive/ArenaDecal";
         private const string DirtShader = "ProjectSurvive/ArenaDirt";
@@ -125,6 +132,7 @@ namespace ProjectSurvive.Game.Editor
             Texture2D shadow = GenerateTexture("blob-shadow", 64, BlobShadow);
             Texture2D mote = GenerateTexture("mote", 32, Mote);
             Sprite screenGradient = GenerateSprite(ScreenGradientSpritePath, "screen-gradient", 4, 128, ScreenGradient);
+            Sprite screenMidBand = GenerateSprite(ScreenMidBandSpritePath, "screen-mid-band", 4, 128, ScreenMidBand);
 
             Material cardA = BuildMaterial("card-tree-a", CardShader, treeA, Color.white, CardQueue);
             Material cardB = BuildMaterial("card-tree-b", CardShader, treeB, Color.white, CardQueue);
@@ -460,6 +468,13 @@ namespace ProjectSurvive.Game.Editor
             profile.ScreenTopGradient = 0.42f;
             profile.ScreenGradientColor = new Color(0.04f, 0.06f, 0.03f, 1f);
 
+            // The haze the fight is read through, in screen space and only across the middle:
+            // 0.16 costs the doctor about a quarter of his robe-to-floor ratio (7.0 → 5.2 in the
+            // measured frame, still more than twice the 08f player threshold), so the number is a
+            // look with a price tag, not a free effect.
+            profile.ScreenMidGradient = 0.16f;
+            profile.ScreenMidColor = new Color(0.62f, 0.63f, 0.55f, 1f);
+
             // The lantern's halo is the brightest thing on the floor wherever the doctor stands:
             // additive over an olive floor it lifts the ground from ~0.09 to ~0.31 relative
             // luminance, so a white robe reads at 2.3 : 1 against its own lantern instead of the
@@ -514,6 +529,11 @@ namespace ProjectSurvive.Game.Editor
             profile.FogDensity = 0.015f;
             profile.ScreenTopGradient = 0.55f;
             profile.ScreenGradientColor = new Color(0.01f, 0.02f, 0.05f, 1f);
+
+            // Cool and much weaker than dusk's: by night the haze is the only light in the air, so a
+            // pale band at dusk's strength would flatten the arena the lantern is meant to light.
+            profile.ScreenMidGradient = 0.10f;
+            profile.ScreenMidColor = new Color(0.10f, 0.14f, 0.22f, 1f);
 
             profile.LanternIntensity = 2.4f;
             profile.StaticLightIntensity = 1.05f;
@@ -826,6 +846,29 @@ namespace ProjectSurvive.Game.Editor
         /// opaque at the top edge. Drawn into a canvas Image, so it is projection-independent and
         /// covers the same fraction of the frame at every resolution.
         /// </summary>
+        /// <summary>
+        /// The mid-field band: opaque in the middle of the frame, transparent above 18 % and below
+        /// 86 % of its height, with a sine falloff so the band has no edge to notice. The arena's
+        /// fight is read in the middle of the screen under an orthographic rig, so a band that lifts
+        /// that strip is the one part of the “bright middle” the top band cannot give (it only knows
+        /// the top edge).
+        /// </summary>
+        private static void ScreenMidBand(ArtCanvas c)
+        {
+            c.Clear(new Color(1f, 1f, 1f, 0f));
+            for (int y = 0; y < c.Size; y++)
+            {
+                float v = (y + 0.5f) / c.Size;
+                float t = Mathf.Clamp01((v - 0.18f) / (0.86f - 0.18f));
+                float alpha = t <= 0f || t >= 1f ? 0f : Mathf.Pow(Mathf.Sin(t * Mathf.PI), 1.2f);
+
+                for (int x = 0; x < c.Size; x++)
+                {
+                    c.Set(x, y, new Color(1f, 1f, 1f, alpha));
+                }
+            }
+        }
+
         private static void ScreenGradient(ArtCanvas c)
         {
             c.Clear(new Color(1f, 1f, 1f, 0f));

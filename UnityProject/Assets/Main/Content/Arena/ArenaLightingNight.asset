@@ -31,6 +31,8 @@ MonoBehaviour:
   FogDensity: 0.015
   ScreenTopGradient: 0.55
   ScreenGradientColor: {r: 0.01, g: 0.02, b: 0.05, a: 1}
+  ScreenMidGradient: 0.1
+  ScreenMidColor: {r: 0.1, g: 0.14, b: 0.22, a: 1}
   LanternIntensity: 2.4
   StaticLightIntensity: 1.05
   LightPoolIntensity: 0.42

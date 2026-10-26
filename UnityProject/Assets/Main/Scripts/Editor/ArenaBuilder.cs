@@ -625,13 +625,33 @@ namespace ProjectSurvive.Game.Editor
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
+            // The mid-field haze, on its own image and its own sprite: the top band is a ramp from
+            // the top edge and cannot leave the bottom of the frame alone, and the fight is read in
+            // the middle of the frame under this rig.
+            var mid = new GameObject("MidBand");
+            mid.transform.SetParent(go.transform, false);
+
+            var midImage = mid.AddComponent<UnityEngine.UI.Image>();
+            midImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(ArenaArtBuilder.ScreenMidBandSpritePath);
+            midImage.type = UnityEngine.UI.Image.Type.Simple;
+            midImage.raycastTarget = false;
+            midImage.color = Color.white;
+
+            RectTransform midRect = midImage.rectTransform;
+            midRect.anchorMin = Vector2.zero;
+            midRect.anchorMax = Vector2.one;
+            midRect.offsetMin = Vector2.zero;
+            midRect.offsetMax = Vector2.zero;
+
             var gradient = go.AddComponent<ArenaScreenGradient>();
             gradient.Configure(image);
+            gradient.ConfigureMid(midImage);
 
             ArenaLightingProfile dusk = theme != null ? theme.DuskProfile : null;
             if (dusk != null)
             {
                 gradient.Apply(dusk.ScreenGradientColor, dusk.ScreenTopGradient);
+                gradient.ApplyMid(dusk.ScreenMidColor, dusk.ScreenMidGradient);
             }
 
             return gradient;

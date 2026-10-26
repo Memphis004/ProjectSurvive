@@ -386,6 +386,15 @@ pools 0.15 (0.85 / 0.24 before); night keeps its stronger glow because a dark fl
 halo is for. Measured on two play-mode frames of the same floor: robe-vs-halo ring 3.71 → 4.74,
 robe-vs-floor 7.06 → 7.16, halo-vs-floor 1.91 → 1.51.
 
+**The haze across the middle is a profile value, not a screenshot artefact (Stage 17b follow-up).**
+`ScreenMidGradient` / `ScreenMidColor` draw a second `Image` on the same below-the-HUD canvas, on its
+own sprite (`screen-mid-band.png`: opaque at the frame's vertical middle, zero above 18 % and below
+86 %), so the band lifts the strip the fight is read in and leaves both edges alone. Dusk 0.16 of
+`(0.62, 0.63, 0.55)`, night 0.10 of `(0.10, 0.14, 0.22)`, the Camp's profile 0 (wired, disabled).
+It is a veil over the actor too: measured on one play-mode frame it takes the doctor from 6.98 : 1 to
+**4.94 : 1** against the ground under him, so it is atmosphere with a price tag — the strength is the
+knob, and a larger figure, not more haze, is what raises salience.
+
 **A photograph of the arena must apply the profile first.** `ArenaScreenGradient`'s `Image` is
 authored white and `ArenaEnvironmentView.Apply` (called from `Awake`) is what turns it into the
 profile's near-black green. A picture taken in Edit Mode therefore showed the top band at full

@@ -619,6 +619,65 @@ namespace ProjectSurvive.Game.Tests.EditMode
             }
         }
 
+        [Test]
+        public void TheMidFieldHazeIsProfileDrivenAndCanBeTurnedOff()
+        {
+            // The haze across the middle of the frame (Stage 17b follow-up): its own image on the
+            // same canvas, because the top band's sprite is a ramp from the top edge and cannot leave
+            // the middle strip alone. A zero-strength profile must cost no draw call.
+            var gameObject = new GameObject("arena-mid-band-test", typeof(Canvas), typeof(UnityEngine.UI.Image));
+            try
+            {
+                var band = gameObject.AddComponent<ArenaScreenGradient>();
+                band.Configure(gameObject.GetComponent<UnityEngine.UI.Image>());
+
+                var midObject = new GameObject("MidBand", typeof(UnityEngine.UI.Image));
+                midObject.transform.SetParent(gameObject.transform, worldPositionStays: false);
+                var midImage = midObject.GetComponent<UnityEngine.UI.Image>();
+                band.ConfigureMid(midImage);
+
+                ArenaTheme theme = Theme;
+                Assert.That(theme.DuskProfile.ScreenMidGradient, Is.GreaterThan(0f),
+                    "dusk draws no haze across the middle of the frame");
+
+                band.ApplyMid(theme.DuskProfile.ScreenMidColor, theme.DuskProfile.ScreenMidGradient);
+                Assert.That(band.MidVisible, Is.True, "dusk's middle haze is not drawn");
+                Assert.That(midImage.color.a, Is.EqualTo(theme.DuskProfile.ScreenMidGradient).Within(0.001f));
+
+                band.ApplyMid(Color.white, 0f);
+                Assert.That(band.MidVisible, Is.False,
+                    "a zero-strength middle band still costs a draw call");
+            }
+            finally
+            {
+                Object.DestroyImmediate(gameObject);
+            }
+        }
+
+        [Test]
+        public void TheShippedSceneCarriesTheMiddleHazeWiredToTheProfile()
+        {
+            WithBattleArena(arena =>
+            {
+                var band = arena.GetComponentInChildren<ArenaScreenGradient>(true);
+                Assert.That(band, Is.Not.Null, "the arena has no screen band at all");
+
+                Transform mid = band.transform.Find("MidBand");
+                Assert.That(mid, Is.Not.Null, "the arena's band has no middle image, so the haze cannot draw");
+
+                var image = mid.GetComponent<UnityEngine.UI.Image>();
+                Assert.That(image, Is.Not.Null, "the middle band has no Image");
+                Assert.That(image.sprite, Is.Not.Null, "the middle band has no sprite, so it draws a solid rectangle");
+                Assert.That(image.raycastTarget, Is.False, "the middle band eats pointer events meant for the HUD");
+
+                // The scene stores the authored band, not the Image's white default: the band is what
+                // an Edit-Mode photograph (and the Game view before Play) would otherwise show.
+                ArenaTheme theme = Theme;
+                Assert.That(image.color.a, Is.EqualTo(theme.DuskProfile.ScreenMidGradient).Within(0.001f),
+                    "the scene's middle band does not carry the dusk profile's strength");
+            });
+        }
+
         // -------------------------------------------------------------------
         // helpers
         // -------------------------------------------------------------------

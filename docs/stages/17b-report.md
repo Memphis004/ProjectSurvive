@@ -80,6 +80,35 @@ Evidence: `artifacts/stage17b/haze/before-glow-0.85.png`, `…/after-glow-0.45.p
 `…/band-applied-in-editor.png`. `ProjectSurvive/Tools/1. Capture UI` re-run: **PASS, 0 failures,
 0 overlaps**, `battle-player-1920x1080.png` regenerated with the floor under the figure.
 
+### 2b-2. The haze itself, as a real camera-space band
+
+Asked again for a mid-field haze rather than a dimmed scene, one now exists and is owned by the
+profile: `ArenaLightingProfile.ScreenMidGradient` + `ScreenMidColor`, drawn by a second `Image` on the
+same below-the-HUD canvas (`ArenaScreenGradient.ApplyMid`) on its own sprite, `screen-mid-band.png` —
+a **bump**, opaque at the vertical middle of the frame and zero above 18 % and below 86 %, so the top
+and bottom edges keep the values they had. Dusk **0.16** of `(0.62, 0.63, 0.55)`; night **0.10** of
+`(0.10, 0.14, 0.22)`; the Camp's own profile leaves it at 0 (the object exists and is wired, disabled).
+
+**What it costs, measured.** Composited over the same play-mode frame at 0.16:
+
+| | robe | ground under the band | robe-vs-floor |
+| --- | --- | --- | --- |
+| before | 248, 249, 251 | 79, 86, 41 | **6.98** |
+| haze 0.16 | 236, 238, 236 | 97, 102, 68 | **4.94** |
+
+The band is a veil over the figure too, so it *lowers* his local ratio by 29 % — it cannot do
+otherwise: any screen-space layer that covers him blends his robe toward the floor as well. 4.94 is
+still 2.2 × the `ArenaTheme` player threshold and above 3 : 1, and the ground outside the band
+(near rows `51, 55, 33`) is untouched. If the goal is salience instead of atmosphere the levers are
+the strength (0.10 reads as a lighter touch, 0 off) or the figure's size — not more haze.
+Evidence: `artifacts/stage17b/haze/after-mid-haze-0_16.png` versus `…/final-play-mode.png`, and the
+regenerated capture `artifacts/ui/battle-player-1920x1080.png`.
+
+Guards: `TheMidFieldHazeIsProfileDrivenAndCanBeTurnedOff` (strength drives the alpha, a zero-strength
+profile costs no draw call) and `TheShippedSceneCarriesTheMiddleHazeWiredToTheProfile` (the shipped
+scene has the image, the sprite, `raycastTarget` off and the dusk strength stored — not the `Image`'s
+white default).
+
 ## 3. What was not tested, and the risks
 
 - **The art still has no licence** (`ATTRIBUTION.md`, known issues §1b). The RC build below contains
@@ -94,6 +123,9 @@ Evidence: `artifacts/stage17b/haze/before-glow-0.85.png`, `…/after-glow-0.45.p
   scene has a figure — Camp and the Title are 17c/17d.
 - **The hurt flinch is cosmetic-only by construction**, so a lost or dropped event is invisible in the
   numbers; only the animation is affected.
+- **The mid-field band is a look with a measured price, not a free effect**: it removes 29 % of the
+doctor's robe-vs-floor ratio (6.98 → 4.94) and the number is a pixel composite over one frame, not a
+player study. Its night value (0.10, cool) has not been looked at in a captured frame at all.
 - **The halo dimming is one look value, judged on two frames.** The numbers above are WCAG ratios of
 the saved pixels, not a player study; the light pools also dimmed, so the arena reads slightly cooler
 at dusk than in the Stage 08 art pass, and the same two numbers are the place to turn if the lantern

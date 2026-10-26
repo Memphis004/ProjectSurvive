@@ -33,6 +33,9 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         [Tooltip("The stretched image the builder creates. Its sprite is a vertical alpha ramp.")]
         [SerializeField] private Image _image;
 
+        [Tooltip("The mid-field haze: a second stretched image whose sprite is a bump, not a ramp.")]
+        [SerializeField] private Image _midImage;
+
         /// <summary>The overlay canvas's sorting order: below the HUD, above every world object.</summary>
         public const int SortingOrder = -100;
 
@@ -45,8 +48,41 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         /// <summary>The colour last applied, for tests and reports.</summary>
         public Color BandColor { get; private set; }
 
+        /// <summary>The mid-field strength last applied, for tests and reports.</summary>
+        public float MidStrength { get; private set; }
+
+        /// <summary>The mid-field colour last applied, for tests and reports.</summary>
+        public Color MidColor { get; private set; }
+
+        /// <summary>True while the mid-field band is drawn.</summary>
+        public bool MidVisible => _midImage is not null && _midImage.enabled;
+
         /// <summary>Wires the image. Called once by the builder, and by tests.</summary>
         public void Configure(Image image) => _image = image;
+
+        /// <summary>Wires the mid-field image. Called once by the builder, and by tests.</summary>
+        public void ConfigureMid(Image image) => _midImage = image;
+
+        /// <summary>
+        /// Writes the mid-field band: the haze across the vertical middle of the frame, where the
+        /// fight is read. It is a separate <see cref="Image"/> on its own sprite (a bump, zero at
+        /// both ends) because the top band's ramp cannot leave the bottom of the frame alone.
+        /// </summary>
+        public void ApplyMid(Color colour, float strength)
+        {
+            MidStrength = Mathf.Clamp01(strength);
+            MidColor = colour;
+
+            if (_midImage is null)
+            {
+                return;
+            }
+
+            _midImage.enabled = MidStrength > 0.001f;
+
+            colour.a = MidStrength;
+            _midImage.color = colour;
+        }
 
         /// <summary>Writes the profile's band into the overlay.</summary>
         public void Apply(Color colour, float strength)

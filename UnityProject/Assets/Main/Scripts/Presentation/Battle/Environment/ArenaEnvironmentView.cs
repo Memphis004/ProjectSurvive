@@ -233,6 +233,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
             // The screen band is the top-edge half of the vignette; the volume below is the radial
             // half. Both come from the same profile, so they cannot disagree.
             _screenGradient?.Apply(profile.ScreenGradientColor, profile.ScreenTopGradient);
+            _screenGradient?.ApplyMid(profile.ScreenMidColor, profile.ScreenMidGradient);
 
             ApplyLight(_lantern, profile.LanternIntensity);
 

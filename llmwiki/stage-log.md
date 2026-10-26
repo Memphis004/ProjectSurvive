@@ -745,7 +745,10 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   ground the game draws; the same follows for the Camp. What really sits behind the doctor is his own
   lantern halo, so Dusk's `GlowIntensity` went 0.85 → 0.45 and `LightPoolIntensity` 0.24 → 0.15
   (NIGHT untouched): robe-vs-halo **3.71 → 4.74**, halo-vs-floor **1.91 → 1.51**, robe-vs-floor 7.06 → 7.16
-  on two play-mode frames of one floor.
+  on two play-mode frames of one floor. The mid-field haze is now a real profile value too —
+  `ScreenMidGradient`/`ScreenMidColor`, a second Image on the below-the-HUD canvas on its own bump
+  sprite (`screen-mid-band.png`), dusk 0.16 of `(0.62,0.63,0.55)`, night 0.10, camp off — and it is a
+  veil over the actor as well: 6.98 : 1 → **4.94 : 1** on the measured frame.
 - **Next:** the art is still a **licensing blocker** (`ATTRIBUTION.md`) — the RC above is evidence about
   stripping, not a shippable candidate; then 17c/17d give the figure to the Camp and the Title, and a
   weapon to the four empty `w_*` slots.

@@ -130,6 +130,13 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         [Tooltip("The colour the top edge fades toward.")]
         public Color ScreenGradientColor = new Color(0.03f, 0.05f, 0.04f, 1f);
 
+        [Tooltip("How much a soft band across the vertical middle of the frame lifts the field. 0 turns it off.")]
+        [Range(0f, 1f)]
+        public float ScreenMidGradient = 0f;
+
+        [Tooltip("The colour the middle band fades toward: the haze the fight is read through.")]
+        public Color ScreenMidColor = new Color(0.62f, 0.63f, 0.55f, 1f);
+
         [Header("Fake light (no extra real lights)")]
         [Tooltip("The player's lantern point light. 0 by day.")]
         public float LanternIntensity = 0f;

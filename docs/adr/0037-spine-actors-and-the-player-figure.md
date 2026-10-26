@@ -136,6 +136,13 @@ white, not on a haze the game does not draw; the halo was dimmed (`GlowIntensity
 `LightPoolIntensity` 0.24 → 0.15) so the figure does not sit in a light pool it also has to be
 separated from.
 
+A **mid-field haze** was then added on purpose, as a profile value rather than an accident:
+`ScreenMidGradient` / `ScreenMidColor` draw a bump-shaped band across the frame's vertical middle on
+the same below-the-HUD canvas (dusk 0.16 of `(0.62,0.63,0.55)`, night 0.10, camp off). It is a veil
+over the actor as well, and that is measurable: 6.98 : 1 → 4.94 : 1 on the frame below. The band is
+atmosphere; the outline is what keeps the 45-pixel figure's edge, so neither argument removes the
+other.
+
 ### 5. Spine does not own a clock; the caller does
 
 `SpinePlayerView` drives the animation state with `Tick(deltaTime)` and nothing else: the
