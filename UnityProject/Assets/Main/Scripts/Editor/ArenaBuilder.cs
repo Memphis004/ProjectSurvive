@@ -232,7 +232,7 @@ namespace ProjectSurvive.Game.Editor
             Light[] statics = BuildStaticLights(lightsRoot, theme);
             BuildLightPools(poolsRoot, theme);
             BuildMotes(motesRoot, theme);
-            ArenaScreenGradient screenGradient = BuildScreenGradient(root.transform);
+            ArenaScreenGradient screenGradient = BuildScreenGradient(root.transform, theme);
             BuildPostVolume(root.transform);
 
             // The dither that keeps the player visible under a canopy. It lives on the arena root so
@@ -596,7 +596,15 @@ namespace ProjectSurvive.Game.Editor
         /// image covers the same fraction of the frame at every captured resolution. Its sorting
         /// order sits below the HUD's canvases, so it never dims a label.
         /// </summary>
-        private static ArenaScreenGradient BuildScreenGradient(Transform parent)
+        /// <remarks>
+        /// The band is written here with the dusk profile's own colour and strength, not left at the
+        /// <c>Image</c>'s default white: <see cref="ArenaEnvironmentView.Apply"/> only runs from
+        /// <c>Awake</c>, so a scene that stores white photographs — and looks, in the Editor's Game
+        /// view before Play — like a pale haze across the upper half of the arena that the game never
+        /// draws. Stage 17b's legibility reading was taken from such a picture; the scene now ships
+        /// the band it draws.
+        /// </remarks>
+        private static ArenaScreenGradient BuildScreenGradient(Transform parent, ArenaTheme theme)
         {
             var go = new GameObject("ScreenGradient");
             go.transform.SetParent(parent, worldPositionStays: false);
@@ -619,6 +627,13 @@ namespace ProjectSurvive.Game.Editor
 
             var gradient = go.AddComponent<ArenaScreenGradient>();
             gradient.Configure(image);
+
+            ArenaLightingProfile dusk = theme != null ? theme.DuskProfile : null;
+            if (dusk != null)
+            {
+                gradient.Apply(dusk.ScreenGradientColor, dusk.ScreenTopGradient);
+            }
+
             return gradient;
         }
 

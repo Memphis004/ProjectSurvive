@@ -111,7 +111,7 @@ again on the next animated tick).
 
 ### 4b. The outline is one URP pass of the project's own, not spine's outline shader (Stage 17b)
 
-A 45-pixel-tall figure in a white robe, on an arena whose middle is a pale haze band, does not read.
+A 45-pixel-tall figure in a white robe does not read at 45 pixels.
 The profile now draws with `ProjectSurvive/SpinePlayerOutline`: one pass whose body half is a verbatim
 copy of `Spine/Skeleton`'s Normal pass (premultiplied alpha, vertex-colour tint,
 `One / OneMinusSrcAlpha`) and whose ink is the atlas alpha sampled eight ways in **screen** pixels taken
@@ -122,6 +122,19 @@ from the UV derivatives.
 | spine-unity's `Spine/Outline/Skeleton` | It draws ink and body as two passes of one SubShader, and URP renders exactly one untagged (SRPDefaultUnlit) pass per material. Measured: the figure came out as thin dark lines with no body at all. |
 | Two materials (ink-only next to the body) | Needs a second renderer fed from the same skeleton mesh every frame, so the actor stops being one drawable; and the ink has to sit behind the body, which is a second sorting decision per row. |
 | Outline in atlas texels | The figure is drawn ~15× smaller than the atlas, so a texel-wide ink is invisible at 45 px and a fixed multiple is wrong at every other camera size. Screen-pixel steps are resolution-independent. |
+
+**Correction (same stage, after the first capture).** The sentence this section opened with used to
+say the arena's middle is “a pale haze band”, and that pale band was measured off
+`artifacts/ui/battle-player-*.png`. It was not the arena: `ArenaScreenGradient`'s `Image` is
+authored white and only `ArenaEnvironmentView.Apply` (from `Awake`) turns it into the profile's
+near-black green, so an Edit-Mode photograph — and the Game view before Play — showed the band at
+full strength in white and washed the upper half of every arena and camp picture. Applying the
+profile in the capture command (`haze/band-applied-in-editor.png` vs the old shot) removes it, and
+the running game is a uniform olive field: the doctor measures **7.1 : 1** against the floor, 4.7 : 1
+against his own lantern halo. The outline earns its place on the figure's size and the robe's flat
+white, not on a haze the game does not draw; the halo was dimmed (`GlowIntensity` 0.85 → 0.45,
+`LightPoolIntensity` 0.24 → 0.15) so the figure does not sit in a light pool it also has to be
+separated from.
 
 ### 5. Spine does not own a clock; the caller does
 

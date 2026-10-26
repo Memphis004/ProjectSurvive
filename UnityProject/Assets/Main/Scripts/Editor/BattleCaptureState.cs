@@ -11,6 +11,7 @@ using ProjectSurvive.Core.Shared;
 using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Infrastructure;
 using ProjectSurvive.Game.Presentation.Battle;
+using ProjectSurvive.Game.Presentation.Battle.Environment;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using UnityEditor;
@@ -164,6 +165,9 @@ namespace ProjectSurvive.Game.Editor
 
         private PlayerFigurePresenter _figure;
 
+        private GameObject _floor;
+        private Mesh _floorQuad;
+
         private int _steppedTo;
         private int _manaShortIndex = -1;
         private bool _disposed;
@@ -194,6 +198,12 @@ namespace ProjectSurvive.Game.Editor
 
             _presenter = new BattleHudPresenter(_state, _text, config, _speed);
             _session = factory.Create(setup);
+
+            // The arena floor, drawn the way BattleViewScene draws it. It is built at runtime in the
+            // game, so a photograph taken in Edit Mode has no ground at all and the doctor is read
+            // against the camera's clear colour instead of the olive tile the floor really is —
+            // which is the difference between "he stands out" and "he does not".
+            BuildFloor();
 
             // The floor's static half first (floor name, timeline, captions), then its first frame —
             // the order BattleViewScene.Begin uses. That frame is kept aside: it is the floor-start
@@ -734,6 +744,45 @@ namespace ProjectSurvive.Game.Editor
         }
 
         /// <inheritdoc />
+        /// <summary>
+        /// Lays the arena floor under the picture, exactly as <see cref="BattleViewScene"/> does.
+        /// </summary>
+        /// <remarks>
+        /// The floor is one opaque quad with the theme's ground material, 80 × 80 world units, flat
+        /// on the ground plane (<c>ArenaGeometry.CreateCenteredQuad</c> scaled by the arena's radius).
+        /// It exists only at runtime, which is why every earlier battle photograph showed the doctor
+        /// on the camera's near-black clear colour: a white robe on black looks far better than the
+        /// game's, and an olive tile under a pale lantern halo looks far worse. Neither is the game.
+        /// Without the arena's environment there is nothing to copy and no floor is made — the
+        /// failure would be a fixture, not a look.
+        /// </remarks>
+        private void BuildFloor()
+        {
+            var environment = UnityEngine.Object.FindFirstObjectByType<ArenaEnvironmentView>(
+                UnityEngine.FindObjectsInactive.Include);
+
+            Material ground = environment?.Theme?.GroundMaterial;
+            if (ground is null)
+            {
+                return;
+            }
+
+            _floorQuad = ArenaGeometry.CreateCenteredQuad();
+            _floorQuad.hideFlags = HideFlags.DontSave;
+
+            _floor = new GameObject("capture-floor");
+            _floor.transform.SetPositionAndRotation(Vector3.zero, Quaternion.Euler(90f, 0f, 0f));
+            _floor.AddComponent<MeshFilter>().sharedMesh = _floorQuad;
+
+            var renderer = _floor.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = ground;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+
+            _floor.transform.localScale = new Vector3(
+                BattleViewCaps.ArenaRadius * 2f, BattleViewCaps.ArenaRadius * 2f, 1f);
+        }
+
         public void Dispose()
         {
             if (_disposed)
@@ -742,6 +791,18 @@ namespace ProjectSurvive.Game.Editor
             }
 
             _disposed = true;
+
+            if (_floor is not null)
+            {
+                UnityEngine.Object.DestroyImmediate(_floor);
+                _floor = null;
+            }
+
+            if (_floorQuad is not null)
+            {
+                UnityEngine.Object.DestroyImmediate(_floorQuad);
+                _floorQuad = null;
+            }
 
             _figure?.Dispose();
             _figure = null;

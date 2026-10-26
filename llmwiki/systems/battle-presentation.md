@@ -378,6 +378,23 @@ URP fog darkens by camera distance, which is not the screen's vertical axis unde
 rig — and `ArenaContrast` measures readability as the WCAG luminance ratio of a group's 90th
 percentile against the median floor ring around it, on the pixels of the saved PNG itself.
 
+**The lantern's own halo is part of the floor the figure is read against (Stage 17b follow-up).**
+`GlowIntensity` draws the additive halo around the doctor and moves with him, so it lifts the floor
+under his feet from ~0.09 to ~0.31 relative luminance and puts a white robe at 2.3 : 1 against its
+own light instead of the 6–7 : 1 it gets a step away. Dusk's halo is therefore 0.45 and its light
+pools 0.15 (0.85 / 0.24 before); night keeps its stronger glow because a dark floor is what that
+halo is for. Measured on two play-mode frames of the same floor: robe-vs-halo ring 3.71 → 4.74,
+robe-vs-floor 7.06 → 7.16, halo-vs-floor 1.91 → 1.51.
+
+**A photograph of the arena must apply the profile first.** `ArenaScreenGradient`'s `Image` is
+authored white and `ArenaEnvironmentView.Apply` (called from `Awake`) is what turns it into the
+profile's near-black green. A picture taken in Edit Mode therefore showed the top band at full
+strength in **white**, washing the upper half of every arena and camp shot — a haze the game never
+draws, and enough to misread a white robe as illegible. Both builders now write the authored band
+into the scene, and `UiCaptureTool` applies the profile before it photographs; `BattleCaptureState`
+also lays the runtime floor (one quad, `ArenaTheme.GroundMaterial`, 80 × 80) so the picture has the
+ground the game draws rather than the camera's clear colour.
+
 Readability thresholds live in `ArenaTheme` (player 2.2, ghost 1.9, pickup 2.4, telegraph 1.3) and
 are adjusted by changing the lighting, never the number. Evidence: `docs/stages/08f-report.md`,
 `AgentScripts/ArenaStage08fCapture.Run` writes `stage08f-contrast.txt` / `stage08f-metrics.txt` next

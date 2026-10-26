@@ -738,6 +738,14 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   The Release candidate is **16.18 MiB gzip / 11.85 MiB Brotli** (+0.66 / +0.56 over the Stage 15 RC,
   gate < 30, target < 15) and still reports `spineReady:true` — stripping keeps the skeleton and its
   shader ([report](../docs/stages/17b-report.md)).
+- **Follow-up (same stage):** the "pale haze band" the outline was added for was not the arena — it was
+  `ArenaScreenGradient`'s `Image` photographed at its authored **white**, because `ArenaEnvironmentView.Apply`
+  only runs from `Awake`. The capture command now applies the profile first, both builders write the
+  authored band into the scene, and `BattleCaptureState` lays the runtime floor so a battle shot has the
+  ground the game draws; the same follows for the Camp. What really sits behind the doctor is his own
+  lantern halo, so Dusk's `GlowIntensity` went 0.85 → 0.45 and `LightPoolIntensity` 0.24 → 0.15
+  (NIGHT untouched): robe-vs-halo **3.71 → 4.74**, halo-vs-floor **1.91 → 1.51**, robe-vs-floor 7.06 → 7.16
+  on two play-mode frames of one floor.
 - **Next:** the art is still a **licensing blocker** (`ATTRIBUTION.md`) — the RC above is evidence about
   stripping, not a shippable candidate; then 17c/17d give the figure to the Camp and the Title, and a
   weapon to the four empty `w_*` slots.

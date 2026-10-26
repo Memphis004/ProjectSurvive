@@ -186,7 +186,7 @@ namespace ProjectSurvive.Game.Editor
             Light[] statics = BuildStaticLights(lights);
             BuildLightPools(pools);
             BuildPostVolume(root.transform);
-            ArenaScreenGradient gradient = BuildScreenGradient(root.transform);
+            ArenaScreenGradient gradient = BuildScreenGradient(root.transform, theme);
 
             var environment = root.AddComponent<ArenaEnvironmentView>();
             Wire(environment, "_theme", theme);
@@ -406,7 +406,7 @@ namespace ProjectSurvive.Game.Editor
             }
         }
 
-        private static ArenaScreenGradient BuildScreenGradient(Transform parent)
+        private static ArenaScreenGradient BuildScreenGradient(Transform parent, ArenaTheme theme)
         {
             var go = new GameObject("ScreenGradient");
             go.transform.SetParent(parent, worldPositionStays: false);
@@ -429,6 +429,16 @@ namespace ProjectSurvive.Game.Editor
 
             var gradient = go.AddComponent<ArenaScreenGradient>();
             gradient.Configure(image);
+
+            // The authored band, for the same reason the arena builder writes it: the runtime
+            // Apply only runs from Awake, and a scene left at the Image's white default shows (and
+            // photographs) a pale wash the game never draws.
+            ArenaLightingProfile dusk = theme != null ? theme.DuskProfile : null;
+            if (dusk != null)
+            {
+                gradient.Apply(dusk.ScreenGradientColor, dusk.ScreenTopGradient);
+            }
+
             return gradient;
         }
 

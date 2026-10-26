@@ -12,6 +12,7 @@ using ProjectSurvive.Game.Camp;
 using ProjectSurvive.Game.Infrastructure;
 using ProjectSurvive.Game.Presentation;
 using ProjectSurvive.Game.Presentation.Battle;
+using ProjectSurvive.Game.Presentation.Battle.Environment;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using ProjectSurvive.Game.Presentation.Camp;
@@ -546,6 +547,8 @@ namespace ProjectSurvive.Game.Editor
             var tooltip = Object.FindFirstObjectByType<CampTooltipView>(FindObjectsInactive.Include);
             Camera camera = Camera.main;
 
+            ApplyAuthoredLighting();
+
             if (bag == null || bar == null || tooltip == null || camera == null)
             {
                 report.Failures.Add(
@@ -756,6 +759,8 @@ namespace ProjectSurvive.Game.Editor
                 report.Failures.Add("the Battle scene has no MainCamera");
                 return;
             }
+
+            ApplyAuthoredLighting();
 
             var hud = Object.FindFirstObjectByType<BattleHudView>(FindObjectsInactive.Include);
             var miniBag = Object.FindFirstObjectByType<BattleMiniBagView>(FindObjectsInactive.Include);
@@ -1081,6 +1086,36 @@ namespace ProjectSurvive.Game.Editor
         /// area they are drawn in) puts itself back through. Null for a screen whose layout is entirely
         /// authored.
         /// </param>
+        /// <summary>
+        /// Writes the scene's authored lighting into the engine before the scene is photographed.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see cref="ArenaEnvironmentView.Apply"/> is half of what makes a frame a frame of the
+        /// game — the ambient, the fog, the fake lights, the camera's clear colour and the screen-top
+        /// band — and it is called from <c>Awake</c>, which does not happen for a photograph taken in
+        /// Edit Mode. Photographed unapplied, the band keeps the <c>Image</c>'s authored <b>white</b>
+        /// (1, 1, 1, 1) instead of the profile's near-black green, and its full-strength ramp washes
+        /// the upper half of every arena and camp picture pale: a haze the game never draws.
+        /// </para>
+        /// <para>
+        /// That is not a cosmetic detail. The Stage 17b reading of the doctor's legibility — "a white
+        /// robe on a pale haze band" — was taken from exactly this picture, and the running game draws
+        /// him at a measured 6 : 1 against an olive floor. The call belongs here, not in a note, so
+        /// the next reader judges the look from the look.
+        /// </para>
+        /// </remarks>
+        private static void ApplyAuthoredLighting()
+        {
+            ArenaEnvironmentView environment =
+                Object.FindFirstObjectByType<ArenaEnvironmentView>(FindObjectsInactive.Include);
+
+            if (environment != null)
+            {
+                environment.Apply(false);
+            }
+        }
+
         private static void Capture(
             SceneKind scene,
             string state,

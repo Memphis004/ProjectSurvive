@@ -460,10 +460,15 @@ namespace ProjectSurvive.Game.Editor
             profile.ScreenTopGradient = 0.42f;
             profile.ScreenGradientColor = new Color(0.04f, 0.06f, 0.03f, 1f);
 
+            // The lantern's halo is the brightest thing on the floor wherever the doctor stands:
+            // additive over an olive floor it lifts the ground from ~0.09 to ~0.31 relative
+            // luminance, so a white robe reads at 2.3 : 1 against its own lantern instead of the
+            // 6 : 1 it gets a step away. Dimmed at Stage 17b's follow-up for exactly that reason;
+            // the pools are dimmed with it because they wash the same middle at a larger radius.
             profile.LanternIntensity = 1.10f;
             profile.StaticLightIntensity = 0.45f;
-            profile.LightPoolIntensity = 0.24f;
-            profile.GlowIntensity = 0.85f;
+            profile.LightPoolIntensity = 0.15f;
+            profile.GlowIntensity = 0.45f;
 
             profile.PostExposure = 0.30f;
             profile.ColorFilter = new Color(1.02f, 1f, 0.94f, 1f);
