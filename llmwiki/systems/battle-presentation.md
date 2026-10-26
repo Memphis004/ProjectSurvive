@@ -389,11 +389,15 @@ robe-vs-floor 7.06 → 7.16, halo-vs-floor 1.91 → 1.51.
 **The haze across the middle is a profile value, not a screenshot artefact (Stage 17b follow-up).**
 `ScreenMidGradient` / `ScreenMidColor` draw a second `Image` on the same below-the-HUD canvas, on its
 own sprite (`screen-mid-band.png`: opaque at the frame's vertical middle, zero above 18 % and below
-86 %), so the band lifts the strip the fight is read in and leaves both edges alone. Dusk 0.16 of
+86 %), so the band lifts the strip the fight is read in and leaves both edges alone. Dusk 0.10 of
 `(0.62, 0.63, 0.55)`, night 0.10 of `(0.10, 0.14, 0.22)`, the Camp's profile 0 (wired, disabled).
-It is a veil over the actor too: measured on one play-mode frame it takes the doctor from 6.98 : 1 to
-**4.94 : 1** against the ground under him, so it is atmosphere with a price tag — the strength is the
-knob, and a larger figure, not more haze, is what raises salience.
+It is a veil over the actor too: measured on one play-mode frame it takes the doctor from 6.97 : 1 to
+**5.62 : 1** against the ground under him (0.16, the first value, measured 4.97 and veiled the middle
+of the frame more than the look wanted), so it is atmosphere with a price tag — the strength is the
+knob, and a larger figure, not more haze, is what raises salience. The band's canvas sorts at **−100**
+against the HUD's **0**, so it draws *under* the panels; those are translucent (alpha 0.88–0.98), which
+is why their colour moves by up to 6/255 between the two strengths while everything above y = 104
+(14 % of the height) does not move at all.
 
 **A photograph of the arena must apply the profile first.** `ArenaScreenGradient`'s `Image` is
 authored white and `ArenaEnvironmentView.Apply` (called from `Awake`) is what turns it into the

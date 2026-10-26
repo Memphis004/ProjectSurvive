@@ -731,11 +731,12 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   The capture then showed a white robe with no edge on the arena's pale haze, so the figure draws with a
   **one-screen-pixel ink outline** — `ProjectSurvive/SpinePlayerOutline`, one pass, because URP renders
   one pass per material and spine's two-pass `Spine/Outline/Skeleton` drew dark lines with no body.
-- **Result:** EditMode **271/271** (9 new), `BattlePlayModeTests` **10/10**, `-Suite Full` with the
-  Editor open **PASS 23 | FAIL 0 | NOT RUN 3**; with it closed the WebGL build and Playwright **21/21**
-  pass, publishing `spineReady:true, spinePlayCalls:1, spineAnimation:"idle1"`. Editor capture floor 1 at
+- **Result:** EditMode **274/274** (9 new for the figure, 3 for the mid-field band), `BattlePlayModeTests`
+  **10/10**, `-Suite Full` with the Editor open **PASS 23 | FAIL 0 | NOT RUN 3** (PlayMode 82/82 across the
+  ten fixtures); with it closed `-Release` **PASS 15 | FAIL 0 | NOT RUN 1** — WebGL build, Playwright
+  **21/21** and hosting, publishing `spineReady:true, spinePlayCalls:1, spineAnimation:"idle1"`. Editor capture floor 1 at
   1920×1080 shows the doctor running ([`battle-player-1920x1080.png`](../artifacts/ui/battle-player-1920x1080.png)).
-  The Release candidate is **16.18 MiB gzip / 11.85 MiB Brotli** (+0.66 / +0.56 over the Stage 15 RC,
+  The Release candidate is **16.18 MiB gzip / 11.83 MiB Brotli** (+0.66 / +0.54 over the Stage 15 RC,
   gate < 30, target < 15) and still reports `spineReady:true` — stripping keeps the skeleton and its
   shader ([report](../docs/stages/17b-report.md)).
 - **Follow-up (same stage):** the "pale haze band" the outline was added for was not the arena — it was
@@ -747,8 +748,12 @@ alone** (2026-10-15, Stage 09d; re-measured 2026-10-16, Stage 09e: **12 passed /
   (NIGHT untouched): robe-vs-halo **3.71 → 4.74**, halo-vs-floor **1.91 → 1.51**, robe-vs-floor 7.06 → 7.16
   on two play-mode frames of one floor. The mid-field haze is now a real profile value too —
   `ScreenMidGradient`/`ScreenMidColor`, a second Image on the below-the-HUD canvas on its own bump
-  sprite (`screen-mid-band.png`), dusk 0.16 of `(0.62,0.63,0.55)`, night 0.10, camp off — and it is a
-  veil over the actor as well: 6.98 : 1 → **4.94 : 1** on the measured frame.
+  sprite (`screen-mid-band.png`), dusk 0.10 of `(0.62,0.63,0.55)` (0.16 was the first value and measured
+  4.97 : 1 — a grey veil over the middle of the frame), night 0.10, camp off — and it is a veil over the
+  actor as well: 6.97 : 1 → **5.62 : 1** on the measured frame. Pixel-diffed, the two strengths differ
+  only inside the band's own 18 %–86 % footprint (identical above y = 104, ≤ 2/255 up to y = 129), and
+  the band's −100 canvas sits *under* the translucent HUD panels, which is why those move by up to
+  6/255 while the top edge and the frame's bottom do not move at all.
 - **Next:** the art is still a **licensing blocker** (`ATTRIBUTION.md`) — the RC above is evidence about
   stripping, not a shippable candidate; then 17c/17d give the figure to the Camp and the Title, and a
   weapon to the four empty `w_*` slots.

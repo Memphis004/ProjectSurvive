@@ -468,11 +468,13 @@ namespace ProjectSurvive.Game.Editor
             profile.ScreenTopGradient = 0.42f;
             profile.ScreenGradientColor = new Color(0.04f, 0.06f, 0.03f, 1f);
 
-            // The haze the fight is read through, in screen space and only across the middle:
-            // 0.16 costs the doctor about a quarter of his robe-to-floor ratio (7.0 → 5.2 in the
-            // measured frame, still more than twice the 08f player threshold), so the number is a
+            // The haze the fight is read through, in screen space and only across the middle.
+            // 0.16 did the job but veiled the middle of the frame more than the look wanted: the
+            // same frozen frame read as a grey strip over the floor. 0.10 keeps the break in the
+            // ground's tint and costs the doctor less of his robe-to-floor ratio (5.5 : 1 against
+            // 4.9 : 1 at 0.16, both well over the 08f player threshold of 2.2), so the number is a
             // look with a price tag, not a free effect.
-            profile.ScreenMidGradient = 0.16f;
+            profile.ScreenMidGradient = 0.10f;
             profile.ScreenMidColor = new Color(0.62f, 0.63f, 0.55f, 1f);
 
             // The lantern's halo is the brightest thing on the floor wherever the doctor stands:

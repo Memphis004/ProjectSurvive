@@ -138,8 +138,9 @@ separated from.
 
 A **mid-field haze** was then added on purpose, as a profile value rather than an accident:
 `ScreenMidGradient` / `ScreenMidColor` draw a bump-shaped band across the frame's vertical middle on
-the same below-the-HUD canvas (dusk 0.16 of `(0.62,0.63,0.55)`, night 0.10, camp off). It is a veil
-over the actor as well, and that is measurable: 6.98 : 1 → 4.94 : 1 on the frame below. The band is
+the same below-the-HUD canvas (dusk 0.10 of `(0.62,0.63,0.55)`, night 0.10, camp off). It is a veil
+over the actor as well, and that is measurable: 6.97 : 1 → 5.62 : 1 on the frame below (0.16, the
+first value, measured 4.97 and read as a grey strip, so the strength was halved). The band is
 atmosphere; the outline is what keeps the 45-pixel figure's edge, so neither argument removes the
 other.
 
