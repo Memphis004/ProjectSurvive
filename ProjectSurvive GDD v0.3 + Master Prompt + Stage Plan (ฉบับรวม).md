@@ -1567,7 +1567,7 @@ Acceptance: เล่นชั้น 1 ได้ด้วย Spine; บันท
 Tests: CampWorldPlayModeTests (เดิน → pose Run, หยุด → Idle), เทสต์เดิมของ Camp ผ่านทีละ fixture,
 Editor capture 1920×1080 + 1280×720 ไม่มี element ทับ, tests/web/camp.spec.ts (ถ้ารันได้) รายงาน PASS / FAIL / NOT RUN
 
-Stage 17d — รูปตัวละครใน HUD (SpineUiActor)
+## Stage 17d — รูปตัวละครใน HUD (SpineUiActor)
 
 ทำ Stage 17d เท่านั้น: แทน placeholder รูปตัวละครในพาเนลสถานะซ้ายล่างของ Battle HUD ด้วย SpineUiActor
 (SkeletonGraphic) ผ่านวัสดุจาก tool 17a (SetMaterials) ห้ามใช้ Shader.Find
@@ -1576,6 +1576,100 @@ View ไม่มี logic: แสดง Idle วนอย่างเดีย�
 เปิด Canvas additionalShaderChannels เฉพาะเมื่อ tintBlack; ตรวจ __projectSurviveTextFit ยังผ่าน
 Tests: EditMode layout, PlayMode (actor built, CreatedAfterBuild = 0), Editor capture 2 ขนาด
 Acceptance: ภาพจริงไม่ทับกัน, เทสต์ผ่าน, รายงาน PASS / FAIL / NOT RUN
+
+## Stage 17e เท่านั้น: ปรับ Spine ของพ่อหมอหลัง 17a–17d (ขอบเขต: Presentation + Editor tool + tests;
+ห้ามแก้ lib/, data/, Simulation, contract; ฉากแก้ผ่าน Scene builder เท่านั้น — AGENTS ข้อ 11)
+
+เริ่มจากอ่านของเดิมจริง แล้วสรุปสั้นๆ ใน docs/stages/17e-report.md ก่อนแก้:
+SpinePlayerView, SpinePlayerProfile (และ asset ที่สร้างไว้), การต่อใน Camp (CampPlayerView/CampSceneBuilder),
+การต่อใน Battle (BattleRenderBridge/BattleSceneBuilder), และ status panel ของ Battle HUD (ที่ใช้ SpineUiActor อยู่)
+
+1) ท่ายืนแยกตามฉาก
+   - Camp: idle = "stand"   |   Battle: idle = "idle5"   (run/hurt/death คงเดิม)
+   - แนวทางที่เสนอ (น้อยที่สุดและไม่เพิ่ม abstraction — ข้อ 12): แยก SpinePlayerProfile เป็น 2 asset
+     (SpinePlayerProfile_Camp.asset, SpinePlayerProfile_Battle.asset) แล้วให้ CampSceneBuilder / BattleSceneBuilder
+     assign ของตัวเอง; ถ้าโค้ดเดิมมีโครงที่รองรับ idle ต่อฉากอยู่แล้วให้ใช้ของเดิม รายงานว่าเลือกอะไรเพราะอะไร
+   - Editor tool "Create player profile" ต้องระบุชื่อ idle ตรงๆ (stand / idle5) ไม่ใช้คีย์เวิร์ดเดา และ TryValidate
+     ต้องล้มดังๆ พร้อมรายชื่อ animation ทั้งหมดถ้าชื่อไม่มีใน skeleton จริง
+   - asset ที่สร้างไว้แล้ว: tool ต้องอัปเดตเฉพาะฟิลด์ idle ของ asset เดิม (ไม่ทับฟิลด์อื่นที่ผู้ใช้ปรับ) และ log สิ่งที่เปลี่ยน
+     ห้ามปล่อยค่า idle เก่าค้างเงียบๆ
+   - ใส่ชื่อ animation ปัจจุบันใน report ของ Camp และ Battle (spineAnimation) เพื่อให้เทสต์ยืนยันได้
+
+2) แก้ทิศหันกลับด้าน (บั๊ก)
+   หลักฐาน (GIF ใน Camp, วัดการเลื่อนของพื้นหลังต่อเฟรม): ตอนวิ่งซ้ายภาพหันขวา และตอนวิ่งขวาภาพหันซ้าย
+   กลับด้านสม่ำเสมอทั้งช่วง ไม่ได้กระพริบทุกเฟรม → น่าจะเป็นเครื่องหมาย flip กลับ ไม่ใช่ hysteresis/dead zone
+   - หาสาเหตุจากโค้ดจริง (artFacesRight ตั้งผิด / เครื่องหมาย dx ใน Camp หรือ Battle / พลิกซ้อนสองชั้นจาก billboard)
+     แล้วแก้ที่จุดเดียวที่ถูกต้อง ห้ามแก้ซ้อนสองที่จนหักล้างกัน; ตรวจ Camp และ Battle แยกกัน
+     เพราะสองฉากคำนวณทิศจากคนละแหล่ง (input ของ Camp / frame ของ Battle)
+   - ตรวจแยกทุก animation ที่ใช้ (stand, idle5, run): ท่าแต่ละอันอาจวาดหันคนละด้านใน skeleton
+     ถ้าไม่ตรงกัน ให้เพิ่มฟิลด์ flip ต่อ animation ในโปรไฟล์ (ฟิลด์เล็กๆ) ตัดสินจากภาพจริง ไม่ใช่เดา
+   - Editor capture 1920×1080 ของ Run ซ้าย / Run ขวา / stand (Camp) และ Run ซ้าย / Run ขวา / idle5 (Battle)
+     ดูภาพจริงว่าหัวและลำตัวหันไปทางที่กำลังเคลื่อนที่ แนบสรุปใน report (ห้ามประกาศ PASS จากเทสต์อย่างเดียว)
+   - เทสต์ PlayMode: เคลื่อนซ้าย/ขวา (input จริงใน Camp, frame จริงใน Battle) → เครื่องหมาย localScale.x ของ
+     SkeletonTransform ตรงกับกฎของโปรไฟล์; หยุดเดินแล้วทิศล่าสุดคงเดิม
+
+3) HUD: เปลี่ยน status panel ของ Battle เป็น Spine พอร์ตเทรตครึ่งตัว (halfbody 2110101)
+   ยังใช้ SpineUiActor เหมือนเดิม — ห้ามเลิกใช้ และห้ามเปลี่ยนเป็น Image/Sprite
+   เหตุผล: ต้องคงการแยกชิ้นส่วน (หัว/ผม/ลำตัว/อาวุธ) ไว้รองรับระบบ customization ในอนาคต
+
+   ไฟล์ต้นทาง (ผู้ใช้อัปโหลดแล้ว: 2110101.png, 2110101_skel.bytes, 2110101_atlas.txt,
+   2110101_Atlas.asset, 2110101_SkeletonData.asset, source.json — จาก bundle
+   character/spinelib/halfbody_dizi/jianxiu/2110101_skeletondata.ab)
+   - เริ่มจากอ่านโมดูล Spine ที่มีอยู่ว่านำเข้า skeleton/atlas ของ 1110901 อย่างไร (tool/โฟลเดอร์/ที่ asset ไปอยู่)
+     แล้วนำเข้า 2110101 ด้วยวิธีเดียวกัน อย่าสร้างเส้นทางนำเข้าใหม่ถ้าของเดิมใช้ได้
+   - ข้อมูลที่ทราบจาก source.json: skeleton scale 0.01, defaultMix 0.2, atlas 1 หน้า 1252×1028 RGBA8888
+     material เดิมของเกมใช้ shader เฉพาะ (outline/stencil) — ห้ามคัดลอก shader นั้นมาใช้
+     ให้ใช้ UI material จาก tool "Create UI materials" ของโมดูล
+   - อย่าเดา: อ่านจาก skeleton จริงแล้วรายงาน slot ทั้งหมด, skin ทั้งหมด, animation ทั้งหมด (ถ้ามี),
+     และชื่อ region ใน atlas ที่ผูกกับแต่ละ slot ลง docs/stages/17e-report.md
+     (จาก atlas เห็นชิ้นส่วนหัว ผม 4+ แบบ ลำตัว 2 ชุด ดาบ 3 แบบ — ตรวจว่าใน skin เริ่มต้นประกอบอะไรอยู่)
+
+   ท่านิ่ง (ไม่มีอนิเมชั่น)
+   - ถ้า skeleton ไม่มี animation: แสดง setup pose (ไม่เรียก AnimationState.SetAnimation)
+   - ถ้ามี animation: เลือกเฟรมนิ่งตามที่โปรไฟล์ระบุชื่อตรงๆ (ไม่ใช้คีย์เวิร์ดเดา) แล้ว freeze ที่ time 0
+     ไม่ต้อง Update ทุกเฟรม; ถ้าโค้ดเดิมต้อง Update ให้คุมให้เรียกเฉพาะตอนข้อมูลเปลี่ยน
+     PlayCalls/ค่าใช้จ่ายต่อเฟรมของ HUD ต้องไม่โตตามจำนวนเฟรม
+   - ถ้าชื่อ animation/skin ที่ระบุไม่มีใน skeleton ให้ TryValidate ล้มดังๆ พร้อมรายชื่อทั้งหมด
+
+   Skin / การแยกชิ้นส่วน
+   - ประกอบ skin ผ่านกลไกเดียวกับที่ Camp/Battle ใช้ (combined skin) โดยให้การเลือกชิ้นส่วนอยู่ใน serialized
+     settings ที่ Scene builder assign (ไม่ฝังชื่อ skin/slot ใน view)
+   - ห้ามสร้างระบบ customization ใหม่ในสเตจนี้ — แค่เก็บโครงให้เปลี่ยน skin ได้โดยไม่แก้โค้ด
+   - ถ้า combined skin เหลือ slot ว่าง ใช้กลไก expectedEmptySlots (ข้อ 4) เดียวกัน ห้ามเดาใส่ชิ้นส่วนเอง
+
+   Layout / การแสดงผล
+   - Layout ที่ 1920×1080 และ 1280×720: ช่องภาพอยู่ซ้ายในพาเนลสถานะ ไม่ทับข้อความ "ชีวิต/พลังอาคม",
+     หลอด HP/MP, ไทม์ไลน์ชั้น; ภาพครึ่งตัวถูกตัดกรอบ (mask/RectMask2D หรือวิธีที่โมดูลใช้อยู่) ไม่ล้นพาเนล
+   - ปรับ scale/ตำแหน่ง SpineUiActor ให้เห็นหัวถึงลำตัวส่วนบนพอดีช่อง (ตัดสินจากภาพ Editor capture จริง
+     ที่ทั้งสอง resolution ห้ามประกาศ PASS จากเทสต์อย่างเดียว)
+   - เพิ่ม region ของพอร์ตเทรตใน UiLayoutCheck; ถ้าต้องขยายพาเนลให้ขยายโดยไม่ชนองค์ประกอบอื่น
+     และ __projectSurviveTextFit ต้องยังผ่าน
+   - Canvas additionalShaderChannels และ materials ที่ HUD ใช้อยู่ต้องคงไว้ (SpineUiActor ยังต้องใช้)
+     ตรวจว่า material ของ 2110101 ใช้ร่วมกับ chibi ได้หรือต้องแยก แล้วรายงานเหตุผล
+
+   Asset / ขนาด / สิทธิ์
+   - Import texture 2110101.png ตามนโยบาย WebGL ของโปรเจค (ตรวจจาก ProjectSetup ห้ามเดา)
+     เทียบ maxTextureSize กับขนาดแสดงผลจริง; atlas 1252×1028 อาจลดได้ ให้วัดจากภาพแล้วรายงาน
+     ห้ามลดจนภาพแตกโดยไม่แนบ capture เทียบ
+   - ถ้า 2110101 เป็นของใหม่ทั้งชุด ตรวจว่ามีชิ้นส่วน/สีที่ไม่ได้ใช้เลย (ผมหลายแบบ ดาบ 3 แบบ ลำตัว 2 ชุด)
+     — ยังไม่ตัดทิ้ง เพราะตั้งใจเก็บไว้ทำ customization — แต่รายงานขนาดที่ชิ้นส่วนที่ไม่ได้ใช้กินอยู่
+   - ยืนยันความสัมพันธ์ 2110101 (halfbody_dizi/jianxiu) กับตัวละคร 1110901 จากข้อมูลโปรเจค/ชื่อ asset
+     ถ้ายืนยันไม่ได้ให้รายงาน ห้ามเดาเงียบ
+   - สิทธิ์ใช้งาน (ข้อ 13): ลง ATTRIBUTION.md เหมือน asset Spine ตัวอื่น; ยืนยันที่มาไม่ได้ → blocker ของ Release
+   - วัดผลกระทบขนาด payload (build-web.ps1 -ReleaseCandidate + measure-web-size.mjs) ไม่เช่นนั้น NOT RUN
+
+4) [ไม่บังคับ — ข้ามได้] Console ขึ้น warning "Combined skin leaves 4 empty slot(s): w_dao, w_zhang, w_qiang, w_jian"
+   (slot อาวุธว่าง) ถ้าตั้งใจให้ว่าง ให้โปรไฟล์ประกาศ expectedEmptySlots แล้วเตือนเฉพาะ slot ที่ไม่คาดคิด
+   ห้ามเดาใส่อาวุธเอง
+
+เทสต์/ปิดสเตจ
+   - EditMode: โปรไฟล์/ข้อมูลของพอร์ตเทรต 2110101 ผ่าน TryValidate กับ skeleton จริง; layout portrait ไม่ทับ
+   - PlayMode: Battle HUD มี SpineUiActor ที่ Begin() สำเร็จ ใช้ skeleton 2110101 (ตรวจชื่อ SkeletonDataAsset
+     ที่ assign จริง ตามบทเรียน wiring 08c) และอยู่ท่านิ่ง (time ไม่เดิน / ไม่มี animation track วิ่งอยู่);
+     PlayCalls ไม่โตตามจำนวนเฟรม
+   - tools/test.ps1 -Suite Fast; PlayMode เฉพาะ fixture Camp/Battle; Editor capture ตามข้างบน
+     -Suite Full และ build -ReleaseCandidate ตอนปิด ถ้ารันไม่ได้ให้ NOT RUN ตามจริง
+   - commit `stage-17e: ...`   รายงานสั้น PASS / FAIL / NOT RUN
 
 ## Test harness และ Performance budget
 
