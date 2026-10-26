@@ -150,6 +150,15 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(figure.FaceDirection, Is.EqualTo(1), "walking right must face right");
             Assert.That(figure.AnimationTime, Is.GreaterThan(0f), "the walk's animation never advanced");
 
+            // Stage 17e: the mirror follows the profile's rule. The art faces the viewer's left, so
+            // walking right is the mirrored one — read off the transform the flip is written to.
+            // flip = ArtFacesRight ? facing < 0 : facing > 0; walking right is facing +1.
+            SpinePlayerProfile profile = figure.Profile;
+            Assert.That(
+                figure.Actor.SkeletonTransform.localScale.x,
+                Is.EqualTo(profile.ArtFacesRight ? 1f : -1f),
+                "walking right left the figure mirrored the wrong way for this art");
+
             string run = figure.CurrentAnimation;
             Assert.That(run, Is.Not.EqualTo(idle), "the run pose draws the idle animation");
 
@@ -168,8 +177,18 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Press(_keyboard.aKey);
             yield return Wait(0.35f);
             Assert.That(figure.FaceDirection, Is.EqualTo(-1), "walking left must face left");
+            Assert.That(
+                figure.Actor.SkeletonTransform.localScale.x,
+                Is.EqualTo(profile.ArtFacesRight ? -1f : 1f),
+                "walking left left the figure mirrored the wrong way for this art");
             Release(_keyboard.aKey);
             yield return null;
+
+            // Stopping keeps the direction it last walked, not a default one.
+            Assert.That(
+                figure.Actor.SkeletonTransform.localScale.x,
+                Is.EqualTo(profile.ArtFacesRight ? -1f : 1f),
+                "standing after a walk reset the facing");
 
             // The จัดย่าม panel stops the walk, so the doctor stands while a walk key is still held.
             Press(_keyboard.wKey);

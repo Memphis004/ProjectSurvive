@@ -182,6 +182,87 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         /// <summary>
+        /// Each scene stands with its own idle, and the art is mirrored for the other direction only
+        /// (Stage 17e).
+        /// </summary>
+        /// <remarks>
+        /// The camp stands with <c>stand</c> and the arena with <c>idle5</c>; everything else about the
+        /// two profiles is the same figure. <c>artFacesRight</c> is false because the art itself faces
+        /// the viewer's left in all three poses — read off close-up captures of the running game
+        /// (<c>artifacts/stage17e/zoom-A-run-right.png</c>, <c>zoom-B-run-left.png</c>,
+        /// <c>zoom-C-stand-right.png</c>), not assumed from the export's name.
+        /// </remarks>
+        [Test]
+        public void The_two_profiles_name_their_own_idle_and_the_art_faces_left()
+        {
+            SkeletonData data = LoadSkeletonData();
+
+            SpinePlayerProfile camp = LoadProfile(SpineProfileTool.CampProfileAssetPath);
+            SpinePlayerProfile battle = LoadProfile(SpineProfileTool.BattleProfileAssetPath);
+
+            Assert.That(camp.IdleAnimation, Is.EqualTo("stand"), "the camp stands with `stand`");
+            Assert.That(battle.IdleAnimation, Is.EqualTo("idle5"), "the arena stands with `idle5`");
+
+            foreach (SpinePlayerProfile profile in new[] { camp, battle })
+            {
+                string code;
+                string detail;
+                Assert.That(profile.TryValidate(data, out code, out detail), Is.True, code + ": " + detail);
+                Assert.That(profile.ArtFacesRight, Is.False, "the art faces the viewer's left in stand, idle5 and run");
+
+                // The four weapon slots no skin fills are declared, so the build log stays honest.
+                foreach (string slot in new[] { "w_dao", "w_zhang", "w_qiang", "w_jian" })
+                {
+                    Assert.That(
+                        profile.ExpectedEmptySlots, Does.Contain(slot),
+                        "the profile does not declare the weapon slot '" + slot + "' as empty on purpose");
+                }
+            }
+
+            // The one field that differs is the idle; the rest of the look is identical.
+            Assert.That(camp.TargetHeightWorld, Is.EqualTo(battle.TargetHeightWorld));
+            Assert.That(camp.WorldMaterial, Is.SameAs(battle.WorldMaterial));
+        }
+
+        /// <summary>
+        /// A figure walking right is the mirrored one, and one walking left is not — the sign the
+        /// mirror is written to, read from the SkeletonTransform the flip lives on.
+        /// </summary>
+        [Test]
+        public void Walking_right_mirrors_the_art_and_walking_left_leaves_it_alone()
+        {
+            SpinePlayerProfile profile = LoadProfile(SpineProfileTool.BattleProfileAssetPath);
+            GameObject host = new GameObject("SpinePlayerViewFacingTest");
+
+            try
+            {
+                SpinePlayerView view = host.AddComponent<SpinePlayerView>();
+                view.Configure(profile);
+                Assert.That(view.Begin(), Is.True, "Begin failed: " + view.ErrorCode);
+
+                view.Present(PlayerPose.Run, 1);
+                Assert.That(view.Actor.FlipX, Is.True, "walking right must mirror an art that faces left");
+                Assert.That(
+                    view.Actor.SkeletonTransform.localScale.x, Is.EqualTo(-1f),
+                    "the mirror is a negative x scale on the skeleton transform");
+
+                view.Present(PlayerPose.Run, -1);
+                Assert.That(view.Actor.FlipX, Is.False, "walking left must not mirror an art that already faces left");
+                Assert.That(
+                    view.Actor.SkeletonTransform.localScale.x, Is.EqualTo(1f),
+                    "the unmirrored figure keeps a positive x scale");
+
+                // Standing still keeps the last direction, not a default one.
+                view.Present(PlayerPose.Idle, -1);
+                Assert.That(view.Actor.SkeletonTransform.localScale.x, Is.EqualTo(1f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        /// <summary>
         /// The profile draws with the outlined material, and that material is not a UI shader and
         /// carries the page texture plus a visible ink width (Stage 17b follow-up).
         /// </summary>
@@ -466,8 +547,47 @@ namespace ProjectSurvive.Game.Tests.EditMode
                     "placeholder silhouette: rebuild it with ProjectSurvive/Stage 09/5. Create Camp scene");
 
                 Assert.That(
-                    world.PlayerFigureProfile, Is.SameAs(LoadProfile()),
-                    "the camp draws the doctor with a different look from the arena's");
+                    world.PlayerFigureProfile, Is.SameAs(LoadProfile(SpineProfileTool.CampProfileAssetPath)),
+                    "the camp must name its own profile: it stands with `stand`, the arena with `idle5`");
+            }
+            finally
+            {
+                if (opened)
+                {
+                    EditorSceneManager.CloseScene(scene, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// The arena carries its own profile — the one whose idle is <c>idle5</c> — so a scene rebuilt
+        /// after this stage cannot quietly keep standing with <c>stand</c> through a stale reference.
+        /// </summary>
+        [Test]
+        public void The_battle_scene_names_the_arena_profile_for_its_figure()
+        {
+            const string battleScenePath = "Assets/Main/Scenes/Battle.unity";
+
+            Scene scene = SceneManager.GetSceneByPath(battleScenePath);
+            bool opened = !scene.IsValid() || !scene.isLoaded;
+            if (opened)
+            {
+                scene = EditorSceneManager.OpenScene(battleScenePath, OpenSceneMode.Additive);
+            }
+
+            try
+            {
+                SpinePlayerView figure = null;
+                GameObject[] roots = scene.GetRootGameObjects();
+                for (int i = 0; i < roots.Length && figure == null; i++)
+                {
+                    figure = roots[i].GetComponentInChildren<SpinePlayerView>(true);
+                }
+
+                Assert.That(figure, Is.Not.Null, battleScenePath + " has no player figure view");
+                Assert.That(
+                    figure.Profile, Is.SameAs(LoadProfile(SpineProfileTool.BattleProfileAssetPath)),
+                    "the arena must name its own profile (idle5)");
             }
             finally
             {
@@ -484,11 +604,16 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
         private static SpinePlayerProfile LoadProfile()
         {
-            var profile = AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.ProfileAssetPath);
+            return LoadProfile(SpineProfileTool.BattleProfileAssetPath);
+        }
+
+        private static SpinePlayerProfile LoadProfile(string path)
+        {
+            var profile = AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(path);
             Assert.That(
                 profile,
                 Is.Not.Null,
-                SpineProfileTool.ProfileAssetPath + " is missing: run ProjectSurvive/Spine/2. Create player profile");
+                path + " is missing: run ProjectSurvive/Spine/2. Create player profiles");
             return profile;
         }
 

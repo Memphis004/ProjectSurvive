@@ -196,6 +196,13 @@ namespace ProjectSurvive.Game.Editor
         /// <summary>The MP fill, inside <see cref="StatusPanel"/>.</summary>
         public const string ManaBar = "ManaBar";
 
+        /// <summary>
+        /// The doctor's figure at the bottom left: a control inside <see cref="StatusPanel"/>, drawn
+        /// from the Spine skeleton since Stage 17d. It is measured like the bars are, so "the picture
+        /// does not land on the HP/MP rows" is a verdict rather than a look.
+        /// </summary>
+        public const string Portrait = "Portrait";
+
         /// <summary>The spawn-window track, inside <see cref="TimelinePanel"/>.</summary>
         public const string TimelineTrack = "TimelineTrack";
 

@@ -211,6 +211,7 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
             m_BuildCount++;
 
             actor.SetSkinParts(current.SkinPartArray());
+            actor.SetExpectedEmptySlots(current.ExpectedEmptySlotArray());
             actor.Build();
 
             if (!actor.IsBuilt)

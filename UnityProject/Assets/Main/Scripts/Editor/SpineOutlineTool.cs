@@ -102,13 +102,14 @@ namespace ProjectSurvive.Game.Editor
 
             EditorUtility.SetDirty(material);
 
-            var profile = AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.ProfileAssetPath);
+            // The outline is a world material, so it belongs to the profile the arena draws with.
+            var profile = AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.BattleProfileAssetPath);
             if (profile == null)
             {
                 Debug.LogError(
-                    "[SpineOutlineTool] " + SpineProfileTool.ProfileAssetPath + " is missing, so the outline " +
+                    "[SpineOutlineTool] " + SpineProfileTool.BattleProfileAssetPath + " is missing, so the outline " +
                     "material was written but nothing points at it. Run ProjectSurvive/Spine/2. Create " +
-                    "player profile.");
+                    "player profiles.");
             }
             else
             {
@@ -123,7 +124,7 @@ namespace ProjectSurvive.Game.Editor
                 "[SpineOutlineTool] " + OutlineMaterialPath + " <- '" + OutlineShader + "' over '" +
                 texture.name + "', width " + OutlineWidth + " screen px, cutoff " + EdgeCutoff +
                 ", colour " + ColorUtility.ToHtmlStringRGB(OutlineColor) +
-                (profile == null ? "; the profile was not updated." : "; " + SpineProfileTool.ProfileAssetPath + " points at it."));
+                (profile == null ? "; the profile was not updated." : "; " + SpineProfileTool.BattleProfileAssetPath + " points at it."));
         }
 
         private static void EnsureFolder(string path)

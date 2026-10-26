@@ -13,5 +13,11 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
     {
         /// <summary>The Mor's skeleton (<c>Assets/Resources/body_1110901/body_1110901_SkeletonData.asset</c>).</summary>
         public const string PlayerSkeletonData = "body_1110901/body_1110901_SkeletonData";
+
+        /// <summary>
+        /// The half-body bust the battle HUD draws in its status panel
+        /// (<c>Assets/Resources/Portrait/2110101_SkeletonData.asset</c>).
+        /// </summary>
+        public const string PortraitSkeletonData = "Portrait/2110101_SkeletonData";
     }
 }

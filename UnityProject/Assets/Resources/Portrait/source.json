@@ -1,0 +1,110 @@
+{
+  "bundle": "C:\\Workspace\\REA\\game_copy\\Windows\\character\\spinelib\\halfbody_dizi\\jianxiu\\2110101_skeletondata.ab",
+  "bundleRelPath": "character/spinelib/halfbody_dizi/jianxiu/2110101_skeletondata.ab",
+  "bundleBytes": 809722,
+  "bundleSha256": "cfde5864068dd885ecc38bbc62221c49a1944a4f1635c76d0f364ab426e16c60",
+  "skeleton": {
+    "textAsset": "2110101.skel",
+    "path_id": "4723174978855761407",
+    "file": "2110101.skel.bytes",
+    "bytes": 1648,
+    "sha256": "cc08c87b8bc45883c47c6ccbe09c4d45061a7cdcc6971b43423337103e82125e",
+    "format": "binary"
+  },
+  "atlas": {
+    "textAsset": "2110101.atlas",
+    "path_id": "8975550695884360184",
+    "file": "2110101.atlas.txt",
+    "bytes": 1476,
+    "pageCount": 1
+  },
+  "pages": [
+    {
+      "page": "2110101.png",
+      "textureObject": "2110101",
+      "png": "2110101.png",
+      "width": 1252,
+      "height": 1028,
+      "runtimeSize": [
+        1252,
+        1028
+      ],
+      "format": 4,
+      "path_id": -8595705314955258472
+    }
+  ],
+  "gameObjects": {
+    "atlasAsset": {
+      "name": "2110101_Atlas",
+      "path_id": 3239670041615582170,
+      "atlasFile": {
+        "m_FileID": 0,
+        "m_PathID": 8975550695884360184
+      },
+      "materials": [
+        {
+          "m_FileID": 0,
+          "m_PathID": 6885977045555152736
+        }
+      ]
+    },
+    "skeletonDataAsset": {
+      "name": "2110101_SkeletonData",
+      "path_id": 4213758923475610161,
+      "scale": 0.009999999776482582,
+      "skeletonJSON": {
+        "m_FileID": 0,
+        "m_PathID": 4723174978855761407
+      },
+      "atlasAssets": [
+        {
+          "m_FileID": 0,
+          "m_PathID": 3239670041615582170
+        }
+      ],
+      "defaultMix": 0.20000000298023224,
+      "blendModeMaterials": {
+        "requiresBlendModeMaterials": 0,
+        "applyAdditiveMaterial": 1,
+        "additiveMaterials": [],
+        "multiplyMaterials": [],
+        "screenMaterials": []
+      }
+    },
+    "materials": [
+      {
+        "name": "2110101_Material",
+        "path_id": 6885977045555152736,
+        "floats": {
+          "_Cutoff": 0.10000000149011612,
+          "_DISABLE_SCENE_LIHGT": 0.0,
+          "_Flash": 0.0,
+          "_LOCAL_DISABLE_CURVED_WORLD": 0.0,
+          "_OutlineMipLevel": 0.0,
+          "_OutlineReferenceTexWidth": 1024.0,
+          "_OutlineSmoothness": 1.0,
+          "_OutlineWidth": 3.0,
+          "_SIM_ENV_LIGHT": 0.0,
+          "_SPINE_GRAY": 0.0,
+          "_SelfLuminousIntensity": 0.0,
+          "_StencilComp": 8.0,
+          "_StencilRef": 1.0,
+          "_StraightAlphaInput": 0.0,
+          "_ThresholdEnd": 0.25,
+          "_Use8Neighbourhood": 1.0,
+          "_ZTest": 2.0
+        },
+        "textures": {
+          "_MainTex": {
+            "m_FileID": 0,
+            "m_PathID": -8595705314955258472
+          }
+        },
+        "validKeywords": [],
+        "invalidKeywords": [
+          "_USE8NEIGHBOURHOOD_ON"
+        ]
+      }
+    ]
+  }
+}

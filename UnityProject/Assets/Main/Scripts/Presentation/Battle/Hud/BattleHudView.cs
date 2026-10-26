@@ -69,8 +69,8 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         [SerializeField] private TMP_Text _speedLabel;
 
         [Header("Status panel")]
-        [Tooltip("The figure at the bottom left: placeholder art, generated in code (Stage 08c).")]
-        [SerializeField] private Image _portrait;
+        [Tooltip("The figure at the bottom left: the doctor's Spine skeleton, built once (Stage 17d).")]
+        [SerializeField] private BattleHudPortrait _portrait;
 
         [Header("Bars")]
         [Tooltip("The filled rectangle inside the HP track; its width is the health fraction.")]
@@ -94,7 +94,6 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         private BattleHudState _state;
         private BattleSpeed _speed;
         private BattleHudPresenter _presenter;
-        private BattleHudArt _art;
         private bool _bound;
 
         /// <summary>The HUD state this view mirrors (null until <see cref="Bind"/>).</summary>
@@ -201,19 +200,17 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             _speed = null;
             _presenter = null;
             _bound = false;
-
-            _art?.Dispose();
-            _art = null;
         }
 
         /// <summary>
-        /// Puts the generated placeholder figure in the status panel.
+        /// Builds the doctor's figure in the status panel, once per floor.
         /// </summary>
         /// <remarks>
-        /// The HUD's own art rather than the battle's: <c>BattlePlaceholderArt</c> belongs to the
-        /// world (it is built and disposed by the view scene), and the HUD outlives neither more nor
-        /// less. It is drawn from the same cloth-and-shawl language as the world's figures (AGENTS
-        /// rule 13: generated, never copied), so the panel reads as this game's own placeholder.
+        /// The portrait is the same Spine art the arena draws (Stage 17d), so the panel and the
+        /// floor cannot show two different doctors. It draws one looping idle and decides nothing:
+        /// the numbers over it are the presenter's. <c>Begin</c> is idempotent, and a figure that
+        /// could not be built leaves the panel empty rather than drawing a second placeholder —
+        /// the view itself logged the <c>noun.problem</c> code.
         /// </remarks>
         private void ApplyPortrait()
         {
@@ -222,9 +219,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
                 return;
             }
 
-            _art = new BattleHudArt();
-            _portrait.sprite = _art.Bust;
-            _portrait.color = Color.white;
+            _portrait.Begin();
         }
 
         private void OnSpeedClicked()

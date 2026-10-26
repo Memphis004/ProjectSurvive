@@ -460,3 +460,63 @@ placeholder sprite, and the capture's report says so); a release build logs one 
 losing the doctor silently. `__projectSurviveBattle` publishes `spineReady`, `spineErrorCode`,
 `spinePlayCalls` and `spineAnimation` so a browser test can tell the Spine render from the fallback.
 Evidence: `docs/stages/17b-report.md`, `artifacts/ui/battle-player-1920x1080.png`.
+
+## 16. The status panel's figure (Stage 17d)
+
+The placeholder bust is gone: the panel's figure is the doctor's own skeleton, drawn by a
+`BattleHudPortrait` that builds **one** `SpineUiActor` (a `SkeletonGraphic`) inside the 72 × 120
+box anchored to the status panel's top-left corner. It is the same `SpinePlayerProfile` the arena
+and the camp name, so the panel and the floor cannot show two different doctors, and the one
+material is a serialized reference from `ProjectSurvive/Spine/3. Create UI materials`
+(`SpineGraphic-Normal.mat`) handed to the actor through `SetMaterials` — no `Shader.Find` in
+runtime code, because a stripped player returns null for a shader looked up by name. The
+SkeletonGraphic's own clock is pinned (`timeScale = 0`) and the portrait ticks its own animation
+state, exactly as the world figure does; the mesh is scaled and centred into the box once, by
+`MatchRectTransformToBounds` plus one uniform scale, and a second `Begin` builds nothing
+(`CreatedAfterBuild` stays 0). It shows one looping idle and decides nothing — no hurt, no death,
+no numbers. The Canvas' `additionalShaderChannels` are only touched when a tint-black actor is
+built (`SpineUiActor`'s own rule; the HUD portrait is not tint-black).
+
+The box is a measured region now (`UiLayoutCheck.Portrait`), so “the picture does not land on the
+HP/MP rows” is a verdict at 1920×1080 and 1280×720 rather than a look: 8 px between the portrait's
+right edge and the HP caption, 4 px above the possession line. One capture caveat, recorded rather
+than hidden: `UiCaptureTool` borrows the overlay canvas into camera space to photograph it, and the
+arena's foreground cards then sort above the panels at the bottom edge, so the Editor pictures hide
+the lower HUD band the running game draws on top; the geometry and the overlap counts are still
+measured from those shots, and the look is judged from a play-mode frame
+(`artifacts/stage17d/battle-portrait-1920x1080.png`). Evidence: `docs/stages/17d-report.md`,
+`BattleHudPortraitTests` (EditMode), `BattlePlayModeTests.The_status_panels_portrait_is_the_spine_figure_built_once`.
+
+## 17. The bust is the halfbody, held still (Stage 17e)
+
+17d's figure was the **walker's** skeleton in a 72 × 120 box; 17e gives the panel its own art: the
+halfbody export `Resources/Portrait/2110101` (656 × 554, one bone, 19 slots, 11 skins, one zero-length
+`stand` animation), drawn by the same `BattleHudPortrait` → `SpineUiActor` path in an **80 × 110** box
+with a `RectMask2D` on the box. Nothing is animated: `Begin` composes the profile's skin parts, plays
+`stand` at **speed 0 / time 0** (or leaves the setup pose when a profile names no animation), and
+there is no per-frame update at all — `PlayCalls` stays 1 and `AnimationTime` stays 0 for a whole
+floor, which is what the PlayMode case measures. The parts stay separate (body, face, face
+decoration, hair, hat) so a later customisation screen can swap them; the pick lives in
+`SpinePortraitProfile`, never in the view.
+
+The atlas arrived with **no materials**, so `SpinePortraitTool` (`ProjectSurvive/Spine/4. Create portrait
+profile`) creates `SpinePortrait-2110101.mat` from the project's own SkeletonGraphic template over the
+page texture and assigns it to the atlas asset as the texture source; the source game's outline/stencil
+shader is not copied. The one declared-empty-slot list (`expectedEmptySlots`) now exists for both
+profiles, so the four `w_*` slots on the walker and the thirteen unused face/hair slots on the bust are
+silent while an unexpected gap still warns. Evidence: `docs/stages/17e-report.md`,
+`BattleHudPortraitTests`, `BattlePlayModeTests.The_status_panels_portrait_is_the_still_halfbody_built_once`,
+`artifacts/ui/battle-begin-1920x1080.png`.
+
+## 18. Facing is mirrored once, and the art already faces left (Stage 17e)
+
+The art in `body_1110901` is drawn facing the viewer's **left** in `stand`, `idle5` and `run`
+(measured from close-ups of the running game, each direction on its own: facing +1 is
+`artifacts/stage17e/zoom-A-run-right.png`, facing −1 is `zoom-B-run-left.png`, `stand` at +1 is
+`zoom-C-stand-right.png` — the face and the trailing sash both follow the direction). The profile therefore says
+`artFacesRight = false`, and `SpinePlayerView.ApplyFacing`'s one rule (`flip = ArtFacesRight ? facing < 0
+: facing > 0`) writes the mirror: walking right is the mirrored figure, walking left is the plain one.
+Both scenes feed the same field through the same method — the camp from the key direction, the arena
+from the frame's `dx` — so the fix is the profile value, not a second sign in either scene. Both
+profiles now carry it (`SpinePlayerProfile_Camp.asset` / `_Battle.asset`), and the PlayMode cases read
+`SkeletonTransform.localScale.x` against `artFacesRight` and the facing the frame produced.

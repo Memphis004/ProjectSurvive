@@ -193,6 +193,20 @@ namespace ProjectSurvive.Game.Editor
         };
 
         /// <summary>
+        /// How far a borrowed canvas' sorting order is raised for the duration of a shot.
+        /// </summary>
+        /// <remarks>
+        /// An overlay canvas draws after every renderer in the scene; a <c>ScreenSpaceCamera</c> one
+        /// joins the transparent queue at queue 3000 with sorting order 0, where the arena's cards also
+        /// sit (<c>ArenaCard</c> switches <c>ZTest</c> off, so a card drawn later paints over a panel it
+        /// is not in front of). Raising each borrowed canvas by the same offset keeps the order among
+        /// the canvases — the tooltip still above the camp — and puts all of them above the world, which
+        /// is the composite the player sees. Stage 17d found it: the foreground trees painted over the
+        /// status panel's figure at the bottom of the frame.
+        /// </remarks>
+        private const int OverlaySortingBump = 1000;
+
+        /// <summary>
         /// The battle HUD's controls, as the view serializes them: the two bars, the timeline's track,
         /// the speed control and the six dev rows. Every one of them has to be drawn inside the panel it
         /// belongs to — the half of the rule a screenshot cannot check.
@@ -202,7 +216,7 @@ namespace ProjectSurvive.Game.Editor
             (UiLayoutCheck.HpBar, "_hpBar"),
             (UiLayoutCheck.ManaBar, "_manaBar"),
             (UiLayoutCheck.SpeedButton, "_speedButton"),
-            ("Portrait", "_portrait"),
+            (UiLayoutCheck.Portrait, "_portrait"),
         };
 
         /// <summary>
@@ -766,12 +780,26 @@ namespace ProjectSurvive.Game.Editor
             var miniBag = Object.FindFirstObjectByType<BattleMiniBagView>(FindObjectsInactive.Include);
             var devMenu = Object.FindFirstObjectByType<DevMenuView>(FindObjectsInactive.Include);
             var playerFigure = Object.FindFirstObjectByType<SpinePlayerView>(FindObjectsInactive.Include);
+            var portrait = Object.FindFirstObjectByType<BattleHudPortrait>(FindObjectsInactive.Include);
 
             if (hud == null || miniBag == null)
             {
                 report.Failures.Add(
                     "the Battle scene is missing " + (hud == null ? "BattleHudView" : "BattleMiniBagView"));
                 return;
+            }
+
+            // Stage 17d: the status panel's figure is the doctor's Spine skeleton, and it is built
+            // before anything is photographed — an empty portrait box would be a failure, not a
+            // note, because the picture claims to be of the screen the player gets.
+            if (portrait == null)
+            {
+                report.Failures.Add("the Battle scene has no BattleHudPortrait in its status panel");
+            }
+            else if (!portrait.Begin())
+            {
+                report.Failures.Add(
+                    "the status panel's portrait could not be built: " + portrait.ErrorCode);
             }
 
             var devFields = devMenu == null ? null : new SerializedObject(devMenu);
@@ -1127,7 +1155,7 @@ namespace ProjectSurvive.Game.Editor
             GameObject overlay = null,
             Action afterLayout = null)
         {
-            var borrowed = new List<(Canvas Canvas, RenderMode Mode, Camera Camera, float Plane)>();
+            var borrowed = new List<(Canvas Canvas, RenderMode Mode, Camera Camera, float Plane, int Sorting)>();
             RenderTexture target = null;
             Texture2D image = null;
             var started = System.Diagnostics.Stopwatch.StartNew();
@@ -1151,10 +1179,17 @@ namespace ProjectSurvive.Game.Editor
                         continue;
                     }
 
-                    borrowed.Add((canvas, canvas.renderMode, canvas.worldCamera, canvas.planeDistance));
+                    borrowed.Add((canvas, canvas.renderMode, canvas.worldCamera, canvas.planeDistance, canvas.sortingOrder));
                     canvas.renderMode = RenderMode.ScreenSpaceCamera;
                     canvas.worldCamera = camera;
-                    canvas.planeDistance = camera.nearClipPlane + 1f;
+                    canvas.sortingOrder = canvas.sortingOrder + OverlaySortingBump;
+                    // Just in front of the near clip, not a metre in front of it: the arena's
+                    // foreground trees stand closer to the camera than 1.3 units, and at that
+                    // distance they painted over the HUD's own band at the bottom of the frame —
+                    // the very band the status panel's figure is drawn in (Stage 17d). A canvas
+                    // keeps the same on-screen rectangle at any plane distance, so the measured
+                    // layout is unchanged; only what can stand in front of it is.
+                    canvas.planeDistance = camera.nearClipPlane + 0.01f;
                 }
 
                 RenderTexture previousTarget = camera.targetTexture;
@@ -1261,6 +1296,7 @@ namespace ProjectSurvive.Game.Editor
                     borrowed[i].Canvas.renderMode = borrowed[i].Mode;
                     borrowed[i].Canvas.worldCamera = borrowed[i].Camera;
                     borrowed[i].Canvas.planeDistance = borrowed[i].Plane;
+                    borrowed[i].Canvas.sortingOrder = borrowed[i].Sorting;
                 }
 
                 if (image != null)

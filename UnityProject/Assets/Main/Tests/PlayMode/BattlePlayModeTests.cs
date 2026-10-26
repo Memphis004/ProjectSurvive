@@ -401,8 +401,21 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 Is.EqualTo(1),
                 "a second of floor built the figure again");
 
+            // Stage 17e: the mirror on the skeleton transform follows the profile's own rule, using
+            // the facing the real frame produced (not a hand-presented one).
+            SpinePlayerProfile profile = figureInScene.Profile;
+            int face = figureInScene.FaceDirection;
+            // flip = ArtFacesRight ? facing < 0 : facing > 0; the mirror is localScale.x = -1.
+            bool flipped = profile.ArtFacesRight ? face < 0 : face > 0;
+            float expectedScale = flipped ? -1f : 1f;
+            Assert.That(
+                figureInScene.Actor.SkeletonTransform.localScale.x, Is.EqualTo(expectedScale),
+                "the arena's figure is mirrored against the profile's artFacesRight rule (facing " + face + ")");
+
             TestContext.WriteLine(
                 "figure: ready=" + figure.IsReady + " plays=" + figure.PlayCalls
+                + " facing=" + face + " scaleX=" + figureInScene.Actor.SkeletonTransform.localScale.x
+                + " idle=" + profile.IdleAnimation
                 + " pose=" + figure.Pose + " animation='" + figure.Animation + "'"
                 + " height=" + figureInScene.DrawnHeightWorld.ToString("0.###")
                 + " sorting=" + figure.SortingOrder + " poolGrowth=" + runner.View.Pool.CreatedAfterWarmup);
@@ -619,6 +632,74 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 ReferenceEquals(secondSession.Context.World, firstWorld),
                 Is.False,
                 "the second visit reused the destroyed world");
+        }
+
+        // -------------------------------------------------------------------
+        // Stage 17d: the status panel's portrait
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// The status panel's figure is the half-body bust, built once when the floor starts and then
+        /// held perfectly still for the whole floor.
+        /// </summary>
+        /// <remarks>
+        /// The EditMode suite proves the geometry and the build against the real asset; this proves
+        /// the scene's own wiring — that Bind builds the portrait the player sees, that the build is a
+        /// single actor (<c>CreatedAfterBuild</c> stays 0), that the assigned skeleton is the halfbody
+        /// (<c>2110101</c>, the lesson of the 08c wiring bug: assert the asset, not the component),
+        /// and that a second of frames neither plays nor advances anything (<c>PlayCalls</c> stays 1,
+        /// <c>AnimationTime</c> stays 0).
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator The_status_panels_portrait_is_the_still_halfbody_built_once()
+        {
+            yield return LoadScene(BattleSceneName);
+            yield return WaitForFloorToStart();
+
+            BattleSimulationRunner runner = Find<BattleSimulationRunner>();
+            BattleHudPortrait portrait = Find<BattleHudPortrait>();
+
+            Assert.That(portrait, Is.Not.Null, "the Battle scene has no BattleHudPortrait");
+            Assert.That(
+                portrait.IsBuilt, Is.True,
+                "the status panel's portrait never built: " + portrait.ErrorCode);
+            Assert.That(portrait.BuildCount, Is.EqualTo(1), "the portrait was built more than once");
+            Assert.That(
+                portrait.CreatedAfterBuild, Is.Zero,
+                "an actor was created after the portrait's first build");
+            Assert.That(
+                portrait.SkeletonDataName, Is.EqualTo("2110101_SkeletonData"),
+                "the status panel is not drawing the halfbody bust");
+            Assert.That(
+                portrait.Animation, Is.EqualTo(portrait.Profile.StillAnimation),
+                "the portrait is not holding the profile's still animation");
+            Assert.That(portrait.PlayCalls, Is.EqualTo(1), "the portrait played more than its one still frame");
+            Assert.That(
+                portrait.Actor.Graphic.timeScale, Is.Zero,
+                "the SkeletonGraphic keeps its own clock, so Time.deltaTime could animate the panel");
+
+            float held = portrait.AnimationTime;
+            int played = portrait.PlayCalls;
+            yield return WaitForTicks(runner, runner.StepsRun + BattleConstants.TickRate);
+
+            Assert.That(
+                portrait.AnimationTime, Is.EqualTo(held).Within(0.0001f),
+                "a second of floor advanced the portrait; the still frame must not move");
+            Assert.That(
+                portrait.PlayCalls, Is.EqualTo(played),
+                "the portrait started another animation as the floor ran; PlayCalls must not grow with frames");
+            Assert.That(
+                portrait.Animation, Is.EqualTo(portrait.Profile.StillAnimation),
+                "the portrait changed animation; it draws one still frame");
+            Assert.That(
+                portrait.CreatedAfterBuild, Is.Zero,
+                "a second of floor built the portrait's actor again");
+
+            TestContext.WriteLine(
+                "portrait: built=" + portrait.IsBuilt + " builds=" + portrait.BuildCount
+                + " createdAfterBuild=" + portrait.CreatedAfterBuild + " skeleton=" + portrait.SkeletonDataName
+                + " animation='" + portrait.Animation + "' time=" + portrait.AnimationTime.ToString("0.00")
+                + " plays=" + portrait.PlayCalls + " box=" + ((RectTransform)portrait.transform).rect.size);
         }
 
         // -------------------------------------------------------------------

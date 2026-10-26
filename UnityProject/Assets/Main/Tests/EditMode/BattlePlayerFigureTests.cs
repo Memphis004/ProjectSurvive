@@ -384,8 +384,8 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
             internal FigureFixture()
             {
-                Profile = AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.ProfileAssetPath);
-                Assert.That(Profile, Is.Not.Null, SpineProfileTool.ProfileAssetPath + " is missing");
+                Profile = AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.BattleProfileAssetPath);
+                Assert.That(Profile, Is.Not.Null, SpineProfileTool.BattleProfileAssetPath + " is missing");
 
                 _host = new GameObject("BattlePlayerFigureTest");
                 View = _host.AddComponent<SpinePlayerView>();

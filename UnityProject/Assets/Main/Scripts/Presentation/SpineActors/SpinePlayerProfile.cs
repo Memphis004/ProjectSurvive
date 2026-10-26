@@ -45,6 +45,9 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
         /// <summary>No world material is assigned, so nothing can be drawn.</summary>
         public const string MaterialMissingCode = "spine.profile_material_missing";
 
+        /// <summary>An "empty on purpose" slot names a slot the skeleton does not have.</summary>
+        public const string SlotsMissingCode = "spine.profile_slots_missing";
+
         [SerializeField] private string skeletonResourcePath = SpineAssetPaths.PlayerSkeletonData;
 
         [Header("Animations (names come from the skeleton)")]
@@ -58,6 +61,8 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
         [SerializeField] private List<SpineActorBase.SkinPart> skinParts = new List<SpineActorBase.SkinPart>();
         [Tooltip("Material the world mesh draws with. It must use a world-space shader (Spine/Skeleton): a page material authored for SkeletonGraphic is a UI shader and draws nothing on a MeshRenderer.")]
         [SerializeField] private Material worldMaterial;
+        [Tooltip("Slots this look leaves empty on purpose (the four weapon slots no skin fills). Only an empty slot that is not listed here is reported at build time.")]
+        [SerializeField] private List<string> expectedEmptySlots = new List<string>();
 
         [Header("World")]
         [Tooltip("How tall the figure is drawn, in world units. The actor's root is scaled to hit it.")]
@@ -129,6 +134,33 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
         public IReadOnlyList<SpineActorBase.SkinPart> SkinParts
         {
             get { return skinParts; }
+        }
+
+        /// <summary>Slots this look is known to leave empty (never a guess: the tool composes the look first).</summary>
+        public IReadOnlyList<string> ExpectedEmptySlots
+        {
+            get { return expectedEmptySlots; }
+        }
+
+        /// <summary>Replaces the declared empty-slot list.</summary>
+        public void SetExpectedEmptySlots(IEnumerable<string> slots)
+        {
+            if (expectedEmptySlots == null)
+            {
+                expectedEmptySlots = new List<string>();
+            }
+
+            expectedEmptySlots.Clear();
+            if (slots != null)
+            {
+                expectedEmptySlots.AddRange(slots);
+            }
+        }
+
+        /// <summary>The declared list in the form the actor's setter wants.</summary>
+        public string[] ExpectedEmptySlotArray()
+        {
+            return expectedEmptySlots != null ? expectedEmptySlots.ToArray() : new string[0];
         }
 
         /// <summary>Replaces the whole part list (the Editor tool fills it from the skeleton's groups).</summary>
@@ -242,6 +274,25 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
                 return false;
             }
 
+            if (expectedEmptySlots != null)
+            {
+                for (int i = 0; i < expectedEmptySlots.Count; i++)
+                {
+                    string slot = expectedEmptySlots[i];
+                    if (string.IsNullOrEmpty(slot))
+                    {
+                        continue;
+                    }
+
+                    if (data.FindSlot(slot) == null)
+                    {
+                        errorCode = SlotsMissingCode;
+                        detail = "expectedEmptySlots names slot '" + slot + "', which the skeleton does not have; slots: " + SlotNames(data);
+                        return false;
+                    }
+                }
+            }
+
             return true;
         }
 
@@ -261,6 +312,21 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
         private static bool IsEmptyOrPresent(SkeletonData data, string name)
         {
             return string.IsNullOrEmpty(name) || data.FindAnimation(name) != null;
+        }
+
+        private static string SlotNames(SkeletonData data)
+        {
+            var names = new List<string>();
+            var slots = data.Slots;
+            for (int i = 0; i < slots.Count; i++)
+            {
+                if (slots.Items[i] != null)
+                {
+                    names.Add(slots.Items[i].Name);
+                }
+            }
+
+            return string.Join(", ", names.ToArray());
         }
 
         private static string AnimationNames(SkeletonData data)

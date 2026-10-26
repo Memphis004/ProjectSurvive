@@ -34,6 +34,8 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
 		[SerializeField] protected List<SkinPart> skinParts = new List<SkinPart> ();
 		[Tooltip ("While composing skin parts, fill an empty slot automatically when the combined skin offers exactly one candidate attachment for it.")]
 		[SerializeField] protected bool autoFillEmptySlots;
+		[Tooltip ("Slots this look is known to leave empty on purpose (e.g. a weapon slot no skin fills). Only an empty slot that is NOT listed here is reported.")]
+		[SerializeField] protected List<string> expectedEmptySlots = new List<string> ();
 
 		protected SpineActorBase m_MountActor;
 
@@ -546,6 +548,30 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
 				ComposeSkinParts ();
 		}
 
+		/// <summary>
+		/// Declares the slots this look leaves empty on purpose, so the build reports only the empty
+		/// slots nobody expected. Does not touch the rendered look.
+		/// </summary>
+		public void SetExpectedEmptySlots (params string[] slots)
+		{
+			if (expectedEmptySlots == null)
+				expectedEmptySlots = new List<string> ();
+			expectedEmptySlots.Clear ();
+			if (slots != null) {
+				for (int i = 0; i < slots.Length; i++)
+					if (!string.IsNullOrEmpty (slots[i]))
+						expectedEmptySlots.Add (slots[i]);
+			}
+		}
+
+		/// <summary>True when <paramref name="slotName"/> is declared as intentionally empty.</summary>
+		public bool IsExpectedEmptySlot (string slotName)
+		{
+			if (expectedEmptySlots == null || string.IsNullOrEmpty (slotName))
+				return false;
+			return expectedEmptySlots.Contains (slotName);
+		}
+
 		/// <summary>Replaces the whole part list and recomposes when built.</summary>
 		public void SetSkinParts (params SkinPart[] parts)
 		{
@@ -677,7 +703,7 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
 		/// </summary>
 		void ReportOrAutoFillEmptySlots (Skin combined)
 		{
-			var problems = new List<string> ();
+			var problems = new List<KeyValuePair<string, string>> ();
 			int autoFilled = 0;
 			var slots = Skeleton.Slots;
 
@@ -697,10 +723,10 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
 					continue;
 				}
 
-				problems.Add (candidates.Count > 0
+				problems.Add (new KeyValuePair<string, string> (slot.Data.Name, candidates.Count > 0
 					? slot.Data.Name + " (candidates: " + string.Join (", ", candidates.ToArray ()) +
 						" - none matches setup attachment '" + slot.Data.AttachmentName + "')"
-					: slot.Data.Name + " (no candidates in the combined skin)");
+					: slot.Data.Name + " (no candidates in the combined skin)"));
 			}
 
 			if (autoFilled > 0) {
@@ -708,10 +734,18 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
 				ApplyStateInternal ();
 			}
 
-			if (problems.Count > 0 && !m_EmptySlotsReported) {
+			// Only the slots this look did not declare is a surprise: a weapon slot no skin fills is a
+			// documented choice, and warning about it every build is how a real defect gets ignored.
+			var unexpected = new List<string> ();
+			for (int i = 0; i < problems.Count; i++) {
+				if (!IsExpectedEmptySlot (problems[i].Key))
+					unexpected.Add (problems[i].Value);
+			}
+
+			if (unexpected.Count > 0 && !m_EmptySlotsReported) {
 				m_EmptySlotsReported = true;
-				Debug.LogWarning ("[SpineActorBase] Combined skin leaves " + problems.Count + " empty slot(s): " +
-					string.Join ("; ", problems.ToArray ()), this);
+				Debug.LogWarning ("[SpineActorBase] Combined skin leaves " + unexpected.Count + " unexpected empty slot(s): " +
+					string.Join ("; ", unexpected.ToArray ()), this);
 			}
 		}
 

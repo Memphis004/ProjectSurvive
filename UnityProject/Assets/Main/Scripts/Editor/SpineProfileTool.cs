@@ -11,27 +11,41 @@ using SpineAnimation = Spine.Animation;
 namespace ProjectSurvive.Game.Editor
 {
     /// <summary>
-    /// Creates <c>Assets/Main/Spine/SpinePlayerProfile.asset</c> from what the skeleton actually
-    /// contains, and refuses to guess when it cannot.
+    /// Writes the two player profiles — one per scene — from what the skeleton actually contains,
+    /// and refuses to guess when it cannot.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The animation names are matched with keywords — <c>idle</c>/<c>stand</c>, <c>run</c>/<c>walk</c>,
-    /// <c>hurt</c>/<c>hit</c>, <c>death</c>/<c>die</c> — because the skeleton was exported before
-    /// this project had a naming convention of its own, and a name written by hand in code would be
-    /// a guess (AGENTS 2). The choice is logged, so a wrong pick is visible rather than assumed: the
-    /// resolved names are printed, not just "created".
+    /// <b>One asset per scene, because the idle differs.</b> The camp stands with <c>stand</c> (a
+    /// 1.6 s breathing loop) and the arena with <c>idle5</c>; every other pose is the same figure.
+    /// Two assets are the smallest way to say that: <c>CampSceneBuilder</c> and
+    /// <c>BattleSceneBuilder</c> each assign their own, and no view learns a scene rule.
     /// </para>
     /// <para>
-    /// Idle and run are required: without them the figure cannot show the two states a survivor
-    /// spends the whole run in, so the tool fails and lists every animation instead of writing an
-    /// asset that would fail later. An existing asset is never overwritten — a hand-tuned height or
-    /// a different skin pick is someone's work.
+    /// <b>The animation names are written explicitly.</b> Stage 17a matched them by keyword
+    /// (<c>idle</c>/<c>stand</c>), which is a guess that happens to be right; this tool is told the
+    /// four names and fails loudly — listing every animation the skeleton has — when one is absent.
+    /// </para>
+    /// <para>
+    /// <b>An existing asset keeps its hand-tuned fields.</b> Re-running the tool writes the idle
+    /// name only and logs the old and new value, so a height or a skin pick someone adjusted is
+    /// never overwritten and a stale idle can never stay behind silently.
     /// </para>
     /// </remarks>
     public static class SpineProfileTool
     {
-        public const string ProfileAssetPath = "Assets/Main/Spine/SpinePlayerProfile.asset";
+        /// <summary>The camp's profile: the doctor stands still with the <c>stand</c> loop.</summary>
+        public const string CampProfileAssetPath = "Assets/Main/Spine/SpinePlayerProfile_Camp.asset";
+
+        /// <summary>The arena's profile: the doctor stands still with <c>idle5</c>.</summary>
+        public const string BattleProfileAssetPath = "Assets/Main/Spine/SpinePlayerProfile_Battle.asset";
+
+        /// <summary>
+        /// The Stage 17a asset, kept only as the source of the fields a human tuned. It is not
+        /// assigned to anything after this stage; the tool's update path is what moves its values
+        /// into the two per-scene assets.
+        /// </summary>
+        public const string LegacyProfileAssetPath = "Assets/Main/Spine/SpinePlayerProfile.asset";
 
         /// <summary>The world material the profile points at (one atlas page, so one material).</summary>
         public const string WorldMaterialPath = "Assets/Main/Spine/Materials/SpinePlayer-World.mat";
@@ -41,15 +55,16 @@ namespace ProjectSurvive.Game.Editor
         private const float DefaultTargetHeightWorld = 1.6f;
         private const float DefaultRunSpeedThreshold = 0.1f;
 
-        private static readonly string[] IdleKeywords = { "idle", "stand" };
-        private static readonly string[] RunKeywords = { "run", "walk" };
-        private static readonly string[] HurtKeywords = { "hurt", "hit" };
-        // "dead" is the same word family as "death"/"die" and is what this export calls it; the
-        // keyword list is how the tool reads the skeleton instead of guessing a name in code.
-        private static readonly string[] DeathKeywords = { "death", "die", "dead" };
+        // The names this skeleton has, written down rather than matched by keyword (AGENTS 2: no
+        // guessed API, and a name is data). A missing one fails with the full list.
+        private const string CampIdleAnimation = "stand";
+        private const string BattleIdleAnimation = "idle5";
+        private const string RunAnimation = "run";
+        private const string HurtAnimation = "hit";
+        private const string DeathAnimation = "dead";
 
-        [MenuItem("ProjectSurvive/Spine/2. Create player profile", priority = 171)]
-        public static void CreatePlayerProfile()
+        [MenuItem("ProjectSurvive/Spine/2. Create player profiles", priority = 171)]
+        public static void CreatePlayerProfiles()
         {
             SkeletonDataAsset asset;
             string loadCode;
@@ -66,76 +81,154 @@ namespace ProjectSurvive.Game.Editor
                 return;
             }
 
-            if (AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(ProfileAssetPath) != null)
+            if (!RequireAnimation(data, CampIdleAnimation, "camp idle") ||
+                !RequireAnimation(data, BattleIdleAnimation, "battle idle") ||
+                !RequireAnimation(data, RunAnimation, "run") ||
+                !IsEmptyOrPresent(data, HurtAnimation) ||
+                !IsEmptyOrPresent(data, DeathAnimation))
             {
-                Debug.LogWarning("[SpineProfileTool] " + ProfileAssetPath + " already exists; it was not overwritten.");
                 return;
             }
-
-            string idle = FindAnimation(data, IdleKeywords);
-            string run = FindAnimation(data, RunKeywords);
-
-            if (idle == null || run == null)
-            {
-                Debug.LogError(
-                    "[SpineProfileTool] the skeleton has no " + (idle == null ? "idle/stand" : "run/walk") +
-                    " animation, so no profile was created. Animations (" + data.Animations.Count + "): " +
-                    AnimationNames(data));
-                return;
-            }
-
-            string hurt = FindAnimation(data, HurtKeywords);
-            string death = FindAnimation(data, DeathKeywords);
-            List<SpineActorBase.SkinPart> parts = PickSkinParts(data);
 
             Material worldMaterial = EnsureWorldMaterial(asset);
             if (worldMaterial == null)
             {
                 Debug.LogError("[SpineProfileTool] no world material could be made for '" + asset.name +
-                    "', so no profile was created. The mesh needs a material with a world-space shader;" +
+                    "', so no profile was written. The mesh needs a material with a world-space shader;" +
                     " the atlas' own page material is authored for SkeletonGraphic and draws nothing on a MeshRenderer.");
                 return;
             }
 
+            WriteProfile(data, CampProfileAssetPath, CampIdleAnimation, worldMaterial);
+            WriteProfile(data, BattleProfileAssetPath, BattleIdleAnimation, worldMaterial);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+        }
+
+        /// <summary>
+        /// Creates the asset when it is absent, or rewrites only its idle name when it exists. In both
+        /// cases the result is validated against the skeleton before anything is saved.
+        /// </summary>
+        private static void WriteProfile(SkeletonData data, string path, string idleAnimation, Material worldMaterial)
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(path);
+            if (existing != null)
+            {
+                string previous = existing.IdleAnimation;
+                if (previous != idleAnimation)
+                {
+                    existing.IdleAnimation = idleAnimation;
+                    EditorUtility.SetDirty(existing);
+                    Debug.Log("[SpineProfileTool] " + path + " idle '" + (previous ?? "(empty)") + "' -> '" +
+                        idleAnimation + "'; only the idle field was written, every other field was left as it was.");
+                }
+                else
+                {
+                    Debug.Log("[SpineProfileTool] " + path + " already names idle '" + idleAnimation + "'; nothing was changed.");
+                }
+
+                ReportValidation(existing, data, path);
+                return;
+            }
+
+            // A fresh asset inherits the hand-tuned fields of the Stage 17a asset when it is still
+            // there, so a height or a skin pick is carried over rather than reset to a default.
+            var legacy = AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(LegacyProfileAssetPath);
             var profile = ScriptableObject.CreateInstance<SpinePlayerProfile>();
             profile.SkeletonResourcePath = SpineAssetPaths.PlayerSkeletonData;
-            profile.IdleAnimation = idle;
-            profile.RunAnimation = run;
-            profile.HurtAnimation = hurt;
-            profile.DeathAnimation = death;
-            profile.SetSkinParts(parts);
-            profile.TargetHeightWorld = DefaultTargetHeightWorld;
-            profile.RunSpeedThreshold = DefaultRunSpeedThreshold;
-            profile.ArtFacesRight = true;
-            profile.WorldMaterial = worldMaterial;
+            profile.IdleAnimation = idleAnimation;
+            profile.RunAnimation = RunAnimation;
+            profile.HurtAnimation = HurtAnimation;
+            profile.DeathAnimation = DeathAnimation;
+            profile.SetSkinParts(PickSkinParts(data));
+            profile.TargetHeightWorld = legacy != null ? legacy.TargetHeightWorld : DefaultTargetHeightWorld;
+            profile.RunSpeedThreshold = legacy != null ? legacy.RunSpeedThreshold : DefaultRunSpeedThreshold;
 
-            var validateCode = string.Empty;
-            if (!profile.TryValidate(data, out validateCode, out string detail))
+            // The material is an art decision too: a profile someone pointed at the outlined world
+            // material (Stage 17b) must not be quietly reset to the plain one.
+            profile.WorldMaterial = legacy != null && legacy.WorldMaterial != null
+                ? legacy.WorldMaterial
+                : worldMaterial;
+
+            // Measured in Stage 17e: every one of stand / idle5 / run is drawn facing the viewer's
+            // left (artifacts/stage17e/zoom-*-run-*.png, zoom-C-stand-right.png), so the view mirrors
+            // it for +x and leaves it for -x.
+            profile.ArtFacesRight = false;
+            profile.SetExpectedEmptySlots(EmptySlotsFor(data, profile.SkinPartArray()));
+
+            if (!ReportValidation(profile, data, path))
             {
-                Debug.LogError("[SpineProfileTool] the profile this tool just filled does not validate: " +
-                    validateCode + " (" + detail + "). No asset was written.");
                 UnityEngine.Object.DestroyImmediate(profile);
                 return;
             }
 
-            EnsureFolder(ProfileAssetPath);
+            EnsureFolder(path);
 
-            AssetDatabase.CreateAsset(profile, ProfileAssetPath);
+            AssetDatabase.CreateAsset(profile, path);
             EditorUtility.SetDirty(profile);
             AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
 
             var log = new StringBuilder();
-            log.Append("[SpineProfileTool] created ").Append(ProfileAssetPath).AppendLine();
-            log.Append("  idle   -> ").Append(idle).AppendLine();
-            log.Append("  run    -> ").Append(run).AppendLine();
-            log.Append("  hurt   -> ").Append(hurt ?? "(none)").AppendLine();
-            log.Append("  death  -> ").Append(death ?? "(none)").AppendLine();
-            log.Append("  skins  -> ").Append(parts.Count == 0 ? "(default skin)" : DescribeParts(parts)).AppendLine();
+            log.Append("[SpineProfileTool] created ").Append(path).AppendLine();
+            log.Append("  idle   -> ").Append(idleAnimation).AppendLine();
+            log.Append("  run    -> ").Append(RunAnimation).AppendLine();
+            log.Append("  hurt   -> ").Append(HurtAnimation).AppendLine();
+            log.Append("  death  -> ").Append(DeathAnimation).AppendLine();
+            log.Append("  skins  -> ").Append(DescribeParts(profile.SkinPartArray())).AppendLine();
+            log.Append("  empty slots on purpose -> ").Append(DescribeNames(profile.ExpectedEmptySlotArray())).AppendLine();
             log.Append("  world material -> ").Append(WorldMaterialPath).AppendLine();
-            log.Append("  height -> ").Append(DefaultTargetHeightWorld.ToString("0.###")).Append(" world units, run threshold ")
-                .Append(DefaultRunSpeedThreshold.ToString("0.###"));
+            log.Append("  height -> ").Append(profile.TargetHeightWorld.ToString("0.###")).Append(" world units, run threshold ")
+                .Append(profile.RunSpeedThreshold.ToString("0.###")).Append(", art faces right = ").Append(profile.ArtFacesRight);
             Debug.Log(log.ToString());
+        }
+
+        private static bool ReportValidation(SpinePlayerProfile profile, SkeletonData data, string path)
+        {
+            string code;
+            string detail;
+            if (profile.TryValidate(data, out code, out detail))
+            {
+                return true;
+            }
+
+            Debug.LogError("[SpineProfileTool] " + path + " does not validate: " + code + " (" + detail + ").");
+            return false;
+        }
+
+        /// <summary>
+        /// The slots none of the chosen skins fills. Declaring them is what keeps the build log about
+        /// the one empty slot that was not a decision (Stage 17e item 4).
+        /// </summary>
+        private static List<string> EmptySlotsFor(SkeletonData data, SpineActorBase.SkinPart[] parts)
+        {
+            var covered = new HashSet<int>();
+            if (parts != null)
+            {
+                for (int p = 0; p < parts.Length; p++)
+                {
+                    Skin skin = string.IsNullOrEmpty(parts[p].skin) ? null : data.FindSkin(parts[p].skin);
+                    if (skin == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var entry in skin.GetAttachments())
+                    {
+                        covered.Add(entry.SlotIndex);
+                    }
+                }
+            }
+
+            var empty = new List<string>();
+            for (int i = 0; i < data.Slots.Count; i++)
+            {
+                if (!covered.Contains(i))
+                {
+                    empty.Add(data.Slots.Items[i].Name);
+                }
+            }
+
+            return empty;
         }
 
         /// <summary>
@@ -159,7 +252,7 @@ namespace ProjectSurvive.Game.Editor
                     }
 
                     pages += atlas.MaterialCount;
-                    if (pageMaterial == null && atlas.PrimaryMaterial != null)
+                    if (pageMaterial == null && atlas.MaterialCount > 0)
                     {
                         pageMaterial = atlas.PrimaryMaterial;
                     }
@@ -204,27 +297,22 @@ namespace ProjectSurvive.Game.Editor
             return material;
         }
 
-        /// <summary>First animation whose name contains one of the keywords, in skeleton order; null when none does.</summary>
-        private static string FindAnimation(SkeletonData data, string[] keywords)
+        private static bool RequireAnimation(SkeletonData data, string name, string role)
         {
-            for (int k = 0; k < keywords.Length; k++)
+            if (!IsEmptyOrPresent(data, name) || string.IsNullOrEmpty(name))
             {
-                for (int i = 0; i < data.Animations.Count; i++)
-                {
-                    SpineAnimation animation = data.Animations.Items[i];
-                    if (animation == null || string.IsNullOrEmpty(animation.Name))
-                    {
-                        continue;
-                    }
-
-                    if (animation.Name.IndexOf(keywords[k], StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        return animation.Name;
-                    }
-                }
+                Debug.LogError("[SpineProfileTool] the " + role + " animation '" + (name ?? string.Empty) +
+                    "' is not in the skeleton, so no profile was written. Animations (" + data.Animations.Count +
+                    "): " + AnimationNames(data));
+                return false;
             }
 
-            return null;
+            return true;
+        }
+
+        private static bool IsEmptyOrPresent(SkeletonData data, string name)
+        {
+            return string.IsNullOrEmpty(name) || data.FindAnimation(name) != null;
         }
 
         /// <summary>
@@ -271,10 +359,15 @@ namespace ProjectSurvive.Game.Editor
             return parts;
         }
 
-        private static string DescribeParts(List<SpineActorBase.SkinPart> parts)
+        private static string DescribeParts(SpineActorBase.SkinPart[] parts)
         {
+            if (parts == null || parts.Length == 0)
+            {
+                return "(default skin)";
+            }
+
             var text = new StringBuilder();
-            for (int i = 0; i < parts.Count; i++)
+            for (int i = 0; i < parts.Length; i++)
             {
                 if (i > 0)
                 {
@@ -285,6 +378,11 @@ namespace ProjectSurvive.Game.Editor
             }
 
             return text.ToString();
+        }
+
+        private static string DescribeNames(string[] names)
+        {
+            return names == null || names.Length == 0 ? "(none)" : string.Join(", ", names);
         }
 
         /// <summary>Creates the folders an asset path needs, one level at a time.</summary>

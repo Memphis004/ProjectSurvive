@@ -82,15 +82,16 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(world, "_font", font);
 
             // Stage 17c: the doctor is the Spine figure, built by the world when the camp starts.
-            // The scene names the same profile the arena uses (one class, one look, ADR 0037 §2); a
+            // Stage 17e: the camp names its own profile, because it stands with `stand` while the
+            // arena stands with `idle5`; one class, one look, two idle pictures (ADR 0037 §2). A
             // missing profile is an error here rather than a sala that quietly draws the stand-in.
             var playerProfile =
-                AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.ProfileAssetPath);
+                AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.CampProfileAssetPath);
             if (playerProfile == null)
             {
                 Debug.LogError(
-                    "[CampSceneBuilder] " + SpineProfileTool.ProfileAssetPath + " is missing: run " +
-                    "ProjectSurvive/Spine/2. Create player profile. The sala will fall back to the " +
+                    "[CampSceneBuilder] " + SpineProfileTool.CampProfileAssetPath + " is missing: run " +
+                    "ProjectSurvive/Spine/2. Create player profiles. The sala will fall back to the " +
                     "placeholder silhouette for the player.");
             }
 

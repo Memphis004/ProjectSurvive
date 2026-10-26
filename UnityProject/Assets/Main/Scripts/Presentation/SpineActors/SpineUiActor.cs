@@ -42,6 +42,15 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
 			set { canvasGroupCompatible = value; }
 		}
 
+		/// <summary>
+		/// True when the mesh should honour a <c>RectMask2D</c>/<c>Mask</c> in its parent chain. Must
+		/// be set before <see cref="SpineActorBase.Build"/>: the mesh generator reads it once.
+		/// </summary>
+		public bool UseClipping {
+			get { return useClipping; }
+			set { useClipping = value; }
+		}
+
 		public bool TintBlack {
 			get { return tintBlack; }
 			set { tintBlack = value; }

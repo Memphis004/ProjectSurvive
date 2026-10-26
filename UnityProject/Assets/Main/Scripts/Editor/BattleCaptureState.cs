@@ -16,7 +16,6 @@ using ProjectSurvive.Game.Presentation.Battle.Hud;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace ProjectSurvive.Game.Editor
 {
@@ -146,7 +145,6 @@ namespace ProjectSurvive.Game.Editor
         private readonly RectTransform _manaBar;
         private readonly GameObject _bossRoot;
         private readonly RectTransform _possessionLabel;
-        private readonly Image _portrait;
         private readonly SerializedObject _view;
 
         private readonly IGameConfig _config;
@@ -158,7 +156,6 @@ namespace ProjectSurvive.Game.Editor
         private readonly BattleSpeed _speed = new BattleSpeed();
         private readonly BattleHudState _state = new BattleHudState();
         private readonly BattleHudPresenter _presenter;
-        private readonly BattleHudArt _art = new BattleHudArt();
         private readonly BattleFrameSnapshot _first = new BattleFrameSnapshot();
         private readonly BattleFrameSnapshot _current = new BattleFrameSnapshot();
         private readonly LoadoutCooldown[] _manaShort = new LoadoutCooldown[BattleConstants.MaxLoadoutEntries];
@@ -191,7 +188,6 @@ namespace ProjectSurvive.Game.Editor
             _timeline = _view.FindProperty("_timeline")?.objectReferenceValue as BattleTimelineView;
             _hpBar = _view.FindProperty("_hpBar")?.objectReferenceValue as RectTransform;
             _manaBar = _view.FindProperty("_manaBar")?.objectReferenceValue as RectTransform;
-            _portrait = _view.FindProperty("_portrait")?.objectReferenceValue as Image;
             _bossRoot = _view.FindProperty("_bossRoot")?.objectReferenceValue as GameObject;
             var possessionText = _view.FindProperty("_possessionLabel")?.objectReferenceValue as Component;
             _possessionLabel = possessionText == null ? null : possessionText.transform as RectTransform;
@@ -213,12 +209,6 @@ namespace ProjectSurvive.Game.Editor
             _current.CopyFrom(_session.Frame);
 
             _miniBag.Build(run.Backpack, setup.Loadout, config);
-
-            if (_portrait is not null)
-            {
-                _portrait.sprite = _art.Bust;
-                _portrait.color = Color.white;
-            }
         }
 
         /// <summary>Builds a capture state over a Battle scene, or explains why it cannot.</summary>
@@ -813,12 +803,6 @@ namespace ProjectSurvive.Game.Editor
             _presenter?.Dispose();
             _state?.Dispose();
             _speed?.Dispose();
-            _art?.Dispose();
-
-            if (_portrait is not null)
-            {
-                _portrait.sprite = null;
-            }
         }
 
         /// <summary>

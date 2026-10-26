@@ -34,6 +34,18 @@ measured" and "not working" are not confused with "fine".
 - **Fix:** establish the licence, or replace the figure. Either way record the outcome in
   `ATTRIBUTION.md` before a release candidate is cut.
 
+### 1c. The battle HUD's halfbody bust (2110101) has no established licence either
+
+- **Basis:** `UnityProject/Assets/Resources/Portrait/` was extracted from a game bundle
+  (`character/spinelib/halfbody_dizi/jianxiu/2110101_skeletondata.ab`; `source.json` records it) and
+  arrived with the source game's outline/stencil material. No licence, author or purchase record came
+  with it, and nothing in the project links character `2110101` to `body_1110901`.
+- **Consequence:** Stage 17e draws it in the battle HUD, so the release blocker of §1b now covers two
+  assets. The source material was **not** copied: the page loads through this project's own
+  SkeletonGraphic material.
+- **Fix:** the same as §1b — establish the licence (and the relation to the walker's skeleton) or
+  replace the art, then update `ATTRIBUTION.md`.
+
 ### 2. Firefox: installed for Playwright, full suite not run
 
 - Stage 14 booted the Release player once in Playwright's bundled Firefox

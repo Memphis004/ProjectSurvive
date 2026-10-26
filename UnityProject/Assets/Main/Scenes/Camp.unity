@@ -11432,7 +11432,7 @@ MonoBehaviour:
   _font: {fileID: 11400000, guid: 7b4166f17865fbb4d9375e5b9c9aff9d, type: 2}
   _environment: {fileID: 1414128722}
   _groundMaterial: {fileID: 2100000, guid: db5657d79e201a748b4a06c21197336e, type: 2}
-  _spineProfile: {fileID: 11400000, guid: d4762f223d9649940911404c7bfd2faf, type: 2}
+  _spineProfile: {fileID: 11400000, guid: b0632fc7172d5004d927ed863093de78, type: 2}
   _cameraOffset: {x: 0, y: 7.2, z: -10.5}
   _cameraEuler: {x: 32, y: 0, z: 0}
   _cameraSize: 6.6

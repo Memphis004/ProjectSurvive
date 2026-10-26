@@ -11,6 +11,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using Button = UnityEngine.UI.Button;
 using Image = UnityEngine.UI.Image;
+using RectMask2D = UnityEngine.UI.RectMask2D;
 
 namespace ProjectSurvive.Game.Editor
 {
@@ -292,12 +293,12 @@ namespace ProjectSurvive.Game.Editor
             figureObject.transform.SetParent(viewRoot.transform, worldPositionStays: false);
 
             SpinePlayerView figure = figureObject.AddComponent<SpinePlayerView>();
-            var profile = AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.ProfileAssetPath);
+            var profile = AssetDatabase.LoadAssetAtPath<SpinePlayerProfile>(SpineProfileTool.BattleProfileAssetPath);
 
             if (profile is null)
             {
                 Debug.LogError(
-                    "[BattleSceneBuilder] " + SpineProfileTool.ProfileAssetPath + " is missing: run " +
+                    "[BattleSceneBuilder] " + SpineProfileTool.BattleProfileAssetPath + " is missing: run " +
                     "ProjectSurvive/Spine/2. Create player profile. The arena will fall back to the " +
                     "placeholder sprite for the player.");
                 return figure;
@@ -559,12 +560,31 @@ namespace ProjectSurvive.Game.Editor
             TMP_Text statusCaption = ProjectSetup.CreateUiText(
                 statusPanel, "StatusCaption", new Vector2(10f, -8f), new Vector2(200f, 30f), ProjectSetup.UiFontSize, font);
 
+            // Stage 17d: the figure is a Spine SkeletonGraphic drawn through the UI material
+            // `ProjectSurvive/Spine/3` writes — never a placeholder sprite and never a shader looked
+            // up by name. Stage 17e replaces the walker's skeleton with the uploaded halfbody bust
+            // (2110101, its own profile) and clips it to its column with a RectMask2D, so a bust
+            // taller than the column is cut at the panel's edge instead of drawn over the HP rows.
             RectTransform portraitObject = ProjectSetup.CreateUiRect(
-                statusPanel, "Portrait", new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(10f, -46f), new Vector2(72f, 72f));
-            Image portrait = portraitObject.gameObject.AddComponent<Image>();
-            portrait.raycastTarget = false;
-            portrait.preserveAspect = true;
+                statusPanel, UiLayoutCheck.Portrait, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(10f, -BattleHudPortrait.TopInset),
+                new Vector2(BattleHudPortrait.BoxWidth, BattleHudPortrait.BoxHeight));
+            portraitObject.gameObject.AddComponent<RectMask2D>();
+            BattleHudPortrait portrait = portraitObject.gameObject.AddComponent<BattleHudPortrait>();
+            var portraitProfile = AssetDatabase.LoadAssetAtPath<SpinePortraitProfile>(
+                SpinePortraitTool.PortraitProfileAssetPath);
+            if (portraitProfile == null)
+            {
+                Debug.LogError(
+                    "[BattleSceneBuilder] " + SpinePortraitTool.PortraitProfileAssetPath + " is missing: run " +
+                    "ProjectSurvive/Spine/4. Create portrait profile. The status panel will draw no figure.");
+            }
+
+            ProjectSetup.SetObjectReference(portrait, "profile", portraitProfile);
+            ProjectSetup.SetObjectReference(
+                portrait, "material",
+                AssetDatabase.LoadAssetAtPath<Material>(
+                    SpineMaterialTool.MaterialFolder + "/SpineGraphic-Normal.mat"));
 
             // A caption and its value are two boxes with 2 px between them (116..174 and 176..284):
             // sharing an edge exactly is what makes a tangent pair read as a collision once the canvas
