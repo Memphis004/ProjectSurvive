@@ -11449,6 +11449,8 @@ MonoBehaviour:
   _walkZLimit: {x: -3.6, y: 2.6}
   _idleRack: {r: 0.86, g: 0.8, b: 0.68, a: 1}
   _focusedRack: {r: 1, g: 0.93, b: 0.66, a: 1}
+  _figureBackend: 1
+  _genericCuteProfile: {fileID: 11400000, guid: 2cdd50fb13f054c46baf6e70ef46e0da, type: 2}
 --- !u!4 &1213163454
 Transform:
   m_ObjectHideFlags: 0

@@ -614,6 +614,21 @@ namespace ProjectSurvive.Game.Editor
                 AssetDatabase.LoadAssetAtPath<Material>(
                     SpineMaterialTool.MaterialFolder + "/SpineGraphic-Normal.mat"));
 
+            // Stage 17f: the panel's figure follows the arena's backend. On the 2D Animation backend the
+            // bust is the pack's portrait sprite, drawn as one Image in the same measured box — a Spine
+            // halfbody beside a rigged student would be two different doctors on one screen.
+            PlayerFigureBuildSettings portraitSettings = PlayerFigureBuildSettings.Load();
+            Sprite portraitSprite = AssetDatabase.LoadAssetAtPath<Sprite>(PlayerFigureBackendTool.PortraitSpritePath);
+            if (portraitSettings.Backend == PlayerFigureBackend.GenericCute && portraitSprite == null)
+            {
+                Debug.LogError(
+                    "[BattleSceneBuilder] " + PlayerFigureBackendTool.PortraitSpritePath + " is missing: " +
+                    "the GenericCute backend would draw no bust in the status panel.");
+            }
+
+            ProjectSetup.SetEnum(portrait, "backend", (int)portraitSettings.Backend);
+            ProjectSetup.SetObjectReference(portrait, "spritePortrait", portraitSprite);
+
             // A caption and its value are two boxes with 2 px between them (116..174 and 176..284):
             // sharing an edge exactly is what makes a tangent pair read as a collision once the canvas
             // scalar has rounded both sides differently.

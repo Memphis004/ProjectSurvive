@@ -366,9 +366,9 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             yield return WaitForFloorToStart();
 
             BattleSimulationRunner runner = Find<BattleSimulationRunner>();
-            SpinePlayerView figureInScene = Find<SpinePlayerView>();
+            MonoBehaviour figureInScene = FigureProbe.Find();
 
-            Assert.That(figureInScene, Is.Not.Null, "the Battle scene has no SpinePlayerView");
+            Assert.That(figureInScene, Is.Not.Null, "the Battle scene carries no player figure");
             Assert.That(
                 runner.View.PlayerFigure,
                 Is.Not.Null,
@@ -386,10 +386,10 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 "the presenter did not resolve the backend seam off the scene's figure");
             Assert.That(figure.ErrorCode, Is.Null, "the figure refused to build: " + figure.ErrorCode);
             Assert.That(figure.IsReady, Is.True, "the player figure never built");
-            Assert.That(figureInScene.BuildCount, Is.EqualTo(1), "the figure was built more than once");
+            Assert.That(figure.Figure.BuildCount, Is.EqualTo(1), "the figure was built more than once");
             Assert.That(
-                figureInScene.DrawnHeightWorld,
-                Is.EqualTo(figureInScene.Profile.TargetHeightWorld).Within(0.01f),
+                figure.Figure.DrawnHeightWorld,
+                Is.EqualTo(FigureProbe.ProfileHeight(figureInScene)).Within(0.01f),
                 "the figure is not drawn at its profile's height");
 
             // No view was created while the floor ran, and the figure is not one of them.
@@ -400,30 +400,30 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Idle), "a standing doctor must stand");
             Assert.That(
                 figure.Animation,
-                Is.EqualTo(figureInScene.Profile.IdleAnimation),
+                Is.EqualTo(FigureProbe.IdleAnimation(figureInScene)),
                 "the idle pose must be the profile's idle animation");
             Assert.That(
-                figureInScene.BuildCount,
+                figure.Figure.BuildCount,
                 Is.EqualTo(1),
                 "a second of floor built the figure again");
 
-            // Stage 17e: the mirror on the skeleton transform follows the profile's own rule, using
-            // the facing the real frame produced (not a hand-presented one).
-            SpinePlayerProfile profile = figureInScene.Profile;
-            int face = figureInScene.FaceDirection;
+            // Stage 17e: the mirror follows the profile's own rule, using the facing the real frame
+            // produced (not a hand-presented one).
+            int face = figure.Facing;
             // flip = ArtFacesRight ? facing < 0 : facing > 0; the mirror is localScale.x = -1.
-            bool flipped = profile.ArtFacesRight ? face < 0 : face > 0;
+            bool flipped = FigureProbe.ArtFacesRight(figureInScene) ? face < 0 : face > 0;
             float expectedScale = flipped ? -1f : 1f;
             Assert.That(
-                figureInScene.Actor.SkeletonTransform.localScale.x, Is.EqualTo(expectedScale),
+                FigureProbe.MirrorScaleX(figureInScene), Is.EqualTo(expectedScale),
                 "the arena's figure is mirrored against the profile's artFacesRight rule (facing " + face + ")");
 
             TestContext.WriteLine(
-                "figure: ready=" + figure.IsReady + " plays=" + figure.PlayCalls
-                + " facing=" + face + " scaleX=" + figureInScene.Actor.SkeletonTransform.localScale.x
-                + " idle=" + profile.IdleAnimation
+                "figure: backend=" + FigureProbe.Backend(figureInScene) + " ready=" + figure.IsReady
+                + " plays=" + figure.PlayCalls + " facing=" + face
+                + " scaleX=" + FigureProbe.MirrorScaleX(figureInScene)
+                + " idle=" + FigureProbe.IdleAnimation(figureInScene)
                 + " pose=" + figure.Pose + " animation='" + figure.Animation + "'"
-                + " height=" + figureInScene.DrawnHeightWorld.ToString("0.###")
+                + " height=" + figure.Figure.DrawnHeightWorld.ToString("0.###")
                 + " sorting=" + figure.SortingOrder + " poolGrowth=" + runner.View.Pool.CreatedAfterWarmup);
         }
 
@@ -451,7 +451,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(figure.Facing, Is.EqualTo(1), "walking right must face right");
             Assert.That(
                 figure.Animation,
-                Is.EqualTo(((SpinePlayerView)figure.View).Profile.RunAnimation),
+                Is.EqualTo(FigureProbe.RunAnimation(figure.View)),
                 "the run pose must be the profile's run animation");
             Assert.That(figure.SpeedUnitsPerSecond, Is.GreaterThan(0f), "the frame reported no movement");
 
@@ -496,7 +496,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(figure.IsHurt, Is.True, "PlayerDamaged did not start the hurt pose");
             Assert.That(
                 figure.Animation,
-                Is.EqualTo(((SpinePlayerView)figure.View).Profile.HurtAnimation),
+                Is.EqualTo(FigureProbe.HurtAnimation(figure.View)),
                 "the hurt pose must be the profile's hurt animation");
 
             float deadline = Time.realtimeSinceStartup + 8f;
@@ -645,16 +645,16 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         // -------------------------------------------------------------------
 
         /// <summary>
-        /// The status panel's figure is the half-body bust, built once when the floor starts and then
-        /// held perfectly still for the whole floor.
+        /// The status panel's figure is the backend the arena runs, built once when the floor starts and
+        /// then held still for the whole floor.
         /// </summary>
         /// <remarks>
         /// The EditMode suite proves the geometry and the build against the real asset; this proves
         /// the scene's own wiring — that Bind builds the portrait the player sees, that the build is a
-        /// single actor (<c>CreatedAfterBuild</c> stays 0), that the assigned skeleton is the halfbody
-        /// (<c>2110101</c>, the lesson of the 08c wiring bug: assert the asset, not the component),
-        /// and that a second of frames neither plays nor advances anything (<c>PlayCalls</c> stays 1,
-        /// <c>AnimationTime</c> stays 0).
+        /// single picture (<c>CreatedAfterBuild</c> stays 0), that the Spine halfbody is the skeleton it
+        /// names (<c>2110101</c>, the lesson of the 08c wiring bug: assert the asset, not the
+        /// component) or that the 2D Animation backend draws the pack's portrait sprite instead, and
+        /// that a second of frames neither plays nor advances anything.
         /// </remarks>
         [UnityTest]
         public IEnumerator The_status_panels_portrait_is_the_still_halfbody_built_once()
@@ -673,6 +673,37 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(
                 portrait.CreatedAfterBuild, Is.Zero,
                 "an actor was created after the portrait's first build");
+
+            // Stage 17f: the panel follows the arena's backend, so the shipped scene may carry the
+            // rigged figure and the sprite portrait instead of the Spine bust.
+            if (portrait.Backend == PlayerFigureBackend.GenericCute)
+            {
+                Assert.That(
+                    portrait.Actor, Is.Null,
+                    "the sprite portrait must not build the Spine halfbody beside the rigged figure");
+                Assert.That(portrait.SpritePortrait, Is.Not.Null, "no portrait sprite was assigned");
+
+                var image = portrait.SpriteImage;
+                Assert.That(image, Is.Not.Null, "the sprite portrait drew no Image");
+                Assert.That(image.sprite, Is.SameAs(portrait.SpritePortrait));
+                Assert.That(portrait.PlayCalls, Is.Zero, "a still sprite plays nothing");
+
+                int builds = portrait.BuildCount;
+                yield return WaitForTicks(runner, runner.StepsRun + BattleConstants.TickRate);
+
+                Assert.That(
+                    portrait.BuildCount, Is.EqualTo(builds),
+                    "a second of floor rebuilt the portrait's sprite");
+                Assert.That(
+                    portrait.SpriteImage.sprite, Is.SameAs(portrait.SpritePortrait),
+                    "the portrait changed sprite while the floor ran");
+
+                TestContext.WriteLine(
+                    "portrait: backend=GenericCute built=" + portrait.IsBuilt + " builds=" + portrait.BuildCount
+                    + " sprite='" + portrait.SpritePortrait.name + "' plays=" + portrait.PlayCalls
+                    + " box=" + ((RectTransform)portrait.transform).rect.size);
+                yield break;
+            }
             Assert.That(
                 portrait.SkeletonDataName, Is.EqualTo("2110101_SkeletonData"),
                 "the status panel is not drawing the halfbody bust");

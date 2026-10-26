@@ -2,9 +2,15 @@ using System.Collections.Generic;
 using ProjectSurvive.Game.Presentation.Figure;
 using ProjectSurvive.Game.Presentation.GenericCute;
 using ProjectSurvive.Game.Presentation.SpineActors;
+using ProjectSurvive.Core.Domain.Combat.Battle;
+using ProjectSurvive.Game.Presentation.Battle;
+using ProjectSurvive.Game.Presentation.Battle.Hud;
+using ProjectSurvive.Game.Presentation.Camp;
 using UnityEditor;
 using UnityEditor.Animations;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace ProjectSurvive.Game.Editor
 {
@@ -35,6 +41,10 @@ namespace ProjectSurvive.Game.Editor
         /// <summary>The pack's demo controller — the only controller with the rig's states.</summary>
         public const string ControllerPath =
             "Assets/Generic Cute 2D/Student/001 Student 1/Demo/AnimationController/Basic.controller";
+
+        /// <summary>The pack's portrait, drawn by the battle HUD when this backend is selected.</summary>
+        public const string PortraitSpritePath =
+            "Assets/Generic Cute 2D/Student/001 Student 1/Sprites/Portraits/001 Student 1 Portrait.png";
 
         /// <summary>The camp's 2D Animation profile.</summary>
         public const string CampProfilePath = "Assets/Main/Presentation/GenericCutePlayerProfile_Camp.asset";
@@ -80,6 +90,17 @@ namespace ProjectSurvive.Game.Editor
             SetBackend(PlayerFigureBackend.GenericCute);
         }
 
+        /// <summary>
+        /// Switches the backend by <b>editing the two scenes in place</b>, not by rebuilding them.
+        /// </summary>
+        /// <remarks>
+        /// The scene builders create a scene from nothing, and later stages added the arena's
+        /// environment, the camp's lighting and every capture-only prop to the authored scenes
+        /// afterwards — regenerating would drop all of it (measured: rebuilding Battle lost ~38k lines
+        /// of scene content and the arena stood empty). So the switch swaps only the figure component
+        /// and its profile on the object that already exists, plus the status panel's portrait, and
+        /// saves the scene. A backend switch therefore leaves every other object untouched.
+        /// </remarks>
         private static void SetBackend(PlayerFigureBackend backend)
         {
             PlayerFigureBuildSettings settings = PlayerFigureBuildSettings.Load();
@@ -111,6 +132,11 @@ namespace ProjectSurvive.Game.Editor
             EditorUtility.SetDirty(settings);
             AssetDatabase.SaveAssets();
 
+            // Re-read the asset after the save: saving an asset reimports it, and the instance read
+            // before the save stops being the live one (the checks below then saw every profile as
+            // missing while the asset on disk was correct).
+            settings = PlayerFigureBuildSettings.Load();
+
             Debug.Log(
                 "[PlayerFigureBackendTool] backend " + previous + " -> " + backend + " in " + PlayerFigureBuildSettings.AssetPath);
 
@@ -125,13 +151,128 @@ namespace ProjectSurvive.Game.Editor
                 }
             }
 
-            // The scenes carry the choice, so choosing is a rebuild of both of them.
-            CampSceneBuilder.Create();
-            BattleSceneBuilder.Create();
+            bool campOk = ApplyToCamp(backend);
+            bool battleOk = ApplyToBattle(backend);
 
-            ProjectSetup.ConfigureBuildSettings();
             ProjectSetup.SaveAndRefresh(
-                "ProjectSurvive: player figure backend is " + backend + "; Camp and Battle rebuilt.");
+                "ProjectSurvive: player figure backend is " + backend + "; camp=" + campOk +
+                " battle=" + battleOk + ".");
+        }
+
+        private static bool ApplyToCamp(PlayerFigureBackend backend)
+        {
+            Scene scene = EditorSceneManager.OpenScene(ProjectSetup.CampScenePath, OpenSceneMode.Single);
+
+            // Read the settings after the scene swap: opening a scene unloads assets nothing else
+            // references, and the instance SetBackend held before the swap came back as null here
+            // (measured, not assumed), which silently wrote a figure with no profile.
+            PlayerFigureBuildSettings settings = PlayerFigureBuildSettings.Load();
+
+            var world = Object.FindFirstObjectByType<CampWorldView>(FindObjectsInactive.Include);
+            if (world == null)
+            {
+                Debug.LogError(
+                    "[PlayerFigureBackendTool] " + ProjectSetup.CampScenePath + " has no CampWorldView: " +
+                    "the camp's backend was not switched.");
+                return false;
+            }
+
+            // Written through the view's own entry point, so the field assignments are the same ones a
+            // runtime Configure makes and the scene save persists them (a SerializedObject on a freshly
+            // opened scene did not stick for the profile reference).
+            world.ConfigurePlayerFigure(
+                backend, settings.CampSpineProfile, settings.CampGenericCuteProfile);
+            EditorUtility.SetDirty(world);
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            return true;
+        }
+
+        private static bool ApplyToBattle(PlayerFigureBackend backend)
+        {
+            Scene scene = EditorSceneManager.OpenScene(ProjectSetup.BattleScenePath, OpenSceneMode.Single);
+
+            // Same re-read as the camp: the settings instance from before the scene swap is not
+            // guaranteed to be alive afterwards.
+            PlayerFigureBuildSettings settings = PlayerFigureBuildSettings.Load();
+
+            GameObject figureObject = GameObject.Find("PlayerFigure");
+            if (figureObject == null)
+            {
+                Debug.LogError(
+                    "[PlayerFigureBackendTool] " + ProjectSetup.BattleScenePath + " has no PlayerFigure object: " +
+                    "the arena's backend was not switched.");
+                return false;
+            }
+
+            // One backend on the object: the old component goes before the new one is added, so the
+            // scene can never carry two figures (and a stale profile) at once.
+            MonoBehaviour existing = figureObject.GetComponent<IPlayerFigure>() as MonoBehaviour;
+            if (existing != null)
+            {
+                Object.DestroyImmediate(existing, true);
+            }
+
+            // The component's own Configure writes the profile field, and the scene save persists it;
+            // a SerializedObject written straight after AddComponent did not stick (the scene shipped
+            // `profile: {fileID: 0}`), so the typed entry point is what this tool uses.
+            MonoBehaviour figure;
+            if (backend == PlayerFigureBackend.GenericCute)
+            {
+                if (settings.BattleGenericCuteProfile == null)
+                {
+                    Debug.LogError(
+                        "[PlayerFigureBackendTool] no GenericCute profile for the arena: run '1. Create " +
+                        "GenericCute profiles' first. The arena will report generic_cute.player_profile_missing.");
+                }
+
+                var cuteFigure = figureObject.AddComponent<GenericCutePlayerView>();
+                cuteFigure.Configure(settings.BattleGenericCuteProfile);
+                figure = cuteFigure;
+            }
+            else
+            {
+                var spineFigure = figureObject.AddComponent<SpinePlayerView>();
+                spineFigure.Configure(settings.BattleSpineProfile);
+                figure = spineFigure;
+            }
+
+            figure.GetComponent<IPlayerFigure>().SetSortingOrder(
+                BattleWorldMap.SortingOrder(RenderEntityKind.Player, 0f));
+            EditorUtility.SetDirty(figure);
+
+            var runner = Object.FindFirstObjectByType<BattleSimulationRunner>(FindObjectsInactive.Include);
+            if (runner != null)
+            {
+                ProjectSetup.SetObjectReference(runner, "_viewSettings.PlayerFigure", figure);
+            }
+            else
+            {
+                Debug.LogError(
+                    "[PlayerFigureBackendTool] " + ProjectSetup.BattleScenePath +
+                    " has no BattleSimulationRunner: the view still points at the old figure.");
+            }
+
+            // Stage 17f: the status panel's bust follows the same choice.
+            var portrait = Object.FindFirstObjectByType<BattleHudPortrait>(FindObjectsInactive.Include);
+            if (portrait != null)
+            {
+                ProjectSetup.SetEnum(portrait, "backend", (int)backend);
+                ProjectSetup.SetObjectReference(
+                    portrait, "spritePortrait",
+                    AssetDatabase.LoadAssetAtPath<Sprite>(PortraitSpritePath));
+            }
+            else
+            {
+                Debug.LogError(
+                    "[PlayerFigureBackendTool] " + ProjectSetup.BattleScenePath +
+                    " has no BattleHudPortrait: the status panel keeps its old bust.");
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            return true;
         }
 
         private static bool WriteProfile(string path, GameObject prefab, AnimatorController controller)

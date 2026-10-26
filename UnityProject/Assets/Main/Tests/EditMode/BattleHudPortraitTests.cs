@@ -10,6 +10,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.TestTools;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
@@ -174,62 +175,125 @@ namespace ProjectSurvive.Game.Tests.EditMode
         {
             Assert.That(_portrait, Is.Not.Null);
 
+            // The Spine bust on a host of this test's own, with the profile and material the scene
+            // authored: the panel's figure follows the arena's backend (Stage 17f), so the shipped
+            // scene may carry the sprite portrait, and this case is about the Spine path.
+            var canvasObject = new GameObject("SpinePortraitCanvas", typeof(RectTransform), typeof(Canvas));
+            canvasObject.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+
+            BattleHudPortrait portrait;
+
+            try
+            {
+                var host = new GameObject("SpinePortrait", typeof(RectTransform));
+                var hostRect = (RectTransform)host.transform;
+                hostRect.SetParent(canvasObject.transform, false);
+                hostRect.sizeDelta = new Vector2(BattleHudPortrait.BoxWidth, BattleHudPortrait.BoxHeight);
+
+                portrait = host.AddComponent<BattleHudPortrait>();
+
+                var sceneFields = new SerializedObject(_portrait);
+                var fields = new SerializedObject(portrait);
+                fields.FindProperty("backend").enumValueIndex = (int)PlayerFigureBackend.Spine;
+                fields.FindProperty("profile").objectReferenceValue =
+                    sceneFields.FindProperty("profile").objectReferenceValue;
+                fields.FindProperty("material").objectReferenceValue =
+                    sceneFields.FindProperty("material").objectReferenceValue;
+                fields.ApplyModifiedPropertiesWithoutUndo();
+
+                Assert.That(portrait.IsBuilt, Is.False, "a fresh portrait must start unbuilt");
+                Assert.That(portrait.Profile, Is.Not.Null, "the scene's Spine profile is missing");
+
+                Assert.That(portrait.Begin(), Is.True, "the portrait refused to build: " + portrait.ErrorCode);
+                Assert.That(portrait.ErrorCode, Is.Null);
+                Assert.That(portrait.BuildCount, Is.EqualTo(1), "the portrait built more than one actor");
+                Assert.That(portrait.CreatedAfterBuild, Is.Zero, "an actor was created after the build");
+
+                Assert.That(
+                    portrait.SkeletonDataName, Is.EqualTo("2110101_SkeletonData"),
+                    "the portrait is not drawing the halfbody bust from Resources/Portrait");
+                Assert.That(
+                    portrait.Animation, Is.EqualTo(portrait.Profile.StillAnimation),
+                    "the portrait does not hold the profile's still animation");
+                Assert.That(portrait.PlayCalls, Is.EqualTo(1), "the portrait played more than one still frame");
+
+                SpineUiActor actor = portrait.Actor;
+                Assert.That(actor, Is.Not.Null);
+                Assert.That(actor.Graphic, Is.Not.Null, "the actor has no SkeletonGraphic");
+                Assert.That(
+                    actor.Graphic.timeScale, Is.Zero,
+                    "the SkeletonGraphic keeps its own clock: the portrait must tick the actor itself");
+
+                // The drawn mesh fills the box without escaping it, and its own centre is the box's.
+                Mesh mesh = actor.Graphic.GetLastMesh();
+                Assert.That(mesh, Is.Not.Null, "the actor's mesh is missing");
+                mesh.RecalculateBounds();
+                Bounds bounds = mesh.bounds;
+
+                var actorRect = (RectTransform)actor.transform;
+                float drawnWidth = bounds.size.x * actorRect.localScale.x;
+                float drawnHeight = bounds.size.y * actorRect.localScale.y;
+
+                Assert.That(
+                    drawnWidth, Is.LessThanOrEqualTo(BattleHudPortrait.BoxWidth + 0.5f),
+                    "the figure is wider than the portrait's box");
+                Assert.That(
+                    drawnHeight, Is.LessThanOrEqualTo(BattleHudPortrait.BoxHeight + 0.5f),
+                    "the figure is taller than the portrait's box");
+                Assert.That(
+                    actorRect.anchoredPosition.x, Is.EqualTo(-bounds.center.x * actorRect.localScale.x).Within(0.5f),
+                    "the figure is not horizontally centred in the box");
+                Assert.That(
+                    actorRect.anchoredPosition.y, Is.EqualTo(-bounds.center.y * actorRect.localScale.y).Within(0.5f),
+                    "the figure is not vertically centred in the box");
+
+                // The still frame must not move: the actor's own time scale is 0 and nothing ticks it.
+                float held = portrait.AnimationTime;
+                actor.Tick(0.5f);
+                Assert.That(
+                    portrait.AnimationTime, Is.EqualTo(held).Within(0.0001f),
+                    "the portrait's still animation advanced: it must be held at time 0");
+
+                // A second Begin is a no-op: the panel never rebuilds its figure while a floor runs.
+                Assert.That(portrait.Begin(), Is.True);
+                Assert.That(portrait.BuildCount, Is.EqualTo(1), "a second Begin built another actor");
+                Assert.That(portrait.CreatedAfterBuild, Is.Zero);
+            }
+            finally
+            {
+                Object.DestroyImmediate(canvasObject);
+            }
+        }
+
+        /// <summary>
+        /// The panel's figure is the backend the project was last built with, so a GenericCute figure
+        /// never stands beside a Spine bust (Stage 17f).
+        /// </summary>
+        [Test]
+        public void The_status_panels_figure_follows_the_backend_the_project_builds_with()
+        {
+            Assert.That(_portrait, Is.Not.Null, "the Battle scene has no BattleHudPortrait");
+
+            PlayerFigureBuildSettings settings = PlayerFigureBuildSettings.Load();
+            Assert.That(settings, Is.Not.Null, PlayerFigureBuildSettings.AssetPath + " is missing");
+
+            Assert.That(
+                _portrait.Backend, Is.EqualTo(settings.Backend),
+                "the status panel draws a different backend than the arena was built with; " +
+                "ProjectSurvive/Player Figure switches both");
+
+            if (settings.Backend == PlayerFigureBackend.GenericCute)
+            {
+                Assert.That(
+                    _portrait.SpritePortrait, Is.Not.Null,
+                    "the GenericCute backend left the panel without the pack's portrait sprite");
+                Assert.That(
+                    AssetDatabase.GetAssetPath(_portrait.SpritePortrait),
+                    Is.EqualTo(PlayerFigureBackendTool.PortraitSpritePath),
+                    "the panel draws a sprite other than the pack's portrait");
+            }
+
             Assert.That(_portrait.IsBuilt, Is.False, "the scene must author the portrait unbuilt");
-
-            Assert.That(_portrait.Begin(), Is.True, "the portrait refused to build: " + _portrait.ErrorCode);
-            Assert.That(_portrait.ErrorCode, Is.Null);
-            Assert.That(_portrait.BuildCount, Is.EqualTo(1), "the portrait built more than one actor");
-            Assert.That(_portrait.CreatedAfterBuild, Is.Zero, "an actor was created after the build");
-
-            Assert.That(
-                _portrait.SkeletonDataName, Is.EqualTo("2110101_SkeletonData"),
-                "the portrait is not drawing the halfbody bust from Resources/Portrait");
-            Assert.That(
-                _portrait.Animation, Is.EqualTo(_portrait.Profile.StillAnimation),
-                "the portrait does not hold the profile's still animation");
-            Assert.That(_portrait.PlayCalls, Is.EqualTo(1), "the portrait played more than one still frame");
-
-            SpineUiActor actor = _portrait.Actor;
-            Assert.That(actor, Is.Not.Null);
-            Assert.That(actor.Graphic, Is.Not.Null, "the actor has no SkeletonGraphic");
-            Assert.That(
-                actor.Graphic.timeScale, Is.Zero,
-                "the SkeletonGraphic keeps its own clock: the portrait must tick the actor itself");
-
-            // The drawn mesh fills the box without escaping it, and its own centre is the box's.
-            Mesh mesh = actor.Graphic.GetLastMesh();
-            Assert.That(mesh, Is.Not.Null, "the actor's mesh is missing");
-            mesh.RecalculateBounds();
-            Bounds bounds = mesh.bounds;
-
-            var actorRect = (RectTransform)actor.transform;
-            float drawnWidth = bounds.size.x * actorRect.localScale.x;
-            float drawnHeight = bounds.size.y * actorRect.localScale.y;
-
-            Assert.That(
-                drawnWidth, Is.LessThanOrEqualTo(BattleHudPortrait.BoxWidth + 0.5f),
-                "the figure is wider than the portrait's box");
-            Assert.That(
-                drawnHeight, Is.LessThanOrEqualTo(BattleHudPortrait.BoxHeight + 0.5f),
-                "the figure is taller than the portrait's box");
-            Assert.That(
-                actorRect.anchoredPosition.x, Is.EqualTo(-bounds.center.x * actorRect.localScale.x).Within(0.5f),
-                "the figure is not horizontally centred in the box");
-            Assert.That(
-                actorRect.anchoredPosition.y, Is.EqualTo(-bounds.center.y * actorRect.localScale.y).Within(0.5f),
-                "the figure is not vertically centred in the box");
-
-            // The still frame must not move: the actor's own time scale is 0 and nothing ticks it.
-            float held = _portrait.AnimationTime;
-            actor.Tick(0.5f);
-            Assert.That(
-                _portrait.AnimationTime, Is.EqualTo(held).Within(0.0001f),
-                "the portrait's still animation advanced: it must be held at time 0");
-
-            // A second Begin is a no-op: the panel never rebuilds its figure while a floor runs.
-            Assert.That(_portrait.Begin(), Is.True);
-            Assert.That(_portrait.BuildCount, Is.EqualTo(1), "a second Begin built another actor");
-            Assert.That(_portrait.CreatedAfterBuild, Is.Zero);
         }
 
         // -------------------------------------------------------------------
@@ -368,6 +432,84 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
         private static RectTransform TransformOf(SerializedObject fields, string field) =>
             fields.FindProperty(field)?.objectReferenceValue as RectTransform;
+
+        // ------------------------------------------------------------------
+        // Stage 17f: the bust follows the arena's backend
+        // ------------------------------------------------------------------
+
+        [Test]
+        public void The_generic_cute_backend_draws_the_packs_portrait_sprite_in_the_same_box()
+        {
+            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(PlayerFigureBackendTool.PortraitSpritePath);
+            Assert.That(sprite, Is.Not.Null, PlayerFigureBackendTool.PortraitSpritePath + " is missing");
+
+            var host = new GameObject("Portrait", typeof(RectTransform));
+            try
+            {
+                var rect = (RectTransform)host.transform;
+                rect.sizeDelta = new Vector2(BattleHudPortrait.BoxWidth, BattleHudPortrait.BoxHeight);
+                var portrait = host.AddComponent<BattleHudPortrait>();
+
+                var fields = new SerializedObject(portrait);
+                fields.FindProperty("backend").enumValueIndex = (int)PlayerFigureBackend.GenericCute;
+                fields.FindProperty("spritePortrait").objectReferenceValue = sprite;
+                fields.ApplyModifiedPropertiesWithoutUndo();
+
+                Assert.That(portrait.Begin(), Is.True, "the portrait refused to build: " + portrait.ErrorCode);
+                Assert.That(
+                    portrait.Actor, Is.Null,
+                    "the GenericCute backend must not build the Spine halfbody beside a rigged figure");
+                Assert.That(portrait.BuildCount, Is.EqualTo(1));
+                Assert.That(portrait.PlayCalls, Is.Zero, "a still sprite plays nothing");
+
+                Image image = host.GetComponentInChildren<Image>(true);
+                Assert.That(image, Is.Not.Null, "the portrait drew no Image");
+                Assert.That(image.sprite, Is.SameAs(sprite));
+                Assert.That(image.preserveAspect, Is.True, "a 512 × 512 portrait must letterbox, not stretch");
+                Assert.That(image.raycastTarget, Is.False, "the bust must not eat pointer events");
+
+                // It fills the box it was authored into, so the measured region is unchanged.
+                Assert.That(image.rectTransform.anchorMin, Is.EqualTo(Vector2.zero));
+                Assert.That(image.rectTransform.anchorMax, Is.EqualTo(Vector2.one));
+                Assert.That(image.rectTransform.offsetMin, Is.EqualTo(Vector2.zero));
+                Assert.That(image.rectTransform.offsetMax, Is.EqualTo(Vector2.zero));
+
+                Assert.That(portrait.Begin(), Is.True, "a second Begin must succeed");
+                Assert.That(portrait.BuildCount, Is.EqualTo(1), "a second Begin built a second sprite");
+                Assert.That(host.GetComponentsInChildren<Image>(true).Length, Is.EqualTo(1));
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        [Test]
+        public void The_generic_cute_backend_without_a_sprite_fails_loudly()
+        {
+            var host = new GameObject("Portrait", typeof(RectTransform));
+            try
+            {
+                var portrait = host.AddComponent<BattleHudPortrait>();
+                var fields = new SerializedObject(portrait);
+                fields.FindProperty("backend").enumValueIndex = (int)PlayerFigureBackend.GenericCute;
+                fields.ApplyModifiedPropertiesWithoutUndo();
+
+                LogAssert.Expect(
+                    LogType.Error,
+                    new System.Text.RegularExpressions.Regex(
+                        "generic_cute\\.portrait_sprite_missing"));
+
+                Assert.That(portrait.Begin(), Is.False);
+                Assert.That(portrait.ErrorCode, Is.EqualTo(BattleHudPortrait.SpriteMissingCode));
+                Assert.That(portrait.IsBuilt, Is.False);
+                Assert.That(host.GetComponentInChildren<Image>(true), Is.Null, "nothing may be left behind");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
 
         /// <summary>One rectangle, converted into <paramref name="space"/>'s own local space.</summary>
         private static Rect InSpaceOf(RectTransform space, RectTransform target)

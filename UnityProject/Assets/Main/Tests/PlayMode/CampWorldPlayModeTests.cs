@@ -132,8 +132,8 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         {
             yield return LoadCamp();
 
-            SpinePlayerView figure = Object.FindFirstObjectByType<SpinePlayerView>();
-            Assert.That(figure, Is.Not.Null, "the sala draws no Spine figure for the player");
+            MonoBehaviour figure = FigureProbe.Find();
+            Assert.That(figure, Is.Not.Null, "the sala draws no figure for the player");
             // Stage 17f: the camp hands the figure out through the backend seam, resolved off the
             // component the scene carries — not by keeping a Spine reference of its own.
             IPlayerFigure seam = figure.GetComponent<IPlayerFigure>();
@@ -142,11 +142,11 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 _world.PlayerFigure, Is.SameAs(seam),
                 "the camp's PlayerFigure is not the seam of the component the scene carries");
             Assert.That(
-                figure.IsBegun, Is.True,
-                "the figure did not build, so the placeholder silhouette draws the doctor: " + figure.ErrorCode);
-            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Idle), "a player who has not walked yet must stand");
+                seam.IsBegun, Is.True,
+                "the figure did not build, so the placeholder silhouette draws the doctor: " + seam.ErrorCode);
+            Assert.That(seam.Pose, Is.EqualTo(PlayerPose.Idle), "a player who has not walked yet must stand");
 
-            string idle = figure.CurrentAnimation;
+            string idle = seam.CurrentAnimation;
             Assert.That(idle, Is.Not.Null.And.Not.Empty, "the standing figure plays no animation");
 
             // Walking right: the walk pose, facing that way, and an animation that advanced.
@@ -154,20 +154,19 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             yield return Wait(0.35f);
 
             Assert.That(_player.Moving, Is.True, "the walk key did not reach the walker");
-            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Run), "walking must draw the run pose");
-            Assert.That(figure.FaceDirection, Is.EqualTo(1), "walking right must face right");
-            Assert.That(figure.AnimationTime, Is.GreaterThan(0f), "the walk's animation never advanced");
+            Assert.That(seam.Pose, Is.EqualTo(PlayerPose.Run), "walking must draw the run pose");
+            Assert.That(seam.FaceDirection, Is.EqualTo(1), "walking right must face right");
+            Assert.That(seam.AnimationTime, Is.GreaterThan(0f), "the walk's animation never advanced");
 
             // Stage 17e: the mirror follows the profile's rule. The art faces the viewer's left, so
             // walking right is the mirrored one — read off the transform the flip is written to.
             // flip = ArtFacesRight ? facing < 0 : facing > 0; walking right is facing +1.
-            SpinePlayerProfile profile = figure.Profile;
             Assert.That(
-                figure.Actor.SkeletonTransform.localScale.x,
-                Is.EqualTo(profile.ArtFacesRight ? 1f : -1f),
+                FigureProbe.MirrorScaleX(figure),
+                Is.EqualTo(FigureProbe.ArtFacesRight(figure) ? 1f : -1f),
                 "walking right left the figure mirrored the wrong way for this art");
 
-            string run = figure.CurrentAnimation;
+            string run = seam.CurrentAnimation;
             Assert.That(run, Is.Not.EqualTo(idle), "the run pose draws the idle animation");
 
             // Stopping: the same figure stands again.
@@ -176,32 +175,32 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             yield return null;
 
             Assert.That(_player.Moving, Is.False, "the walker is still walking after the key came up");
-            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Idle), "a stopped player must stand");
+            Assert.That(seam.Pose, Is.EqualTo(PlayerPose.Idle), "a stopped player must stand");
             Assert.That(
-                figure.CurrentAnimation, Is.EqualTo(idle),
+                seam.CurrentAnimation, Is.EqualTo(idle),
                 "standing after a walk did not restore the standing animation");
 
             // The other direction: the same figure turns rather than a second one being built.
             Press(_keyboard.aKey);
             yield return Wait(0.35f);
-            Assert.That(figure.FaceDirection, Is.EqualTo(-1), "walking left must face left");
+            Assert.That(seam.FaceDirection, Is.EqualTo(-1), "walking left must face left");
             Assert.That(
-                figure.Actor.SkeletonTransform.localScale.x,
-                Is.EqualTo(profile.ArtFacesRight ? -1f : 1f),
+                FigureProbe.MirrorScaleX(figure),
+                Is.EqualTo(FigureProbe.ArtFacesRight(figure) ? -1f : 1f),
                 "walking left left the figure mirrored the wrong way for this art");
             Release(_keyboard.aKey);
             yield return null;
 
             // Stopping keeps the direction it last walked, not a default one.
             Assert.That(
-                figure.Actor.SkeletonTransform.localScale.x,
-                Is.EqualTo(profile.ArtFacesRight ? -1f : 1f),
+                FigureProbe.MirrorScaleX(figure),
+                Is.EqualTo(FigureProbe.ArtFacesRight(figure) ? -1f : 1f),
                 "standing after a walk reset the facing");
 
             // The จัดย่าม panel stops the walk, so the doctor stands while a walk key is still held.
             Press(_keyboard.wKey);
             yield return Wait(0.2f);
-            Assert.That(figure.Pose, Is.EqualTo(PlayerPose.Run), "holding a walk key did not start the walk");
+            Assert.That(seam.Pose, Is.EqualTo(PlayerPose.Run), "holding a walk key did not start the walk");
 
             Assert.That(
                 _bag.TryGetButtonScreenPoint(CampBagButton.Open, out Vector2 toggle), Is.True,
@@ -211,7 +210,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(_bag.PanelVisible, Is.True, "clicking จัดย่าม did not open the panel");
             yield return null;
             Assert.That(
-                figure.Pose, Is.EqualTo(PlayerPose.Idle),
+                seam.Pose, Is.EqualTo(PlayerPose.Idle),
                 "the figure kept running while the จัดย่าม panel was open");
 
             Release(_keyboard.wKey);

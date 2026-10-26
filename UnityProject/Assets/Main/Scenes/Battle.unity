@@ -29978,7 +29978,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1600419956}
-  - component: {fileID: 1600419955}
+  - component: {fileID: 1600419957}
   m_Layer: 0
   m_Name: PlayerFigure
   m_TagString: Untagged
@@ -29986,21 +29986,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1600419955
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1600419954}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d11d9672218a2274db89ac25406c0bff, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: ProjectSurvive.Game.Presentation::ProjectSurvive.Game.Presentation.SpineActors.SpinePlayerView
-  profile: {fileID: 11400000, guid: 02ee833767b7b394597a8c23d2a5c433, type: 2}
-  actorName: PlayerFigure
-  sortingOrder: 3
 --- !u!4 &1600419956
 Transform:
   m_ObjectHideFlags: 0
@@ -30016,6 +30001,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1939832239}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1600419957
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1600419954}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6bff381d7ebdd8641afeca5b272e125c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: ProjectSurvive.Game.Presentation.GenericCute::ProjectSurvive.Game.Presentation.GenericCute.GenericCutePlayerView
+  profile: {fileID: 11400000, guid: ad259d3c3ef139a498453eb2ba163444, type: 2}
+  figureName: PlayerFigure
+  sortingOrder: 3
 --- !u!1001 &1602819520
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -33934,6 +33934,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: ProjectSurvive.Game.Presentation::ProjectSurvive.Game.Presentation.Battle.Hud.BattleHudPortrait
   profile: {fileID: 11400000, guid: 43d0af99be907f74bbd5298f0b74fedb, type: 2}
   material: {fileID: 2100000, guid: 47f5718a60268fe40924c4e42f8c732c, type: 2}
+  backend: 1
+  spritePortrait: {fileID: 21300000, guid: 44d2293b70fa08743a61ce987b2ef1ed, type: 3}
 --- !u!114 &1835699284
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -34431,7 +34433,7 @@ MonoBehaviour:
     Font: {fileID: 11400000, guid: 7b4166f17865fbb4d9375e5b9c9aff9d, type: 2}
     Projection: 0
     Environment: {fileID: 701673489}
-    PlayerFigure: {fileID: 1600419955}
+    PlayerFigure: {fileID: 1600419957}
   _reportIntervalSeconds: 5
   _publishReport: 1
 --- !u!4 &1844133099

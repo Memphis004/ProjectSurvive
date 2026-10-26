@@ -203,8 +203,58 @@ attribution). The camp scene still carries only the Spine profile reference plus
 `Spine` enum value, which is why the PlayMode suites are unchanged. Budget: no perf or payload number
 is claimed here.
 
-## 6. What is still open
+## 6. 17f-3 (started) — the switch, and the panel's bust follows it
+
+The user asked to run the GenericCute backend and, in the same breath, for the battle HUD's portrait
+to be the pack's `001 Student 1 Portrait.png` instead of the Spine halfbody.
+
+**What changed.**
+
+- **The switch edits the scenes instead of rebuilding them.** `2. Use Spine backend` /
+`3. Use GenericCute backend` now open `Camp.unity` and `Battle.unity`, write the backend, the profiles
+and the panel's portrait, and save. A rebuild was measured to drop the arena's environment, lighting
+and capture props (~38k lines of `Battle.unity`), so the switch cannot go through the builders. The
+arena swaps the `IPlayerFigure` component on `PlayerFigure` (old one destroyed first, so the object
+never carries two figures) and repoints `BattleViewSettings.PlayerFigure`; the camp goes through
+`CampWorldView.ConfigurePlayerFigure`.
+- **`BattleHudPortrait` is backend-aware.** New serialized `backend` + `spritePortrait`; with
+`GenericCute` it builds one `Image` of the sprite in the same 80 × 110 box (`preserveAspect`, so the
+512 × 512 art letterboxes to 80 × 80), builds it once, plays nothing, and fails as
+`generic_cute.portrait_sprite_missing` when the sprite is unassigned instead of drawing the Spine
+bust beside a rigged figure.
+- **A destroyed asset is not a null reference, and it bites the switch.** `OpenScene` unloads assets
+nothing else references, so the `PlayerFigureBuildSettings` instance the switch held came back with
+`== null` true while its profile fields read empty — the act of saving the settings asset, then
+opening a scene, was enough. Both `ApplyTo…` methods now re-read the settings *after* the scene opens
+(`PlayerFigureBuildSettings.Load()`), and the run logs `camp=True battle=True` with the profiles
+written.
+- **The scene tests were Spine-shaped.** `BattlePlayModeTests` (three cases), `CampWorldPlayModeTests`
+(one) and `SpinePlayerTests.The_battle_scene_names_the_arena_profile_for_its_figure` found
+`SpinePlayerView` by type and read its profile and skeleton transform; they went red the moment the
+arena shipped the rig. New `Assets/Main/Tests/PlayMode/FigureProbe.cs` finds whichever component the
+scene carries and returns its own profile's idle/run/hurt state, height, facing rule and mirror child,
+so the same assertions hold for both backends. `BattleHudPortraitTests` gained two cases (the sprite
+portrait builds one `Image`; a missing sprite fails loudly) and one scene case (the panel's backend is
+the project's backend), and its halfbody case now builds the Spine path on a host of its own.
+
+**Verified.**
+
+| Check | Result |
+| --- | --- |
+| `tools/test.ps1 -Suite Fast` | **PASS 13 / FAIL 0** — EditMode **298/298**, xUnit 612 |
+| `BattlePlayModeTests` | **11/11** with GenericCute baked into both scenes |
+| `CampWorldPlayModeTests` | **12/12** |
+| In-scene picture | `artifacts/stage17f/battle-genericcute-portrait-1920x1080.png` (1920 × 1080, Play mode, GenericCute) and its 3× crop `…-crop.png` |
+| Switch | `ProjectSurvive/Player Figure/3` run twice with no error in the console; `Battle` and `Camp` both report the GenericCute profile |
+
+**Known limits.** No WebGL build and no Playwright run (that is the Full suite, and the two halves
+need opposite Editor states); no per-frame cost number; the pack's portrait has an opaque dark
+background, so the 80 × 80 square reads slightly lighter than the panel — an art call, not a bug, and
+the letterboxing leaves ~15 px above and below inside the 110 px column.
+
+## 7. What is still open
 
 17f-3: the parity PlayMode suite over Camp × Battle × both backends, the 1920×1080 captures in both
-backends, the per-frame cost comparison, the two ReleaseCandidate payload builds (and the assertion
-that a Spine build carries no GenericCute asset), plus the attribution row for the pack.
+backends (Spine side still missing), the per-frame cost comparison, the two ReleaseCandidate payload
+builds (and the assertion that a Spine build carries no GenericCute asset), plus the attribution row
+for the pack.

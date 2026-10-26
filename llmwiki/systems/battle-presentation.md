@@ -554,3 +554,34 @@ switch and no fallback. Validation is Editor-side against the real controller
 (`GenericCuteProfileValidator`: names, loop flags, no exit transition on death).
 Evidence: `docs/stages/17f-report.md`, `GenericCuteProfileTests`, `GenericCutePlayerViewTests`,
 `artifacts/stage17f/probe-idle-facing-right.png` / `probe-idle-facing-left.png`.
+
+## 21. Switching the backend edits the scenes; the panel's bust follows it (Stage 17f-3)
+
+`ProjectSurvive/Player Figure/2. Use Spine backend` and `/3. Use GenericCute backend` **edit the two
+authored scenes in place** and save them: the camp goes through `CampWorldView.ConfigurePlayerFigure`,
+the arena swaps the `IPlayerFigure` component on `PlayerFigure` (old one destroyed first, so the
+object can never carry two figures) and repoints `BattleViewSettings.PlayerFigure`. They no longer
+call the scene builders — a rebuild was measured to drop the environment, the lighting and every
+capture prop added after Stage 08 (~38k lines of `Battle.unity`), which is why the switch is a field
+edit instead.
+
+The status panel's bust is part of the same choice: `BattleHudPortrait.backend` names the backend and
+`BattleHudPortrait.spritePortrait` holds the pack's `001 Student 1 Portrait.png`. With `Spine` the
+halfbody is built as before (Stage 17e); with `GenericCute` the panel draws **one `Image`** of that
+sprite inside the same 80 × 110 box, `preserveAspect` (a 512 × 512 portrait letterboxes to 80 × 80
+instead of stretching), `raycastTarget` off, built once and never advanced — a still picture has no
+per-frame cost beyond the canvas. A missing sprite fails loudly as
+`generic_cute.portrait_sprite_missing` rather than falling back to the Spine art; a rigged figure
+standing beside a Spine halfbody is exactly what the branch prevents.
+
+Two things cost time here. **The settings asset does not survive the scene swap:** `OpenScene`
+unloads assets nothing else references, so the `PlayerFigureBuildSettings` instance the switch held
+came back destroyed, and its profile fields read as missing even though the asset on disk was
+correct — every `ApplyTo…` now re-reads it with `PlayerFigureBuildSettings.Load()` *after* the scene
+opens. And **the scene tests were Spine-shaped:** `BattlePlayModeTests`, `CampWorldPlayModeTests`
+and the scene-wiring case in `SpinePlayerTests` found `SpinePlayerView` by type, so they went red the
+moment the arena shipped the rig. They now read the figure through `FigureProbe`
+(`Assets/Main/Tests/PlayMode/FigureProbe.cs`), which finds whichever component the scene carries and
+returns its own profile's idle/run/hurt state, height, facing rule and mirror child.
+Evidence: `docs/stages/17f-report.md`, `artifacts/stage17f/battle-genericcute-portrait-1920x1080.png`,
+`BattleHudPortraitTests.The_status_panels_figure_follows_the_backend_the_project_builds_with`.

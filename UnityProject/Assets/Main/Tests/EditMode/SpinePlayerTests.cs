@@ -561,8 +561,9 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         /// <summary>
-        /// The arena carries its own profile — the one whose idle is <c>idle5</c> — so a scene rebuilt
-        /// after this stage cannot quietly keep standing with <c>stand</c> through a stale reference.
+        /// The arena carries its own profile — the Spine one whose idle is <c>idle5</c>, or the 2D
+        /// Animation rig's arena profile — so a scene rebuilt after this stage cannot quietly keep
+        /// standing with the camp's profile through a stale reference.
         /// </summary>
         [Test]
         public void The_battle_scene_names_the_arena_profile_for_its_figure()
@@ -578,17 +579,34 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
             try
             {
-                SpinePlayerView figure = null;
+                SpinePlayerView spineFigure = null;
+                ProjectSurvive.Game.Presentation.GenericCute.GenericCutePlayerView cuteFigure = null;
                 GameObject[] roots = scene.GetRootGameObjects();
-                for (int i = 0; i < roots.Length && figure == null; i++)
+                for (int i = 0; i < roots.Length && spineFigure == null && cuteFigure == null; i++)
                 {
-                    figure = roots[i].GetComponentInChildren<SpinePlayerView>(true);
+                    spineFigure = roots[i].GetComponentInChildren<SpinePlayerView>(true);
+                    cuteFigure = roots[i].GetComponentInChildren<
+                        ProjectSurvive.Game.Presentation.GenericCute.GenericCutePlayerView>(true);
                 }
 
-                Assert.That(figure, Is.Not.Null, battleScenePath + " has no player figure view");
                 Assert.That(
-                    figure.Profile, Is.SameAs(LoadProfile(SpineProfileTool.BattleProfileAssetPath)),
-                    "the arena must name its own profile (idle5)");
+                    spineFigure != null || cuteFigure != null,
+                    battleScenePath + " has no player figure view");
+
+                if (spineFigure != null)
+                {
+                    Assert.That(
+                        spineFigure.Profile, Is.SameAs(LoadProfile(SpineProfileTool.BattleProfileAssetPath)),
+                        "the arena must name its own profile (idle5)");
+                }
+                else
+                {
+                    Assert.That(
+                        cuteFigure.Profile, Is.SameAs(AssetDatabase.LoadAssetAtPath<
+                            ProjectSurvive.Game.Presentation.GenericCute.GenericCutePlayerProfile>(
+                            ProjectSurvive.Game.Editor.PlayerFigureBackendTool.BattleProfilePath)),
+                        "the arena must name its own 2D Animation profile");
+                }
             }
             finally
             {

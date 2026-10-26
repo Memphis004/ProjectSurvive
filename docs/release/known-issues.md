@@ -46,6 +46,18 @@ measured" and "not working" are not confused with "fine".
 - **Fix:** the same as §1b — establish the licence (and the relation to the walker's skeleton) or
   replace the art, then update `ATTRIBUTION.md`.
 
+### 1d. The 2D Animation pack's purchase record is not in the repository
+
+- **Basis:** `UnityProject/Assets/Generic Cute 2D/` (ClearSky Studio, purchased Asset Store pack). The
+  only licence text that came with it is the pack's own `ReadMe.txt`; the invoice or order record is
+  not in the repository (`ATTRIBUTION.md`).
+- **Consequence:** Stage 17f-2/-3 made the pack's rigged prefab, its `Basic.controller` and its
+  `001 Student 1 Portrait.png` part of the player: the scenes ship whichever backend
+  `ProjectSurvive/Player Figure` last wrote, and the battle HUD draws that portrait when the backend is
+  GenericCute. Before 17f-3 this asset was referenced by nothing.
+- **Fix:** attach the Asset Store invoice to the release record (no code change), or switch both
+  scenes back to Spine with `ProjectSurvive/Player Figure/2`.
+
 ### 2. Firefox: installed for Playwright, full suite not run
 
 - Stage 14 booted the Release player once in Playwright's bundled Firefox

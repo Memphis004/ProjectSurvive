@@ -188,6 +188,19 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>The profile the figure is built from, or null (what the Editor test reads).</summary>
         public SpinePlayerProfile PlayerFigureProfile => _spineProfile;
 
+        /// <summary>
+        /// Writes the backend and both profiles (Stage 17f). The Editor tool calls this when the backend
+        /// is switched: the scene keeps both profiles and the choice, so the camp never picks one at
+        /// runtime and a later switch needs no rebuild.
+        /// </summary>
+        public void ConfigurePlayerFigure(
+            PlayerFigureBackend backend, SpinePlayerProfile spineProfile, GenericCutePlayerProfile cuteProfile)
+        {
+            _figureBackend = backend;
+            _spineProfile = spineProfile;
+            _genericCuteProfile = cuteProfile;
+        }
+
         /// <summary>Where the player is now (world space).</summary>
         public Vector3 PlayerPosition => _player == null ? _spawn : _player.transform.position;
 

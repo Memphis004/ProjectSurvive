@@ -3,6 +3,7 @@ using ProjectSurvive.Game.Presentation.SpineActors;
 using Spine;
 using Spine.Unity;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace ProjectSurvive.Game.Presentation.Battle.Hud
 {
@@ -72,10 +73,20 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         /// <summary>The built mesh has no size, so it cannot be fitted into the box.</summary>
         public const string BoundsEmptyCode = "spine.portrait_bounds_empty";
 
+        /// <summary>The GenericCute backend is selected but no portrait sprite was assigned.</summary>
+        public const string SpriteMissingCode = "generic_cute.portrait_sprite_missing";
+
         [SerializeField] private SpinePortraitProfile profile;
         [SerializeField] private Material material;
 
+        [Tooltip("Which backend draws the doctor. The status panel follows the arena's own choice (Stage 17f).")]
+        [SerializeField] private PlayerFigureBackend backend;
+
+        [Tooltip("The 2D Animation backend's portrait: the pack's portrait sprite, drawn as one Image in the same box.")]
+        [SerializeField] private Sprite spritePortrait;
+
         private SpineUiActor m_Actor;
+        private Image m_Sprite;
         private int m_BuildCount;
         private int m_PlayCalls;
         private string m_ErrorCode;
@@ -86,8 +97,18 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         /// <summary>The built actor, or null before <see cref="Begin"/> succeeded.</summary>
         public SpineUiActor Actor => m_Actor;
 
-        /// <summary>True once the figure is built and drawable.</summary>
-        public bool IsBuilt => m_Actor != null && m_Actor.IsBuilt;
+        /// <summary>Which backend this portrait draws with.</summary>
+        public PlayerFigureBackend Backend => backend;
+
+        /// <summary>The sprite the GenericCute backend draws, or null for a Spine portrait.</summary>
+        public Sprite SpritePortrait => spritePortrait;
+
+        /// <summary>The built sprite, or null when the Spine bust is what was built.</summary>
+        public Image SpriteImage => m_Sprite;
+
+        /// <summary>True once the figure is built and drawable — as a Spine bust or as one sprite.</summary>
+        public bool IsBuilt =>
+            m_Sprite != null || (m_Actor != null && m_Actor.IsBuilt);
 
         /// <summary>How many actors this portrait has created (one per successful build).</summary>
         public int BuildCount => m_BuildCount;
@@ -112,7 +133,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         {
             get
             {
-                if (!IsBuilt)
+                if (m_Actor == null || !m_Actor.IsBuilt)
                 {
                     return null;
                 }
@@ -130,7 +151,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         {
             get
             {
-                if (!IsBuilt)
+                if (m_Actor == null || !m_Actor.IsBuilt)
                 {
                     return 0f;
                 }
@@ -153,6 +174,57 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
 
             m_ErrorCode = null;
 
+            if (backend == PlayerFigureBackend.GenericCute)
+            {
+                return BeginSprite();
+            }
+
+            return BeginSpine();
+        }
+
+        /// <summary>
+        /// The 2D Animation backend's bust: the pack's portrait sprite, drawn as one <see cref="Image"/> in
+        /// the same box the Spine bust is fitted into.
+        /// </summary>
+        /// <remarks>
+        /// The two backends draw the same doctor, so the panel must not show a Spine half-body beside a
+        /// 2D Animation figure. A sprite portrait is a single picture rather than separated parts — the
+        /// pack has no part-separated half-body — and the picture is fitted with
+        /// <c>preserveAspect</c>, so the 512 × 512 art letterboxes inside the 80 × 110 column instead of
+        /// being stretched. It is built once and never re-evaluated: a still picture has no per-frame
+        /// cost beyond the canvas.
+        /// </remarks>
+        private bool BeginSprite()
+        {
+            if (spritePortrait == null)
+            {
+                Fail(
+                    SpriteMissingCode,
+                    "the GenericCute backend is selected but no portrait sprite was assigned; " +
+                    "ProjectSurvive/Player Figure/3 writes it");
+                return false;
+            }
+
+            var spriteObject = new GameObject("HudPortraitSprite", typeof(RectTransform));
+            var spriteRect = (RectTransform)spriteObject.transform;
+            spriteRect.SetParent(transform, false);
+            spriteRect.anchorMin = Vector2.zero;
+            spriteRect.anchorMax = Vector2.one;
+            spriteRect.offsetMin = Vector2.zero;
+            spriteRect.offsetMax = Vector2.zero;
+
+            var image = spriteObject.AddComponent<Image>();
+            image.sprite = spritePortrait;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+
+            m_Sprite = image;
+            m_BuildCount++;
+            return true;
+        }
+
+        private bool BeginSpine()
+        {
             if (profile == null)
             {
                 Fail(ProfileMissingCode, "no SpinePortraitProfile was assigned to the portrait");
@@ -246,6 +318,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         private void OnDestroy()
         {
             StopActor();
+            StopSprite();
         }
 
         /// <summary>
@@ -307,6 +380,27 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         {
             m_ErrorCode = code;
             Debug.LogError("[BattleHudPortrait] " + code + ": " + detail, this);
+        }
+
+        /// <summary>Releases the built sprite; the portrait can be begun again afterwards.</summary>
+        private void StopSprite()
+        {
+            if (m_Sprite == null)
+            {
+                return;
+            }
+
+            GameObject built = m_Sprite.gameObject;
+            m_Sprite = null;
+
+            if (Application.isPlaying)
+            {
+                Destroy(built);
+            }
+            else
+            {
+                DestroyImmediate(built);
+            }
         }
 
         /// <summary>Releases the built actor; the portrait can be begun again afterwards.</summary>
