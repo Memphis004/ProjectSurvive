@@ -133,6 +133,13 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             SpinePlayerView figure = Object.FindFirstObjectByType<SpinePlayerView>();
             Assert.That(figure, Is.Not.Null, "the sala draws no Spine figure for the player");
+            // Stage 17f: the camp hands the figure out through the backend seam, resolved off the
+            // component the scene carries — not by keeping a Spine reference of its own.
+            IPlayerFigure seam = figure.GetComponent<IPlayerFigure>();
+            Assert.That(seam, Is.Not.Null, "the scene's figure does not implement IPlayerFigure");
+            Assert.That(
+                _world.PlayerFigure, Is.SameAs(seam),
+                "the camp's PlayerFigure is not the seam of the component the scene carries");
             Assert.That(
                 figure.IsBegun, Is.True,
                 "the figure did not build, so the placeholder silhouette draws the doctor: " + figure.ErrorCode);

@@ -40,7 +40,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
         [Tooltip("The card forest, its day/night lighting profile and the blob shadows (Stage 08e). Null in a fixture that has no arena.")]
         public Environment.ArenaEnvironmentView Environment;
 
-        [Tooltip("The ghost-doctor's Spine figure (Stage 17b). When it is assigned and builds, it draws the player instead of a pooled sprite; null in a fixture that has no figure.")]
-        public SpineActors.SpinePlayerView PlayerFigure;
+        [Tooltip("The ghost-doctor's figure (Stage 17b; whichever backend Stage 17f selected). When it is assigned and builds, it draws the player instead of a pooled sprite; null in a fixture that has no figure.")]
+        public MonoBehaviour PlayerFigure;
     }
 }

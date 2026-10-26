@@ -147,7 +147,8 @@ namespace ProjectSurvive.Game.Presentation.Camp
         private CampPlaceholderArt _art;
         private CampUiState _state;
         private SpriteRenderer _player;
-        private SpinePlayerView _figure;
+        private MonoBehaviour _figureHost;
+        private IPlayerFigure _figure;
         private SpriteRenderer _drum;
         private SpriteRenderer _pot;
         private TextMeshPro _resetLabel;
@@ -174,8 +175,10 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// <summary>
         /// The figure the sala draws the player with (Stage 17c), or null in a camp whose scene
         /// carries no profile. <see cref="CampPlayerView"/> presents the pose and the facing on it.
+        /// Since Stage 17f it is the backend seam, not one backend's component: the camp builds
+        /// whichever backend its settings name and keeps only the call contract here.
         /// </summary>
-        public SpinePlayerView PlayerFigure => _figure;
+        public IPlayerFigure PlayerFigure => _figure;
 
         /// <summary>The profile the figure is built from, or null (what the Editor test reads).</summary>
         public SpinePlayerProfile PlayerFigureProfile => _spineProfile;
@@ -396,9 +399,12 @@ namespace ProjectSurvive.Game.Presentation.Camp
                 return;
             }
 
-            _figure = anchor.AddComponent<SpinePlayerView>();
-            _figure.Configure(_spineProfile);
-            _figure.SetSortingOrder(CampSorting.PlayerOrder);
+            SpinePlayerView spineFigure = anchor.AddComponent<SpinePlayerView>();
+            spineFigure.Configure(_spineProfile);
+            spineFigure.SetSortingOrder(CampSorting.PlayerOrder);
+
+            _figureHost = spineFigure;
+            _figure = spineFigure.GetComponent<IPlayerFigure>();
         }
 
         /// <summary>
@@ -426,7 +432,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
                     Debug.LogWarning(
                         "[CampWorldView] " + (_figure.ErrorCode ?? "spine.player_unknown") +
                         ": the player figure could not be built, so the placeholder silhouette draws " +
-                        "the doctor in the sala.", _figure);
+                        "the doctor in the sala.", _figureHost);
                 }
 
                 return false;

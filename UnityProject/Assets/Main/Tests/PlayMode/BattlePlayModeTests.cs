@@ -378,6 +378,11 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 figure.View,
                 Is.SameAs(figureInScene),
                 "the presenter drives a different figure than the one in the scene");
+            // Stage 17f: the presenter holds the component and calls it through the seam.
+            Assert.That(
+                figure.Figure,
+                Is.SameAs(figureInScene.GetComponent<IPlayerFigure>()),
+                "the presenter did not resolve the backend seam off the scene's figure");
             Assert.That(figure.ErrorCode, Is.Null, "the figure refused to build: " + figure.ErrorCode);
             Assert.That(figure.IsReady, Is.True, "the player figure never built");
             Assert.That(figureInScene.BuildCount, Is.EqualTo(1), "the figure was built more than once");
@@ -445,7 +450,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(figure.Facing, Is.EqualTo(1), "walking right must face right");
             Assert.That(
                 figure.Animation,
-                Is.EqualTo(figure.View.Profile.RunAnimation),
+                Is.EqualTo(((SpinePlayerView)figure.View).Profile.RunAnimation),
                 "the run pose must be the profile's run animation");
             Assert.That(figure.SpeedUnitsPerSecond, Is.GreaterThan(0f), "the frame reported no movement");
 
@@ -490,7 +495,7 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(figure.IsHurt, Is.True, "PlayerDamaged did not start the hurt pose");
             Assert.That(
                 figure.Animation,
-                Is.EqualTo(figure.View.Profile.HurtAnimation),
+                Is.EqualTo(((SpinePlayerView)figure.View).Profile.HurtAnimation),
                 "the hurt pose must be the profile's hurt animation");
 
             float deadline = Time.realtimeSinceStartup + 8f;
@@ -535,14 +540,14 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 Is.EqualTo(timeScaleBefore),
                 "pausing the floor must not touch Time.timeScale");
 
-            float held = figure.View.AnimationTime;
+            float held = figure.Figure.AnimationTime;
             long stepsWhenPaused = runner.StepsRun;
 
             yield return new WaitForSecondsRealtime(0.4f);
 
             Assert.That(runner.StepsRun, Is.EqualTo(stepsWhenPaused), "a paused floor kept stepping");
             Assert.That(
-                figure.View.AnimationTime,
+                figure.Figure.AnimationTime,
                 Is.EqualTo(held),
                 "a paused figure's animation moved");
 
@@ -552,12 +557,12 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(figure.IsPaused, Is.False);
             Assert.That(runner.StepsRun, Is.GreaterThan(stepsWhenPaused), "a resumed floor is not stepping");
             Assert.That(
-                figure.View.AnimationTime,
+                figure.Figure.AnimationTime,
                 Is.GreaterThan(held),
                 "a resumed figure must animate again");
 
             TestContext.WriteLine(
-                "pause: held=" + held.ToString("0.000") + " resumed=" + figure.View.AnimationTime.ToString("0.000")
+                "pause: held=" + held.ToString("0.000") + " resumed=" + figure.Figure.AnimationTime.ToString("0.000")
                 + " timeScale=" + Time.timeScale);
         }
 

@@ -37,7 +37,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
     /// </para>
     /// <para>
     /// <b>The doctor is the Spine figure</b> (Stage 17c): every frame the walk this class already
-    /// performs is handed to <see cref="SpinePlayerView.Present"/> — the pose from the distance the
+    /// performs is handed to <see cref="IPlayerFigure.Present"/> — the pose from the distance the
     /// walk actually covered, the facing from the direction it was asked for — through the pure
     /// <see cref="PlayerPoseSelector"/>. No threshold, no speed and no animation name is written here:
     /// the profile owns them, and this view decides nothing (AGENTS rule 10). There is no hurt and no
@@ -53,12 +53,6 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// call, and the facing follows a direction that was already asked for.
         /// </summary>
         private const float FacingDeadZone = 0.0001f;
-
-        /// <summary>
-        /// The run threshold to use when a scene carries no profile. The profile is what owns this
-        /// number; the fallback only keeps the selector total in a camp with no art configured.
-        /// </summary>
-        private const float DefaultRunThreshold = 0.1f;
 
         [SerializeField] private LifetimeScope _scope;
         [SerializeField] private CampWorldView _world;
@@ -248,13 +242,13 @@ namespace ProjectSurvive.Game.Presentation.Camp
         /// The speed is the distance the walk <b>left</b> after the sala's own clamp, divided by the
         /// frame time — so a player pressing W into the far edge of the walk area stands rather than
         /// running on the spot, and no second copy of "how fast is walking" exists. The thresholds
-        /// come from the profile through <see cref="PlayerPoseSelector"/>, and
-        /// <see cref="SpinePlayerView.Present"/> writes nothing when the pose and the facing are the
+        /// come from the figure's own profile through <see cref="PlayerPoseSelector"/>, and
+        /// <see cref="IPlayerFigure.Present"/> writes nothing when the pose and the facing are the
         /// ones already drawn.
         /// </remarks>
         private void PresentFigure(Vector3 from, Vector2 direction)
         {
-            SpinePlayerView figure = _world == null ? null : _world.PlayerFigure;
+            IPlayerFigure figure = _world == null ? null : _world.PlayerFigure;
             if (figure == null || !figure.IsBegun)
             {
                 return;
@@ -263,8 +257,7 @@ namespace ProjectSurvive.Game.Presentation.Camp
             float deltaTime = Time.deltaTime;
             float speed = deltaTime > 0f ? Vector3.Distance(from, _position) / deltaTime : 0f;
 
-            SpinePlayerProfile profile = figure.Profile;
-            float threshold = profile != null ? profile.RunSpeedThreshold : DefaultRunThreshold;
+            float threshold = figure.RunSpeedThreshold;
 
             PlayerPose pose = PlayerPoseSelector.Select(speed, figure.Pose, false, threshold);
             int facing = PlayerPoseSelector.Facing(direction.x, figure.FaceDirection, FacingDeadZone);

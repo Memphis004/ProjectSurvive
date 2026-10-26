@@ -589,7 +589,7 @@ namespace ProjectSurvive.Game.Editor
         /// sorting and the animation tick are the runtime's, not a copy of them. The camera pitch is
         /// the rig's own constant, because a capture has no built <see cref="BattleViewScene"/> to ask.
         /// </remarks>
-        public bool TryBeginPlayerFigure(SpinePlayerView view, out string error)
+        public bool TryBeginPlayerFigure(MonoBehaviour view, out string error)
         {
             error = string.Empty;
 
@@ -651,7 +651,7 @@ namespace ProjectSurvive.Game.Editor
         /// </summary>
         public void DetachPlayerFigure()
         {
-            SpinePlayerView view = _figure is null ? null : _figure.View;
+            MonoBehaviour view = _figure is null ? null : _figure.View;
             _figure?.Dispose();
             _figure = null;
 

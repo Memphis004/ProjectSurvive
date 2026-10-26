@@ -23,7 +23,7 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
     /// allocate nothing.
     /// </para>
     /// </remarks>
-    public sealed class SpinePlayerView : MonoBehaviour
+    public sealed class SpinePlayerView : MonoBehaviour, IPlayerFigure
     {
         /// <summary>No profile was configured.</summary>
         public const string ProfileMissingCode = "spine.player_profile_missing";
@@ -383,6 +383,20 @@ namespace ProjectSurvive.Game.Presentation.SpineActors
         public int SortingOrder
         {
             get { return sortingOrder; }
+        }
+
+        /// <summary>
+        /// The speed above which the callers draw <see cref="PlayerPose.Run"/>, read from the profile.
+        /// A missing profile cannot be drawn at all (the callers check <see cref="IsBegun"/> first),
+        /// so the fallback is the number both callers used before this became a property.
+        /// </summary>
+        public float RunSpeedThreshold
+        {
+            get
+            {
+                SpinePlayerProfile current = Profile;
+                return current != null ? current.RunSpeedThreshold : 0.1f;
+            }
         }
 
         /// <summary>Sorting order of the figure's renderer (and of the mount, if one is added).</summary>

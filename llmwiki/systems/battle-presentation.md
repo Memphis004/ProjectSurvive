@@ -520,3 +520,18 @@ Both scenes feed the same field through the same method — the camp from the ke
 from the frame's `dx` — so the fix is the profile value, not a second sign in either scene. Both
 profiles now carry it (`SpinePlayerProfile_Camp.asset` / `_Battle.asset`), and the PlayMode cases read
 `SkeletonTransform.localScale.x` against `artFacesRight` and the facing the frame produced.
+
+## 19. The figure's call seam (Stage 17f-1)
+
+Camp and Battle no longer call `SpinePlayerView` by type: they call `IPlayerFigure`, in the folder and
+namespace that already hold `PlayerPose` (`Presentation/SpineActors/`), because that enum is the one
+type both backends must agree on. The interface carries exactly what the two call sites used — Begin,
+Present, Tick, PlayHurt, SetPaused, SetSpeed, SetSortingOrder, and the diagnostics the battle report
+prints — plus `RunSpeedThreshold`, which used to be read through the Spine profile and is now a number
+on the seam, so the pose rule no longer needs a backend's asset type. Unity cannot serialize an
+interface, so a scene field stays a `MonoBehaviour` (`BattleViewSettings.PlayerFigure`) and the caller
+resolves the seam with `GetComponent<IPlayerFigure>()`; a component without it is a wiring error the
+presenter throws on. `SpinePlayerView` implements the interface without changing behaviour: the only
+new member is `RunSpeedThreshold`, and every 17e test and capture still reads the same values.
+Evidence: `docs/stages/17f-report.md`, `BattlePlayModeTests.The_battle_scene_builds_the_doctor_figure_once_and_stands_still_at_first`,
+`CampWorldPlayModeTests.Walking_draws_the_figure_running_and_stopping_stands_it`.

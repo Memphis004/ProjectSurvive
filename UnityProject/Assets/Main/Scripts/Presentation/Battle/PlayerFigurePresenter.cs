@@ -52,7 +52,8 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private readonly BattleSpeed _speed;
         private readonly List<IDisposable> _subscriptions = new List<IDisposable>(1);
 
-        private SpinePlayerView _view;
+        private MonoBehaviour _host;
+        private IPlayerFigure _view;
         private float _billboardPitch;
         private Vector3 _from;
         private Vector3 _to;
@@ -73,8 +74,15 @@ namespace ProjectSurvive.Game.Presentation.Battle
             _speed = speed;
         }
 
-        /// <summary>The view this presenter draws with, or null before <see cref="Attach"/>.</summary>
-        public SpinePlayerView View => _view;
+        /// <summary>
+        /// The scene's figure component (whichever backend it is), or null before
+        /// <see cref="Attach"/>. A scene field is a <see cref="MonoBehaviour"/> because Unity cannot
+        /// serialize an interface; <see cref="Figure"/> is the call contract off the same object.
+        /// </summary>
+        public MonoBehaviour View => _host;
+
+        /// <summary>The figure's call contract, or null before <see cref="Attach"/>.</summary>
+        public IPlayerFigure Figure => _view;
 
         /// <summary>True once the figure has been built and is the thing drawn for the player.</summary>
         public bool IsReady => _view != null && _view.IsBegun;
@@ -119,16 +127,24 @@ namespace ProjectSurvive.Game.Presentation.Battle
         /// Hands the presenter the scene's figure and the pitch every billboard in the arena stands
         /// at. Called once, by <see cref="BattleViewScene"/>, before <see cref="Begin"/>.
         /// </summary>
-        public void Attach(SpinePlayerView view, float billboardPitch)
+        public void Attach(MonoBehaviour view, float billboardPitch)
         {
             if (view is null)
             {
                 throw new ArgumentNullException(nameof(view));
             }
 
+            IPlayerFigure figure = view.GetComponent<IPlayerFigure>();
+            if (figure is null)
+            {
+                throw new ArgumentException(
+                    "'…" + view.GetType().Name + "' does not implement IPlayerFigure", nameof(view));
+            }
+
             Detach();
 
-            _view = view;
+            _host = view;
+            _view = figure;
             _billboardPitch = billboardPitch;
 
             if (_speed != null)
@@ -152,6 +168,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
             _subscriptions.Clear();
 
             _view = null;
+            _host = null;
             _hasPlayer = false;
             _hasPrevious = false;
             _sortingOrder = 0;
@@ -170,7 +187,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
                 return false;
             }
 
-            _view.transform.rotation = Quaternion.Euler(_billboardPitch, 0f, 0f);
+            _host.transform.rotation = Quaternion.Euler(_billboardPitch, 0f, 0f);
 
             bool began = _view.Begin();
             if (!began)
@@ -183,7 +200,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
                     Debug.LogWarning(
                         "[PlayerFigurePresenter] " + (_view.ErrorCode ?? "spine.player_unknown") +
                         ": the player figure could not be built, so the placeholder sprite draws the " +
-                        "doctor on this floor (spineReady=false in __projectSurviveBattle).", _view);
+                        "doctor on this floor (spineReady=false in __projectSurviveBattle).", _host);
                 }
 
                 return false;
@@ -267,7 +284,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
             if (_hasPlayer)
             {
                 Vector3 position = BattleWorldMap.Interpolate(_from, _to, alpha);
-                _view.transform.position = position;
+                _host.transform.position = position;
 
                 int order = BattleWorldMap.SortingOrder(RenderEntityKind.Player, position.z);
                 if (order != _sortingOrder)
@@ -361,8 +378,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
         private void PresentPose(float dx)
         {
-            SpinePlayerProfile profile = _view.Profile;
-            float threshold = profile is null ? 0.1f : profile.RunSpeedThreshold;
+            float threshold = _view.RunSpeedThreshold;
 
             PlayerPose pose = PlayerPoseSelector.Select(SpeedUnitsPerSecond, _view.Pose, _dead, threshold);
             int facing = PlayerPoseSelector.Facing(dx, _view.FaceDirection, FacingDeadZone);
