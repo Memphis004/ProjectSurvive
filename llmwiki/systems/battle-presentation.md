@@ -390,18 +390,21 @@ budget — measured in `artifacts/stage08g/shadow-map-check.txt`, reasoned in
 `shadowDistance` 50 the map faded out *inside* the frame (the rig stands ~60 u back and sees ground to
 ~71 u), which read as "the moon's angle does nothing": every elevation from 42° to 20° measured the
 same 35/255. It is now **80**, and an EditMode test fails if it drops below the visible ground's far
-edge again. With the distance and azimuth fixed, pixels that move at the shipped framing went 2.80 % →
-**5.56 %** (13.01 % at the wide diagnostic framing, 6.23 % / 14.78 % at night) while the annulus
-around the player is unchanged to the pixel (0.00 %, 12 562 samples) — the shadows fall in the border
-bands that `ArenaLayout` keeps clear in the centre.
+edge again. Together with the compile fix below, pixels that move at the shipped framing are **1.29 %**
+(2.75 % at the wide diagnostic framing, 1.62 % / 3.69 % at night), and the annulus around the player is
+unchanged to the pixel (0.00 %, 12 562 samples) — the shadows fall in the border bands that
+`ArenaLayout` keeps clear in the centre.
 
-**Known defect (open): the shadow's silhouette is a full quad, not the foliage.** Zooming the wide
-capture — and rendering a frame with every card texture swapped for a fully transparent one, where the
-cards vanish and their shadows do not — shows each caster's whole quad in the shadow map. The
-`ShadowCaster` pass clips on `_BaseMap.a` in source; the mip level (2048 px over 80 u puts a 10 u card
-at mip 1), the volume and the pass's CBUFFER layout were ruled out and the cause was not found, so
-the shadows currently read as rectangles where the foliage should be
-(`artifacts/stage08g/zoom-shadow-shape.png`, `alpha-clear-on.png`).
+**The silhouette was a quad because the pass did not compile.** The floor showed each caster's whole
+quad instead of foliage: the `ShadowCaster` pass read `_LightDirection` / `_LightPosition`, which
+URP writes but declares nowhere (its own `ShadowCasterPass.hlsl` declares both itself), so the pass
+failed to compile — and a pass that fails to compile is not skipped, it is drawn with the error
+shader, an opaque quad. The fix is the two declarations; the numbers above are the ones measured
+*after* it (the pixels that move at the shipped framing fell from 5.56 % to **1.29 %** once the fake
+quads stopped being cast, and the batch cost rose from an error shader's +4 to the cards' +32).
+`ArenaEnvironmentTests.ArenaCardShaderUsesItsAlphaClippedShadowCasterPass` now asserts both the
+declarations and `ShaderUtil.GetShaderMessages(...).Length == 0`, because a source-level assertion
+about a pass says nothing about whether that pass compiles.
 
 **The camp keeps decals with one direction.** Length = `height × ShadowLengthPerHeight`, width = the
 card's own, oriented from `ArenaLightingProfile.ShadowDirectionDegrees` (245° at both profiles); one

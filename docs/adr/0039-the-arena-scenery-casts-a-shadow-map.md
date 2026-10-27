@@ -90,7 +90,8 @@ light, so it needs exactly one shadow map, and the map is only 4 extra batches.
   `BattleCardsCastAlphaClippedShadowsFromTheSlantedMainLight` (every card casts, none receives, the
   light is `Hard`, it is `RenderSettings.sun`, and its rotation is genuinely slanted),
   `ArenaFloorAppliesTheMainLightShadowCoverageTint` (the floor samples the map and tints by coverage),
-  `ActorBlobShadowsRemainSeparateFromTheCardShadowMap` (the actors still have their own blob layer).
+  `ActorBlobShadowsRemainSeparateFromTheCardShadowMap` (the actors still have their own blob layer),
+  and — added with the compile fix — the shader compiles with zero messages.
 
 ## Update — the shadow volume, and an open defect (2026-10-28, second round)
 
@@ -110,13 +111,28 @@ longer shadow still reads as a shadow. The measured effect: pixels that move wen
 player is unchanged to the pixel (0.00 %, 12 562 samples) — the shadows fall in the border bands, not
 under the actor the player is reading.
 
-**Open defect: the shadow's silhouette is a quad, not foliage.** A zoom of the wide capture, and a
-frame rendered with every card texture replaced by a fully transparent one (the cards vanish, the
-shadows do not), both show each caster's *full quad* in the shadow map. The `ShadowCaster` pass clips
-on `_BaseMap.a`, and the source has not changed since this ADR was written, so something between the
-material and the pass is dropping the sample — this round ruled out the shadow map's mip level
-(2048 px over 80 u puts a 10 u card at mip 1), the volume (fixed above), and the pass's CBUFFER layout
-(identical to the forward pass field for field), and did not find the cause. Until it is fixed, the
-consequence above ("the canopy edges alias") understates the problem: there are no canopy edges in the
-map at all. Evidence: `artifacts/stage08g/zoom-shadow-shape.png`, `alpha-clear-on.png`,
-`shadow-alpha-probe.txt`.
+**The silhouette was a quad because the pass did not compile.** A zoom of the wide capture showed each
+caster's *full quad* on the floor instead of foliage. The `clip` was in the source and had not changed
+since this ADR was written, so the sample was the suspect; it was not the sample. The pass reads
+`_LightDirection` (and `_LightPosition` under `_CASTING_PUNCTUAL_LIGHT_SHADOW`), which
+`ShadowUtils.SetupShadowCasterConstantBuffer` writes but *nothing declares* — URP's own
+`ShadowCasterPass.hlsl` declares both itself for exactly this reason. Without them the pass fails to
+compile, and **a pass that fails to compile is not skipped: Unity draws it with the error shader**, an
+opaque unlit quad. The floor was therefore showing the error shader's shadow, which is also why the
+first measurement looked cheap: the "+4 batches" was one error-shader draw, not the cards. With the two
+declarations added the shader compiles with no messages, the shadow becomes the trunk and canopy
+silhouette, and the shadowed pixels at the wide framing drop from 155 647 to 30 269.
+
+The lesson worth keeping: `ShaderUtil.GetShaderMessages` on the material's shader belongs next to any
+source-string assertion about a pass, and `ArenaEnvironmentTests.ArenaCardShaderUsesItsAlphaClippedShadowCasterPass`
+now asserts both (the declarations are present, and the shader compiles with zero messages) — verified
+by deleting the declarations and watching the test go 0/1.
+
+**What that does to the numbers.** Everything measured before this fix was measured through the error
+shader, so the coverage figures above (2.80 % / 5.39 %) and the first round's (5.56 % / 13.01 %) are
+too large: they were whole quads. The honest figures are **1.29 % of pixels at the shipped framing**
+(2.75 % wide, 1.62 % / 3.69 % at night), cost **2.73 ms / 93 batches with the map against 2.51 ms /
+61 batches without**. Most of the visible cast comes from the eight foreground trunks that stand
+*inside* the frame; the forest wall stands outside it and so do its shadows. If the look wants more
+shadow on the floor, the lever is a caster inside the frame (bushes or rocks in the `Ring` /
+`Foreground` zones) or a shorter camera standoff — a look decision, not a bug.

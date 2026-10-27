@@ -278,6 +278,22 @@ namespace ProjectSurvive.Game.Tests.EditMode
             StringAssert.Contains("clip(alpha - _Cutoff)", source,
                 "transparent card texels are not clipped from the shadow map");
 
+            // The clip only runs if the pass compiles, and a pass that does not compile is not skipped:
+            // URP draws it with the error shader, which casts the whole quad as an opaque rectangle. That
+            // is exactly what happened — `_LightDirection` and `_LightPosition` are written by
+            // SetupShadowCasterConstantBuffer but declared by nobody, so the pass failed on the one line
+            // that reads them and the floor was covered in rectangles instead of foliage. Both halves are
+            // asserted: the declarations are present, and the shader compiles with no messages at all.
+            StringAssert.Contains("float3 _LightDirection;", source,
+                "the ShadowCaster pass reads _LightDirection without declaring it, so it cannot compile");
+            StringAssert.Contains("float3 _LightPosition;", source,
+                "the ShadowCaster pass reads _LightPosition without declaring it, so it cannot compile");
+
+            var messages = ShaderUtil.GetShaderMessages(material.shader);
+            Assert.That(messages.Length, Is.Zero,
+                "the card shader compiles with errors, and a failed pass is drawn with the error shader "
+                + "rather than skipped: " + (messages.Length == 0 ? string.Empty : messages[0].message));
+
             GameObject card = AssetDatabase.LoadAssetAtPath<GameObject>(CardPrefabPath);
             Assert.That(card, Is.Not.Null);
             MeshRenderer renderer = card.GetComponent<MeshRenderer>();

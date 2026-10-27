@@ -178,6 +178,14 @@ Shader "ProjectSurvive/ArenaCard"
             SAMPLER(sampler_BaseMap);
             float _ArenaSway;
 
+            // SetupShadowCasterConstantBuffer writes both, but nothing in Core.hlsl or Shadows.hlsl
+            // declares them: URP's own ShadowCasterPass.hlsl declares them for exactly this reason.
+            // Without these two lines this pass does not compile, and a pass that does not compile is
+            // not skipped — it is drawn with the error shader, which casts the whole quad as an opaque
+            // rectangle instead of the alpha-clipped silhouette.
+            float3 _LightDirection;
+            float3 _LightPosition;
+
             float3 SwayCard(float3 positionWS, float2 uv)
             {
                 float upper = saturate(uv.y);
