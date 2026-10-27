@@ -5,9 +5,11 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using ProjectSurvive.Game.Battle;
+using ProjectSurvive.Game.Presentation.Battle.Environment;
 using Unity.Profiling;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 namespace AgentScripts
 {
@@ -128,6 +130,11 @@ namespace AgentScripts
             Report.AppendLine("# " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
             Report.AppendLine();
             Report.AppendLine("key light shadows : " + KeyLight.shadows);
+            Report.AppendLine("camera            : " + (camera.orthographic ? "orthographic " + camera.orthographicSize.ToString("0.000", CultureInfo.InvariantCulture) : "perspective " + camera.fieldOfView.ToString("0.0", CultureInfo.InvariantCulture) + "deg")
+                + ", pos " + camera.transform.position.ToString("0.00") + ", clip " + camera.nearClipPlane.ToString("0.0", CultureInfo.InvariantCulture) + ".." + camera.farClipPlane.ToString("0", CultureInfo.InvariantCulture));
+            Report.AppendLine("shadow distance   : URP " + UniversalRenderPipeline.asset.shadowDistance.ToString("0", CultureInfo.InvariantCulture)
+                + ", quality " + QualitySettings.shadowDistance.ToString("0", CultureInfo.InvariantCulture)
+                + ", cascades " + UniversalRenderPipeline.asset.shadowCascadeCount);
             Report.AppendLine("key light colour  : " + Colour(KeyLight.color) + "  intensity " + KeyLight.intensity.ToString("0.00", CultureInfo.InvariantCulture));
             Report.AppendLine("key light euler   : " + KeyLight.transform.eulerAngles.ToString("0.0"));
             Report.AppendLine("RenderSettings.sun: " + (RenderSettings.sun == null ? "none" : RenderSettings.sun.name)
@@ -137,15 +144,123 @@ namespace AgentScripts
             Report.AppendLine();
             Report.Append(CostReport);
 
+            SweepReach(camera);
+
             float shipped = camera.orthographicSize;
             Measure(camera, "shipped", shipped);
             Measure(camera, "wide", WideOrthographicSize);
+
+            // The night profile is the look the game is read in, and it is the same shadow map under a
+            // much darker floor, so its own numbers are measured rather than assumed.
+            var environment = UnityEngine.Object.FindFirstObjectByType<ArenaEnvironmentView>();
+            if (environment != null)
+            {
+                environment.SetTimeOfDay(ArenaTimeOfDay.Night);
+                Report.AppendLine("## night profile (same framing, same map)");
+                Measure(camera, "night-shipped", shipped);
+                Measure(camera, "night-wide", WideOrthographicSize);
+            }
 
             string path = Path.Combine(OutputDirectory, "shadow-map-check.txt");
             File.WriteAllText(path, Report.ToString());
             Log("wrote " + path);
             Debug.Log(Report.ToString());
             return "ok";
+        }
+
+        /// <summary>
+        /// How far toward the player the shadow actually reaches, at several moon elevations. The
+        /// length a shadow can have is h / tan(elevation) and nothing stops it being long on paper;
+        /// whether those far pixels are still shadowed in the map is what this measures, because a
+        /// profile value that promises reach the shadow pass does not deliver is a look that is only
+        /// true in the comment.
+        /// </summary>
+        private static void SweepReach(Camera camera)
+        {
+            float yaw = KeyLight.transform.eulerAngles.y;
+            Quaternion shippedRotation = KeyLight.transform.rotation;
+            float shipped = camera.orthographicSize;
+            var elevations = new[] { 48f, 58f, 62f, 66f, 70f };
+            var probeZ = new[] { -11f, -9f, -7f, -5f, -3f, -1f, 0f, 1f };
+            var probeX = new[] { 0f, 4f, -4f, 8f, -8f };
+
+            Report.AppendLine("## reach sweep (elevation = 90 - euler.x, shipped framing)");
+            Report.AppendLine("euler.x  elevation  length/h   changed%   maxD   d at (x, z) on the floor: "
+                + string.Join("  ", System.Array.ConvertAll(probeZ, z => (z >= 0 ? "+z" : "z") + z.ToString("0", CultureInfo.InvariantCulture))));
+
+            camera.orthographicSize = shipped;
+
+            for (int e = 0; e < elevations.Length; e++)
+            {
+                float elevationX = elevations[e];
+                KeyLight.transform.rotation = Quaternion.Euler(elevationX, yaw, 0f);
+
+                Color32[] on = Render(camera, LightShadows.Hard, string.Empty);
+                Color32[] off = Render(camera, LightShadows.None, string.Empty);
+
+                int changed = 0;
+                int worst = 0;
+                for (int i = 0; i < on.Length; i++)
+                {
+                    int d = Difference(on[i], off[i]);
+                    if (d > 0)
+                    {
+                        changed++;
+                    }
+
+                    if (d > worst)
+                    {
+                        worst = d;
+                    }
+                }
+
+                var reach = new StringBuilder();
+                for (int z = 0; z < probeZ.Length; z++)
+                {
+                    int best = 0;
+                    for (int x = 0; x < probeX.Length; x++)
+                    {
+                        Vector2Int pixel = ScreenPoint(camera, new Vector3(probeX[x], 0f, probeZ[z]), Size.x, Size.y);
+                        int d = Difference(on[(pixel.y * Size.x) + pixel.x], off[(pixel.y * Size.x) + pixel.x]);
+                        if (d > best)
+                        {
+                            best = d;
+                        }
+                    }
+
+                    reach.Append("  ").Append(best.ToString("00", CultureInfo.InvariantCulture));
+                }
+
+                float elevation = 90f - elevationX;
+                Report.AppendLine(elevationX.ToString("0", CultureInfo.InvariantCulture).PadRight(7)
+                    + (elevation.ToString("0", CultureInfo.InvariantCulture) + "deg").PadRight(11)
+                    + (1f / Mathf.Tan(elevation * Mathf.Deg2Rad)).ToString("0.00", CultureInfo.InvariantCulture).PadRight(11)
+                    + ((changed / (float)on.Length) * 100f).ToString("0.00", CultureInfo.InvariantCulture).PadRight(10)
+                    + worst.ToString("0", CultureInfo.InvariantCulture).PadRight(6)
+                    + reach);
+            }
+
+            KeyLight.transform.rotation = shippedRotation;
+            Report.AppendLine();
+        }
+
+        private static int Difference(Color32 a, Color32 b)
+        {
+            int dr = Math.Abs(a.r - b.r);
+            int dg = Math.Abs(a.g - b.g);
+            int db = Math.Abs(a.b - b.b);
+            return Math.Max(dr, Math.Max(dg, db));
+        }
+
+        /// <summary>Where a ground point lands in a render of <paramref name="width"/> × <paramref name="height"/>.</summary>
+        private static Vector2Int ScreenPoint(Camera camera, Vector3 world, int width, int height)
+        {
+            Vector3 local = world - camera.transform.position;
+            float ndcX = Vector3.Dot(local, camera.transform.right) / (camera.orthographicSize * camera.aspect);
+            float ndcY = Vector3.Dot(local, camera.transform.up) / camera.orthographicSize;
+            int x = Mathf.Clamp(Mathf.RoundToInt((ndcX + 1f) * 0.5f * width), 0, width - 1);
+            int y = Mathf.Clamp(Mathf.RoundToInt((ndcY + 1f) * 0.5f * height), 0, height - 1);
+            return new Vector2Int(x, y);
         }
 
         private static void Measure(Camera camera, string framing, float orthographicSize)
@@ -248,7 +363,11 @@ namespace AgentScripts
                 image.Apply();
                 RenderTexture.active = previous;
 
-                File.WriteAllBytes(Path.Combine(OutputDirectory, "shadow-map-" + name + ".png"), image.EncodeToPNG());
+                if (!string.IsNullOrEmpty(name))
+                {
+                    File.WriteAllBytes(Path.Combine(OutputDirectory, "shadow-map-" + name + ".png"), image.EncodeToPNG());
+                }
+
                 return image.GetPixels32();
             }
             finally

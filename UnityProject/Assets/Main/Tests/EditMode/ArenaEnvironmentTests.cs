@@ -10,6 +10,7 @@ using ProjectSurvive.Game.Presentation.Battle.Environment;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
@@ -550,6 +551,39 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 "the profile's shadow strength does not control the shadow contribution");
             StringAssert.Contains("saturate(_ArenaShadowColor.rgb)", source,
                 "the profile's non-black shadow tint is not applied to shadowed floor pixels");
+        }
+
+        [Test]
+        public void TheShadowDistanceReachesTheFarEdgeOfTheGroundTheFrameShows()
+        {
+            // The orthographic rig stands behind the player and looks down at 50°, so the ground the
+            // frame shows runs from that standoff to `OrthographicSize / sin(50°)` beyond the player.
+            // A shadow distance shorter than the far end fades the main light's shadow out *inside*
+            // the frame: at 50 against a 60-unit standoff the shadow survived only in the bottom
+            // fifth of the screen, and every moon elevation from 42° down to 20° measured the same
+            // 35/255 because the shadow's length was being cut off, not cast
+            // (`artifacts/stage08g/shadow-map-check.txt`, the reach sweep).
+            WithBattleArena(arena =>
+            {
+                Camera camera = null;
+                GameObject[] roots = arena.scene.GetRootGameObjects();
+                for (int i = 0; i < roots.Length && camera == null; i++)
+                {
+                    camera = roots[i].GetComponentInChildren<Camera>(true);
+                }
+
+                Assert.That(camera, Is.Not.Null, "the Battle scene has no camera to measure the shadow volume against");
+
+                float standoff = Vector3.Distance(camera.transform.position, Vector3.zero);
+                float farEdge = standoff
+                    + (BattleCameraRig.OrthographicSize / Mathf.Sin(BattleCameraRig.PitchDegrees * Mathf.Deg2Rad));
+                float shadowDistance = UniversalRenderPipeline.asset.shadowDistance;
+
+                Assert.That(shadowDistance, Is.GreaterThan(farEdge),
+                    "the shadow distance (" + shadowDistance.ToString("0", CultureInfo.InvariantCulture)
+                    + ") stops short of the far edge of the visible ground (" + farEdge.ToString("0.0", CultureInfo.InvariantCulture)
+                    + " u from the camera), so the shadow map fades out inside the frame");
+            });
         }
 
         [Test]

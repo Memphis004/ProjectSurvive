@@ -378,13 +378,30 @@ it draws with (and repeats the foliage sway), every placed card is `shadowCastin
 main light. The floor is the surface that receives it: `ArenaGround.shader` multiplies its tint by the
 coverage it reads through `TransformWorldToShadowCoord`, tinted by the profile's own
 `_ArenaShadowColor` / `_ArenaShadowStrength`, so the moon's angle is the profile's
-`KeyLightEuler` (58°/−40° at dusk, 46°/−62° at night, i.e. long oblique shadows) and switching
-Dusk/Night still touches no asset. The actors are separate: they keep the instanced blob shadows of
-`ArenaBlobShadows`, and a card never receives a shadow, so only the floor darkens. The map costs
-+4 batches / +2 set-pass / +0.03 ms at 1920×1080 (65 / 23 / 2.32 ms with it on against 61 / 21 /
-2.29 ms with `LightShadows.None`), inside Stage 08f's ≤ 200-batch budget — measured in
-`artifacts/stage08g/shadow-map-check.txt`, reasoned in
+`KeyLightEuler` (62°/−22° at dusk, 58°/−26° at night, i.e. long oblique shadows that run up the
+frame's depth axis) and switching Dusk/Night still touches no asset. The actors are separate: they
+keep the instanced blob shadows of `ArenaBlobShadows`, and a card never receives a shadow, so only
+the floor darkens. The map costs +4 batches / +2 set-pass / +0.03 ms at 1920×1080 (65 / 23 /
+2.32 ms with it on against 61 / 21 / 2.29 ms with `LightShadows.None`), inside Stage 08f's ≤ 200-batch
+budget — measured in `artifacts/stage08g/shadow-map-check.txt`, reasoned in
 [ADR 0039](../../docs/adr/0039-the-arena-scenery-casts-a-shadow-map.md).
+
+**The shadow volume has to reach the frame's far edge, and the angle has to be inside it.** At URP's
+`shadowDistance` 50 the map faded out *inside* the frame (the rig stands ~60 u back and sees ground to
+~71 u), which read as "the moon's angle does nothing": every elevation from 42° to 20° measured the
+same 35/255. It is now **80**, and an EditMode test fails if it drops below the visible ground's far
+edge again. With the distance and azimuth fixed, pixels that move at the shipped framing went 2.80 % →
+**5.56 %** (13.01 % at the wide diagnostic framing, 6.23 % / 14.78 % at night) while the annulus
+around the player is unchanged to the pixel (0.00 %, 12 562 samples) — the shadows fall in the border
+bands that `ArenaLayout` keeps clear in the centre.
+
+**Known defect (open): the shadow's silhouette is a full quad, not the foliage.** Zooming the wide
+capture — and rendering a frame with every card texture swapped for a fully transparent one, where the
+cards vanish and their shadows do not — shows each caster's whole quad in the shadow map. The
+`ShadowCaster` pass clips on `_BaseMap.a` in source; the mip level (2048 px over 80 u puts a 10 u card
+at mip 1), the volume and the pass's CBUFFER layout were ruled out and the cause was not found, so
+the shadows currently read as rectangles where the foliage should be
+(`artifacts/stage08g/zoom-shadow-shape.png`, `alpha-clear-on.png`).
 
 **The camp keeps decals with one direction.** Length = `height × ShadowLengthPerHeight`, width = the
 card's own, oriented from `ArenaLightingProfile.ShadowDirectionDegrees` (245° at both profiles); one

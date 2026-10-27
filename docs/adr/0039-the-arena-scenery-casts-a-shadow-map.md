@@ -91,3 +91,32 @@ light, so it needs exactly one shadow map, and the map is only 4 extra batches.
   light is `Hard`, it is `RenderSettings.sun`, and its rotation is genuinely slanted),
   `ArenaFloorAppliesTheMainLightShadowCoverageTint` (the floor samples the map and tints by coverage),
   `ActorBlobShadowsRemainSeparateFromTheCardShadowMap` (the actors still have their own blob layer).
+
+## Update — the shadow volume, and an open defect (2026-10-28, second round)
+
+**The volume has to reach the frame, not just exist.** The decision above was measured with URP's
+`shadowDistance` at 50, which is shorter than the distance from the camera to the far edge of the
+ground the frame shows (`standoff ~60 u + OrthographicSize / sin 50° = 11.6 u`). The map was therefore
+faded out *inside* the frame: a sweep of the key light's elevation from 42° down to 20° measured the
+same 35/255 at every ground point, which is what a shadow cut by the volume looks like, not what a
+shorter shadow looks like. `shadowDistance` is now **80**, chosen as the visible ground's far edge plus
+margin rather than an engine default, and `ArenaEnvironmentTests` fails if it drops below that edge
+again (verified by setting 50 back and watching the test go 0/1).
+
+The azimuth mattered as much as the length: euler.y −40° sent the shadow up and out of the left edge of
+the frame. Dusk is `(62, −22)` and Night `(58, −26)`, with `ShadowStrength` raised (0.85 / 0.90) so a
+longer shadow still reads as a shadow. The measured effect: pixels that move went from 2.80 % to
+**5.56 %** at the shipped framing (13.01 % at the wide diagnostic one), while the annulus around the
+player is unchanged to the pixel (0.00 %, 12 562 samples) — the shadows fall in the border bands, not
+under the actor the player is reading.
+
+**Open defect: the shadow's silhouette is a quad, not foliage.** A zoom of the wide capture, and a
+frame rendered with every card texture replaced by a fully transparent one (the cards vanish, the
+shadows do not), both show each caster's *full quad* in the shadow map. The `ShadowCaster` pass clips
+on `_BaseMap.a`, and the source has not changed since this ADR was written, so something between the
+material and the pass is dropping the sample — this round ruled out the shadow map's mip level
+(2048 px over 80 u puts a 10 u card at mip 1), the volume (fixed above), and the pass's CBUFFER layout
+(identical to the forward pass field for field), and did not find the cause. Until it is fixed, the
+consequence above ("the canopy edges alias") understates the problem: there are no canopy edges in the
+map at all. Evidence: `artifacts/stage08g/zoom-shadow-shape.png`, `alpha-clear-on.png`,
+`shadow-alpha-probe.txt`.

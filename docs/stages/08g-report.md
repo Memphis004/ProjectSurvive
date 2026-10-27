@@ -10,6 +10,10 @@ Presentation และเครื่องมือ Editor เท่านั�
 >
 > ข้อ 4 เข้ามาในรอบหลัง (2026-10-28): [ADR 0039](../adr/0039-the-arena-scenery-casts-a-shadow-map.md)
 > — พื้นที่ Battle เลิกใช้ decal ต่อการ์ด แล้วให้การ์ดฉายเงาผ่าน shadow map ของ main light แทน (§5.1)
+>
+> **รอบที่สองของวันเดียวกัน (§5.2): เงาเดิมไม่ถึงกลางเฟรม — แก้ `shadowDistance` 50→80 และปรับมุม/ความแรงของแสง
+> แล้วเงาเข้าเฟรมจริง (2.80 % → 5.56 % ของพิกเซล) แต่การตรวจภาพซูมพบว่าเงาที่ได้เป็น *สี่เหลี่ยมเต็ม quad*
+> ไม่ใช่ silhouette ของใบไม้ ข้อ 4 จึง **PASS เฉพาะการต่อสาย (wiring) — รูปร่างเงายัง FAIL/OPEN****
 
 ## 1. สาเหตุที่ภาพเบลอ (วัดจริง ไม่เดา)
 
@@ -53,7 +57,9 @@ Presentation และเครื่องมือ Editor เท่านั�
 | 4 | รายงาน placeholder ชัดเจน | **PASS** | §2 (0 อาร์ตจริง / 15 placeholder) |
 
 เกณฑ์ของ prompt ข้อ 4 ("การ์ดต้นไม้/พุ่ม/landmark cast shadow ผ่าน alpha clip, แสงจันทร์เอียงให้เงาทอดยาว,
-ตัวละครยังใช้ blob shadow") **PASS** — หลักฐานและตัวเลขอยู่ใน §5.1 และ ADR 0039
+ตัวละครยังใช้ blob shadow") — **PASS เฉพาะการต่อสาย, FAIL ด้าน silhouette** (§5.2): การ์ดฉายเงาผ่าน main light จริง
+แสงเอียงและทอดยาวจริง ตัวละครยังใช้ blob shadow แต่เงาที่ออกมาเป็นสี่เหลี่ยมเต็ม quad ไม่ใช่รูปใบไม้
+หลักฐานใน §5.1, §5.2 และ ADR 0039 — **ไม่นับว่าข้อนี้ปิด**
 
 ## 4. ตัวเลขก่อน/หลัง (วัดบน PNG ที่บันทึกจริง + ผล build)
 
@@ -165,6 +171,50 @@ pixels ที่ขยับ (wide 16.00 u)       5.39 % (111 668 / 2 073 600)  
 ฉะนั้น **กล้องนี้วางกรอบให้ผู้เล่นตามที่โปรไฟล์ประกาศ (9.0 %) แต่ภาพที่เห็นคือ ~14 %** —
 เมื่อแก้ silhouette ของ Spine ให้ตรงโปรไฟล์ (งานของสาย 17) เฟรมนี้จะได้ 8–10 % ตามที่ prompt ขอทันที
 
+### 5.2 รอบที่สอง (2026-10-28): เงาไปถึงกลางเฟรมไหม — และรูปร่างของมัน
+
+§7.5 ของรอบก่อนค้างคำถามเดียว: ที่ framing ที่เกมใช้ พิกเซลที่ขยับมีเพียง 2.80 % — เงาอยู่แค่แถบล่างของจอ
+รอบนี้วัดหาสาเหตุแทนการเดา (`artifacts/stage08g/reach-before.txt`, `reach-after.txt`, `shadow-map-check.txt`):
+
+- **สาเหตุที่หนึ่ง (แก้แล้ว): `shadowDistance` สั้นกว่าที่กล้องมอง.** กล้อง orthographic ถอยหลังผู้เล่น ~60 u
+  และมองลึกไปอีก `OrthographicSize / sin 50°` = 11.6 u แต่ URP ตั้ง `m_ShadowDistance: 50` → map ถูก fade
+  ทิ้งก่อนถึงกรอบ. หลักฐานคือ reach sweep: ที่ elevation 42°, 32°, 28°, 24°, 20° ค่าที่จุดพื้นทุกจุดได้
+  **35/255 เท่ากันหมด** ซึ่งเป็นอาการของเงาที่ถูกตัดด้วย volume ไม่ใช่เงาที่สั้น/ยาวตามมุมแสง
+  แก้เป็น **80** และเพิ่มเทสต์ `TheShadowDistanceReachesTheFarEdgeOfTheGroundTheFrameShows`
+- **สาเหตุที่สอง (แก้แล้ว): azimuth พาเงาออกจากเฟรม.** euler.y −40° ทิ้งเงาไปทางซ้ายบนจนครึ่งหนึ่งหลุดจอ
+  → Dusk `(58, −40)` เปลี่ยนเป็น `(62, −22)`, Night `(46, −62)` เปลี่ยนเป็น `(58, −26)` และเพิ่ม
+  `ShadowStrength` Dusk 0.60 → **0.85** (สี `(0.22, 0.35, 0.52)`), Night 0.74 → **0.90**
+  (`(0.17, 0.27, 0.47)`) เพราะเงาที่ทอดยาวขึ้นแต่ยังจางเท่าเดิมอ่านเป็นคราบ ไม่ใช่เงา
+
+ตัวเลขหลังแก้ (เฟรมหยุดเวลา 1920×1080, i5-14400F + RTX 5060 Ti):
+
+```
+                     ก่อน (50, −40)      หลัง (80, −22)
+shipped 5.56 %→        2.80 %              5.56 % (mean|Δ| 0.71, strong >10: 1.72 %, max 36/255)
+wide (16 u)            5.39 %             13.01 % (mean|Δ| 2.10)
+night shipped          2.80 %              6.23 %
+night wide             5.39 %             14.78 %
+```
+
+การกระจายของพิกเซลที่ขยับ (shipped): แถบบน z +5.8..+11.6 = 6.88 %, กลาง z 0..+5.8 = 3.52 %,
+แถบล่าง z −11.6..−5.8 = 9.91 % — และในสี่เหลี่ยมการเล่น `|x| ≤ 10, |z| ≤ 6` มีเพียง 1.67 % คือ
+ลานกลางยังโล่งตามกติกาของ `ArenaLayout` ( canopy patch ห้ามอยู่กลางลาน)
+
+**การอ่านของผู้เล่นไม่ลดลง:** annulus 90–210 px รอบตัวผู้เล่น (`readability.txt`) เปลี่ยน **0.00 %**
+(mean luminance 0.1255 → 0.1255 ทั้ง Dusk และ 0.0484 → 0.0484 ทั้ง Night, worst pixel 0/255 จาก 12 562 ตัวอย่าง)
+— เงาใหม่ตกในแถบขอบ ไม่ได้ทับพื้นที่ที่ตัวละครถูกอ่าน
+
+**แต่รูปร่างยังผิด (OPEN).** ซูมภาพ wide (`zoom-shadow-shape.png`) และเฟรมที่เอา texture ของการ์ด
+ออกทั้งใบ (`alpha-clear-on.png` — การ์ดมองไม่เห็นแล้ว แต่เงาบนพื้นยังเป็นสี่เหลี่ยม) ชี้ตรงกันว่า
+**pass `ShadowCaster` ฉายเป็น quad เต็มใบ ไม่ได้ตัดด้วย alpha** แม้ source จะมี `clip(alpha - _Cutoff)`
+ก็ตาม. สมมติฐานที่ตัดออกไปแล้วด้วยตัวเลข: mip ของ shadow map (2048 px / 80 u → การ์ด 10 u ≈ 256 texels
+= mip 1 ไม่ใช่ mip ที่ทำให้ alpha เฉลี่ย), `shadowDistance` (แก้แล้ว), และ CBUFFER ของ pass (เหมือน forward
+ทุกฟิลด์). รอบนี้ยัง *ไม่* หาสาเหตุได้ จึงยังไม่แก้
+
+**สรุปสถานะข้อ 4 ของ prompt:** การต่อสาย PASS (การ์ดฉาย, แสงเป็น main light, พื้นรับผ่าน
+`TransformWorldToShadowCoord`, ค่าใช้จ่าย +4 batches / +2 set-pass / +0.03 ms) แต่ **silhouette ของเงา
+ยังไม่ผ่าน** — ปิด Stage เป็น PASS ไม่ได้จนกว่าจะแก้ แล้ววัดซ้ำว่าภาพรวมดีขึ้นจริง
+
 ## 6. ข้อ 6 — ยังไม่ได้ทำ (และข้อเสนอแตก Stage)
 
 - **ข้อ 4 เงา — ทำแล้วในรอบหลัง (2026-10-28),** ดู §5.1 และ
@@ -199,10 +249,14 @@ pixels ที่ขยับ (wide 16.00 u)       5.39 % (111 668 / 2 073 600)  
    ไม่ใช่ผลของ suite: ต้องถือว่ารายงานรอบก่อนยืนยันส่วนนี้ผิด)*
 4. ไม่ได้ทดสอบ: WebGL build และ Playwright (Stage นี้ไม่ใช่ gate), PlayMode ผ่าน CLI (ค้นพบ 0 เทสต์ —
    ข้อจำกัดของ pipeline ในรุ่นนี้), และ WebGL path ของ `CompressedHQ` (ยังไม่เคย build)
-5. **เงาของข้อ 4 ยังไม่ผ่านตาเจ้าของงาน:** วัดแล้วว่าเงามีอยู่จริงและการ์ดฉายเงาผ่าน alpha clip ได้
-   แต่ที่ **framing ที่เกมใช้** พิกเซลที่ขยับมีเพียง **2.80 %** (เงาส่วนใหญ่ของกำแพงต้นไม้ทอดออกนอกเฟรม;
-   ภาพ wide จึงใช้เป็นภาพยืนยันการฉายเงา ไม่ใช่ภาพที่เกมเห็น) — ต้องให้ผู้ใช้ดู `shadow-map-shipped-on/off.png`
-   และตัดสินว่าจะให้เงาแรง/ทอดเข้าหากลางจอมากกว่านี้หรือไม่ ก่อนประกาศ PASS ด้านภาพ
+5. **เงาของข้อ 4 ยังไม่ผ่านตาเจ้าของงาน — และรอบที่สองยังเจอ defect ใหม่.** ความเข้ม/การเข้าถึงเฟรมแก้แล้ว
+   (§5.2: 2.80 % → 5.56 %) แต่ **เงาที่ได้เป็นสี่เหลี่ยมเต็ม quad ไม่ใช่ silhouette ของใบไม้**
+   (`artifacts/stage08g/zoom-shadow-shape.png`, `alpha-clear-on.png`) แปลว่า `ShadowCaster` pass
+   ยังไม่ตัด alpha ตอนรันจริง ต้องแก้ก่อนจึงจะเรียกว่าข้อ 4 ผ่าน และต้องให้เจ้าของงานดูภาพก่อนประกาศ PASS
+   ด้านภาพ
+6. **ยังไม่ได้ทดสอบ:** `tools/test.ps1 -Suite Fast` ยังพังเหมือนเดิม (สคริปต์เรียกคำสั่ง `unity command run_tests`
+   ที่ถูกเปลี่ยนชื่อแล้ว — ไม่ได้อยู่ในขอบเขต Stage นี้) รอบนี้จึงรัน `unity command test run --mode editor`
+   ตรง ๆ ได้ **312/312**; ไม่ได้รัน WebGL build / Playwright (ไม่ใช่ gate stage)
 
 ## 8. คำสั่งที่รันจริง
 
@@ -219,4 +273,14 @@ unity command editor.playmode stop / start
 unity command --project-path UnityProject script run --file AgentScripts/ArenaShadowMapCheck.cs \
        --entry AgentScripts.ArenaShadowMapCheck.Run      → ok (cost + คู่ภาพ on/off, 2 framing)
 unity command --project-path UnityProject test run --mode editor        → 311/311
+
+# รอบที่สอง (2026-10-28): shadow distance + มุมแสง + รูปร่างเงา
+unity command editor.playmode stop / start
+unity command --project-path UnityProject script run --file AgentScripts/ArenaShadowMapCheck.cs \
+       --entry AgentScripts.ArenaShadowMapCheck.Run      → ok (cost, reach sweep, 4 คู่ภาพ: shipped/wide/night)
+python artifacts/stage08g/reach.py ""        → reach-after.txt (การกระจายของพิกเซลที่ขยับตามแถว z)
+python artifacts/stage08g/readability.py      → readability.txt (annulus รอบผู้เล่น Δ 0.00 %)
+python artifacts/stage08g/zoom.py            → zoom-shadow-shape.png
+python artifacts/stage08g/compare.py         → shadow-on-off-diff-sheet.png
+unity command --project-path UnityProject test run --mode editor        → 312/312
 ```

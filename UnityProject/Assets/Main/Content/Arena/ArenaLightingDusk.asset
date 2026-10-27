@@ -20,9 +20,9 @@ MonoBehaviour:
   AmbientGround: {r: 0.26, g: 0.27, b: 0.16, a: 1}
   KeyLightColor: {r: 1, g: 0.93, b: 0.68, a: 1}
   KeyLightIntensity: 1.35
-  KeyLightEuler: {x: 58, y: -40, z: 0}
-  ShadowColor: {r: 0.33, g: 0.5, b: 0.66, a: 1}
-  ShadowStrength: 0.6
+  KeyLightEuler: {x: 62, y: -22, z: 0}
+  ShadowColor: {r: 0.22, g: 0.35, b: 0.52, a: 1}
+  ShadowStrength: 0.85
   ShadowDirectionDegrees: 245
   ShadowLengthPerHeight: 0.42
   CanopyShadowWidthFactor: 0.95

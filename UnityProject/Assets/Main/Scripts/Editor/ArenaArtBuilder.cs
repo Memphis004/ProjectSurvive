@@ -498,11 +498,27 @@ namespace ProjectSurvive.Game.Editor
             profile.AmbientGround = new Color(0.26f, 0.27f, 0.16f, 1f);
             profile.KeyLightColor = new Color(1f, 0.93f, 0.68f, 1f);
             profile.KeyLightIntensity = 1.35f;
-            profile.KeyLightEuler = new Vector3(58f, -40f, 0f);
+
+            // Euler.x is measured down from the horizon (90 is straight overhead-down), so 58 was a sun
+            // 32° up and a shadow 1.6 × the caster's height. 62 is 28° up and 1.88 × it, which is what
+            // puts the belt's trunks — the only casters inside the frame's own edge — across the ground
+            // the fight is fought on rather than in a strip along the bottom of the screen.
+            //
+            // The yaw is the other half of that. A shadow falls along the light's own ground track, so
+            // the old -40° sent it up and to the left, out of the frame: the reach sweep in
+            // `artifacts/stage08g/shadow-map-check.txt` shows the same 35/255 shadow for every
+            // elevation from 42° down to 20°, which is what a shadow that leaves the screen on both
+            // ends looks like. -22° keeps the diagonal but runs the shadow up the frame's depth axis,
+            // where there is room for it.
+            profile.KeyLightEuler = new Vector3(62f, -22f, 0f);
 
             // The cool end: a deep teal rather than black, so a shadowed floor still reads as floor.
-            profile.ShadowColor = new Color(0.33f, 0.50f, 0.66f, 1f);
-            profile.ShadowStrength = 0.60f;
+            // Strength 0.60 left a fully covered pixel at 0.60 … 0.80 of the lit floor, which measured
+            // as a 19/255 change — visible in a difference image, barely visible in the frame. At 0.85
+            // and a darker tint the same pixel keeps 0.30 … 0.56 of it. The three numbers move
+            // together: a longer shadow that is still this faint reads as a stain, not a shadow.
+            profile.ShadowColor = new Color(0.22f, 0.35f, 0.52f, 1f);
+            profile.ShadowStrength = 0.85f;
             profile.ShadowDirectionDegrees = 245f;
             profile.ShadowLengthPerHeight = 0.42f;
             profile.CanopyShadowWidthFactor = 0.95f;
@@ -600,10 +616,15 @@ namespace ProjectSurvive.Game.Editor
             profile.AmbientGround = new Color(0.030f, 0.045f, 0.080f, 1f);
             profile.KeyLightColor = new Color(0.66f, 0.76f, 1f, 1f);
             profile.KeyLightIntensity = 0.48f;
-            profile.KeyLightEuler = new Vector3(46f, -62f, 0f);
 
-            profile.ShadowColor = new Color(0.16f, 0.24f, 0.44f, 1f);
-            profile.ShadowStrength = 0.74f;
+            // A moon 32° up (euler.x 58): 1.6 × the caster's height, against 1.04 × at the 46 the
+            // profile shipped with, and swung round to -26° so the shadow runs up the frame with the
+            // dusk one instead of out over its left edge. A moonlit floor is the one place a long
+            // shadow is free — nothing in the arena is lit by these numbers except the actors.
+            profile.KeyLightEuler = new Vector3(58f, -26f, 0f);
+
+            profile.ShadowColor = new Color(0.17f, 0.27f, 0.47f, 1f);
+            profile.ShadowStrength = 0.90f;
             profile.ShadowDirectionDegrees = 250f;
             profile.ShadowLengthPerHeight = 0.42f;
             profile.CanopyShadowWidthFactor = 0.95f;
