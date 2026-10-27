@@ -142,6 +142,92 @@ Shader "ProjectSurvive/ArenaCard"
             }
             ENDHLSL
         }
+
+        // The shadow pass uses the same texture alpha and cutoff as the visible card, so the
+        // transparent quad corners never enter the moon's shadow map. Keep the foliage sway here
+        // too, otherwise the silhouette shadow would lag behind the rendered canopy.
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
+
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 2.0
+            #pragma vertex ShadowVert
+            #pragma fragment ShadowFrag
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+
+            CBUFFER_START(UnityPerMaterial)
+                float4 _BaseMap_ST;
+                half4 _BaseColor;
+                half _Cutoff;
+                float _SwayAmplitude;
+                float _SwaySpeed;
+                float _Fade;
+            CBUFFER_END
+
+            TEXTURE2D(_BaseMap);
+            SAMPLER(sampler_BaseMap);
+            float _ArenaSway;
+
+            float3 SwayCard(float3 positionWS, float2 uv)
+            {
+                float upper = saturate(uv.y);
+                float phase = (_Time.y * _SwaySpeed) + (positionWS.x * 0.35) + (positionWS.z * 0.27);
+                float sway = sin(phase) * _SwayAmplitude * upper * upper * _ArenaSway;
+                positionWS.x += sway;
+                positionWS.z += sway * 0.25;
+                return positionWS;
+            }
+
+            struct ShadowAttributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS : NORMAL;
+                float2 uv : TEXCOORD0;
+            };
+
+            struct ShadowVaryings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            ShadowVaryings ShadowVert(ShadowAttributes input)
+            {
+                ShadowVaryings output;
+                float3 positionWS = SwayCard(TransformObjectToWorld(input.positionOS.xyz), input.uv);
+                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+
+                #if _CASTING_PUNCTUAL_LIGHT_SHADOW
+                    float3 lightDirectionWS = normalize(_LightPosition - positionWS);
+                #else
+                    float3 lightDirectionWS = _LightDirection;
+                #endif
+
+                output.positionCS = TransformWorldToHClip(
+                    ApplyShadowBias(positionWS, normalWS, lightDirectionWS));
+                output.positionCS = ApplyShadowClamping(output.positionCS);
+                output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+                return output;
+            }
+
+            half4 ShadowFrag(ShadowVaryings input) : SV_TARGET
+            {
+                half alpha = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).a * _BaseColor.a;
+                clip(alpha - _Cutoff);
+                return 0;
+            }
+            ENDHLSL
+        }
     }
 
     FallBack Off

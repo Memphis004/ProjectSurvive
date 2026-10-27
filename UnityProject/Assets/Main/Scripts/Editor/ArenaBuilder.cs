@@ -22,8 +22,8 @@ namespace ProjectSurvive.Game.Editor
     /// list of placements, so "the same seed gives the same arena" is a unit test.
     /// This class is the half that needs an Editor: it generates the assets
     /// (<see cref="ArenaArtBuilder"/>), instantiates the <c>ArenaCard</c>/<c>GroundDecal</c> prefabs
-    /// at those placements, wires the day/night profiles and the fake lights, marks the cards static
-    /// so Unity can batch them, and saves <c>Battle.unity</c>.
+    /// at those placements, wires the day/night profiles and lights, enables alpha-clipped scenery
+    /// shadows for Battle, and saves <c>Battle.unity</c>.
     /// </para>
     /// <para>
     /// Nothing here creates a collider: every card and every decal is an image. Ghosts, the player and
@@ -186,18 +186,16 @@ namespace ProjectSurvive.Game.Editor
             var root = new GameObject(ArenaRootName);
             var cardsRoot = Child(root.transform, "Cards");
             var decalsRoot = Child(root.transform, "Decals");
-            var shadowsRoot = Child(root.transform, "CardShadows");
             var lightsRoot = Child(root.transform, "Lights");
             var poolsRoot = Child(root.transform, "LightPools");
             var motesRoot = Child(root.transform, "Motes");
 
             GameObject cardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ArenaArtBuilder.CardPrefabPath);
             GameObject decalPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ArenaArtBuilder.DecalPrefabPath);
-            GameObject cardShadowPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ArenaArtBuilder.CardShadowPrefabPath);
-            if (cardPrefab is null || decalPrefab is null || cardShadowPrefab is null)
+            if (cardPrefab is null || decalPrefab is null)
             {
                 throw new InvalidOperationException(
-                    "The ArenaCard/GroundDecal/ArenaCardShadow prefabs are missing; run the art builder first.");
+                    "The ArenaCard/GroundDecal prefabs are missing; run the art builder first.");
             }
 
             int cardIndex = 0;
@@ -216,18 +214,6 @@ namespace ProjectSurvive.Game.Editor
                 }
             }
 
-            BuildCardShadows(theme, placements, cardShadowPrefab, shadowsRoot);
-
-            // The shadows never move, so they are baked into one instanced call instead of costing a
-            // batch each (this project has static batching off, and ~190 extra batches would break
-            // the stage's 200-batch budget). The per-card renderers stay in the scene for the
-            // direction/zone tests and are disabled here.
-            var shadowLayer = root.AddComponent<ArenaCardShadowLayer>();
-            shadowLayer.Configure(
-                ArenaArtBuilder.LoadShadowQuad(),
-                AssetDatabase.LoadAssetAtPath<Material>(ArenaArtBuilder.MaterialFolder + "/card-shadow.mat"));
-            shadowLayer.Collect();
-
             Light key = BuildKeyLight(lightsRoot, theme);
             Light lantern = BuildLantern(lightsRoot, out Transform lanternRoot, out Renderer lanternGlow);
             Light[] statics = BuildStaticLights(lightsRoot, theme);
@@ -235,6 +221,10 @@ namespace ProjectSurvive.Game.Editor
             BuildMotes(motesRoot, theme);
             ArenaScreenGradient screenGradient = BuildScreenGradient(root.transform, theme);
             BuildPostVolume(root.transform);
+
+            // This directional light is the URP main light, so its shadow map contains the
+            // alpha-clipped card silhouettes. Actor sprites keep their separate blob shadows.
+            RenderSettings.sun = key;
 
             // The dither that keeps the player visible under a canopy. It lives on the arena root so
             // its card list is one GetComponentsInChildren at Awake, and it follows the lantern's own
@@ -288,7 +278,7 @@ namespace ProjectSurvive.Game.Editor
             if (renderer is not null)
             {
                 renderer.sharedMaterial = style.Material;
-                renderer.shadowCastingMode = ShadowCastingMode.Off;
+                renderer.shadowCastingMode = ShadowCastingMode.On;
                 renderer.receiveShadows = false;
 
                 // Who hides whom is BattleWorldMap's row scale, the same one the actor sprites use,
@@ -346,84 +336,10 @@ namespace ProjectSurvive.Game.Editor
             light.color = theme.DuskProfile.KeyLightColor;
             light.intensity = theme.DuskProfile.KeyLightIntensity;
 
-            // The arena's shadows are painted decals (Stage 08f), so this light casts nothing. A
-            // shadow map over 140 alpha-clipped cards would cost a full extra pass for a look the
-            // decals already give.
-            light.shadows = LightShadows.None;
+            // Battle uses the main-light shadow map; CampEnvironmentBuilder creates its own key
+            // light and continues to use the decal-only shadow treatment.
+            light.shadows = LightShadows.Hard;
             return light;
-        }
-
-        /// <summary>
-        /// One flat fake shadow per standing card, and one wide crown patch under each border tree.
-        /// The direction is the profile's single angle, so every shadow in the scene agrees; the
-        /// length comes from the card's own height. No shadow is ever drawn over an actor: they all
-        /// share <see cref="BattleWorldMap.ShadowSortingOrder"/>, below every actor order.
-        /// </summary>
-        private static void BuildCardShadows(
-            ArenaTheme theme, ArenaPlacement[] placements, GameObject prefab, Transform parent)
-        {
-            ArenaLightingProfile profile = theme.DuskProfile;
-            float direction = profile.ShadowDirectionDegrees;
-            Quaternion rotation = ArenaShadowCard.Orientation(direction);
-            int index = 0;
-
-            for (int i = 0; i < placements.Length; i++)
-            {
-                ArenaPlacement placement = placements[i];
-                if (placement.IsDecal)
-                {
-                    continue;
-                }
-
-                float length = ArenaShadowCard.LengthFor(placement.Height, profile);
-                float width = Mathf.Max(0.18f, placement.Width * 0.78f);
-                PlaceShadow(
-                    prefab, parent, placement, index++, profile, rotation,
-                    new Vector3(placement.X, 0f, placement.Z), length, width, canopy: false);
-
-                // The crown patch is the big soft ellipse the brief allows only under a border tree's
-                // canopy: the middle of the arena is where the fight is read, and a wide dark patch
-                // there would compete with the ghosts standing on it.
-                if (placement.Zone != ArenaCardZone.Border)
-                {
-                    continue;
-                }
-
-                float canopyWidth = placement.Width * profile.CanopyShadowWidthFactor;
-                float canopyLength = canopyWidth * 0.82f;
-                Vector3 directionVector = profile.ShadowDirection;
-                var centre = new Vector3(
-                    placement.X + (directionVector.x * canopyLength * 0.30f),
-                    0f,
-                    placement.Z + (directionVector.z * canopyLength * 0.30f));
-
-                PlaceShadow(
-                    prefab, parent, placement, index++, profile, rotation, centre,
-                    canopyLength, canopyWidth, canopy: true);
-            }
-        }
-
-        private static void PlaceShadow(
-            GameObject prefab, Transform parent, ArenaPlacement placement, int index,
-            ArenaLightingProfile profile, Quaternion rotation, Vector3 centre,
-            float length, float width, bool canopy)
-        {
-            var shadow = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
-            shadow.name = (canopy ? "shadow-canopy-" : "shadow-") + index.ToString("0000")
-                + "-" + placement.StyleId;
-            shadow.transform.position = new Vector3(centre.x, 0.035f, centre.z);
-            shadow.transform.rotation = rotation;
-            shadow.transform.localScale = new Vector3(length, width, 1f);
-
-            var renderer = shadow.GetComponent<MeshRenderer>();
-            if (renderer is not null)
-            {
-                renderer.sortingOrder = BattleWorldMap.ShadowSortingOrder;
-            }
-
-            shadow.GetComponent<ArenaShadowCard>()?.Configure(
-                placement.Zone, placement.Width, placement.Height,
-                profile.ShadowDirectionDegrees, canopy);
         }
 
         private static Light BuildLantern(Transform parent, out Transform root, out Renderer glow)

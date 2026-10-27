@@ -294,19 +294,7 @@ namespace ProjectSurvive.Game.Editor
             return mesh;
         }
 
-        /// <summary>
-        /// The prefab every placed card is an instance of. Its pivot is the bottom centre of the quad
-        /// and it is <see cref="StaticEditorFlags.OccludeeStatic"/> but <b>not</b> batching-static,
-        /// because static batching draws a card through a combined mesh and ignores the per-renderer
-        /// <c>MaterialPropertyBlock</c> the occlusion fade writes. The arena never moves either way;
-        /// each card already carries its own sorting order, so batching could not have merged them.
-        /// </summary>
-        /// <summary>
-        /// The prefab every fake card shadow is an instance of: one quad lying on the floor with the
-        /// multiply shadow shader. Unlike a card it needs no occlusion dither, so it is batching
-        /// static — every shadow in the arena shares one material and one sorting order, which is what
-        /// keeps 140 of them inside a single draw call.
-        /// </summary>
+        /// <summary>The prefab used by the camp's instanced decal shadows.</summary>
         private static void BuildCardShadowPrefab(Mesh mesh, Material material)
         {
             var go = new GameObject("ArenaCardShadow");
@@ -332,6 +320,11 @@ namespace ProjectSurvive.Game.Editor
             }
         }
 
+        /// <summary>
+        /// Creates the reusable scenery card. Its default is non-shadowing; the Battle builder opts
+        /// individual scene instances into the alpha-clipped ShadowCaster path while Camp keeps the
+        /// existing decal-only light treatment.
+        /// </summary>
         private static void BuildPrefab(
             string path, string name, Mesh mesh, Material material, ArenaCardZone zone)
         {

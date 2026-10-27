@@ -42,6 +42,7 @@ Shader "ProjectSurvive/ArenaGround"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_fog
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -55,6 +56,8 @@ Shader "ProjectSurvive/ArenaGround"
             SAMPLER(sampler_BaseMap);
 
             float4 _ArenaTint;
+            float4 _ArenaShadowColor;
+            float _ArenaShadowStrength;
 
             struct Attributes
             {
@@ -67,12 +70,14 @@ Shader "ProjectSurvive/ArenaGround"
                 float4 positionCS : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float fogFactor : TEXCOORD1;
+                float3 positionWS : TEXCOORD2;
             };
 
             Varyings Vert(Attributes input)
             {
                 Varyings output;
-                output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                output.positionCS = TransformWorldToHClip(output.positionWS);
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
                 output.fogFactor = ComputeFogFactor(output.positionCS.z);
                 return output;
@@ -81,7 +86,13 @@ Shader "ProjectSurvive/ArenaGround"
             half4 Frag(Varyings input) : SV_Target
             {
                 half4 colour = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv) * _BaseColor;
-                colour.rgb *= _ArenaTint.rgb;
+                Light mainLight = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
+                half shadowCoverage = 1.0h - mainLight.shadowAttenuation;
+                half3 shadowMultiplier = lerp(
+                    half3(1.0h, 1.0h, 1.0h),
+                    saturate(_ArenaShadowColor.rgb),
+                    shadowCoverage * saturate(_ArenaShadowStrength));
+                colour.rgb *= _ArenaTint.rgb * shadowMultiplier;
                 colour.rgb = MixFog(colour.rgb, input.fogFactor);
                 return colour;
             }

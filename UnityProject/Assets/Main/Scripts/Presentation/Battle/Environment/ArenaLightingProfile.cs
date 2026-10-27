@@ -13,8 +13,8 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
     }
 
     /// <summary>
-    /// One look for the arena: ambient, key light, the cool shadow colour and its one direction,
-    /// fog, the fake-light intensities, the screen-top gradient and the post-processing grade.
+    /// One look for the arena: ambient, key light and its shadow direction, fog, fake-light intensities,
+    /// the screen-top gradient and the post-processing grade.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -28,15 +28,14 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
     /// <para>
     /// <b>The two colours.</b> A dusk jungle is a warm green-yellow key over a cool teal shadow.
     /// <see cref="KeyLightColor"/> is the warm end (the directional light and the ambient's sky
-    /// band), <see cref="ShadowColor"/> the cool end that every fake shadow multiplies into the
-    /// floor. The shadow tint is deliberately never black: a fully black shadow on a green floor
+    /// band), <see cref="ShadowColor"/> the cool end that camp decal shadows multiply into the
+    /// floor. The decal tint is deliberately never black: a fully black shadow on a green floor
     /// reads as a hole, and the floor is the surface the fight is read against.
     /// </para>
     /// <para>
-    /// <b>One shadow direction for the whole scene.</b> Cards do not cast real shadows (Stage 08f
-    /// draws a soft decal per card instead, see <see cref="ArenaShadowCard"/>), so the direction is
-    /// authored once, here, and every shadow decal is oriented from it. <see cref="ShadowDirectionDegrees"/>
-    /// is measured in the ground plane: 0 points at world +X, 90 at world +Z (away from the camera).
+    /// <b>One moon direction for the whole scene.</b> The key light's oblique rotation also sets
+    /// the shadow direction through the <see cref="KeyLightEuler"/> profile. The ground-plane angle
+    /// used by the camp's decal shadows remains <see cref="ShadowDirectionDegrees"/>.
     /// </para>
     /// <para>
     /// The post-processing values become a runtime <c>VolumeProfile</c> (Color Adjustments, Bloom,
@@ -95,23 +94,23 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         [Tooltip("Directional light rotation, in Euler degrees. Its horizontal part is the light's own angle.")]
         public Vector3 KeyLightEuler = new Vector3(52f, -32f, 0f);
 
-        [Header("Shadows (fake decals, never a shadow map)")]
-        [Tooltip("The cool end of the grade. Multiplied into the floor, so it must never be black.")]
+        [Header("Decal shadows (camp only)")]
+        [Tooltip("The cool end of the camp's fake-shadow grade. Never black, which reads as a hole in the floor.")]
         public Color ShadowColor = new Color(0.34f, 0.52f, 0.66f, 1f);
 
-        [Tooltip("How dark a shadow gets where it is fully opaque, 0 … 1.")]
+        [Tooltip("How dark a camp decal shadow gets where it is fully opaque, 0 … 1.")]
         [Range(0f, 1f)]
         public float ShadowStrength = 0.55f;
 
-        [Tooltip("The one direction every shadow in the scene falls toward. 0 = world +X, 90 = world +Z.")]
+        [Tooltip("The direction the camp's decal shadows fall toward. 0 = world +X, 90 = world +Z.")]
         [Range(0f, 360f)]
         public float ShadowDirectionDegrees = 245f;
 
-        [Tooltip("Shadow length per unit of card height. A tall tree throws a longer shadow than grass.")]
+        [Tooltip("Shadow length per unit of card height in the camp.")]
         [Range(0f, 2f)]
         public float ShadowLengthPerHeight = 0.42f;
 
-        [Tooltip("How wide the big canopy patch under a border tree is, as a fraction of the tree's width.")]
+        [Tooltip("Camp canopy decal width as a fraction of the tree width.")]
         [Range(0f, 2f)]
         public float CanopyShadowWidthFactor = 0.95f;
 

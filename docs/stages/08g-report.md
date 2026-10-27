@@ -3,10 +3,13 @@
 Presentation และเครื่องมือ Editor เท่านั้น: ไม่มีการแก้ `lib/`, `data/` หรือกติกาเกม
 (`git status --porcelain lib data` ว่าง) ทุกการตรวจทำใน Editor ที่ 1920×1080 — ไม่มี WebGL build ใน Stage นี้
 
-> **สถานะสั้น: ทำได้ 4 จาก 7 ข้อ — ข้อ 1 (สำรวจ), 2 (ความคม), 3 (Night profile), 5 (การจัดวาง + กล้อง +
-> ลำต้น foreground) ปิดด้วยตัวเลขจริง. ข้อ 4 (เงา alpha clip) และข้อ 6 (HUD ≤ 15 %) **ยังไม่ได้ทำ**
+> **สถานะสั้น: ทำได้ 5 จาก 7 ข้อ — ข้อ 1 (สำรวจ), 2 (ความคม), 3 (Night profile), 4 (เงา alpha clip
+> จริง), 5 (การจัดวาง + กล้อง + ลำต้น foreground) ปิดด้วยตัวเลขจริง. ข้อ 6 (HUD ≤ 15 %) **ยังไม่ได้ทำ**
 > และข้อ 3 เทียบกับ `docs/art/target_keyart.png` **ไม่ได้เพราะไฟล์เป้าหมายไม่มีใน repo** (§6, §7).
 > Acceptance ข้อ "UI ≤ 15 %" จึงเป็น **FAIL** — ปิด Stage เป็น PASS ไม่ได้**
+>
+> ข้อ 4 เข้ามาในรอบหลัง (2026-10-28): [ADR 0039](../adr/0039-the-arena-scenery-casts-a-shadow-map.md)
+> — พื้นที่ Battle เลิกใช้ decal ต่อการ์ด แล้วให้การ์ดฉายเงาผ่าน shadow map ของ main light แทน (§5.1)
 
 ## 1. สาเหตุที่ภาพเบลอ (วัดจริง ไม่เดา)
 
@@ -48,6 +51,9 @@ Presentation และเครื่องมือ Editor เท่านั�
 | 2 | โทนกลางคืนตัวเลขใกล้เป้ากว่าเดิม | **NOT RUN** | วัดก่อน/หลังได้ (§4) แต่เทียบ `target_keyart` ไม่ได้ — ไฟล์เป้าหมายไม่มีใน repo (§7) |
 | 3 | กลางลานผ่านเทสต์โซน; UI ≤ 15 % ของจอ | **FAIL** | โซน **PASS** (`arena-report.json` → `problems: []`; กลาง 15 / ring 24 / foreground 8 / border 79); **UI 37.86 % → ยังไม่ได้รื้อ (ข้อ 6)** |
 | 4 | รายงาน placeholder ชัดเจน | **PASS** | §2 (0 อาร์ตจริง / 15 placeholder) |
+
+เกณฑ์ของ prompt ข้อ 4 ("การ์ดต้นไม้/พุ่ม/landmark cast shadow ผ่าน alpha clip, แสงจันทร์เอียงให้เงาทอดยาว,
+ตัวละครยังใช้ blob shadow") **PASS** — หลักฐานและตัวเลขอยู่ใน §5.1 และ ADR 0039
 
 ## 4. ตัวเลขก่อน/หลัง (วัดบน PNG ที่บันทึกจริง + ผล build)
 
@@ -106,9 +112,52 @@ counts `center 15 / ring 24 / foreground 8 / border 79 / decals 28`, signature `
     ไล่ dither เมื่อมันบังผู้เล่น — เทสต์ `TheForegroundBeltStandsAtTheBottomEdgeOfTheFrame`,
     `TheLayoutPlacesItsForegroundTrunksInsideTheBelt`, `AForegroundTrunkDithersWhenThePlayerWalksBehindIt`
   - แก้ `MaxScale` ของดิน 1.20→1.10 เพื่อให้การ์ดที่กว้างสุดยังพอดี 512 px ที่ 60.75 px/หน่วย
+
+### 5.1 ข้อ 4 — เงาจริง (รอบ 2026-10-28)
+
+เดิม Battle ใช้ **decal ต่อการ์ด** (หนึ่ง quad ต่อการ์ด + crown patch ใต้ต้นขอบสนาม) เรียงเป็น call เดียว
+ด้วย `ArenaCardShadowLayer` การ์ดทั้ง 126 ตัว `shadowCastingMode = Off`, key light `LightShadows.None`,
+`RenderSettings.sun` ไม่ได้ตั้ง และ `ArenaCard.shader` ไม่มี pass `ShadowCaster` เลย → **ทั้งฉากสร้าง
+shadow map ไม่ได้** (ยืนยันด้วยการพิมพ์ค่าจากฉากที่รันอยู่ ไม่ได้เดา)
+
+- `ArenaCard.shader` ได้ pass `ShadowCaster` ที่ใช้ alpha ของ `_BaseMap` ตัวเดียวกับที่วาดจริง
+  (`clip(alpha - _Cutoff)`) มุมโปร่งใสของการ์ดจึงไม่เข้า shadow map และล้อ sway ตามการ์ดที่วาด
+- `ArenaBuilder` ตั้งการ์ดทุกตัว `shadowCastingMode = On`, `receiveShadows = false`, key light เป็น
+  `LightShadows.Hard` และตั้งเป็น `RenderSettings.sun`; moon เอียงอยู่แล้วจากข้อ 3 — Dusk `(58, −40)`,
+  Night `(46, −62)` องศา → เงาทอดยาว
+- `ArenaGround.shader` รับ coverage จาก `GetMainLight(TransformWorldToShadowCoord(...))` แล้วคูณ tint
+  ของพื้นด้วย `_ArenaShadowColor` / `_ArenaShadowStrength` (ค่ามาจาก profile เดิม: Dusk `(0.33,0.50,0.66)`
+  0.60, Night `(0.16,0.24,0.44)` 0.74) — สลับ Dusk/Night ยังไม่แตะ asset
+- ถอด `BuildCardShadows` / root `CardShadows` / `ArenaCardShadowLayer` ออกจากฉาก **Battle**
+  (คลาสและ prefab ยังอยู่เพราะ `CampEnvironmentBuilder` ยังใช้)
+- ตัวละครไม่แตะ: ยังใช้ `ArenaBlobShadows` และการ์ดไม่รับเงา การ์ดจึงแบนเหมือนเดิม เปลี่ยนแค่พื้น
+
+วัดจากเฟรมเดียวกันที่หยุดเวลา (1920×1080, Editor Play Mode, i5-14400F + RTX 5060 Ti) —
+`artifacts/stage08g/shadow-map-check.txt`, คู่ภาพ `shadow-map-shipped-on/off.png` และ `-wide-on/off.png`:
+
+```
+                          เปิดเงา        ปิดเงา (LightShadows.None)
+cost (framing ที่เกมใช้) 65 batches     61 batches | +4
+                          23 set-pass   21 set-pass | +2
+                           2.32 ms       2.29 ms    | +0.03 ms
+
+pixels ที่ขยับ (framing ที่เกมใช้)  2.80 % (58 058 / 2 073 600)  mean |Δ| 0.142  max Δ 19/255
+pixels ที่ขยับ (wide 16.00 u)       5.39 % (111 668 / 2 073 600)  mean |Δ| 0.365  max Δ 19/255
+```
+
+ตัวเลข 65 batches ยังอยู่ต่องบ **≤ 200** ของ Stage 08f และส่วนต่างของข้อนี้คือ **+4 batches / +2 set-pass
+/ +0.03 ms** (decal ที่ถอดออกเคยเป็น 1 call แต่ shadow pass วาดการ์ดทั้ง 126 ตัว) — พื้นที่ framing
+ที่เกมใช้เงื่อนิด เพราะเงาของกำแพงต้นไม้ส่วนใหญ่ทอดไปนอกเฟรม; ที่ wide จะเห็นเงาต้นไม้บนพื้นชัด
+
+- **เทสต์ของข้อ 4 (4 เคสใน `ArenaEnvironmentTests`):** `ArenaCardShaderUsesItsAlphaClippedShadowCasterPass`
+  (pass มีจริง clip บน alpha และ prefab ต้นแบบยังเป็น `Off` เพื่อไม่ให้กระทบ Camp),
+  `BattleCardsCastAlphaClippedShadowsFromTheSlantedMainLight` (การ์ดทุกตัวฉาย ไม่มีตัวรับ แสงเป็น `Hard`
+  และเป็น `RenderSettings.sun` และมุมเอียงจริง), `ArenaFloorAppliesTheMainLightShadowCoverageTint`,
+  `ActorBlobShadowsRemainSeparateFromTheCardShadowMap` — EditMode **311/311**
+
 - **เทสต์:** ใหม่ `ArenaLookDevTests` (5 เคส) + แก้ `ArenaSharpnessTests` (สูตรความสูง) และ
   `ArenaEnvironmentTests.TheBorderWallIsDenseAndStandsThreeToFivePlayersHigh` (แทนข้อกำหนด "big tree ≥ 8 u"
-  ด้วยย่านความสูงของกำแพง) — EditMode **309/309**
+  ด้วยย่านความสูงของกำแพง) — EditMode **309/309** ตอนปิดรอบนั้น (+ เทสต์ของข้อ 4 อีก 4 เคส — §5.1)
 
 **ข้อจำกัดที่ต้องบอกตรง ๆ:** `PlayerHeight 1.6 u` คือความสูงที่โปรไฟล์ตัวละคร *ประกาศ* (`SpinePlayerProfile`,
 `GenericCutePlayerProfile`) แต่ภาพที่วาดจริงสูงกว่า — วัดจากเฟรมได้ 95 px ก่อน (8.8 % ของ 1080) → ~150 px
@@ -116,22 +165,22 @@ counts `center 15 / ring 24 / foreground 8 / border 79 / decals 28`, signature `
 ฉะนั้น **กล้องนี้วางกรอบให้ผู้เล่นตามที่โปรไฟล์ประกาศ (9.0 %) แต่ภาพที่เห็นคือ ~14 %** —
 เมื่อแก้ silhouette ของ Spine ให้ตรงโปรไฟล์ (งานของสาย 17) เฟรมนี้จะได้ 8–10 % ตามที่ prompt ขอทันที
 
-## 6. ข้อ 4 และข้อ 6 — ยังไม่ได้ทำ (และข้อเสนอแตก Stage)
+## 6. ข้อ 6 — ยังไม่ได้ทำ (และข้อเสนอแตก Stage)
 
-- **ข้อ 4 เงา:** ฉากนี้การ์ดทั้ง ~350 ตัว `shadowCastingMode = Off` และ `KeyLight.shadows = None`;
-  shader `ArenaCard` ไม่มี ShadowCaster pass — และ `ArenaLightingProfile` เขียนไว้ชัดว่า
-  "Cards do not cast real shadows (Stage 08f draws a soft decal per card)" การทำเงาจริงคือการ **กลับโมเดลเงา
-  ของ 08f** (decal 1 call + `DrawMeshInstanced`) ไปเป็น shadow map ที่เพิ่มคิววาดต่อการ์ดทุกตัว
-  แล้วต้องวัดงบ batches ใหม่ทั้งชุด — ควรเป็น Stage ย่อยของตัวเอง ไม่ใช่การปรับค่าในรอบนี้
+- **ข้อ 4 เงา — ทำแล้วในรอบหลัง (2026-10-28),** ดู §5.1 และ
+  [ADR 0039](../adr/0039-the-arena-scenery-casts-a-shadow-map.md). รอบก่อนหน้าของรายงานนี้ประเมินว่า
+  การกลับโมเดลเงาของ 08f "ควรเป็น Stage ย่อยของตัวเอง" — การวัดรอบนี้บอกว่าค่าใช้จ่ายจริงคือ
+  **+4 batches / +2 set-pass / +0.03 ms** ซึ่งอยู่ในงบ ≤ 200 ของ 08f อยู่แล้ว จึงปิดเป็นส่วนหนึ่งของ
+  08g ได้โดยไม่ต้องแยก Stage (แต่ยังต้องให้ผู้ใช้ตรวจด้วยตาก่อนประกาศ PASS ด้านภาพ)
 - **ข้อ 6 HUD:** ต้องลบ `MiniBagPanel` (11.38 %) ออกทั้งสาย (ฉาก + `BattleHudView`/`BattleViewSettings` +
   `BattleCaptureState` + `UiCaptureTool`/`BossCaptureTool`/`TelegraphCaptureTool` + `UiLayoutCheck` +
   `BattleMiniBagTests` + PlayMode) แล้วจัดวาง Status/Timeline/Resource/Floor ใหม่ให้รวมกัน ≤ 15 %
   พร้อมเทสต์พื้นที่ — เป็นการรื้อ HUD เต็มรอบที่กระทบ ~10 ไฟล์และเทสต์ที่ยืนยันมันอยู่ **ไม่ใช่การปรับค่า**
   (พื้นที่ปัจจุบัน 37.86 %)
 
-ตามกติกา AGENTS ข้อ 15: Stage นี้มี 7 ข้อ แตะ Unity scene + UI + เทสต์พร้อมกัน — **ขอเสนอแตกเป็น
-`08g-1` (look: ข้อ 1–5, ปิดแล้วในรอบนี้) และ `08g-2` (HUD: ข้อ 6) และ `08g-3` (เงาจริง: ข้อ 4)** โดยไม่เพิ่ม Stage
-เองจนกว่าจะได้รับอนุมัติ
+ตามกติกา AGENTS ข้อ 15: Stage นี้มี 7 ข้อ แตะ Unity scene + UI + เทสต์พร้อมกัน — **เหลือข้อ 6 (HUD)
+ข้อเดียวที่ยังไม่ทำ** จึงเสนอเป็น `08g-2` โดยไม่เพิ่ม Stage เองจนกว่าจะได้รับอนุมัติ (ข้อ 1–5 ปิดแล้ว;
+ข้อ 4 ที่รายงานรอบก่อนเสนอให้แยกเป็น `08g-3` ปิดในรอบนี้โดยไม่ต้องแยก — §6)
 
 ## 7. Blocker และสิ่งที่ยังไม่ได้ทดสอบ
 
@@ -144,11 +193,16 @@ counts `center 15 / ring 24 / foreground 8 / border 79 / decals 28`, signature `
    เปลี่ยนจาก JSON เป็นข้อความ → Fast ได้ **PASS 12 | FAIL 1 | NOT RUN 3** โดย FAIL ที่ขั้น `unity: EditMode`
    เท่านั้น (`artifacts/stage08g/fast.log`) ขั้นที่ผ่านจริง: toolchain, dotnet build, xUnit 612, contract 48,
    sim 3, data 3, wiki 1. **แก้ tools/test.ps1 ไม่ใช่ขอบเขตของ Stage นี้** (แตะแล้ว suite ค้างเพราะ payload
-   แบบใหม่ parse ไม่ได้) จึงคืนไฟล์เป็น HEAD และรัน EditMode ตรง ๆ ผ่าน CLI แทน: **309/309**
+   แบบใหม่ parse ไม่ได้) จึงคืนไฟล์เป็น HEAD และรัน EditMode ตรง ๆ ผ่าน CLI แทน: **309/309** (ข้อ 1–5)
+   และ **311/311** หลังเพิ่มเทสต์ของข้อ 4 (ยังไม่ได้รัน `-Suite Fast` ใหม่ในรอบนี้)
    *(รายงานรอบก่อนเขียนว่า `tools/test.ps1 -Suite Fast` ผ่าน — นั่นเป็นการอ่าน `tail` ที่ตัดขั้น unity ออกไป
    ไม่ใช่ผลของ suite: ต้องถือว่ารายงานรอบก่อนยืนยันส่วนนี้ผิด)*
 4. ไม่ได้ทดสอบ: WebGL build และ Playwright (Stage นี้ไม่ใช่ gate), PlayMode ผ่าน CLI (ค้นพบ 0 เทสต์ —
    ข้อจำกัดของ pipeline ในรุ่นนี้), และ WebGL path ของ `CompressedHQ` (ยังไม่เคย build)
+5. **เงาของข้อ 4 ยังไม่ผ่านตาเจ้าของงาน:** วัดแล้วว่าเงามีอยู่จริงและการ์ดฉายเงาผ่าน alpha clip ได้
+   แต่ที่ **framing ที่เกมใช้** พิกเซลที่ขยับมีเพียง **2.80 %** (เงาส่วนใหญ่ของกำแพงต้นไม้ทอดออกนอกเฟรม;
+   ภาพ wide จึงใช้เป็นภาพยืนยันการฉายเงา ไม่ใช่ภาพที่เกมเห็น) — ต้องให้ผู้ใช้ดู `shadow-map-shipped-on/off.png`
+   และตัดสินว่าจะให้เงาแรง/ทอดเข้าหากลางจอมากกว่านี้หรือไม่ ก่อนประกาศ PASS ด้านภาพ
 
 ## 8. คำสั่งที่รันจริง
 
@@ -159,4 +213,10 @@ unity command --project-path UnityProject script run --file AgentScripts/ArenaSt
        --entry AgentScripts.ArenaStage08gCapture.Run          (tag = before, then after)
 unity command --project-path UnityProject test run --mode editor        → 309/309
 powershell -File tools/test.ps1 -Suite Fast                             → PASS 12 | FAIL 1 | NOT RUN 3
+
+# รอบปิดข้อ 4 (2026-10-28)
+unity command editor.playmode stop / start
+unity command --project-path UnityProject script run --file AgentScripts/ArenaShadowMapCheck.cs \
+       --entry AgentScripts.ArenaShadowMapCheck.Run      → ok (cost + คู่ภาพ on/off, 2 framing)
+unity command --project-path UnityProject test run --mode editor        → 311/311
 ```

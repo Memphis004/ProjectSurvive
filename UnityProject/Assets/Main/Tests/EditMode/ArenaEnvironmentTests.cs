@@ -33,7 +33,6 @@ namespace ProjectSurvive.Game.Tests.EditMode
         private const string ThemePath = "Assets/Main/Content/Arena/ArenaTheme.asset";
         private const string CardPrefabPath = "Assets/Main/Prefabs/Arena/ArenaCard.prefab";
         private const string DecalPrefabPath = "Assets/Main/Prefabs/Arena/GroundDecal.prefab";
-        private const string CardShadowPrefabPath = "Assets/Main/Prefabs/Arena/ArenaCardShadow.prefab";
         private const string BattleScenePath = "Assets/Main/Scenes/Battle.unity";
         private const string MaterialFolder = "Assets/Main/Art/Arena/Materials";
         private const string TextureFolder = "Assets/Main/Art/Arena/Textures";
@@ -265,6 +264,28 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         [Test]
+        public void ArenaCardShaderUsesItsAlphaClippedShadowCasterPass()
+        {
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(MaterialFolder + "/card-tree-a.mat");
+            Assert.That(material, Is.Not.Null, "the arena card material is missing");
+
+            string shaderPath = AssetDatabase.GetAssetPath(material.shader);
+            Assert.That(string.IsNullOrEmpty(shaderPath), Is.False, "the card shader is not a project asset");
+            string source = File.ReadAllText(shaderPath);
+            StringAssert.Contains("Name \"ShadowCaster\"", source);
+            StringAssert.Contains("Tags { \"LightMode\" = \"ShadowCaster\" }", source);
+            StringAssert.Contains("clip(alpha - _Cutoff)", source,
+                "transparent card texels are not clipped from the shadow map");
+
+            GameObject card = AssetDatabase.LoadAssetAtPath<GameObject>(CardPrefabPath);
+            Assert.That(card, Is.Not.Null);
+            MeshRenderer renderer = card.GetComponent<MeshRenderer>();
+            Assert.That(renderer, Is.Not.Null);
+            Assert.That(renderer.shadowCastingMode, Is.EqualTo(UnityEngine.Rendering.ShadowCastingMode.Off),
+                "the reusable prefab must not opt every consumer into shadow maps; Battle enables it per instance");
+        }
+
+        [Test]
         public void CardsAreOrderedByTheWorldMapNotByDepth()
         {
             // A card is one step behind an actor standing on its own row...
@@ -488,103 +509,58 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         // -------------------------------------------------------------------
-        // the fake shadows placed in the scene
+        // the Battle shadow map
         // -------------------------------------------------------------------
 
         [Test]
-        public void EveryShadowCardFollowsTheProfilesSingleDirection()
+        public void BattleCardsCastAlphaClippedShadowsFromTheSlantedMainLight()
         {
             WithBattleArena(arena =>
             {
-                ArenaShadowCard[] shadows = arena.GetComponentsInChildren<ArenaShadowCard>(true);
-                Assert.That(shadows.Length, Is.GreaterThan(100),
-                    "the arena placed " + shadows.Length + " card shadows, which is not one per card");
-
-                float profileDirection = Theme.DuskProfile.ShadowDirectionDegrees;
-                for (int i = 0; i < shadows.Length; i++)
+                MeshRenderer[] cards = arena.transform.Find("Cards").GetComponentsInChildren<MeshRenderer>(true);
+                Assert.That(cards.Length, Is.GreaterThan(100), "the arena has too few scenery cards to verify");
+                for (int i = 0; i < cards.Length; i++)
                 {
-                    float drawn = ArenaShadowCard.DirectionDegreesOf(shadows[i].transform);
-                    Assert.That(Mathf.Abs(Mathf.DeltaAngle(drawn, profileDirection)), Is.LessThan(0.05f),
-                        shadows[i].name + " points at " + drawn.ToString("0.00", CultureInfo.InvariantCulture)
-                        + " but the profile says " + profileDirection.ToString("0.00", CultureInfo.InvariantCulture));
-
-                    Assert.That(shadows[i].DirectionDegrees, Is.EqualTo(profileDirection).Within(0.01f),
-                        shadows[i].name + " recorded a different direction than it was drawn with");
+                    Assert.That(cards[i].shadowCastingMode, Is.EqualTo(UnityEngine.Rendering.ShadowCastingMode.On),
+                        cards[i].name + " does not cast its alpha-clipped foliage silhouette");
+                    Assert.That(cards[i].receiveShadows, Is.False,
+                        cards[i].name + " receives shadows even though cards are unlit sorting layers");
                 }
 
-                // The same shadows must face the same way, not merely their own recorded value: one
-                // angle for the whole scene is the requirement.
-                Assert.That(shadows.Length, Is.GreaterThan(0));
+                Light key = arena.transform.Find("Lights/KeyLight").GetComponent<Light>();
+                Assert.That(key.shadows, Is.EqualTo(LightShadows.Hard), "Battle's key light does not render the shadow map");
+                Assert.That(RenderSettings.sun, Is.EqualTo(key), "the scenery light is not URP's main light");
+                Assert.That(Mathf.Abs(key.transform.eulerAngles.x), Is.GreaterThan(0.1f),
+                    "the key light is not elevated, so shadows do not travel across the ground");
             });
         }
 
         [Test]
-        public void TheOpenCentreHoldsNoLargeShadow()
+        public void ArenaFloorAppliesTheMainLightShadowCoverageTint()
         {
-            // "เงาปื้นใหญ่ใต้เรือนยอดต้นไม้ที่ขอบสนามเท่านั้น ห้ามมีเงาปื้นใหญ่ในโซนกลาง": a wide crown patch
-            // inside the open centre would sit under the fight and compete with the ghosts.
-            WithBattleArena(arena =>
-            {
-                ArenaTheme theme = Theme;
-                ArenaShadowCard[] shadows = arena.GetComponentsInChildren<ArenaShadowCard>(true);
-                int canopies = 0;
-                int centre = 0;
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(MaterialFolder + "/ground.mat");
+            Assert.That(material, Is.Not.Null, "the arena floor material is missing");
 
-                for (int i = 0; i < shadows.Length; i++)
-                {
-                    ArenaShadowCard shadow = shadows[i];
-                    Vector3 position = shadow.transform.position;
-                    float radius = Mathf.Sqrt((position.x * position.x) + (position.z * position.z));
-
-                    if (shadow.IsCanopy)
-                    {
-                        canopies++;
-                        Assert.That(radius, Is.GreaterThanOrEqualTo(theme.CenterRadius),
-                            "a crown patch lies inside the open centre at radius " + radius.ToString("0.00"));
-
-                        Assert.That(shadow.SourceZone, Is.EqualTo(ArenaCardZone.Border),
-                            "a crown patch belongs to a card outside the border zone");
-                    }
-
-                    if (radius < theme.CenterRadius)
-                    {
-                        centre++;
-                        Assert.That(shadow.Width, Is.LessThanOrEqualTo(ArenaShadowCard.LargeShadowWidth),
-                            "a wide shadow patch lies in the centre (" + shadow.Width.ToString("0.00") + " units wide)");
-                    }
-                }
-
-                Assert.That(canopies, Is.GreaterThan(0), "no border tree has a crown patch, so the rule tests nothing");
-                Assert.That(centre, Is.GreaterThan(0), "the centre has no cards, so the rule tests nothing");
-            });
+            string shaderPath = AssetDatabase.GetAssetPath(material.shader);
+            Assert.That(string.IsNullOrEmpty(shaderPath), Is.False, "the arena floor shader is not a project asset");
+            string source = File.ReadAllText(shaderPath);
+            StringAssert.Contains("GetMainLight(TransformWorldToShadowCoord(input.positionWS))", source,
+                "the floor does not sample the shadow map even though its shader compiles the variants");
+            StringAssert.Contains("shadowCoverage * saturate(_ArenaShadowStrength)", source,
+                "the profile's shadow strength does not control the shadow contribution");
+            StringAssert.Contains("saturate(_ArenaShadowColor.rgb)", source,
+                "the profile's non-black shadow tint is not applied to shadowed floor pixels");
         }
 
         [Test]
-        public void ShadowsAreAlwaysDrawnUnderEveryActor()
+        public void ActorBlobShadowsRemainSeparateFromTheCardShadowMap()
         {
-            // The order is a constant, so it can be checked against the smallest order an actor can
-            // ever have anywhere in the arena — not just against a sample from one frame.
-            int farActor = BattleWorldMap.SortingOrder(RenderEntityKind.Pickup, BattleViewCaps.ArenaRadius);
-            Assert.That(BattleWorldMap.ShadowSortingOrder, Is.LessThan(farActor),
-                "a shadow at the far edge could draw over an actor");
-
-            Material cardShadow = AssetDatabase.LoadAssetAtPath<Material>(MaterialFolder + "/card-shadow.mat");
-            Assert.That(cardShadow, Is.Not.Null, "the card shadow material is missing");
-            Assert.That(cardShadow.renderQueue, Is.LessThan(ProjectSurvive.Game.Editor.ArenaArtBuilder.CardQueue),
-                "card shadows are in the same queue as the cards, so a card could draw under its own shadow");
-
             WithBattleArena(arena =>
             {
-                ArenaShadowCard[] shadows = arena.GetComponentsInChildren<ArenaShadowCard>(true);
-                for (int i = 0; i < shadows.Length; i++)
-                {
-                    var renderer = shadows[i].GetComponent<MeshRenderer>();
-                    Assert.That(renderer, Is.Not.Null, shadows[i].name + " has no renderer");
-                    Assert.That(renderer.sortingOrder, Is.EqualTo(BattleWorldMap.ShadowSortingOrder),
-                        shadows[i].name + " carries its own sorting order");
-                    Assert.That(renderer.shadowCastingMode, Is.EqualTo(UnityEngine.Rendering.ShadowCastingMode.Off),
-                        shadows[i].name + " asks URP for a real shadow");
-                }
+                ArenaBlobShadows blobs = arena.GetComponentInChildren<ArenaBlobShadows>(true);
+                Assert.That(blobs, Is.Not.Null, "the actors lost their separate blob-shadow renderer");
+                Assert.That(blobs.Material, Is.Not.Null);
+                Assert.That(blobs.Material.renderQueue, Is.EqualTo(ProjectSurvive.Game.Editor.ArenaArtBuilder.ShadowQueue));
             });
         }
 

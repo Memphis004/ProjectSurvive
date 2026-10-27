@@ -9,22 +9,21 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
     /// <summary>
     /// The arena's presentation: which <see cref="ArenaLightingProfile"/> is in force, the fake
     /// lights that profile turns on, the lantern that follows the player, the screen-top gradient
-    /// band and the instanced shadow layer.
+    /// band, the main-light shadow map for scenery, and the actor blob-shadow layer.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This is the whole runtime half of Stage 08e/08f. The cards, the decals, their fake shadows
-    /// and the tree wall are authored into the Battle scene by <c>ArenaBuilder</c> and marked static,
-    /// so at runtime they cost nothing to build and almost nothing to draw. What is left is the part
-    /// that has to move or change: the lighting profile, the player's lantern, the shadows under the
-    /// actors, and the screen band.
+    /// The cards and decals are authored into the Battle scene by <c>ArenaBuilder</c>. Their scenery
+    /// silhouettes are submitted to the main-light shadow map; actor shadows are still instanced
+    /// blobs. The remaining runtime work is the lighting profile, the player's lantern, the actor
+    /// blob shadows, and the screen band.
     /// </para>
     /// <para>
     /// <b>Dusk and night are one call.</b> <see cref="SetTimeOfDay"/> (and its older spelling
     /// <see cref="SetNight"/>) selects one of the theme's two profiles and
     /// <see cref="ApplyProfile"/> writes it into the engine: ambient, the one directional light, fog,
     /// the camera's clear colour, the globals the arena shaders read (tint, fake-light intensities,
-    /// the cool shadow colour and strength, the screen band), and a runtime post-processing volume
+    /// the camp decal-shadow colour and strength, the screen band), and a runtime post-processing volume
     /// (Color Adjustments, optional LUT, Bloom, Vignette). No material, texture or sprite is touched,
     /// which is what “สลับ Dusk/Night ได้โดยไม่เปลี่ยน asset” means in practice.
     /// </para>
@@ -52,10 +51,10 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         /// <summary>Global intensity of the glow sprites: the lantern and the floating motes.</summary>
         public const string ArenaGlowGlobal = "_ArenaGlow";
 
-        /// <summary>Global colour every fake shadow multiplies into the floor.</summary>
+        /// <summary>Global tint applied to main-light shadow coverage on the arena floor.</summary>
         public const string ArenaShadowColorGlobal = "_ArenaShadowColor";
 
-        /// <summary>Global how dark a fully covered shadow pixel gets.</summary>
+        /// <summary>Global strength of the main-light shadow tint.</summary>
         public const string ArenaShadowStrengthGlobal = "_ArenaShadowStrength";
 
         [Tooltip("The theme the scene was built from. Its Dusk/Night profiles are what switch.")]

@@ -364,27 +364,37 @@ the two images differ only where the dither removed pixels
 
 Dusk is the shipped look and Night is the same arena under a colder key; neither is a different
 scene, a different material or a different texture. `ArenaLightingProfile` is a ScriptableObject that
-owns ambient, the single directional light, the shadow colour and its one angle, fog, the screen
+owns ambient, the single directional light and its angle, the shadow tint, fog, the screen
 top band, the fake-light intensities and the post grade, and the arena's shaders read it through
 globals only (`_ArenaTint`, `_ArenaLightPool`, `_ArenaGlow`, `_ArenaShadowColor`,
 `_ArenaShadowStrength`, `_ArenaScreenGradient`). `ArenaEnvironmentView.SetTimeOfDay` swaps two
 profiles; an EditMode test and the capture's own `assets unchanged by the profile switch: True`
 assert that no material's colour, texture or render queue moved.
 
-**Shadows are decals with one direction.** A card writes no depth and 300 ghosts leave no room for
-a shadow pass, so each standing card gets a soft quad on the floor: length =
-`height × ShadowLengthPerHeight`, width = the card's own, oriented from
-`ArenaLightingProfile.ShadowDirectionDegrees` (245° at both profiles). There is exactly one angle in
-the scene and a test reads it back off the placed transforms. The wide canopy patch exists only
-under border trees (`ArenaShadowCard.IsCanopy`, 74 of 187); the open centre may not hold one. All
-shadows sit in one render queue below every actor order (`BattleWorldMap.ShadowSortingOrder`), so a
-shadow can never cover a ghost, a pickup or the player.
+**Battle's shadows are the main light's shadow map (Stage 08g item 4).** The cards are alpha-clipped
+shadow casters: `ArenaCard.shader` has a `ShadowCaster` pass that `clip`s on the same `_BaseMap` alpha
+it draws with (and repeats the foliage sway), every placed card is `shadowCastingMode = On` with
+`receiveShadows = false`, and the key light is `LightShadows.Hard` and `RenderSettings.sun` — URP's
+main light. The floor is the surface that receives it: `ArenaGround.shader` multiplies its tint by the
+coverage it reads through `TransformWorldToShadowCoord`, tinted by the profile's own
+`_ArenaShadowColor` / `_ArenaShadowStrength`, so the moon's angle is the profile's
+`KeyLightEuler` (58°/−40° at dusk, 46°/−62° at night, i.e. long oblique shadows) and switching
+Dusk/Night still touches no asset. The actors are separate: they keep the instanced blob shadows of
+`ArenaBlobShadows`, and a card never receives a shadow, so only the floor darkens. The map costs
++4 batches / +2 set-pass / +0.03 ms at 1920×1080 (65 / 23 / 2.32 ms with it on against 61 / 21 /
+2.29 ms with `LightShadows.None`), inside Stage 08f's ≤ 200-batch budget — measured in
+`artifacts/stage08g/shadow-map-check.txt`, reasoned in
+[ADR 0039](../../docs/adr/0039-the-arena-scenery-casts-a-shadow-map.md).
 
-**~190 shadow quads are one draw call.** As scene renderers they cost a batch each and took the
-300-ghost frame to 205; `ArenaCardShadowLayer` bakes their matrices once and draws them with one
-`Graphics.DrawMeshInstanced`, disabling the individual renderers. The builder still places one
-`ArenaShadowCard` per shadow, so the direction/zone/sorting tests read the scene rather than a
-parallel list. `ArenaScreenGradient` is a camera-space canvas at sorting order −100 (below the HUD) —
+**The camp keeps decals with one direction.** Length = `height × ShadowLengthPerHeight`, width = the
+card's own, oriented from `ArenaLightingProfile.ShadowDirectionDegrees` (245° at both profiles); one
+angle for the whole scene, a test reads it back off the placed transforms, and the wide canopy patch
+exists only under border trees (`ArenaShadowCard.IsCanopy`). All decals sit in one render queue below
+every actor order (`BattleWorldMap.ShadowSortingOrder`), so a shadow can never cover a ghost, a pickup
+or the player, and `ArenaCardShadowLayer` bakes their matrices once to draw ~190 of them in one
+`Graphics.DrawMeshInstanced`. Battle no longer instantiates them, but the classes and
+`ArenaArtBuilder.BuildCardShadowPrefab` stay because `CampEnvironmentBuilder` builds the camp's arena
+with them. `ArenaScreenGradient` is a camera-space canvas at sorting order −100 (below the HUD) —
 URP fog darkens by camera distance, which is not the screen's vertical axis under an orthographic
 rig — and `ArenaContrast` measures readability as the WCAG luminance ratio of a group's 90th
 percentile against the median floor ring around it, on the pixels of the saved PNG itself.
