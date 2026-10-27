@@ -162,6 +162,7 @@ namespace ProjectSurvive.Game.Editor
                 "[ProjectSurvive] arena: " + placements.Length + " pieces ("
                 + Count(placements, ArenaCardZone.Center) + " centre, "
                 + Count(placements, ArenaCardZone.Ring) + " ring, "
+                + Count(placements, ArenaCardZone.Foreground) + " foreground, "
                 + Count(placements, ArenaCardZone.Border) + " border, "
                 + Count(placements, ArenaCardZone.Decal) + " decals), seed " + seed
                 + ", signature " + SignatureHash(placements).ToString("x8"));
@@ -783,6 +784,7 @@ namespace ProjectSurvive.Game.Editor
             json.Append("  \"centerMaxHeight\": ").Append(theme.CenterMaxHeight.ToString(CultureInfo.InvariantCulture)).Append(",\n");
             json.Append("  \"counts\": { \"center\": ").Append(Count(placements, ArenaCardZone.Center))
                 .Append(", \"ring\": ").Append(Count(placements, ArenaCardZone.Ring))
+                .Append(", \"foreground\": ").Append(Count(placements, ArenaCardZone.Foreground))
                 .Append(", \"border\": ").Append(Count(placements, ArenaCardZone.Border))
                 .Append(", \"decals\": ").Append(Count(placements, ArenaCardZone.Decal)).Append(" },\n");
             json.Append("  \"problems\": [");

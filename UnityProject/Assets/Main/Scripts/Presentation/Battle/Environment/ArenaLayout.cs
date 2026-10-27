@@ -118,6 +118,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
 
             AddCenter(theme, ref random, placements);
             AddRing(theme, ref random, placements);
+            AddForeground(theme, ref random, placements);
             AddBorder(theme, ref random, placements);
             AddDecals(theme, ref random, placements);
 
@@ -146,7 +147,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
                 return errors;
             }
 
-            int centerGrass = 0, ringBushes = 0, borderTrees = 0;
+            int centerGrass = 0, ringBushes = 0, borderTrees = 0, foregroundTrunks = 0;
 
             for (int i = 0; i < placements.Count; i++)
             {
@@ -184,6 +185,24 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
                             p.StyleId + " is a standing card inside the " + theme.CenterRadius.ToString("0.00")
                             + " unit centre, at radius " + p.Radius.ToString("0.00"));
                     }
+
+                    // The wall is measured in players, not in world units (Stage 08g): shorter than
+                    // WallMinHeightFactor players and it reads as a hedge at the player's feet,
+                    // taller than WallMaxHeightFactor and it stops being wall at all. The check is
+                    // here rather than in the builder so an over-tall style fails a unit test.
+                    if (p.Zone == ArenaCardZone.Border || p.Zone == ArenaCardZone.Foreground)
+                    {
+                        float shortest = theme.PlayerHeight * theme.WallMinHeightFactor;
+                        float tallest = theme.PlayerHeight * theme.WallMaxHeightFactor;
+                        if (p.Height < shortest - 0.001f || p.Height > tallest + 0.001f)
+                        {
+                            errors.Add(
+                                p.StyleId + " stands " + p.Height.ToString("0.00") + " units tall, outside the "
+                                + shortest.ToString("0.00") + "–" + tallest.ToString("0.00")
+                                + " that " + theme.WallMinHeightFactor.ToString("0") + "–"
+                                + theme.WallMaxHeightFactor.ToString("0") + " players allows");
+                        }
+                    }
                 }
 
                 switch (p.Zone)
@@ -212,6 +231,20 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
                         }
 
                         break;
+
+                    case ArenaCardZone.Foreground:
+                        foregroundTrunks++;
+                        if (p.Radius < theme.ForegroundInnerRadius - 0.001f
+                            || p.Radius > theme.ForegroundOuterRadius + 0.001f)
+                        {
+                            errors.Add(
+                                p.StyleId + " stands at radius " + p.Radius.ToString("0.00")
+                                + ", outside the foreground belt of "
+                                + theme.ForegroundInnerRadius.ToString("0.00") + "–"
+                                + theme.ForegroundOuterRadius.ToString("0.00"));
+                        }
+
+                        break;
                 }
 
                 if (p.IsDecal && p.Height > 0.05f)
@@ -233,6 +266,11 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
             if (borderTrees > theme.BorderTreeMax)
             {
                 errors.Add("the border has " + borderTrees + " trees, over its cap of " + theme.BorderTreeMax);
+            }
+
+            if (foregroundTrunks > theme.ForegroundTrunkMax)
+            {
+                errors.Add("the foreground belt has " + foregroundTrunks + " trunks, over its cap of " + theme.ForegroundTrunkMax);
             }
 
             // Spacing: a bush is checked against every other bush, a tree against every other tree.
@@ -438,6 +476,60 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
                         ArenaCardZone.Border, theme.Styles, style, style.Width * scale, style.WorldHeight(scale),
                         scale, x, z,
                         random.Range(-theme.MaxYawDegrees, theme.MaxYawDegrees)));
+                }
+            }
+        }
+
+        /// <summary>
+        /// The foreground trunks: a thin belt of tall cards just outside the open centre, which is
+        /// where the bottom edge of the frame is.
+        /// </summary>
+        /// <remarks>
+        /// The camera is pitched 50° and follows the player, so the ground row at the bottom edge of
+        /// the frame stands <c>OrthographicSize / sin(pitch)</c> — 11.6 units at the stage's camera —
+        /// in front of the player. The centre may hold nothing taller than grass, so the belt starts
+        /// at the first radius outside it: standing in the middle of the arena a player therefore has
+        /// the trunks rising from the bottom of the frame rather than out of the middle of the fight,
+        /// and a player who walks toward one sees it dither out of the way (<c>ArenaCardFade</c>).
+        /// </remarks>
+        private static void AddForeground(ArenaTheme theme, ref ArenaRandom random, List<ArenaPlacement> into)
+        {
+            ArenaCardStyle[] styles = StylesIn(theme.Styles, ArenaCardZone.Foreground);
+            if (styles.Length == 0)
+            {
+                return;
+            }
+
+            float inner = Mathf.Max(theme.ForegroundInnerRadius, theme.CenterRadius);
+            float outer = Mathf.Max(inner + 0.5f, theme.ForegroundOuterRadius);
+            int target = random.NextInt(theme.ForegroundTrunkMin, theme.ForegroundTrunkMax);
+            float spacing = Mathf.Max(2f, AverageWidth(styles) * 1.5f);
+
+            for (int i = 0; i < target; i++)
+            {
+                ArenaCardStyle style = styles[random.NextInt(0, styles.Length - 1)];
+                float scale = random.Range(style.MinScale, style.MaxScale);
+
+                for (int attempt = 0; attempt < PlacementAttempts; attempt++)
+                {
+                    float angle = random.Range(0f, Mathf.PI * 2f);
+                    float radius = random.Range(inner, outer);
+                    float x = Mathf.Cos(angle) * radius;
+                    float z = Mathf.Sin(angle) * radius;
+
+                    // Clear of its own belt and of the bushes it shares the band with, so a trunk
+                    // never rises out of the middle of a shrub.
+                    if (!HasRoom(into, x, z, spacing, ArenaCardZone.Foreground)
+                        || !HasRoom(into, x, z, theme.BushMinSpacing, ArenaCardZone.Ring))
+                    {
+                        continue;
+                    }
+
+                    into.Add(Placement(
+                        ArenaCardZone.Foreground, theme.Styles, style,
+                        style.Width * scale, style.WorldHeight(scale), scale, x, z,
+                        random.Range(-theme.MaxYawDegrees, theme.MaxYawDegrees)));
+                    break;
                 }
             }
         }

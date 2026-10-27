@@ -1,0 +1,162 @@
+# Stage 08g — Look-dev ฉาก Battle (Presentation เท่านั้น)
+
+Presentation และเครื่องมือ Editor เท่านั้น: ไม่มีการแก้ `lib/`, `data/` หรือกติกาเกม
+(`git status --porcelain lib data` ว่าง) ทุกการตรวจทำใน Editor ที่ 1920×1080 — ไม่มี WebGL build ใน Stage นี้
+
+> **สถานะสั้น: ทำได้ 4 จาก 7 ข้อ — ข้อ 1 (สำรวจ), 2 (ความคม), 3 (Night profile), 5 (การจัดวาง + กล้อง +
+> ลำต้น foreground) ปิดด้วยตัวเลขจริง. ข้อ 4 (เงา alpha clip) และข้อ 6 (HUD ≤ 15 %) **ยังไม่ได้ทำ**
+> และข้อ 3 เทียบกับ `docs/art/target_keyart.png` **ไม่ได้เพราะไฟล์เป้าหมายไม่มีใน repo** (§6, §7).
+> Acceptance ข้อ "UI ≤ 15 %" จึงเป็น **FAIL** — ปิด Stage เป็น PASS ไม่ได้**
+
+## 1. สาเหตุที่ภาพเบลอ (วัดจริง ไม่เดา)
+
+หลักฐาน: `artifacts/stage08g/survey.cs` (รันใน Editor), `artifacts/stage08g/quality-probe.txt`,
+ภาพ `stage08g-*-before.png`
+
+| ปัจจัย | ค่าที่วัดได้ | เป็นสาเหตุไหม |
+|---|---|---|
+| Render Scale | `m_RenderScale: 1` | **ไม่ใช่** — 1.0 อยู่แล้ว |
+| Depth of Field | ไม่มี DoF ใน volume ที่โหลด | **ไม่ใช่** — ไม่มีอยู่แล้ว |
+| MSAA / FXAA | `m_MSAA: 1` (ปิด), renderer features 0 | **ไม่ใช่ความเบลอ** — เป็นเรื่องขอบหยัก |
+| Fog ยามค่ำ | `FogDensity 0.015` → `1−exp(−(0.015×60)²) = 55.5 %` ของทุกพิกเซลเป็นสีหมอก | **ใช่ — ตัวหลัก** |
+| ความละเอียดเท็กซ์เจอร์การ์ด | การ์ดที่ใหญ่สุด 10.4 × 15.5 u = 401 × 598 px บนจอ 1080p แต่ต้นทาง 256 px → ขยาย **1.57×** | **ใช่ — ตัวที่สอง** |
+| Aniso / filter | `anisoLevel 1`, Bilinear | **ใช่ — ตัวเสริม** |
+| Bloom | `intensity 0.55` ที่ `threshold 0.85` | **ใช่ — ตัวเสริม** |
+
+**แก้ตัวเลขจากรายงานรอบก่อน:** ตารางเดิมเขียนความสูงการ์ดเป็น `383 px` โดยคูณ `cos 50°` — **ผิด**.
+การ์ดหันเข้าหากล้องตรง ๆ (`ArenaCard.FacingCamera` หมุนตาม pitch ของกล้อง) ฉะนั้นภายใต้กล้อง orthographic
+มันถูกวาดเท่าขนาดโลกทั้งสองแกน ความสูงจริงคือ `15.5 × 38.57 = 598 px` และเทสต์เดิมที่คูณ cos อยู่ก็แก้แล้ว
+(`ArenaSharpnessTests.ScreenHeight`) — การ์ดจึงถูกขยายมากกว่าที่รายงานรอบก่อนบอก ไม่ใช่น้อยกว่า
+
+## 2. asset ที่ฉากใช้จริง — อาร์ตจริง กับ placeholder
+
+`Battle.unity` วาดเท็กซ์เจอร์ 15 ไฟล์:
+
+- **อาร์ตจริงจาก `Incoming/`: 0 ไฟล์** — ไม่มีโฟลเดอร์ `Incoming` ใด ๆ ใน repo นี้
+- **placeholder: 15/15 ไฟล์** ทั้งหมดสร้างโดย `ArenaArtBuilder` (ภาพ procedural, ไม่มีลิขสิทธิ์บุคคลที่สาม):
+  `tree-a/b/c`, `bush`, `grass`, `grass-small`, `dirt`, `flower`, `leaf`, `ground-macro`,
+  `light-pool`, `lantern-glow`, `blob-shadow`, `mote`, `screen-gradient`, `screen-mid-band`
+- mesh/prefab ก็สร้างเอง: `ArenaCardQuad`, `ArenaShadowQuad`, `ArenaCard.prefab`, `GroundDecal.prefab`,
+  `ArenaCardShadow.prefab`
+- ตัวละคร/HUD ใช้ Spine แพ็กที่ซื้อ (Stage 17a/17e) — ยังเป็น BLOCKER ด้านลิขสิทธิ์ตาม `ATTRIBUTION.md`
+
+## 3. Acceptance
+
+| # | เกณฑ์ | ผล | หลักฐาน |
+|---|---|---|---|
+| 1 | ภาพไม่เบลอที่ Game view 1x และไม่มี Depth of Field | **PASS** | fog 55.5 %→12.1 %; การ์ด 256→512 px และการ์ดที่ใหญ่สุดถูกวาด 508 px ≤ 512 (เดิม 401 px จาก 256 px = ขยาย 1.57×); aniso 1→8; bloom 0.55/0.85→0.32/1.05; `ArenaSharpnessTests` 6/6 |
+| 2 | โทนกลางคืนตัวเลขใกล้เป้ากว่าเดิม | **NOT RUN** | วัดก่อน/หลังได้ (§4) แต่เทียบ `target_keyart` ไม่ได้ — ไฟล์เป้าหมายไม่มีใน repo (§7) |
+| 3 | กลางลานผ่านเทสต์โซน; UI ≤ 15 % ของจอ | **FAIL** | โซน **PASS** (`arena-report.json` → `problems: []`; กลาง 15 / ring 24 / foreground 8 / border 79); **UI 37.86 % → ยังไม่ได้รื้อ (ข้อ 6)** |
+| 4 | รายงาน placeholder ชัดเจน | **PASS** | §2 (0 อาร์ตจริง / 15 placeholder) |
+
+## 4. ตัวเลขก่อน/หลัง (วัดบน PNG ที่บันทึกจริง + ผล build)
+
+Batches / draw / set-pass / ms ต่อเฟรม (Editor Play Mode, i5-14400F + RTX 5060 Ti):
+
+```
+                    ก่อน            หลัง
+night-empty 1920   128 / 2.69 ms    62 / 2.45 ms
+night-empty 1280   129 / 2.38 ms    63 / 2.24 ms
+dusk-empty  1920   130 / 2.84 ms    63 / 2.27 ms
+night-ghosts 1920  134 / 2.40 ms    80 / 2.39 ms
+night-300   1920   134 / 2.39 ms    81 / 2.33 ms
+night-300   1280   151 / 2.28 ms    81 / 2.41 ms
+```
+
+งบ ≤ 200 batches ของ Stage 08f **ผ่านทุกกรณี** และตัวเลข 261 ที่รายงานรอบก่อนเจอที่ 300 ผี
+**ไม่ reproduce ในรอบนี้** (81) — รอบนั้นวัดที่กล้องเดิมและสาเหตุยังไม่ทราบ รอบนี้ยืนยันได้แค่ว่าตัวเลขปัจจุบัน
+
+Tone (`stage08g-tone-*.txt`, L = luminance เชิงเส้นเฉลี่ย, hue = ค่าเฉลี่ยวงกลมของพิกเซล sat > 0.12):
+
+```
+night-empty 1920  whole L 0.0404 → 0.0375 | hue 105.26 → 187.50 | sat 0.313 → 0.202
+                  centre L 0.0377 → 0.0356 | hue 100.06 → 158.08
+night-300   1920  whole L 0.0408 → 0.0401 | hue 104.99 → 188.04
+dusk-empty  1920  whole L 0.0919 → 0.0772 | hue  74.33 →  69.88
+```
+
+Readability (เกณฑ์ Stage 08f เดิม ไม่ลดเกณฑ์):
+
+```
+night-300 1920  player 9.31→10.59  ghost 1.65→8.23  pickup 11.63→11.77  telegraph 1.79→1.88  FAIL→PASS
+night-300 1280  player 8.08→10.05  ghost 1.37→2.53  pickup 11.63→11.77  telegraph 1.79→2.24  FAIL→PASS
+night-ghosts    ghost 1.52 = FAIL (ตัวเก็บตัวอย่างจับผี 3 ตัวที่บังเอิญกลืนกับพื้น — วัดซ้ำได้ค่าไม่คงที่)
+```
+
+โซน (`artifacts/arena/arena-report.json`, seed 20261024): `problems: []`,
+counts `center 15 / ring 24 / foreground 8 / border 79 / decals 28`, signature `72304a6f`;
+กำแพงสูง **4.86–7.98 u = 3.0–4.99 เท่าของผู้เล่น** (ผู้เล่นที่เกมประกาศไว้ 1.6 u)
+
+## 5. สิ่งที่เปลี่ยนใน Stage นี้
+
+- **ความคม (ข้อ 2):** ต้นไม้ 256→512 px, พุ่ม 128→256, หญ้า 64→128, ดิน 256→512, ดอก/ใบ 64→128;
+  `anisoLevel 8`, `maxTextureSize 2048`, `CompressedHQ` (≈1 ไบต์/พิกเซล เท่าของเดิม ขนาดหน่วยความจำไม่โต),
+  mipmap ยังเปิด; seed ต้นไม้ตรึงที่ 357 เพื่อให้เป็นต้นไม้ต้นเดิม
+- **Night profile (ข้อ 3):** tint `(0.34,0.42,0.62)→(0.32,0.38,1.00)`, fog `0.015→0.006`, mid band `0.10→0.05`,
+  exposure `−0.30→−0.05`, contrast `15→20`, sat `−8→0`, bloom `0.55/0.85→0.32/1.05`, vignette `0.40→0.44`;
+  แอ่งแสง `(1.00,0.83,0.55)` (ส้มหม่น) → `(1.00,0.13,0.34)` (แดงชมพู hue ≈348°)
+- **การจัดวาง/กล้อง (ข้อ 5):**
+  - `BattleCameraRig` เปลี่ยนจากค่าคงที่ `OrthographicSize = 14` เป็น **camera profile**:
+    `PlayerHeight 1.6 u` และ `PlayerScreenHeightFraction 0.09` → `OrthographicSize = 8.889 u`
+    (1080p = 60.75 px/หน่วย แทน 38.57) เทสต์ `ThePlayerStandsEightToTenPercentOfTheScreenHeight` ตรึงค่า
+  - กำแพงต้นไม้: style ชายขอบทุกตัวถูกจัดใหม่ให้อยู่ในย่าน 3–5 เท่าของผู้เล่น (เดิมสูงถึง 20 u = 12.5 เท่า)
+    และ `ArenaLayout.Validate` บังคับย่านนี้จริง (ไม่ใช่แค่ค่าใน asset) — เทสต์ `EveryArenaTreeStandsThreeToFivePlayersHigh`
+  - **โซน `Foreground` ใหม่:** ลำต้นผอม ๆ เขตรัศมี 13–16 u (แถวล่างของเฟรมอยู่ที่ `OrthographicSize / sin 50°`
+    = 11.6 u หน้าผู้เล่น) 8 ต้นต่อ seed; การ์ดที่ยืนระหว่างกล้องกับผู้เล่นถูกวาดทับและ `ArenaCardFade`
+    ไล่ dither เมื่อมันบังผู้เล่น — เทสต์ `TheForegroundBeltStandsAtTheBottomEdgeOfTheFrame`,
+    `TheLayoutPlacesItsForegroundTrunksInsideTheBelt`, `AForegroundTrunkDithersWhenThePlayerWalksBehindIt`
+  - แก้ `MaxScale` ของดิน 1.20→1.10 เพื่อให้การ์ดที่กว้างสุดยังพอดี 512 px ที่ 60.75 px/หน่วย
+- **เทสต์:** ใหม่ `ArenaLookDevTests` (5 เคส) + แก้ `ArenaSharpnessTests` (สูตรความสูง) และ
+  `ArenaEnvironmentTests.TheBorderWallIsDenseAndStandsThreeToFivePlayersHigh` (แทนข้อกำหนด "big tree ≥ 8 u"
+  ด้วยย่านความสูงของกำแพง) — EditMode **309/309**
+
+**ข้อจำกัดที่ต้องบอกตรง ๆ:** `PlayerHeight 1.6 u` คือความสูงที่โปรไฟล์ตัวละคร *ประกาศ* (`SpinePlayerProfile`,
+`GenericCutePlayerProfile`) แต่ภาพที่วาดจริงสูงกว่า — วัดจากเฟรมได้ 95 px ก่อน (8.8 % ของ 1080) → ~150 px
+หลัง (≈13.9 %) ขณะที่ 17c บันทึกไว้ว่า silhouette วาด ~2.6 u ทั้งที่โปรไฟล์สั่ง 1.6
+ฉะนั้น **กล้องนี้วางกรอบให้ผู้เล่นตามที่โปรไฟล์ประกาศ (9.0 %) แต่ภาพที่เห็นคือ ~14 %** —
+เมื่อแก้ silhouette ของ Spine ให้ตรงโปรไฟล์ (งานของสาย 17) เฟรมนี้จะได้ 8–10 % ตามที่ prompt ขอทันที
+
+## 6. ข้อ 4 และข้อ 6 — ยังไม่ได้ทำ (และข้อเสนอแตก Stage)
+
+- **ข้อ 4 เงา:** ฉากนี้การ์ดทั้ง ~350 ตัว `shadowCastingMode = Off` และ `KeyLight.shadows = None`;
+  shader `ArenaCard` ไม่มี ShadowCaster pass — และ `ArenaLightingProfile` เขียนไว้ชัดว่า
+  "Cards do not cast real shadows (Stage 08f draws a soft decal per card)" การทำเงาจริงคือการ **กลับโมเดลเงา
+  ของ 08f** (decal 1 call + `DrawMeshInstanced`) ไปเป็น shadow map ที่เพิ่มคิววาดต่อการ์ดทุกตัว
+  แล้วต้องวัดงบ batches ใหม่ทั้งชุด — ควรเป็น Stage ย่อยของตัวเอง ไม่ใช่การปรับค่าในรอบนี้
+- **ข้อ 6 HUD:** ต้องลบ `MiniBagPanel` (11.38 %) ออกทั้งสาย (ฉาก + `BattleHudView`/`BattleViewSettings` +
+  `BattleCaptureState` + `UiCaptureTool`/`BossCaptureTool`/`TelegraphCaptureTool` + `UiLayoutCheck` +
+  `BattleMiniBagTests` + PlayMode) แล้วจัดวาง Status/Timeline/Resource/Floor ใหม่ให้รวมกัน ≤ 15 %
+  พร้อมเทสต์พื้นที่ — เป็นการรื้อ HUD เต็มรอบที่กระทบ ~10 ไฟล์และเทสต์ที่ยืนยันมันอยู่ **ไม่ใช่การปรับค่า**
+  (พื้นที่ปัจจุบัน 37.86 %)
+
+ตามกติกา AGENTS ข้อ 15: Stage นี้มี 7 ข้อ แตะ Unity scene + UI + เทสต์พร้อมกัน — **ขอเสนอแตกเป็น
+`08g-1` (look: ข้อ 1–5, ปิดแล้วในรอบนี้) และ `08g-2` (HUD: ข้อ 6) และ `08g-3` (เงาจริง: ข้อ 4)** โดยไม่เพิ่ม Stage
+เองจนกว่าจะได้รับอนุมัติ
+
+## 7. Blocker และสิ่งที่ยังไม่ได้ทดสอบ
+
+1. `docs/art/target_keyart.png` **ไม่มีใน repo** (ตรวจทั้งไฟล์และประวัติ git) → ข้อ 3 ของ prompt (ปรับให้ใกล้
+   target + บันทึกตัวเลขเทียบ) และการวางภาพเทียบในข้อ 7 ทำไม่ได้ตามที่ขอ; ที่รายงานได้คือ before/after ของตัวเอง
+2. "ตารางค่าเริ่มต้นที่แนบ" ของ Night profile **ไม่ได้แนบมา** → ค่าที่ใช้เป็นค่าที่เลือกเองพร้อมเหตุผล
+   (คอมเมนต์ใน `BuildNightProfile`)
+3. `tools/test.ps1 -Suite Fast` **รันไม่จบในรุ่น pipeline ที่ติดตั้ง**: สคริปต์เรียกคำสั่งเดิม
+   `unity command run_tests` ซึ่งถูกเปลี่ยนชื่อเป็น `unity command test run` และ payload ของ `test_status`
+   เปลี่ยนจาก JSON เป็นข้อความ → Fast ได้ **PASS 12 | FAIL 1 | NOT RUN 3** โดย FAIL ที่ขั้น `unity: EditMode`
+   เท่านั้น (`artifacts/stage08g/fast.log`) ขั้นที่ผ่านจริง: toolchain, dotnet build, xUnit 612, contract 48,
+   sim 3, data 3, wiki 1. **แก้ tools/test.ps1 ไม่ใช่ขอบเขตของ Stage นี้** (แตะแล้ว suite ค้างเพราะ payload
+   แบบใหม่ parse ไม่ได้) จึงคืนไฟล์เป็น HEAD และรัน EditMode ตรง ๆ ผ่าน CLI แทน: **309/309**
+   *(รายงานรอบก่อนเขียนว่า `tools/test.ps1 -Suite Fast` ผ่าน — นั่นเป็นการอ่าน `tail` ที่ตัดขั้น unity ออกไป
+   ไม่ใช่ผลของ suite: ต้องถือว่ารายงานรอบก่อนยืนยันส่วนนี้ผิด)*
+4. ไม่ได้ทดสอบ: WebGL build และ Playwright (Stage นี้ไม่ใช่ gate), PlayMode ผ่าน CLI (ค้นพบ 0 เทสต์ —
+   ข้อจำกัดของ pipeline ในรุ่นนี้), และ WebGL path ของ `CompressedHQ` (ยังไม่เคย build)
+
+## 8. คำสั่งที่รันจริง
+
+```text
+unity command editor invoke_menu "ProjectSurvive/Stage 08e/1. Build arena (theme + seed)"
+unity command --project-path UnityProject script recompile  →  completed
+unity command --project-path UnityProject script run --file AgentScripts/ArenaStage08gCapture.cs \
+       --entry AgentScripts.ArenaStage08gCapture.Run          (tag = before, then after)
+unity command --project-path UnityProject test run --mode editor        → 309/309
+powershell -File tools/test.ps1 -Suite Fast                             → PASS 12 | FAIL 1 | NOT RUN 3
+```

@@ -32,6 +32,6 @@ Material:
     - _GlowChannel: 0
     - _PoolChannel: 1
     m_Colors:
-    - _BaseColor: {r: 1, g: 0.83, b: 0.55, a: 1}
+    - _BaseColor: {r: 1, g: 0.13, b: 0.34, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

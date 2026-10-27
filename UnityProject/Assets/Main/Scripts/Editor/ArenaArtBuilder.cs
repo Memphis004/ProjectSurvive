@@ -107,6 +107,13 @@ namespace ProjectSurvive.Game.Editor
         // saturated red.
         private static readonly Color FlowerWarm = new Color(0.95f, 0.33f, 0.16f, 1f);
         private static readonly Color EmberWarm = new Color(1.00f, 0.36f, 0.14f, 1f);
+
+        /// <summary>
+        /// The colour of every additive light pool on the floor (Stage 08g): a saturated pink-red
+        /// (hue ≈ 348°) instead of the soft amber the arena shipped with, so a lit patch reads as
+        /// candle-and-paper-lantern light in a haunted clearing rather than as sunlight on grass.
+        /// </summary>
+        private static readonly Color LightPoolColour = new Color(1.00f, 0.13f, 0.34f, 1f);
         private static readonly Color LeafAutumn = new Color(0.70f, 0.42f, 0.16f, 1f);
 
         /// <summary>The small blue-white floating lights: cool, so they never read as fire.</summary>
@@ -117,15 +124,22 @@ namespace ProjectSurvive.Game.Editor
         {
             EnsureFolders();
 
-            Texture2D treeA = GenerateTexture("tree-a", 256, TreeA);
-            Texture2D treeB = GenerateTexture("tree-b", 256, TreeB);
-            Texture2D treeC = GenerateTexture("tree-c", 256, TreeC);
-            Texture2D bush = GenerateTexture("bush", 128, Bush);
-            Texture2D grass = GenerateTexture("grass", 64, Grass);
-            Texture2D grassSmall = GenerateTexture("grass-small", 64, GrassSmall);
-            Texture2D dirt = GenerateTexture("dirt", 256, Dirt);
-            Texture2D flower = GenerateTexture("flower", 64, Flower);
-            Texture2D leaf = GenerateTexture("leaf", 64, Leaf);
+            // Stage 08g: the sizes are a **screen** budget, not a taste. The stage's camera is
+            // orthographic with a half-height of 8.889 world units (`BattleCameraRig.OrthographicSize`,
+            // derived from "the player is 9 % of the screen"), so a 1080 px frame is 60.75 px per world
+            // unit. A card is a billboard turned square-on to that camera (`ArenaCard.FacingCamera`),
+            // so it is drawn at its own size on both axes — no foreshortening to discount: the widest
+            // card the theme may place is 7.6 units (462 px) and the tallest 7.92 (481 px), against the
+            // 512 px sources below. `ArenaSharpnessTests` holds that invariant instead of this comment.
+            Texture2D treeA = GenerateTexture("tree-a", 512, TreeA);
+            Texture2D treeB = GenerateTexture("tree-b", 512, TreeB);
+            Texture2D treeC = GenerateTexture("tree-c", 512, TreeC);
+            Texture2D bush = GenerateTexture("bush", 256, Bush);
+            Texture2D grass = GenerateTexture("grass", 128, Grass);
+            Texture2D grassSmall = GenerateTexture("grass-small", 128, GrassSmall);
+            Texture2D dirt = GenerateTexture("dirt", 512, Dirt);
+            Texture2D flower = GenerateTexture("flower", 128, Flower);
+            Texture2D leaf = GenerateTexture("leaf", 128, Leaf);
             Texture2D ground = GenerateTexture("ground-macro", 512, Ground);
             Texture2D pool = GenerateTexture("light-pool", 128, LightPool);
             Texture2D glow = GenerateTexture("lantern-glow", 64, Glow);
@@ -150,7 +164,10 @@ namespace ProjectSurvive.Game.Editor
             Material flowerMat = BuildMaterial("decal-flower", DecalShader, flower, new Color(1f, 1f, 1f, 0.95f), DecalQueue);
             Material leafMat = BuildMaterial("decal-leaf", DecalShader, leaf, new Color(1f, 1f, 1f, 0.9f), DecalQueue);
             Material groundMat = BuildMaterial("ground", GroundShader, ground, Color.white, 2000);
-            Material poolMat = BuildMaterial("light-pool", GlowShader, pool, new Color(1f, 0.83f, 0.55f, 1f), GlowQueue);
+            // Stage 08g: the light pools are the arena's one hot colour, and it is now a hard
+            // pink-red rather than a soft warm orange. The profile still decides how strongly they
+            // show (dusk 0.15, night 0.42 of this tint), so one number serves both looks.
+            Material poolMat = BuildMaterial("light-pool", GlowShader, pool, LightPoolColour, GlowQueue);
             Material emberMat = BuildMaterial("ember-pool", GlowShader, pool, EmberWarm * 1.35f, GlowQueue);
             Material glowMat = BuildMaterial("lantern-glow", GlowShader, glow, new Color(1f, 0.88f, 0.66f, 1f), GlowQueue);
             // The motes are authored brighter than 1.0 so what the profile adds crosses the Bloom
@@ -376,6 +393,20 @@ namespace ProjectSurvive.Game.Editor
             theme.TreeMinSpacing = 2.1f;
             theme.BorderLayers = 3;
             theme.BorderSlotPitchFactor = 0.85f;
+
+            // Stage 08g: the arena's own scale is the player's, and everything is measured against it.
+            // The camera profile (`BattleCameraRig.OrthographicSize`) frames the figure at 9 % of the
+            // screen height, the wall stands 3–5 of them, and the foreground belt begins at the first
+            // radius outside the open centre — the bottom edge of the frame is 11.6 units in front of
+            // the player, so a trunk in 13–16 rises from the bottom sixth of it.
+            theme.PlayerHeight = BattleCameraRig.PlayerHeight;
+            theme.WallMinHeightFactor = 3f;
+            theme.WallMaxHeightFactor = 5f;
+            theme.ForegroundInnerRadius = 13f;
+            theme.ForegroundOuterRadius = 16f;
+            theme.ForegroundTrunkMin = 8;
+            theme.ForegroundTrunkMax = 13;
+
             theme.MaxYawDegrees = 9f;
             theme.GroundMaterial = ground;
             theme.ShadowMaterial = shadow;
@@ -392,16 +423,27 @@ namespace ProjectSurvive.Game.Editor
 
             theme.Styles = new[]
             {
+                // Stage 08g resized the wall: it stands 3–5 players high (4.8–8.0 units at a 1.6-unit
+                // player) instead of the 5.4–20 the first build placed, which read as a forest the
+                // fight happened *under* rather than an edge the fight is kept inside. The widths are
+                // held to what a 512 px texture can cover at the stage's camera (60.75 px per unit,
+                // so 8.4 units) — see `ArenaSharpnessTests`.
                 Style("tree-a", ArenaCardZone.Border, 4.2f, 6.4f, 0.85f, 1.20f, "card-tree-a"),
-                Style("tree-b", ArenaCardZone.Border, 5.0f, 7.2f, 0.80f, 1.15f, "card-tree-b"),
+                Style("tree-b", ArenaCardZone.Border, 5.0f, 6.6f, 0.80f, 1.15f, "card-tree-b"),
                 Style("tree-c", ArenaCardZone.Border, 3.6f, 5.4f, 0.90f, 1.25f, "card-tree-c"),
 
-                // The wall's anchors: the same three silhouettes at two to three times the size, so a
-                // player who walks to the edge has trees passing in front of them rather than a ring
-                // of shrubs at their feet. Placeholder art: no new texture, no new asset.
-                Style("tree-big-a", ArenaCardZone.Border, 9.6f, 14.5f, 0.95f, 1.25f, "card-tree-a"),
-                Style("tree-big-b", ArenaCardZone.Border, 10.4f, 15.5f, 0.90f, 1.20f, "card-tree-b"),
-                Style("tree-big-c", ArenaCardZone.Border, 9.0f, 13.5f, 1.00f, 1.30f, "card-tree-c"),
+                // The wall's anchors: the same three silhouettes at the top of the band, so a player
+                // who walks to the edge has trees passing in front of them rather than a ring of
+                // shrubs at their feet. Placeholder art: no new texture, no new asset.
+                Style("tree-big-a", ArenaCardZone.Border, 7.0f, 7.2f, 0.80f, 1.10f, "card-tree-a"),
+                Style("tree-big-b", ArenaCardZone.Border, 7.6f, 7.6f, 0.78f, 1.00f, "card-tree-b"),
+                Style("tree-big-c", ArenaCardZone.Border, 6.6f, 6.8f, 0.85f, 1.15f, "card-tree-c"),
+
+                // The foreground trunks: the stage's "ลำต้น foreground ที่ขอบล่างของจอ". The narrowest
+                // of the three tree textures squashed to a trunk's aspect, so the belt costs no new
+                // pixel — it is the same placeholder art, drawn thin.
+                Style("trunk-foreground-a", ArenaCardZone.Foreground, 1.9f, 6.2f, 0.90f, 1.15f, "card-tree-c"),
+                Style("trunk-foreground-b", ArenaCardZone.Foreground, 2.3f, 6.6f, 0.85f, 1.10f, "card-tree-b"),
                 Style("bush", ArenaCardZone.Ring, 2.4f, 1.9f, 0.85f, 1.20f, "card-bush"),
                 Style("grass", ArenaCardZone.Center, 1.10f, 0.55f, 0.80f, 1.20f, "card-grass"),
                 Style("grass-small", ArenaCardZone.Center, 0.90f, 0.42f, 0.80f, 1.20f, "card-grass-small"),
@@ -409,7 +451,9 @@ namespace ProjectSurvive.Game.Editor
 
             theme.DecalStyles = new[]
             {
-                Style("dirt", ArenaCardZone.Decal, 7f, 5f, 0.80f, 1.20f, "decal-dirt"),
+                // The dirt patch's scale is capped at 1.10 so the widest one (7.7 units) still fits a
+                // 512 px texture at the stage's 60.75 px per unit.
+                Style("dirt", ArenaCardZone.Decal, 7f, 5f, 0.80f, 1.10f, "decal-dirt"),
                 Style("flower", ArenaCardZone.Decal, 0.90f, 0.90f, 0.70f, 1.30f, "decal-flower"),
                 Style("leaf", ArenaCardZone.Decal, 0.70f, 0.70f, 0.70f, 1.30f, "decal-leaf"),
             };
@@ -503,38 +547,75 @@ namespace ProjectSurvive.Game.Editor
         }
 
         /// <summary>
-        /// Night: the same assets under a cold, much darker key. Every number that is Dusk's
-        /// brightness is lower here, which is what “Night (มืดกว่า)” means and what its test checks.
+        /// Night: the same assets under a cold, much darker key, with all of the frame's detail left
+        /// in it (Stage 08g).
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>What the stage changed and why.</b> The profile this replaces veiled 55 % of every
+        /// pixel at the camera's own distance: <c>FogDensity = 0.015</c> exponential-squared, and the
+        /// orthographic rig sits 60 units from the arena
+        /// (<c>1 − exp(−(0.015 × 60)²) = 0.555</c>). 55 % of a flat dark blue over the whole frame is
+        /// exactly the muddy, bottomless look the stage was opened for — nothing was wrong with the
+        /// textures; the arena was being washed. Density is 0.006 now, which veils 12 % and leaves the
+        /// tree wall as a silhouette rather than a fog bank.
+        /// </para>
+        /// <para>
+        /// <b>Why the tint is what changes the colour.</b> The arena's shaders are <b>unlit</b> on
+        /// purpose (<c>ArenaCard</c>, <c>ArenaGround</c>: texture × base × <c>_ArenaTint</c>, then
+        /// fog). A directional light cannot reach them, so <see cref="ArenaLightingProfile.AmbientSky"/>,
+        /// <c>KeyLight*</c> and the rest of the light block do not move the arena's tone — the tint
+        /// does. The previous tint (0.34, 0.42, 0.62) left the result green-dominant over the
+        /// yellow-green textures and measured hue 105° on a real frame: a dark *daylight* arena, not
+        /// a moonlit one. The new tint puts blue above green in the product (0.34, 0.46, 0.92), which
+        /// is what makes a leaf read as moonlit teal instead of olive.
+        /// </para>
+        /// <para>
+        /// <b>Bloom was a second softener.</b> 0.55 intensity at a 0.85 threshold bled a halo off
+        /// every lit card; it is 0.32 at 1.05 now, so the glow stays on the things that are actually
+        /// bright (the motes, the lantern, the pink pools) and the foliage keeps its edge.
+        /// </para>
+        /// </remarks>
         private static ArenaLightingProfile BuildNightProfile()
         {
             ArenaLightingProfile profile = LoadOrCreateProfile(NightProfilePath);
             profile.TimeOfDay = ArenaTimeOfDay.Night;
 
-            profile.SkyColor = new Color(0.025f, 0.033f, 0.065f, 1f);
-            profile.EnvironmentTint = new Color(0.34f, 0.42f, 0.62f, 1f);
-            profile.AmbientSky = new Color(0.10f, 0.14f, 0.24f, 1f);
-            profile.AmbientEquator = new Color(0.06f, 0.09f, 0.16f, 1f);
-            profile.AmbientGround = new Color(0.025f, 0.035f, 0.06f, 1f);
-            profile.KeyLightColor = new Color(0.62f, 0.72f, 1f, 1f);
-            profile.KeyLightIntensity = 0.42f;
+            profile.SkyColor = new Color(0.020f, 0.030f, 0.070f, 1f);
+
+            // Blue above green: the one number that turns "dark daylight" into moonlight. The
+            // daylight textures are green-dominant by design (the floor is 0.31, 0.34, 0.19 and a leaf
+            // is 0.40, 0.50, 0.22), so blue has to *exceed* green in the product — a tint that merely
+            // cools the green (0.46 on green against 0.92 on blue) still leaves green on top and
+            // measured hue 134°, i.e. a dark daytime arena. At 0.38 against 1.00 the product's blue
+            // wins on both the floor and the leaves, which is what a moonlit clearing reads as.
+            profile.EnvironmentTint = new Color(0.32f, 0.38f, 1.00f, 1f);
+
+            // The light block is kept for the things that *are* lit (actor sprites, the HUD's figure)
+            // and for the shadow work item 4 of the stage asks for; the arena's own shaders are unlit
+            // and read the tint instead.
+            profile.AmbientSky = new Color(0.12f, 0.17f, 0.30f, 1f);
+            profile.AmbientEquator = new Color(0.07f, 0.10f, 0.19f, 1f);
+            profile.AmbientGround = new Color(0.030f, 0.045f, 0.080f, 1f);
+            profile.KeyLightColor = new Color(0.66f, 0.76f, 1f, 1f);
+            profile.KeyLightIntensity = 0.48f;
             profile.KeyLightEuler = new Vector3(46f, -62f, 0f);
 
-            profile.ShadowColor = new Color(0.24f, 0.34f, 0.52f, 1f);
-            profile.ShadowStrength = 0.70f;
+            profile.ShadowColor = new Color(0.16f, 0.24f, 0.44f, 1f);
+            profile.ShadowStrength = 0.74f;
             profile.ShadowDirectionDegrees = 250f;
             profile.ShadowLengthPerHeight = 0.42f;
             profile.CanopyShadowWidthFactor = 0.95f;
 
             profile.FogEnabled = true;
-            profile.FogColor = new Color(0.045f, 0.065f, 0.12f, 1f);
-            profile.FogDensity = 0.015f;
+            profile.FogColor = new Color(0.055f, 0.080f, 0.150f, 1f);
+            profile.FogDensity = 0.006f;
             profile.ScreenTopGradient = 0.55f;
-            profile.ScreenGradientColor = new Color(0.01f, 0.02f, 0.05f, 1f);
+            profile.ScreenGradientColor = new Color(0.010f, 0.020f, 0.050f, 1f);
 
-            // Cool and much weaker than dusk's: by night the haze is the only light in the air, so a
-            // pale band at dusk's strength would flatten the arena the lantern is meant to light.
-            profile.ScreenMidGradient = 0.10f;
+            // The mid band is the second veil: 0.10 of a pale blue across the middle of the frame.
+            // Halved, so the arena is read through light rather than through haze.
+            profile.ScreenMidGradient = 0.05f;
             profile.ScreenMidColor = new Color(0.10f, 0.14f, 0.22f, 1f);
 
             profile.LanternIntensity = 2.4f;
@@ -542,16 +623,16 @@ namespace ProjectSurvive.Game.Editor
             profile.LightPoolIntensity = 0.42f;
             profile.GlowIntensity = 0.70f;
 
-            profile.PostExposure = -0.30f;
-            profile.ColorFilter = new Color(0.80f, 0.88f, 1f, 1f);
-            profile.Contrast = 15f;
-            profile.Saturation = -8f;
-            profile.WhiteBalance = -14f;
+            profile.PostExposure = -0.05f;
+            profile.ColorFilter = new Color(0.88f, 0.94f, 1f, 1f);
+            profile.Contrast = 20f;
+            profile.Saturation = 0f;
+            profile.WhiteBalance = -22f;
             profile.ColorLookup = null;
-            profile.BloomIntensity = 0.55f;
-            profile.BloomThreshold = 0.85f;
-            profile.BloomScatter = 0.65f;
-            profile.VignetteIntensity = 0.40f;
+            profile.BloomIntensity = 0.32f;
+            profile.BloomThreshold = 1.05f;
+            profile.BloomScatter = 0.55f;
+            profile.VignetteIntensity = 0.44f;
             profile.VignetteSmoothness = 0.48f;
             EditorUtility.SetDirty(profile);
             return profile;
@@ -584,6 +665,21 @@ namespace ProjectSurvive.Game.Editor
             File.WriteAllBytes(Path.GetFullPath(path), canvas.EncodePng());
             AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
 
+            // Stage 08g import settings, and why each one:
+            //
+            // * <b>anisotropic 8, forced.</b> The cards are vertical quads seen from a 50° camera, so
+            //   the sampler is looking at them along a very stretched footprint. At 1× (the default)
+            //   the hardware picks a mip that is far too coarse along one axis, which is exactly the
+            //   "everything is soft" that the stage was opened for. 8× is four times the stage's floor
+            //   of 4 and costs nothing measurable at this triangle count.
+            // * <b>max size 2048.</b> The source is now up to 512; without an explicit cap the
+            //   importer's own default could resample it down on the platform override.
+            // * <b>CompressedHQ.</b> Four times the texels at one byte per pixel: the texture memory
+            //   and the Web payload stay where Stage 15 measured them (the previous set was
+            //   256² × 4 B uncompressed, this one is 512² × 1 B compressed).
+            // * <b>Mipmaps stay on.</b> The arena is 80 units across and the camera only shows 50, so
+            //   the far rows are minified hard; without mips they shimmer. Sharpness came from texel
+            //   density and anisotropy, not from removing mips.
             var importer = (TextureImporter)AssetImporter.GetAtPath(path);
             importer.textureType = TextureImporterType.Default;
             importer.sRGBTexture = true;
@@ -592,11 +688,20 @@ namespace ProjectSurvive.Game.Editor
             importer.mipmapEnabled = true;
             importer.wrapMode = TextureWrapMode.Clamp;
             importer.filterMode = FilterMode.Bilinear;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.anisoLevel = AnisoLevel;
+            importer.maxTextureSize = 2048;
+            importer.textureCompression = TextureImporterCompression.CompressedHQ;
             importer.SaveAndReimport();
 
             return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
         }
+
+        /// <summary>
+        /// Anisotropy every arena texture is imported with. The stage's floor is 4; the arena's cards
+        /// are seen edge-on from a 50° camera, which is where anisotropy earns its keep. Exposed so a
+        /// test can read the number it requires instead of restating it.
+        /// </summary>
+        public const int AnisoLevel = 8;
 
         /// <summary>
         /// The same pixel canvas, imported as a Sprite for a canvas Image (the screen-top band). A
@@ -643,14 +748,19 @@ namespace ProjectSurvive.Game.Editor
         // blend into the canvas with a soft edge measured in pixels, which is what keeps a generated
         // silhouette from looking like a bitmap at 50°.
 
-        private static void TreeA(ArtCanvas c) => Tree(c, 256, 0.42f, 0.70f, 0.26f, 0.20f, 9, 0.13f);
+        // The random seed is the one the 256 px art shipped with (101 + 256). Stage 08g raised the
+        // resolution; if the seed had followed the size, every tree would have been re-composed into a
+        // *different* silhouette, which is new art rather than the same art at more pixels.
+        private const int TreeSeed = 357;
 
-        private static void TreeB(ArtCanvas c) => Tree(c, 256, 0.46f, 0.76f, 0.22f, 0.24f, 11, 0.11f);
+        private static void TreeA(ArtCanvas c) => Tree(c, 0.42f, 0.70f, 0.26f, 0.20f, 9, 0.13f);
 
-        private static void TreeC(ArtCanvas c) => Tree(c, 256, 0.38f, 0.62f, 0.31f, 0.17f, 7, 0.14f);
+        private static void TreeB(ArtCanvas c) => Tree(c, 0.46f, 0.76f, 0.22f, 0.24f, 11, 0.11f);
+
+        private static void TreeC(ArtCanvas c) => Tree(c, 0.38f, 0.62f, 0.31f, 0.17f, 7, 0.14f);
 
         private static void Tree(
-            ArtCanvas c, int size, float trunkTop, float canopyY, float canopyX, float canopyYRadius,
+            ArtCanvas c, float trunkTop, float canopyY, float canopyX, float canopyYRadius,
             int blobs, float blobRadius)
         {
             c.Clear(new Color(0f, 0f, 0f, 0f));
@@ -660,7 +770,7 @@ namespace ProjectSurvive.Game.Editor
             c.Line(0.5f, trunkTop * 0.55f, 0.30f, trunkTop * 0.95f, 0.030f, Bark, 1.2f);
             c.Line(0.5f, trunkTop * 0.62f, 0.70f, trunkTop * 1.00f, 0.028f, Bark, 1.2f);
 
-            var random = new System.Random(101 + size);
+            var random = new System.Random(TreeSeed);
             // Dark mass first, then a mid layer and a few lit leaves: three values are enough to give
             // a flat alpha-cut card some volume.
             for (int i = 0; i < blobs; i++)

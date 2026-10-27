@@ -17,6 +17,17 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
 
         /// <summary>A flat ground decal; its height is not a world height.</summary>
         Decal = 3,
+
+        /// <summary>
+        /// The tall, thin trunks that stand at the bottom edge of the frame (Stage 08g).
+        /// </summary>
+        /// <remarks>
+        /// A card that stands between the camera and the player is drawn in front of them — the
+        /// sorting order is the ground row, exactly as it is for a border tree — so these are the
+        /// pieces the occlusion dither exists for: they rise from the near edge of the frame and thin
+        /// out when the player walks behind one.
+        /// </remarks>
+        Foreground = 4,
     }
 
     /// <summary>One kind of card the arena can place.</summary>
@@ -98,6 +109,19 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         [Tooltip("The tallest thing the centre may contain, in world units. The layout and a test enforce it.")]
         public float CenterMaxHeight = 0.75f;
 
+        [Header("Player (the yardstick the camera and the wall are measured against)")]
+        [Tooltip(
+            "Height of the player figure in world units. 1.6 is what the character profiles publish, " +
+            "and the camera profile derives the frame from it.")]
+        public float PlayerHeight = 1.6f;
+
+        [Header("The wall's height, in multiples of the player (Stage 08g)")]
+        [Tooltip("The shortest a border or foreground tree may stand, as a multiple of PlayerHeight.")]
+        public float WallMinHeightFactor = 3f;
+
+        [Tooltip("The tallest a border or foreground tree may stand, as a multiple of PlayerHeight.")]
+        public float WallMaxHeightFactor = 5f;
+
         [Header("Counts (per zone, inclusive)")]
         public int CenterGrassMin = 16;
         public int CenterGrassMax = 26;
@@ -126,6 +150,21 @@ namespace ProjectSurvive.Game.Presentation.Battle.Environment
         [Tooltip("How many concentric layers the tree wall is built from (2–3).")]
         [Range(2, 3)]
         public int BorderLayers = 3;
+
+        [Header("Foreground trunks (the bottom edge of the frame)")]
+        [Tooltip(
+            "Inner radius of the trunk belt, in world units from the arena centre. It has to clear the " +
+            "centre's own ceiling, so it is the first radius outside CenterRadius where a trunk may stand.")]
+        public float ForegroundInnerRadius = 13f;
+
+        [Tooltip("Outer radius of the trunk belt. The camera's near edge stands ForeCameraRow units in front.")]
+        public float ForegroundOuterRadius = 16f;
+
+        [Tooltip("Fewest trunks in the belt.")]
+        public int ForegroundTrunkMin = 8;
+
+        [Tooltip("Most trunks in the belt.")]
+        public int ForegroundTrunkMax = 13;
 
         [Tooltip(
             "Ring pitch of one border layer, as a fraction of the average border card width. " +

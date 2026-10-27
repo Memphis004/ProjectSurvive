@@ -170,13 +170,15 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         [Test]
-        public void TheBorderWallIsDenseAndMadeOfBigTrees()
+        public void TheBorderWallIsDenseAndStandsThreeToFivePlayersHigh()
         {
             ArenaTheme theme = Theme;
             ArenaPlacement[] placements = ArenaLayout.Build(theme, 20261024u);
 
             int border = 0;
             float widest = 0f;
+            float lowest = float.MaxValue;
+            float highest = 0f;
             for (int i = 0; i < placements.Length; i++)
             {
                 if (placements[i].Zone != ArenaCardZone.Border)
@@ -186,6 +188,8 @@ namespace ProjectSurvive.Game.Tests.EditMode
 
                 border++;
                 widest = Mathf.Max(widest, placements[i].Width);
+                lowest = Mathf.Min(lowest, placements[i].Height);
+                highest = Mathf.Max(highest, placements[i].Height);
             }
 
             // The wall is the arena's edge, so "a few trees" is a failure: the shipped theme builds
@@ -195,10 +199,27 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 "the border wall placed only " + border + " trees, under the " + theme.BorderTreeMin
                 + " the theme asks for");
 
-            // Big trees are part of the design: a player who walks to the edge has to see trunks and
-            // canopies passing in front of them, not a hedge at their feet.
-            Assert.That(widest, Is.GreaterThanOrEqualTo(8f),
-                "the wall holds no big tree (widest border card is " + widest.ToString("0.00") + " units)");
+            // Stage 08g replaced "the wall holds a big tree" (a card at least 8 units wide, the
+            // 13.5–15.5 unit silhouettes of the first build) with the wall's own rule: 3–5 players
+            // high, no taller. A landmark big enough to be seen from the whole arena is a different
+            // object, and the stage's answer to "the edge reads as trees" is the camera profile — the
+            // player is 9 % of a 17.8-unit frame now, so a 5-player tree already passes the frame's
+            // top on its own.
+            float shortest = theme.PlayerHeight * theme.WallMinHeightFactor;
+            float tallest = theme.PlayerHeight * theme.WallMaxHeightFactor;
+            Assert.That(lowest, Is.GreaterThanOrEqualTo(shortest - 0.001f),
+                "a border tree stands " + lowest.ToString("0.00") + " units high, under the "
+                + shortest.ToString("0.00") + " the theme's " + theme.WallMinHeightFactor.ToString("0")
+                + " players asks for");
+            Assert.That(highest, Is.LessThanOrEqualTo(tallest + 0.001f),
+                "a border tree stands " + highest.ToString("0.00") + " units high, over the "
+                + tallest.ToString("0.00") + " the theme's " + theme.WallMaxHeightFactor.ToString("0")
+                + " players allows");
+
+            // A wall made of slivers is not a wall either: the cards have to overlap each other at the
+            // layer's pitch, which needs real width even though it no longer needs a landmark.
+            Assert.That(widest, Is.GreaterThanOrEqualTo(3.5f),
+                "the wall holds only slivers (widest border card is " + widest.ToString("0.00") + " units)");
         }
 
         // -------------------------------------------------------------------

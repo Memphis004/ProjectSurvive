@@ -41,8 +41,28 @@ namespace ProjectSurvive.Game.Presentation.Battle
         /// <summary>The tilt the GDD asks for: "กล้องเฉียงประมาณ 50°".</summary>
         public const float PitchDegrees = 50f;
 
-        /// <summary>Half-height of the orthographic view, in world units.</summary>
-        public const float OrthographicSize = 14f;
+        /// <summary>
+        /// Height of the player figure in world units. The yardstick the arena's own scale is
+        /// authored against (<c>SpinePlayerProfile.targetHeightWorld</c>,
+        /// <c>GenericCutePlayerProfile.targetHeightWorld</c>).
+        /// </summary>
+        public const float PlayerHeight = 1.6f;
+
+        /// <summary>
+        /// The fraction of the screen's height the player stands — <b>the camera profile</b>, in one
+        /// number. Stage 08g: the shipped 14-unit half-height framed them at 1.6 / 28 = 5.7 % of the
+        /// frame, and the stage asks for 8–10 %.
+        /// </summary>
+        public const float PlayerScreenHeightFraction = 0.09f;
+
+        /// <summary>
+        /// Half-height of the orthographic view, in world units. Derived from the two numbers above
+        /// rather than typed as a size, so "the player is 9 % of the screen" cannot drift away from
+        /// the camera the scenes are built with: <c>1.6 / (2 × 0.09) = 8.889</c>. At 1080p that is
+        /// 60.75 px per world unit instead of the 38.57 the arena was first built at, which is why
+        /// the card textures are budgeted against it (<c>ArenaSharpnessTests</c>).
+        /// </summary>
+        public const float OrthographicSize = PlayerHeight / (2f * PlayerScreenHeightFraction);
 
         /// <summary>Perspective field of view, matching the orthographic framing at the target.</summary>
         public const float FieldOfView = 35f;

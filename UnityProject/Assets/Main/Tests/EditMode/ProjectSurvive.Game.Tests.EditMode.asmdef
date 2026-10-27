@@ -27,7 +27,9 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "ProjectSurvive.Game.Presentation.Figure",
-        "ProjectSurvive.Game.Presentation.GenericCute"
+        "ProjectSurvive.Game.Presentation.GenericCute",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
     ],
     "includePlatforms": [
         "Editor"
