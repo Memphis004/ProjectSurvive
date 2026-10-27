@@ -353,11 +353,13 @@ namespace ProjectSurvive.Game.Presentation.Battle
         }
 
         /// <summary>
-        /// The floor. With an arena theme this is an <b>opaque</b> mesh quad with the theme's flat
-        /// colour + macro-noise material: opaque so the ground decals, the instanced shadows and the
-        /// actors all draw over it by queue rather than by sorting order, and the cards can write
-        /// depth against it. Without a theme (a fixture) the Stage 08 sprite floor is the fallback,
-        /// unchanged.
+        /// The floor. With an arena theme this is a mesh quad with the theme's flat colour +
+        /// macro-noise material, at the opaque queue (2000) so it is drawn before the decals,
+        /// shadows and actors that stand on it — and, since Stage 08h, writing <b>no</b> depth
+        /// (ADR 0038): who hides whom in this arena is <see cref="BattleWorldMap.SortingOrder"/>'s
+        /// job, and a depth-writing floor silently cut the lower half off every billboard, whose
+        /// centre pivot puts that half below the plane at the camera's 50° tilt. Without a theme
+        /// (a fixture) the Stage 08 sprite floor is the fallback, unchanged.
         /// </summary>
         private void CreateFloor(Transform root)
         {

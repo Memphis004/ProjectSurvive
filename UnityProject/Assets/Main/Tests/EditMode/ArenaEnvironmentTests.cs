@@ -349,6 +349,33 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 "cards are not in the sprite queue, so sorting order cannot interleave them with actors");
         }
 
+        [Test]
+        public void TheFloorWritesNoDepthAndIsDrawnBeforeEverythingOnIt()
+        {
+            // Stage 08h. The floor is the only thing in the arena that is *under* every other
+            // material, and it is drawn first by queue. It must not also write depth: a billboard
+            // stands on the ground plane with a centre pivot at the camera's 50° tilt, so its lower
+            // half hangs below that plane, and a depth-writing floor discards exactly those
+            // fragments (ADR 0038). ZWrite is not exposed by the Material API, so the assertion
+            // reads the pass states of the shader the material actually uses.
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(MaterialFolder + "/ground.mat");
+            Assert.That(material, Is.Not.Null, "the arena floor material is missing");
+
+            Assert.That(material.renderQueue, Is.EqualTo(ProjectSurvive.Game.Editor.ArenaArtBuilder.GroundQueue),
+                "the floor is not in the opaque queue, so it is not drawn before the decals and actors");
+            Assert.That(material.renderQueue,
+                Is.LessThan(ProjectSurvive.Game.Editor.ArenaArtBuilder.DecalQueue),
+                "the floor is not drawn before the decals that lie on it");
+
+            string path = AssetDatabase.GetAssetPath(material.shader);
+            Assert.That(string.IsNullOrEmpty(path), Is.False, "the floor shader is not a project asset");
+
+            string source = File.ReadAllText(path);
+            StringAssert.DoesNotContain("ZWrite On", source,
+                "the floor writes depth again, which cuts the lower half off every billboard standing on it");
+            StringAssert.Contains("ZWrite Off", source, "the floor shader states no depth-write state");
+        }
+
         // -------------------------------------------------------------------
         // day and night are a profile
         // -------------------------------------------------------------------

@@ -1,9 +1,16 @@
-// Stage 08e: the arena floor.
+// Stage 08e: the arena floor. Stage 08h: it writes no depth.
 //
-// Opaque and depth-writing, so decals, the instanced blob shadows and the actor sprites draw over
-// it by render queue rather than by sprite sorting order — and so a card standing on it depth-tests
-// correctly. The texture is a flat colour with faint macro noise; the profile's global _ArenaTint
-// is what turns the daylight floor into a night one.
+// The floor is the first thing drawn (queue 2000, so before the decals at 2950, the card shadows at
+// 2960, the glow at 2970, the blob shadows at 2990 and every sprite at 3000) and it is the only
+// material in the scene that is *behind* everything else. Writing depth bought nothing and cost the
+// actor sprites their lower half: a billboard stands on the ground plane with a centre pivot and the
+// camera's 50° tilt, so its lower half hangs below that plane, and a depth-writing floor discarded
+// exactly those fragments. Occlusion in this arena is authored — `BattleWorldMap.SortingOrder`
+// (docs/adr/0018-battle-camera-projection.md) — and a depth-writing floor is a second,
+// contradictory rule (docs/adr/0038-the-floor-writes-no-depth.md).
+//
+// The texture is a flat colour with faint macro noise; the profile's global _ArenaTint is what turns
+// the daylight floor into a night one.
 Shader "ProjectSurvive/ArenaGround"
 {
     Properties
@@ -28,7 +35,7 @@ Shader "ProjectSurvive/ArenaGround"
             Tags { "LightMode" = "UniversalForward" }
 
             Cull Off
-            ZWrite On
+            ZWrite Off
             ZTest LEqual
 
             HLSLPROGRAM

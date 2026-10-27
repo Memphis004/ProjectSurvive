@@ -67,7 +67,15 @@ namespace ProjectSurvive.Game.Editor
         private const string GroundShader = "ProjectSurvive/ArenaGround";
         private const string ShadowShader = "ProjectSurvive/ArenaShadow";
 
-        /// <summary>Render queue of the ground decals: above the opaque floor, below the shadows.</summary>
+        /// <summary>
+        /// Render queue of the floor: the opaque group, so it is drawn before everything that
+        /// stands on it (decals 2950, card shadows 2960, glow 2970, blob shadows 2990, actors
+        /// 3000). It writes no depth — ADR 0038 — so this queue is the whole of "the floor is
+        /// underneath".
+        /// </summary>
+        public const int GroundQueue = 2000;
+
+        /// <summary>Render queue of the ground decals: above the floor, below the shadows.</summary>
         public const int DecalQueue = 2950;
 
         /// <summary>
@@ -163,7 +171,7 @@ namespace ProjectSurvive.Game.Editor
             Material dirtMat = BuildMaterial("decal-dirt", DirtShader, dirt, new Color(0.88f, 0.84f, 0.76f, 0.55f), DecalQueue);
             Material flowerMat = BuildMaterial("decal-flower", DecalShader, flower, new Color(1f, 1f, 1f, 0.95f), DecalQueue);
             Material leafMat = BuildMaterial("decal-leaf", DecalShader, leaf, new Color(1f, 1f, 1f, 0.9f), DecalQueue);
-            Material groundMat = BuildMaterial("ground", GroundShader, ground, Color.white, 2000);
+            Material groundMat = BuildMaterial("ground", GroundShader, ground, Color.white, GroundQueue);
             // Stage 08g: the light pools are the arena's one hot colour, and it is now a hard
             // pink-red rather than a soft warm orange. The profile still decides how strongly they
             // show (dusk 0.15, night 0.42 of this tint), so one number serves both looks.

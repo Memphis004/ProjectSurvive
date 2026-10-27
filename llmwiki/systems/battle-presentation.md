@@ -316,6 +316,17 @@ neighbouring cards overlap and three layers read as forest instead of as a row o
 passing in front of them. Caps live in the theme (`BorderTreeMin/Max` 72–96); the shipped seed
 places 141 pieces (15 centre, 24 ring, 74 border, 28 decals) at signature `c1ffaa84`.
 
+**The floor is drawn first and writes no depth (Stage 08h).** `ArenaGround.shader` sits at queue 2000
+and `ZWrite Off`: it is underneath everything by queue, and by nothing else. It used to write depth,
+and because an actor's billboard has a centre pivot on the ground plane and the camera looks down at
+50°, its lower half hangs *below* that plane — the floor discarded exactly those fragments
+(`Sprite-Unlit-Default` states no `ZTest`, so it runs `LEqual`). Measured: the lower quarter of a
+ghost/bolt/drop drew **0.000** of its band with the floor on and 0.17–0.59 with it off; after the
+change floor-on and floor-off agree to ≤ 0.03 for ghosts, elites, bosses, bolts, drops, the warning
+ring, the damage number and the doctor. A depth-writing floor was a second, contradictory occlusion
+rule beside `BattleWorldMap.SortingOrder` — see [ADR 0038](../../docs/adr/0038-the-floor-writes-no-depth.md)
+and [the stage report](../../docs/stages/08h-report.md).
+
 **Two rules keep the arena and the actors in one coordinate system.** A card's rotation is
 `ArenaCard.FacingCamera()`, which quotes `BattleCameraRig.PitchDegrees` — the same 50° the sprite
 path gets from `BillboardPitch`, so no second copy of the angle exists; and who hides whom is

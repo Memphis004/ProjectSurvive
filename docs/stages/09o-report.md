@@ -18,15 +18,15 @@ four **world-space price boards** now clear WCAG AA — near-black ink on a brig
 ## 2. Survey and acceptance
 
 The pre-change survey (camera rig, visible ground extent at both sizes, walk area, station
-positions, "before" frames) is recorded in [`08h-report.md`](08h-report.md) — the path the prompt
+positions, "before" frames) is recorded in [`09o-survey.md`](09o-survey.md) — the path the prompt
 named.
 
 **Acceptance, item by item**
 
 | # | Requirement | Verdict | Evidence |
 | --- | --- | --- | --- |
-| 1 | Survey first, recorded | PASS | `08h-report.md`; before frames `artifacts/ui/camp-env/before-before-*.png` |
-| 2 | Camera unchanged | PASS | `08h-report.md` §1 values still in the scene; `CampYardTests` reads `WalkArea` |
+| 1 | Survey first, recorded | PASS | `09o-survey.md`; before frames `artifacts/ui/camp-env/before-before-*.png` |
+| 2 | Camera unchanged | PASS | `09o-survey.md` §1 values still in the scene; `CampYardTests` reads `WalkArea` |
 | 3 | CampTheme: decals/grass only inside the walk area; frame outside it; no collider, no raycast, clicks still land | PASS | `CampYardTests.NothingTallStandsInsideTheWalkArea`, `.CardsAndDecalsCarryNoCollider`, `.TheYardInTheSceneIsNeitherSolidNorClickable`; `CampWorldPlayModeTests.The_yard_never_stands_between_the_pointer_and_a_station`, plus the four existing click/rent tests |
 | 4 | Dusk-Camp warmer and brighter than the arena's dusk, pools around the sala and shelves, softer vignette, one call to Night | PASS | `CampYardTests.DuskCampIsWarmerAndBrighterThanTheArenasDusk`, `.EveryUsagePointHasWarmLightUnderIt`, `.OneCallSwitchesTheCampsLook` |
 | 5 | Readability measured on the capture, thresholds in the theme, real numbers | PASS | `stage09o-after-contrast.txt` — 20/20 views, see §3 |
