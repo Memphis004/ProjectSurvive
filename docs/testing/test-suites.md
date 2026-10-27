@@ -30,7 +30,7 @@ need to run, and the Web build moved behind the Full suite.
 | `data: broken fixtures rejected` | Fast | `tools/check-fixtures.ps1` — 21 broken data sets rejected for the right reason |
 | `wiki: content reproducible` | Fast | `tools/verify-wiki.ps1` — `llmwiki/content/` regenerates byte-identically from `data/`, every relative link and anchor resolves, every data id has a section, no `systems/`/`gotchas/` orphan, and a WARN-only heuristic for hand-written pages that restate skill numbers |
 | `unity: EditMode` | Fast | 205 tests in `ProjectSurvive.Game.Tests.EditMode` (incl. the seven audio-asset cases, the two settings-bus cases, the five pause-overlay cases and the six harness-contract cases added in Stage 14) |
-| `unity: PlayMode` | **Full** | **one `run_tests --filter <Class>` per `*PlayModeTests.cs` fixture**, ten runs (see §7): 76 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control and settings panel, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
+| `unity: PlayMode` | **Full** | **one `unity command test run --filter <Class>` per `*PlayModeTests.cs` fixture**, ten runs (see §7): 76 tests in `ProjectSurvive.Game.Tests.PlayMode` (scenes, pooling, pointer drags, walking, the upgrade-choice window, the title screen's start control and settings panel, the battle HUD's mini ย่าม — its cooldown plates and its stacked-under-the-caption geometry — the three scopes and the 20-round-trip loop) |
 | `web: WebGL build (Development)` | **Full** | `tools/build-web.ps1 -Configuration Development -Force`; `build-info.json` and `build-report.json` are copied to `artifacts/web/` |
 | `web: Playwright (all specs)` | **Full** | every spec in `tests/web/` against that build, in Chrome: smoke, title, battle, camp, result, persistence, audio, pause, **and** `harness.spec.ts` (Development) or `release.spec.ts` (Release). The HTML report, failure screenshots/traces and a JSON result land in `artifacts/web/` |
 
@@ -288,7 +288,7 @@ asmdefs ([ADR 0004](../adr/0004-dotnet-layer-enforcement.md)), so these are the 
 | `SceneFlowPlayModeTests` | 6 | **Stage 10a** — the whole loop through the real scenes: the purse, bag and HP that went into the arena come back out of it (same `RunSession` object, same seed), a settled floor writes `BattleResult.FinalHp` back into the run and heals only what the run's own settlement heals, leaving the arena disposes its `IBattleSession`, arriving at the title leaves no run scope and no scene scope behind, the loader refuses a second transition and a scene that is not built, and **20 camp/battle round trips** leave exactly one scene scope and one run scope each time and grow the managed heap by ≤ 3 MiB (measured: 0.70 MiB; [`artifacts/stage10/loop-memory.md`](../../artifacts/stage10/loop-memory.md)). **Stage 14** added the direct case the budget could only infer: `The_game_has_one_audio_listener_that_survives_every_scene_change` — exactly one enabled listener on the audio device's own object at the camp, after a departure into the arena, and at the title |
 | `ResultScenePlayModeTests` | 3 | **Stage 10b** — a lost floor lands on the summary screen and **Restart** starts a new run at floor 1 with the starting purse and an empty bag, a run can be won floor by floor and ends on the victory summary, and leaving the summary for the title leaves no run behind. **Stage 06b** extended the victory loop (the one case that really crosses camp → battle → camp in one run): shelf 0 is rented and shelf 1 pinned in the first sala, and the second sala's panel must be full, rent-free, unpinned and re-roll counter 0 |
 | `TitleScenePlayModeTests` | 5 | **Stage 10d** — the loop's first screen through the real scenes: Boot hands over and **stops** there (the scene marker, the absent run and the screen's own report are read after the handover the boot scene performed by itself), pressing เริ่มเล่น with the mouse starts a run and walks into the camp as **one** run and one scene scope on floor 1, `Enter` and `Space` reach the same control (the focus is asserted first, because "the key did nothing" and "the button was never focused" are different defects), a second press while the move is in flight is refused by the presenter and by the loader with its typed reason, and playing a run to its summary, going back to the title and pressing again starts a run that is **new** (floor 1, starting purse, the starting bag as a `RunSession` built from scratch on the same seed) |
-| `ShellPlayModeTests` | 5 | scene loading, the title, the Thai spike's two stacks, UniTask cancellation in play mode. **Note:** the assembly's bulk payload reports four of these five — `Thai_spike_scene_measures_both_stacks_without_missing_glyphs` was absent from the payload of every run since Stage 10 while the file still declares it (see §7) |
+| `ShellPlayModeTests` | 5 | scene loading, the title, the Thai spike's two stacks, UniTask cancellation in play mode. **Note:** this is the one fixture the pipeline's class-name filter cannot see at all — `--filter ShellPlayModeTests` answers `completed: 0/0 passed` while `test list` lists its five tests, so the harness re-runs it by full name (5/5 since 2026-10-28, which is also the first time its fifth test, `Thai_spike_scene_measures_both_stacks_without_missing_glyphs`, has been run by the harness — see §7) |
 
 ### Playwright — `tests/web` (18 gate tests) → **Full**
 
@@ -345,8 +345,8 @@ Measured above, in order of what they cost:
    cost (JIT + first config load); nothing to do.
 4. **`unity: EditMode` — 9–14 s.** Already a bridge call into the running Editor, no batch spawn.
 5. **`unity: PlayMode` — 234.9 s across ten fixtures** (measured 2026-10-23, one run per class), 15–28 s
-   each except `SceneFlowPlayModeTests` at 61.8 s; about 14 s of every fixture is `run_tests`' own
-   submit-and-poll handshake, not test time. That is five times the 42.7 s the single bulk run cost —
+   each except `SceneFlowPlayModeTests` at 61.8 s; about 14 s of every fixture is the submit-and-poll
+   handshake, not test time. That is five times the 42.7 s the single bulk run cost —
    and the bulk run could not report a verdict (§7), so the comparison is not like for like.
 6. **`web: Playwright` — 121.4 s** for 8 tests, one worker (2.0 min of browser time, several player
    boots). Parallel workers would break the single-player-at-a-time assumption of the server, and the
@@ -452,8 +452,10 @@ Re-measured on 2026-10-17 after the `loseNow` fix, the same split holds: bulk **
 One further oddity of the payload, recorded rather than explained away: it lists four of
 `ShellPlayModeTests`' five `[UnityTest]`s, and the one it drops
 (`Thai_spike_scene_measures_both_stacks_without_missing_glyphs`) is dropped from every payload since
-Stage 10 without appearing as a failure, so a per-class run is the only thing that reports it — and
-running that class on its own on 2026-10-17 still reported **4 results with a summary row of
+Stage 10 without appearing as a failure. Since 2026-10-28 `tools/test.ps1` runs a fixture whose
+class-name filter matches nothing **test by test, by full name** — the filter form that always matches —
+which is how that fifth test finally ran (5/5, `artifacts/dotnet/unity-playmode-projectsurvive.game.tests.playmode.shellplaymodetests.*-status.txt`).
+Running the class on its own on 2026-10-17 reported **4 results with a summary row of
 `total 0`**, so the class' payload is internally inconsistent rather than the bulk assembly alone being
 the problem. The five counts come from the result rows, never from the summary.
 
@@ -484,12 +486,14 @@ count to 33: one more in `CampBagDragPlayModeTests` plus the four chooser cases)
 same per-class check this section asks for, and is not a claim about the suite as a suite.
 
 **The flake is not fixed; the harness stopped reporting it as if it were a verdict.** Since 2026-10-23
-`tools/test.ps1 -Suite Full` runs PlayMode **one fixture per Editor test run** (`run_tests --filter
-<Class>`, the same shape as `ci.ps1`'s `Unity` job), so the ambient-log asserts can no longer sign the
-whole assembly's death warrant. Each fixture writes
-`artifacts/dotnet/unity-playmode-<fixture>-status.json` (every test's status, duration and message) and
-the aggregate table `artifacts/dotnet/unity-playmode-per-fixture.md`; a step's name carries the class, so
-a FAIL names the fixture that broke. Measured that day: **74/75 across ten fixtures**, the one failure
+`tools/test.ps1 -Suite Full` runs PlayMode **one fixture per Editor test run**
+(`unity command test run --filter <Class>`, the same shape as `ci.ps1`'s `Unity` job), so the ambient-log
+asserts can no longer sign the whole assembly's death warrant. Each fixture writes
+`artifacts/dotnet/unity-playmode-<fixture>-status.txt` — the pipeline's own status line, which is a
+**count** (`completed: 7/7 passed`) and no longer a per-test payload — and the aggregate table
+`artifacts/dotnet/unity-playmode-per-fixture.md`; a step's name carries the class, so a FAIL names the
+fixture that broke. The name of the individual test that failed is not in that line at all: read it in
+the Unity Editor console. Measured that day: **74/75 across ten fixtures**, the one failure
 `SceneFlowPlayModeTests.Twenty_camp_and_battle_visits_leave_nothing_behind_and_do_not_grow_the_heap` —
 a real defect, not the flake.
 
@@ -529,22 +533,21 @@ which need the Editor closed. Running the assembly in one go is still red, and i
 do by hand:
 
 ```powershell
-unity command run_tests --mode playmode --async_tests --filter CampBagDragPlayModeTests
-unity command test_status --result-only
+unity command test run --mode playmode --async_tests --filter CampBagDragPlayModeTests
+unity command test status
 ```
 
 A class whose file name drifts from its class name would match nothing; the harness reports that as
 **FAIL** (`no test matched <filter>`) rather than as a green run with fewer tests.
 
-The same note also records that `run_tests` can answer with the **previous** run's payload (identical
-per-test durations). The harness guards against it: it polls `test_status` and only accepts a result that
-either reported `running` first or differs from the payload captured before the submit, and it writes the
-raw payload per run, so the durations can be checked.
+The same note also records that a status call can answer with the **previous** run's result. The harness
+guards against it: it polls `test status` and only accepts a result that either reported `running` first
+or differs from the line captured before the submit, and it writes that line per run as the artifact.
 
 ## 8. The CI pipeline (`tools/ci.ps1`) — and how it differs from `tools/test.ps1`
 
 `test.ps1` is the **working loop** and runs one suite (`Fast`/`Full`) in one process, using the
-Editor that is already open — its PlayMode step is one fixture per `run_tests` there, which is the
+Editor that is already open — its PlayMode step is one fixture per Editor test run there, which is the
 only difference from `ci.ps1`'s `Unity` job (a batch Editor per fixture instead). `ci.ps1` is the **gate**: it composes the tools in a fixed order, keeps
 the jobs that need a Unity licence apart from the ones that do not, and refuses to run when another
 Unity process holds `UnityProject`.

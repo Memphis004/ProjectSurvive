@@ -24,7 +24,7 @@
       9. the browser suite: smoke, battle and camp in a real Chrome
 
     Unity steps need an Editor with this project open (the `unity` CLI's own connection, the same one
-    `run_tests` uses). With no Editor connected they report NOT RUN with that reason - they never
+    `unity command test run` uses). With no Editor connected they report NOT RUN with that reason - they never
     quietly pass. The WebGL build needs the opposite: an Editor holding the project lock cannot build,
     so with the Editor open step 8 reports NOT RUN and says so. Running Fast with the Editor open and
     Full with it closed therefore produces a full verdict across two runs; both are appended to
@@ -490,9 +490,9 @@ Invoke-Step 'wiki: content reproducible' 'Fast' {
 # 6-7. Unity: EditMode is Fast, PlayMode is Full. Both go through the open Editor.
 # ---------------------------------------------------------------------------
 # The Editor connection: `unity status` prints one row per connected Editor. A run is submitted with
-# --async_tests and polled through test_status, because a synchronous run holds the main thread and a
-# window that is not in the foreground does not tick (measured: a synchronous EditMode run timed out
-# at 600 s while the asynchronous one finished in 12 s).
+# --async_tests and polled through `unity command test status`, because a synchronous run holds the main
+# thread and a window that is not in the foreground does not tick (measured: a synchronous EditMode run
+# timed out at 600 s while the asynchronous one finished in 12 s).
 function Get-UnityEditor {
     if (-not $unity) { return $null }
 
@@ -512,16 +512,32 @@ function Get-UnityEditor {
     return $null
 }
 
+# `unity command test status` answers in text, not JSON: `running` while a run is in flight, then
+# `completed: 312/312 passed`, or `completed: 0/1 passed, 1 failed` when something broke. The counts are
+# parsed off that line; the names of the failing tests are not in it at all, which is why a FAIL below
+# points at the Editor console rather than pretending to list them.
 function Get-UnityTestStatus {
-    $r = Invoke-Native $unity @('command', 'test_status', '--timeout', '30', '--result-only')
+    $r = Invoke-Native $unity @('command', 'test', 'status')
     if (-not $r.Ok -or -not $r.Output) { return $null }
-    try {
-        $payload = $r.Output | ConvertFrom-Json
+
+    foreach ($line in @($r.Output -split "`r?`n")) {
+        if ($line -notmatch '^test status\s') { continue }
+
+        $columns = @($line -split "`t")
+        if ($columns.Count -lt 3) { continue }
+
+        $text = $columns[2].Trim()
+        $phase = if ($text -match '^running') { 'running' } else { 'completed' }
+        $passed = 0
+        $failed = 0
+        $total = 0
+        if ($text -match '(\d+)\s*/\s*(\d+)') { $passed = [int]$Matches[1]; $total = [int]$Matches[2] }
+        if ($text -match ',?\s*(\d+)\s+failed') { $failed = [int]$Matches[1] }
+
+        return [pscustomobject]@{ Phase = $phase; Text = $text; Passed = $passed; Failed = $failed; Total = $total }
     }
-    catch {
-        return $null
-    }
-    return [pscustomobject]@{ Payload = $payload; Raw = $r.Output }
+
+    return $null
 }
 
 # -Filter narrows a run to one fixture. PlayMode is always run that way: see Invoke-UnityPlayModeSuites.
@@ -537,50 +553,58 @@ function Invoke-UnityTests {
     }
 
     $before = Get-UnityTestStatus
-    $beforeRaw = if ($before) { $before.Raw } else { '' }
+    $beforeText = if ($before) { $before.Text } else { '' }
 
-    $arguments = @('command', 'run_tests', '--mode', $Mode, '--async_tests', '--timeout', '120')
+    $arguments = @('command', 'test', 'run', '--mode', $Mode, '--async_tests', '--timeout', '120')
     if ($Filter) { $arguments += @('--filter', $Filter, '--filter_type', 'testName') }
     $submit = Invoke-Native $unity $arguments
     if (-not $submit.Ok) {
-        return @{ Status = 'FAIL'; Detail = ("run_tests could not be submitted: {0}" -f $submit.Output); Passed = 0; Failed = 0; Total = 0 }
+        return @{ Status = 'FAIL'; Detail = ("the run could not be submitted: {0}" -f $submit.Output); Passed = 0; Failed = 0; Total = 0 }
     }
 
-    $deadline = (Get-Date).AddSeconds($UnityTimeoutSeconds)
+    $submitted = Get-Date
+    $deadline = $submitted.AddSeconds($UnityTimeoutSeconds)
     $sawRunning = $false
     $last = $null
-    $lastRaw = $beforeRaw
+    $lastText = $beforeText
+
+    # The status line carries counts and no duration, so a run that finishes inside one poll interval and
+    # lands on the same count as the run before it reads exactly like the previous result. Two guards
+    # cover that: poll every second for the first stretch (a run of these suites takes tens of seconds, so
+    # its `running` is normally seen), and accept a completed line once the settle window has passed even
+    # if `running` was never observed - waiting for a change that can never come cost 900 s per fixture.
+    $settleSeconds = 20
 
     while ((Get-Date) -lt $deadline) {
-        Start-Sleep -Seconds 3
+        $wait = if (((Get-Date) - $submitted).TotalSeconds -lt $settleSeconds) { 1 } else { 3 }
+        Start-Sleep -Seconds $wait
         $status = Get-UnityTestStatus
         if ($null -eq $status) { continue }
-        $last = $status.Payload
-        $lastRaw = $status.Raw
+        $last = $status
+        $lastText = $status.Text
 
-        if ($last.status -eq 'running') {
+        if ($status.Phase -eq 'running') {
             $sawRunning = $true
             continue
         }
 
-        if ($sawRunning -or $lastRaw -ne $beforeRaw) {
-            break
-        }
+        $settled = ((Get-Date) - $submitted).TotalSeconds -ge $settleSeconds
+        if ($sawRunning -or $lastText -ne $beforeText -or $settled) { break }
     }
 
-    if ($null -eq $last -or $last.status -eq 'running' -or (-not $sawRunning -and $lastRaw -eq $beforeRaw)) {
+    if ($null -eq $last -or $last.Phase -eq 'running') {
         return @{ Status = 'NOT RUN'; Detail = ("the {0} run did not report a result within {1} s (the Editor may be busy or a modal dialog may be open)" -f $Mode, $UnityTimeoutSeconds); Passed = 0; Failed = 0; Total = 0 }
     }
 
-    # A per-fixture run writes its own payload: the aggregate ones would be overwritten by the
-    # next fixture, and the artifact is the only place a class' durations survive the run.
+    # A per-fixture run writes its own line: the aggregate ones would be overwritten by the next
+    # fixture, and the reported text is the only verdict the pipeline gives at all.
     $label = if ($Filter) { ("{0}-{1}" -f $Mode, $Filter.ToLowerInvariant()) } else { $Mode }
-    Write-Artifact $script:DotnetDir ("unity-{0}-status.json" -f $label) $lastRaw
+    $artifact = ("unity-{0}-status.txt" -f $label)
+    Write-Artifact $script:DotnetDir $artifact $last.Text
 
-    $results = @($last.results)
-    $passed = @($results | Where-Object { $_.Status -eq 'Passed' }).Count
-    $failed = @($results | Where-Object { $_.Status -ne 'Passed' -and $_.Status -ne 'Skipped' }).Count
-    $total = $results.Count
+    $passed = $last.Passed
+    $failed = $last.Failed
+    $total = $last.Total
 
     if ($total -eq 0) {
         # A filter that matches nothing is a stale fixture name, not a green run.
@@ -589,13 +613,10 @@ function Invoke-UnityTests {
     }
 
     if ($failed -gt 0) {
-        $names = @($results | Where-Object { $_.Status -ne 'Passed' -and $_.Status -ne 'Skipped' } | ForEach-Object { $_.FullName })
-        $shown = @($names | Select-Object -First 4)
-        $more = if ($names.Count -gt $shown.Count) { (" (+{0} more)" -f ($names.Count - $shown.Count)) } else { '' }
-        return @{ Status = 'FAIL'; Detail = ("{0}/{1} passed; {2} not passed: {3}{4}; see artifacts/dotnet/unity-{5}-status.json" -f $passed, $total, $failed, ($shown -join ', '), $more, $label); Passed = $passed; Failed = $failed; Total = $total }
+        return @{ Status = 'FAIL'; Detail = ("{0}/{1} passed, {2} failed - the pipeline reports counts, not names; the failing test's own message is in the Unity Editor console (artifacts/dotnet/{3})" -f $passed, $total, $failed, $artifact); Passed = $passed; Failed = $failed; Total = $total }
     }
 
-    return @{ Status = 'PASS'; Detail = ("{0}/{1} passed ({2} s)" -f $passed, $total, $last.duration); Passed = $passed; Failed = 0; Total = $total }
+    return @{ Status = 'PASS'; Detail = ("{0}/{1} passed" -f $passed, $total); Passed = $passed; Failed = 0; Total = $total }
 }
 
 # PlayMode runs **one fixture per test run**, which is the only shape that reports this suite's
@@ -613,6 +634,36 @@ function Get-PlayModeFixtures {
     return @(Get-ChildItem -LiteralPath $dir -Filter '*PlayModeTests.cs' -File |
         Sort-Object Name |
         ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.Name) })
+}
+
+# The pipeline's class-name filter sees most PlayMode fixtures and misses some: `--filter
+# ShellPlayModeTests` answers `completed: 0/0 passed` while `unity command test list` lists its five
+# tests and an exact full name runs them. So a fixture whose class filter matched nothing is re-run
+# test by test, by full name, which is the filter form that always matches. The list is asked for
+# lazily, only when a class filter comes back empty, so the usual run pays nothing for this.
+function Get-PlayModeTestNames {
+    param([Parameter(Mandatory)][string]$Fixture)
+
+    $r = Invoke-Native $unity @('command', 'test', 'list', '--mode', 'playmode')
+    if (-not $r.Ok -or -not $r.Output) { return @() }
+
+    $payload = ''
+    foreach ($line in @($r.Output -split "`r?`n")) {
+        if ($line -notmatch '^test list\s') { continue }
+        $columns = @($line -split "`t")
+        if ($columns.Count -ge 3) { $payload = $columns[2].Trim() }
+    }
+
+    if (-not $payload) { return @() }
+
+    try {
+        return @($payload | ConvertFrom-Json | Select-Object -ExpandProperty Tests |
+            Where-Object { $_.FullName -like ("*." + $Fixture + ".*") } |
+            ForEach-Object { $_.FullName })
+    }
+    catch {
+        return @()
+    }
 }
 
 function Invoke-UnityPlayModeSuites {
@@ -637,7 +688,38 @@ function Invoke-UnityPlayModeSuites {
     foreach ($fixture in $fixtures) {
         $current = $fixture
         $outcome = Invoke-Step -Name ("unity: PlayMode {0}" -f $current) -StepSuite 'Full' -Action {
-            Invoke-UnityTests -Mode 'playmode' -Filter $current
+            $byClass = Invoke-UnityTests -Mode 'playmode' -Filter $current
+            if ($byClass.Total -gt 0) { return $byClass }
+
+            $names = @(Get-PlayModeTestNames -Fixture $current)
+            if ($names.Count -eq 0) { return $byClass }
+
+            Write-Host ("        the pipeline's class filter matched nothing for {0}; running its {1} test(s) by full name" -f $current, $names.Count) -ForegroundColor DarkGray
+
+            $verdict = 'PASS'
+            $passed = 0
+            $failed = 0
+            $total = 0
+            foreach ($name in $names) {
+                $one = Invoke-UnityTests -Mode 'playmode' -Filter $name
+                $passed += [int]$one.Passed
+                $failed += [int]$one.Failed
+                $total += [int]$one.Total
+                if ($one.Status -eq 'FAIL') { $verdict = 'FAIL' }
+                elseif ($one.Status -eq 'NOT RUN' -and $verdict -ne 'FAIL') { $verdict = 'NOT RUN' }
+            }
+
+            $detail = if ($verdict -eq 'PASS') {
+                ("{0}/{0} passed by full name (the class filter matched nothing)" -f $total)
+            }
+            elseif ($verdict -eq 'FAIL') {
+                ("{0}/{1} passed by full name, {2} failed; see artifacts/dotnet/unity-playmode-*-status.txt" -f $passed, $total, $failed)
+            }
+            else {
+                ("{0}/{1} passed by full name; some runs reported no result" -f $passed, $total)
+            }
+
+            return @{ Status = $verdict; Detail = $detail; Passed = $passed; Failed = $failed; Total = $total }
         }
 
         $passed += [int]$outcome.Passed
@@ -651,7 +733,7 @@ function Invoke-UnityPlayModeSuites {
     $report = ((@(
                 '# PlayMode, one fixture per Editor run',
                 '',
-                ('{0:yyyy-MM-dd HH:mm} - {1} fixture(s), {2}/{3} passed. Each fixture is its own `run_tests --filter`; a bulk assembly run is the flake recorded in docs/testing/test-suites.md, section 7.' -f (Get-Date), $fixtures.Count, $passed, $total),
+                ('{0:yyyy-MM-dd HH:mm} - {1} fixture(s), {2}/{3} passed. Each fixture is its own `unity command test run --filter`; a bulk assembly run is the flake recorded in docs/testing/test-suites.md, section 7.' -f (Get-Date), $fixtures.Count, $passed, $total),
                 '',
                 '| Fixture | Passed | Total | Status |',
                 '| --- | --- | --- | --- |'
