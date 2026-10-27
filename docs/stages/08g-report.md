@@ -233,11 +233,29 @@ cost (shipped)          —                2.36 ms             2.73 ms on / 2.51
   **+32 batches / +1 set-pass / +0.22 ms** (หลัง shadow pass วาดการ์ดจริง; ก่อนหน้านั้นตัวเลข +4
   เป็นของ error shader ที่วาดใบเดียว ซึ่งเป็น "ราคาถูกเกินจริง" อีกข้อหนึ่งของ defect นี้) ซึ่งอยู่ในงบ ≤ 200
   ของ 08f จึงปิดเป็นส่วนหนึ่งของ 08g ได้โดยไม่ต้องแยก Stage (แต่ยังต้องให้ผู้ใช้ตรวจด้วยตาก่อนประกาศ PASS ด้านภาพ)
-- **ข้อ 6 HUD:** ต้องลบ `MiniBagPanel` (11.38 %) ออกทั้งสาย (ฉาก + `BattleHudView`/`BattleViewSettings` +
+- **ข้อ 6 HUD:** ต้องลบ `MiniBagPanel` ออกทั้งสาย (ฉาก + `BattleHudView`/`BattleViewSettings` +
   `BattleCaptureState` + `UiCaptureTool`/`BossCaptureTool`/`TelegraphCaptureTool` + `UiLayoutCheck` +
-  `BattleMiniBagTests` + PlayMode) แล้วจัดวาง Status/Timeline/Resource/Floor ใหม่ให้รวมกัน ≤ 15 %
-  พร้อมเทสต์พื้นที่ — เป็นการรื้อ HUD เต็มรอบที่กระทบ ~10 ไฟล์และเทสต์ที่ยืนยันมันอยู่ **ไม่ใช่การปรับค่า**
-  (พื้นที่ปัจจุบัน 37.86 %)
+  `BattleMiniBagTests` + PlayMode) แล้วทำข้อ 6 ที่เหลือให้ครบ พร้อมเทสต์พื้นที่ ≤ 15 % — เป็นการรื้อ HUD
+  เต็มรอบที่กระทบ ~10 ไฟล์และเทสต์ที่ยืนยันมันอยู่ **ไม่ใช่การปรับค่า**
+
+  **ตัวเลขปัจจุบัน อ่านจาก `artifacts/ui/ui-report.json` (หก surface, 1920×1080 ไม่ขึ้นกับ state):**
+
+  ```
+  MiniBagPanel      24, 510   432x546   11.38 %   ← ข้อ 6 สั่งลบทั้งพาเนล
+  ResourcePanel   1248, 780   648x276    8.62 %   (เบี้ย/เวลา/คิล/เวฟ/สปีด)
+  TimelinePanel    496,  24   928x176    7.88 %   ← ข้อ 6 สั่งให้เป็น "แถบบางด้านบน"
+  StatusPanel       24,  24   432x276    5.75 %   ← ข้อ 6 สั่งให้เหลือกรอบเล็กมุมซ้ายล่าง
+  FloorPanel       672, 904   576x152    4.22 %
+  DevPanel        1456,  24   440x440    9.34 %   ← ข้อ 6 สั่งซ่อนหลัง F1 ⇒ ไม่อยู่ในพื้นที่ที่ "บังจอ"
+  ----------------------------------------------------------------
+  ผลรวม 5 พาเนลที่บังจอจริง (ไม่รวม DevPanel)   **37.86 %**   (เป้า ≤ 15 %)
+  พาเนลไม่ทับกันเลย (union = ผลรวม) ⇒ ต้องลดจริง ไม่ใช่แค่จัดใหม่
+  ```
+
+  ห้าพาเนลไม่ทับกันสักคู่ (พื้นที่รวม = พื้นที่ union = 47.19 % ทั้งหก, 37.86 % เมื่อตัด DevPanel ออก)
+  ฉะนั้นเป้า ≤ 15 % ไม่มีทางถึงด้วยการย้ายพาเนล: ลบ MiniBag ได้ −11.38 → 26.48 % แล้วยังต้องลดอีก ~11.5 จุด
+  จาก Status + Timeline + Resource + Floor ซึ่งเป็นขนาดที่ prompt ข้อ 6 บอกไว้อยู่แล้ว (HP/MP เหลือกรอบเล็ก,
+  ไทม์ไลน์เป็นแถบบาง) — ตัวเลขนี้เป็นเหตุผลที่ข้อเสนอนี้เป็น **การรื้อ ไม่ใช่การปรับค่า**
 
 ตามกติกา AGENTS ข้อ 15: Stage นี้มี 7 ข้อ แตะ Unity scene + UI + เทสต์พร้อมกัน — **เหลือข้อ 6 (HUD)
 ข้อเดียวที่ยังไม่ทำ** จึงเสนอเป็น `08g-2` โดยไม่เพิ่ม Stage เองจนกว่าจะได้รับอนุมัติ (ข้อ 1–5 ปิดแล้ว;
@@ -249,17 +267,24 @@ cost (shipped)          —                2.36 ms             2.73 ms on / 2.51
    target + บันทึกตัวเลขเทียบ) และการวางภาพเทียบในข้อ 7 ทำไม่ได้ตามที่ขอ; ที่รายงานได้คือ before/after ของตัวเอง
 2. "ตารางค่าเริ่มต้นที่แนบ" ของ Night profile **ไม่ได้แนบมา** → ค่าที่ใช้เป็นค่าที่เลือกเองพร้อมเหตุผล
    (คอมเมนต์ใน `BuildNightProfile`)
-3. `tools/test.ps1 -Suite Fast` **รันไม่จบในรุ่น pipeline ที่ติดตั้ง**: สคริปต์เรียกคำสั่งเดิม
-   `unity command run_tests` ซึ่งถูกเปลี่ยนชื่อเป็น `unity command test run` และ payload ของ `test_status`
-   เปลี่ยนจาก JSON เป็นข้อความ → Fast ได้ **PASS 12 | FAIL 1 | NOT RUN 3** โดย FAIL ที่ขั้น `unity: EditMode`
-   เท่านั้น (`artifacts/stage08g/fast.log`) ขั้นที่ผ่านจริง: toolchain, dotnet build, xUnit 612, contract 48,
-   sim 3, data 3, wiki 1. **แก้ tools/test.ps1 ไม่ใช่ขอบเขตของ Stage นี้** (แตะแล้ว suite ค้างเพราะ payload
-   แบบใหม่ parse ไม่ได้) จึงคืนไฟล์เป็น HEAD และรัน EditMode ตรง ๆ ผ่าน CLI แทน: **309/309** (ข้อ 1–5)
-   และ **311/311** หลังเพิ่มเทสต์ของข้อ 4 (ยังไม่ได้รัน `-Suite Fast` ใหม่ในรอบนี้)
+3. `tools/test.ps1 -Suite Fast` เคย **FAIL 1 ขั้น** เพราะรุ่น pipeline ที่ติดตั้งเปลี่ยน
+   `unity command run_tests` เป็น `unity command test run` และ payload ของ `test_status` จาก JSON เป็นข้อความ
+   (`artifacts/stage08g/fast.log`) รอบก่อนหน้าจึงคืนไฟล์เป็น HEAD แล้วรัน EditMode ตรง ๆ แทน. **รอบนี้แก้ที่ตัว
+   สคริปต์เอง** (สคริปต์กลาง ไม่ใช่โค้ดเกม ⇒ commit `f9d6819 generic: the test harness reads the pipeline it
+   actually has` ตามกติกา 14): อ่านคำสั่ง/payload ใหม่, ถาม `test list` แล้วรัน**ชื่อเต็ม**เฉพาะ fixture ที่ตัวกรอง
+   แบบชื่อคลาสไม่แมตช์อะไรเลย, และ polling ที่ไม่ติดเมื่อจำนวนเท่าเดิม
+   ผลหลังแก้ — `-Suite Fast` **PASS 13 | FAIL 0 | NOT RUN 3 | WARN 0 (301.2 s)** โดยขั้นที่เคย FAIL คือ
+   `unity: EditMode` **312/312** (`logs/stage08g-fast-after-harness.log`) และ `-Suite Full`
+   **PASS 24 | FAIL 0 | NOT RUN 3 | WARN 0 (677 s)** (`logs/stage08g-full-harness3.log`)
    *(รายงานรอบก่อนเขียนว่า `tools/test.ps1 -Suite Fast` ผ่าน — นั่นเป็นการอ่าน `tail` ที่ตัดขั้น unity ออกไป
    ไม่ใช่ผลของ suite: ต้องถือว่ารายงานรอบก่อนยืนยันส่วนนี้ผิด)*
-4. ไม่ได้ทดสอบ: WebGL build และ Playwright (Stage นี้ไม่ใช่ gate), PlayMode ผ่าน CLI (ค้นพบ 0 เทสต์ —
-   ข้อจำกัดของ pipeline ในรุ่นนี้), และ WebGL path ของ `CompressedHQ` (ยังไม่เคย build)
+4. ไม่ได้ทดสอบ: WebGL build และ Playwright (**Stage นี้ไม่ใช่ gate**) — `-Suite Full` ยังรายงานทั้งสามขั้น
+   (build / Playwright / hosting) เป็น **NOT RUN** พร้อมเหตุผลว่า Editor ที่ต่อ pipeline ถือ project lock
+   อยู่ ไม่ใช่ FAIL; WebGL path ของ `CompressedHQ` (ยังไม่เคย build). **PlayMode ผ่าน CLI: ใช้ได้แล้ว** —
+   รอบก่อนหน้าอ่าน `0/0` แล้วสรุปว่า pipeline หาเทสต์ไม่เจอ ความจริงคือตัวกรองแบบ**ชื่อคลาส**ไม่แมตช์สอง fixture
+   (`BattlePlayModeTests`, `ShellPlayModeTests`) แต่รันด้วย**ชื่อเต็ม**ได้ครบ; `-Suite Full` รัน **11 fixture
+   86 เทสต์ ผ่านหมด** (Battle 11, CampBagDrag 25, CampWorld 12, CampSynergyLine 9, SceneFlow 6,
+   CampShelfTooltip 5, Shell 5, TitleScene 5, CampMergeChooser 4, ResultScene 3, ArenaSpriteFloorDepth 1)
 5. **เงาของข้อ 4: defect เจอและแก้แล้ว แต่ยังต้องผ่านตาเจ้าของงาน.** รอบที่สองพบว่าเงาที่เห็นคือ *error shader*
    เพราะ pass `ShadowCaster` อ่าน `_LightDirection` / `_LightPosition` โดยไม่ประกาศ ⇒ คอมไพล์ไม่ผ่าน
    (pass ที่พังไม่ได้ถูกข้าม แต่ถูกวาดเป็น quad ทึบ) — หลักฐาน: `ShaderUtil.GetShaderMessages` ตอบ
@@ -267,9 +292,10 @@ cost (shipped)          —                2.36 ms             2.73 ms on / 2.51
    `zoom-shadow-fixed.png` (หลัง). หลังแก้ เงาเป็น silhouette แล้ว (155 647 → 30 269 พิกเซลที่ wide)
    แต่ที่ framing ที่เกมใช้เห็นเพียง 1.29 % ของพิกเซล เพราะมีแต่ลำต้น foreground ที่ยืนในเฟรม — **ต้องให้
    เจ้าของงานดู `shadow-map-shipped-on/off.png` และตัดสินว่าเบา/แรงพอหรือไม่** ก่อนปิด PASS ด้านภาพ
-6. **ยังไม่ได้ทดสอบ:** `tools/test.ps1 -Suite Fast` ยังพังเหมือนเดิม (สคริปต์เรียกคำสั่ง `unity command run_tests`
-   ที่ถูกเปลี่ยนชื่อแล้ว — ไม่ได้อยู่ในขอบเขต Stage นี้) รอบนี้จึงรัน `unity command test run --mode editor`
-   ตรง ๆ ได้ **312/312**; ไม่ได้รัน WebGL build / Playwright (ไม่ใช่ gate stage)
+6. **สถานะของชุดทดสอบตอนปิดรอบนี้:** `-Suite Fast` **OK** (PASS 13 | FAIL 0 | NOT RUN 3 | WARN 0, 301.2 s)
+   และ `-Suite Full` **OK** (PASS 24 | FAIL 0 | NOT RUN 3 | WARN 0, 677 s) — ทั้งสามขั้นที่ NOT RUN เป็น
+   งาน WebGL (build / Playwright / hosting) ซึ่งต้องการให้ปิด Editor ก่อน จึงข้ามโดยเจตนาในรอบนี้
+   และ Stage 08g ไม่ใช่ gate ที่ต้องรัน WebGL (gate อยู่ที่ Stage 10, 12, 14, 15)
 
 ## 8. คำสั่งที่รันจริง
 
@@ -305,4 +331,11 @@ unity command --project-path UnityProject script run --file AgentScripts/ArenaSh
 unity command --project-path UnityProject test run --mode editor \
        --filter ArenaCardShaderUsesItsAlphaClippedShadowCasterPass   → 0/1 (ถอดการประกาศออก ⇒ เทสต์จับได้)
 unity command --project-path UnityProject test run --mode editor        → 312/312 (หลังใส่การประกาศกลับ)
+
+# รอบที่สี่ (2026-10-28): เครื่องมือทดสอบกลาง + ปิดชุด Full
+powershell -File tools/test.ps1 -Suite Fast   → PASS 13 | FAIL 0 | NOT RUN 3 | WARN 0  (301.2 s)
+                                                unity: EditMode 312/312   [logs/stage08g-fast-after-harness.log]
+powershell -File tools/test.ps1 -Suite Full   → PASS 24 | FAIL 0 | NOT RUN 3 | WARN 0  (677 s)
+                                                11 fixture PlayMode = 86/86 (2 fixture รันตามชื่อเต็ม)
+                                                [logs/stage08g-full-harness3.log]
 ```
