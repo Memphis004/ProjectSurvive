@@ -121,12 +121,16 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         [Tooltip("Share of a cell the tier number takes, before the floor and the ceiling are applied.")]
         [SerializeField] private float _tierFontShare = 0.44f;
 
+        [Tooltip("Share of the shorter side of a box the category mark takes (Stage 08i).")]
+        [SerializeField] private float _glyphShare = 0.62f;
+
         [Tooltip("Ceiling for the tier number's size, in pixels.")]
         [SerializeField] private float _tierFontCeiling = 30f;
 
         private readonly List<Image> _cells = new List<Image>(BattleViewCaps.MiniBagCells);
         private readonly List<Image> _boxes = new List<Image>(BattleViewCaps.MiniBagPieces);
         private readonly List<Image> _plates = new List<Image>(BattleViewCaps.MiniBagPieces);
+        private readonly List<Image> _glyphs = new List<Image>(BattleViewCaps.MiniBagPieces);
         private readonly List<TMP_Text> _tiers = new List<TMP_Text>(BattleViewCaps.MiniBagPieces);
         private readonly List<MiniBagPlateTone> _tones = new List<MiniBagPlateTone>(BattleViewCaps.MiniBagPieces);
         private readonly List<bool> _hasPlate = new List<bool>(BattleViewCaps.MiniBagPieces);
@@ -140,6 +144,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         private CombatLoadoutSnapshot _loadout;
         private IGameConfig _config;
         private Vector2 _lastContent;
+        private MiniBagGlyphs _glyphArt;
         private bool _built;
         private bool _poolsCreated;
         private int _pieceCount;
@@ -303,6 +308,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             _cells.Clear();
             _boxes.Clear();
             _plates.Clear();
+            _glyphs.Clear();
             _tiers.Clear();
             _tones.Clear();
             _hasPlate.Clear();
@@ -434,6 +440,35 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         }
 
         /// <summary>
+        /// The mark the <paramref name="index"/>-th drawn piece shows, or null where it shows none
+        /// (a bag, whose cells are its shape). The sprite is one of the view's generated masks.
+        /// </summary>
+        public bool TryGetPieceGlyph(int index, out Sprite glyph)
+        {
+            if (index >= 0 && index < _pieceCount)
+            {
+                glyph = _glyphs[index].gameObject.activeSelf ? _glyphs[index].sprite : null;
+                return true;
+            }
+
+            glyph = null;
+            return false;
+        }
+
+        /// <summary>Whether the <paramref name="index"/>-th drawn piece shows its tier number.</summary>
+        public bool TryGetPieceTierVisible(int index, out bool visible)
+        {
+            if (index >= 0 && index < _pieceCount)
+            {
+                visible = _tiers[index].gameObject.activeSelf;
+                return true;
+            }
+
+            visible = false;
+            return false;
+        }
+
+        /// <summary>
         /// The top-left corner of the <paramref name="index"/>-th drawn box, in the content area's
         /// own pixels (x rightwards, y downwards). The first box of a bag at the origin is
         /// <c>(0, 0)</c> — the layout test's "hugs the top-left corner".
@@ -522,12 +557,29 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
                 box.enabled = piece.Kind != PieceKind.Bag;
                 box.color = piece.Colour;
 
+                // Stage 08i's second pass: an item's box carries its category's mark instead of its
+                // tier number, so a player separates a sword from a tome by shape as well as by the
+                // box's colour. A bag has no category and keeps its number (the cloth is the shape).
+                bool isItem = piece.Kind != PieceKind.Bag;
+                Image glyph = _glyphs[i];
+                glyph.gameObject.SetActive(isItem);
+                if (isItem)
+                {
+                    glyph.sprite = _glyphArt.For(piece.Category);
+                    glyph.color = MiniBagGlyphs.Ink;
+                    float side = Mathf.Min(
+                        (piece.Columns * _layout.CellSize) - _cellGap,
+                        (piece.Rows * _layout.CellSize) - _cellGap) * _glyphShare;
+                    var glyphRect = (RectTransform)glyph.transform;
+                    glyphRect.sizeDelta = new Vector2(side, side);
+                }
+
                 // A non-rectangular bag's label would be centred over the corner the bag does not
                 // cover (the L basket's missing cell), so it is not drawn: the cells alone are the
                 // shape, and the tier stays readable in the camp's จัดย่าม screen.
-                bool hideBagLabel = piece.Kind == PieceKind.Bag
+                bool hideBagLabel = !isItem
                     && piece.Cells < piece.Columns * piece.Rows;
-                _tiers[i].gameObject.SetActive(!hideBagLabel);
+                _tiers[i].gameObject.SetActive(!isItem && !hideBagLabel);
                 _tiers[i].text = piece.TierText;
                 _tiers[i].fontSize = TierFontSize();
 
@@ -585,6 +637,9 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
                 CreatePieces(pieces);
             }
 
+            // Five 32 × 32 masks, made once with the pools and destroyed with this view.
+            _glyphArt ??= new MiniBagGlyphs();
+
             _poolsCreated = true;
         }
 
@@ -630,6 +685,21 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
                 Image box = boxObject.GetComponent<Image>();
                 box.raycastTarget = false;
 
+                // The category mark sits directly on the box, under the plate: a recharging item's
+                // plate dims its mark along with its colour, so "ready" is one glance and not two.
+                var glyphObject = new GameObject("MiniBagGlyph" + index, typeof(RectTransform), typeof(Image));
+                var glyphRect = (RectTransform)glyphObject.transform;
+                glyphRect.SetParent(boxRect, worldPositionStays: false);
+                glyphRect.anchorMin = new Vector2(0.5f, 0.5f);
+                glyphRect.anchorMax = new Vector2(0.5f, 0.5f);
+                glyphRect.pivot = new Vector2(0.5f, 0.5f);
+                glyphRect.anchoredPosition = Vector2.zero;
+
+                Image glyph = glyphObject.GetComponent<Image>();
+                glyph.raycastTarget = false;
+                glyph.preserveAspect = true;
+                glyphObject.SetActive(false);
+
                 var plateObject = new GameObject("MiniBagPlate" + index, typeof(RectTransform), typeof(Image));
                 var plateRect = (RectTransform)plateObject.transform;
                 plateRect.SetParent(boxRect, worldPositionStays: false);
@@ -661,6 +731,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
                 label.raycastTarget = false;
 
                 _boxes.Add(box);
+                _glyphs.Add(glyph);
                 _plates.Add(plate);
                 _tiers.Add(label);
                 _tones.Add(MiniBagPlateTone.None);
@@ -680,6 +751,17 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             float floor = _tierFontFloor;
             float ceiling = _tierFontCeiling < floor ? floor : _tierFontCeiling;
             return Mathf.Clamp(share, floor, ceiling);
+        }
+
+        /// <summary>
+        /// The category marks are generated textures this view owns (Stage 08i), so they go when it
+        /// does — a floor that ends must not leave five 32 × 32 textures behind for the next one.
+        /// </summary>
+        private void OnDestroy()
+        {
+            _glyphArt?.Dispose();
+            _glyphArt = null;
+            _glyphs.Clear();
         }
 
         private void CountCreation()

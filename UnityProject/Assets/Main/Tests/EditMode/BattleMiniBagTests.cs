@@ -112,7 +112,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         [Test]
-        public void Every_piece_on_the_bag_is_drawn_inside_the_box_with_its_tier()
+        public void Every_piece_is_drawn_inside_the_bags_box_with_its_own_tier()
         {
             // The run opens with a bag holding the starting weapon; the charm is placed beside it so
             // the case covers a piece that cannot cast as well as one that can.
@@ -144,6 +144,135 @@ namespace ProjectSurvive.Game.Tests.EditMode
             MiniBagPiece weapon = layout.Pieces[FindPiece(layout, setup.Loadout.Weapons[0].InstanceId)];
             Assert.That(weapon.Casts, Is.True, "the piece the loadout turned into a weapon is a caster");
             Assert.That(weapon.Tier, Is.EqualTo(setup.Loadout.Weapons[0].Tier));
+        }
+
+        /// <summary>
+        /// An item's box shows its category's mark instead of its tier number, two categories never
+        /// share a mark, and a bag shows neither a mark nor a number it would centre over a corner it
+        /// does not cover (Stage 08i's second pass at the bag).
+        /// </summary>
+        /// <remarks>
+        /// The point of the change is speed: the box's colour already says which kind of thing a piece
+        /// is, but the five category colours are mid-tones that a colour-blind player, a night floor or
+        /// a 1280 × 720 screenshot soften into each other. A silhouette survives all three.
+        /// </remarks>
+        [Test]
+        public void An_items_box_shows_its_categorys_mark_and_not_its_tier()
+        {
+            // Four items of four categories beside the starting weapon (ArcaneWeapon). The familiar
+            // is left out on purpose: the starting ย่าม is 3 x 3 and this case needs the tome's four
+            // cells to fit, so the fifth and sixth marks are covered by the glyph test below.
+            RunSession run = Depart(
+                out BattleSetup setup,
+                "item.phra_amulet", // Charm
+                "item.spell_tome", // SpellTome
+                "item.red_soda"); // Offering
+
+            BattleMiniBagView view = NewView(run, setup);
+            Assert.That(view.PieceCount, Is.GreaterThanOrEqualTo(5), "the case did not get its pieces on the board");
+
+            var marksByCategory = new Dictionary<ItemCategory, Sprite>();
+            int itemsSeen = 0;
+            int bagsSeen = 0;
+
+            for (int i = 0; i < view.PieceCount; i++)
+            {
+                MiniBagPiece piece = view.Layout.Pieces[i];
+                Assert.That(view.TryGetPieceGlyph(i, out Sprite mark), Is.True);
+                Assert.That(view.TryGetPieceTierVisible(i, out bool tierVisible), Is.True);
+
+                if (piece.Kind == PieceKind.Bag)
+                {
+                    bagsSeen++;
+                    Assert.That(mark, Is.Null, "a bag shows a category mark it does not have");
+                    Assert.That(tierVisible, Is.True, "a bag lost its tier number (it has no mark to replace it)");
+                    continue;
+                }
+
+                itemsSeen++;
+                Assert.That(mark, Is.Not.Null, piece.DefId + " shows no category mark");
+                Assert.That(tierVisible, Is.False, piece.DefId + " still shows its tier number instead of its mark");
+
+                if (marksByCategory.TryGetValue(piece.Category, out Sprite known))
+                {
+                    Assert.That(mark, Is.SameAs(known), "two " + piece.Category + " pieces drew different marks");
+                }
+                else
+                {
+                    marksByCategory[piece.Category] = mark;
+                }
+            }
+
+            Assert.That(itemsSeen, Is.GreaterThanOrEqualTo(4), "the case did not get four items on the board");
+            Assert.That(bagsSeen, Is.GreaterThanOrEqualTo(1), "the case has no bag on the board");
+            Assert.That(
+                new HashSet<Sprite>(marksByCategory.Values).Count,
+                Is.EqualTo(marksByCategory.Count),
+                "two categories share one mark");
+        }
+
+        /// <summary>
+        /// Every category has its own mark, the fallback is its own too, and no mark is blank: a mark
+        /// that draws nothing is a box with no way to tell what it holds.
+        /// </summary>
+        [Test]
+        public void Every_category_has_its_own_mark_and_none_of_them_is_blank()
+        {
+            var glyphs = new MiniBagGlyphs();
+
+            try
+            {
+                var categories = new[]
+                {
+                    ItemCategory.ArcaneWeapon,
+                    ItemCategory.Charm,
+                    ItemCategory.SpellTome,
+                    ItemCategory.Offering,
+                    ItemCategory.Familiar,
+                };
+
+                var seen = new HashSet<Sprite>();
+
+                for (int i = 0; i < categories.Length; i++)
+                {
+                    Sprite mark = glyphs.For(categories[i]);
+                    Assert.That(mark, Is.Not.Null, categories[i] + " has no mark");
+                    Assert.That(seen.Add(mark), Is.True, categories[i] + " shares a mark with another category");
+                    Assert.That(
+                        mark.texture.width, Is.EqualTo(MiniBagGlyphs.Size),
+                        categories[i] + "'s mark is not one generated mask");
+
+                    Assert.That(
+                        OpaqueShare(mark) > 0.12f, Is.True,
+                        categories[i] + "'s mark covers almost nothing, so it would read as blank");
+                }
+
+                // An item the tables do not name still gets a mark, and it is not one of the five.
+                Sprite fallback = glyphs.For(default);
+                Assert.That(fallback, Is.Not.Null, "an unnamed item has no mark at all");
+                Assert.That(seen.Contains(fallback), Is.False, "an unnamed item is drawn as a named category");
+                Assert.That(OpaqueShare(fallback) > 0.12f, Is.True, "the fallback mark covers almost nothing");
+            }
+            finally
+            {
+                glyphs.Dispose();
+            }
+        }
+
+        /// <summary>The share of a generated mask's pixels that are drawn at all.</summary>
+        private static float OpaqueShare(Sprite sprite)
+        {
+            Color32[] pixels = sprite.texture.GetPixels32();
+            int drawn = 0;
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                if (pixels[i].a > 0)
+                {
+                    drawn++;
+                }
+            }
+
+            return pixels.Length == 0 ? 0f : drawn / (float)pixels.Length;
         }
 
         [Test]

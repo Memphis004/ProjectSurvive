@@ -85,6 +85,7 @@ running both, EditMode went 312/312 and the capture showed the arena again. Reco
 | 1 | mini ย่าม back at the bottom-right, caption top-left, grid under it | **PASS** | `artifacts/ui/battle-begin-1920x1080.png`, `battle-lbag-1920x1080.png`, `battle-begin-1280x720.png` |
 | 2 | cooldown plates follow `IBattleFrame.Cooldowns` | **PASS** | `artifacts/ui/battle-midfight-1920x1080-bagcrop.png` (plate at 1/3 of its period); `BattlePlayModeTests.The_mini_bags_plates_are_the_frames_cooldowns` |
 | 2b | the cloth reads against its panel, its empty cells and the item boxes (second pass) | **PASS** | 1.38 → **1.80 : 1** measured on the capture, 2.14 / 2.05 / 1.64 in `The_bags_cloth_reads_against_its_panel_and_its_empty_cells` |
+| 2c | an item is told apart by its category's mark, not its tier number (third pass) | **PASS** | `artifacts/ui/glyphs-sheet.png` (the six masks), `battle-begin-1280x720-bagcrop.png` (a dagger at 720p); `An_items_box_shows_its_categorys_mark_and_not_its_tier` and `Every_category_has_its_own_mark_and_none_of_them_is_blank` |
 | 3 | built once; nothing created during play | **PASS** | `…Ten_seconds_of_ticks_raise_no_exception_and_bind_no_new_view` (`CreatedAfterBuild == 0`, `Pool.CreatedAfterWarmup == 0`, `PlateUpdates > 0`) |
 | 4 | HUD ≤ 18 % at both sizes, panels disjoint | **PASS** | 16.95 % / 16.95 %; `…The_hud_covers_at_most_eighteen_percent_of_the_screen_at_both_sizes` |
 | 5 | bag inside the screen, never over another panel or the open dev panel | **PASS** | `ui-report.json` `violations: []`, `UiLayoutCheckTests` stacking cases 23/23 |
@@ -117,6 +118,25 @@ holds the three numbers, so a later tweak cannot quietly undo them.
 
 The scene's own panel image carries the new backdrop (`m_Color` on `/UI/MiniBagPanel`, set through the
 Editor API and saved), so what the capture photographs and what the runtime paints are the same value.
+
+### The category marks replace the tier numbers (third pass)
+
+The box's colour already says which kind of item a piece is, but the five category colours are mid-tones:
+a colour-blind player, a night floor or a 1280 × 720 screenshot softens them into each other. So an
+**item's box now draws its category's mark instead of its tier number**: a dagger (arcane weapon), a
+diamond ring (charm — a folded ยันต์), an open book (spell tome), a chalice (offering) and an ember
+(familiar), plus an empty frame for an item the tables do not name. The marks are 32 × 32 masks drawn in
+code (`MiniBagGlyphs`), tinted with one dark ink, generated once at the floor's first build and destroyed
+with the view — no new texture asset, nothing to license, and nothing created while the floor runs.
+
+Two measurements shaped it: white ink on the offering's gold falls to **1.7 : 1**, while the ink used here
+clears **3.5 : 1** on all five category colours; and a two-pixel edge disappears at 720p, so the dagger's
+blade is six pixels wide (its opaque share is 0.17 of the mask, the lowest of the six). **A bag keeps its
+tier number** — it has no category, and its cloth cells are already its shape.
+
+What is lost: the tier of an item is no longer readable on the battle screen (it remains on the bag's own
+cells and in the camp's จัดย่าม). That is the trade the brief asked for; if tier has to come back, the
+honest place is a corner pip, not the middle of the box.
 
 ## Not tested, and the risks
 

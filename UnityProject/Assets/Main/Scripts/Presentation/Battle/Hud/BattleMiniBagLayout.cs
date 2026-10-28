@@ -108,7 +108,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         /// <summary>Creates one drawable piece.</summary>
         public MiniBagPiece(
             int instanceId, PieceKind kind, string defId, int column, int row, int columns, int rows,
-            int cells, int tier, bool casts, Color colour)
+            int cells, int tier, bool casts, Color colour, ItemCategory category)
         {
             InstanceId = instanceId;
             Kind = kind;
@@ -121,6 +121,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             Tier = tier;
             Casts = casts;
             Colour = colour;
+            Category = category;
 
             // Built once, when the floor starts — never per frame, which is what keeps the hot
             // path free of string work (AGENTS rule 8).
@@ -159,6 +160,16 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
 
         /// <summary>The box's colour, from the piece's category.</summary>
         public Color Colour { get; }
+
+        /// <summary>
+        /// The piece's category, which picks the mark drawn on its box (Stage 08i's second pass).
+        /// </summary>
+        /// <remarks>
+        /// A bag reports <see cref="ItemCategory.Bag"/>; an item the tables do not name reports
+        /// <c>0</c>, a value no category uses, so the view can tell "unknown item" from "bag" and draw
+        /// the fallback frame rather than nothing.
+        /// </remarks>
+        public ItemCategory Category { get; }
 
         /// <summary>The tier number as text, formatted once when the floor starts.</summary>
         public string TierText { get; }
@@ -426,7 +437,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
 
                 Add(
                     into, piece.Kind, piece.InstanceId, piece.DefId, piece, loadout,
-                    MiniBagPalette.Bag, minColumn, minRow);
+                    MiniBagPalette.Bag, ItemCategory.Bag, minColumn, minRow);
             }
         }
 
@@ -443,17 +454,25 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
                     continue;
                 }
 
-                Color colour = config.TryGetItem(piece.DefId, out ItemConfig item)
-                    ? MiniBagPalette.Category(item.Category)
-                    : MiniBagPalette.Unknown;
+                bool known = config.TryGetItem(piece.DefId, out ItemConfig item);
+                Color colour = known ? MiniBagPalette.Category(item.Category) : MiniBagPalette.Unknown;
 
-                Add(into, piece.Kind, piece.InstanceId, piece.DefId, piece, loadout, colour, minColumn, minRow);
+                // 0 is not a category: it is how an unnamed item says "draw the fallback mark".
+                ItemCategory category = known ? item.Category : default;
+
+                Add(
+                    into, piece.Kind, piece.InstanceId, piece.DefId, piece, loadout, colour, category,
+                    minColumn, minRow);
             }
         }
 
+        /// <summary>
+        /// Adds one piece. <paramref name="category"/> is the item's own category, or <c>0</c> for an
+        /// item the tables do not name — the view draws its fallback mark for that, never a blank box.
+        /// </summary>
         private static void Add(
             List<MiniBagPiece> into, PieceKind kind, int instanceId, string defId, PieceInstance piece,
-            CombatLoadoutSnapshot loadout, Color colour, int minColumn, int minRow)
+            CombatLoadoutSnapshot loadout, Color colour, ItemCategory category, int minColumn, int minRow)
         {
             int left = int.MaxValue;
             int top = int.MaxValue;
@@ -480,7 +499,8 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
                 piece.CellCount,
                 piece.Tier,
                 Casts(loadout, instanceId),
-                colour));
+                colour,
+                category));
         }
 
         /// <summary>
