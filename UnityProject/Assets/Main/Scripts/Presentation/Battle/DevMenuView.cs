@@ -4,6 +4,7 @@ using ProjectSurvive.Game.Presentation.Camp;
 using R3;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using VContainer;
 using VContainer.Unity;
@@ -58,6 +59,20 @@ namespace ProjectSurvive.Game.Presentation.Battle
         [SerializeField] private Button _loseNowButton;
 
         private DevMenuPresenter _presenter;
+
+        /// <summary>
+        /// Whether cheats are allowed at all — <see cref="DevMenuPresenter.Visible"/>, false in a
+        /// release build.
+        /// </summary>
+        private bool _allowed;
+
+        /// <summary>
+        /// Whether the F1 key has been pressed since the floor started (Stage 08g-2). The panel starts
+        /// shut even where cheats are allowed: the item asks for the dev menu to be "ซ่อนไว้หลังปุุม F1",
+        /// and a menu that is on screen by default is a panel the player reads instead of the fight.
+        /// </summary>
+        private bool _toggledOpen;
+
         private IDisposable _visibleSubscription;
         private IDisposable _godModeSubscription;
         private IDisposable _statusSubscription;
@@ -98,21 +113,62 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private void Start() => Bind();
 
         /// <summary>
-        /// Publishes where the panel's controls are, once they are really on screen and again when the
-        /// canvas changed size.
+        /// Publishes where the panel's controls are, and whether they are on screen, once the floor
+        /// binds and again whenever the panel opens, closes or the canvas changes size.
         /// </summary>
         /// <remarks>
         /// It is the view that knows this, and the page has no other way to learn it: a browser test
         /// can press a control it can name only if something tells it where that control is (the camp
-        /// publishes the same thing for the same reason). The guard makes the cost of a hidden menu two
-        /// integer comparisons per frame, and the document is written <b>only</b> where the panel is up
-        /// — which in a release build is never, because <see cref="DevMenuPresenter.Visible"/> is false
-        /// there.
+        /// publishes the same thing for the same reason). Since Stage 08g-2 the menu starts hidden
+        /// behind F1, so <b>the first document appears when the panel opens</b> — a browser presses the
+        /// key and then reads it. Nothing is published before that, because a control on a shut panel
+        /// has nowhere to click and no position worth reporting, and nothing at all is published where
+        /// cheats are not allowed, which is every release build.
         /// </remarks>
         private void Update()
         {
-            if (!PanelVisible
-                || (_publishedCanvasWidth == Screen.width && _publishedCanvasHeight == Screen.height))
+            // Stage 08g-2: F1 is the only way in or out of the menu where cheats are allowed. The key
+            // is read from the Input System the rest of the project uses, and the press is a UI toggle
+            // rather than a command — nothing here decides whether a cheat may run.
+            Keyboard keyboard = Keyboard.current;
+            if (_allowed && keyboard != null && keyboard.f1Key.wasPressedThisFrame)
+            {
+                TogglePanel();
+            }
+
+            if (PanelVisible
+                && (_publishedCanvasWidth != Screen.width || _publishedCanvasHeight != Screen.height))
+            {
+                PublishReport();
+            }
+        }
+
+        /// <summary>
+        /// Opens or closes the panel, exactly as F1 does, and publishes the report of where its
+        /// controls now are. Public so a PlayMode test can reach the menu in a process with no
+        /// keyboard device; nothing here decides whether a cheat may run.
+        /// </summary>
+        public void TogglePanel()
+        {
+            if (!_allowed)
+            {
+                return;
+            }
+
+            _toggledOpen = !_toggledOpen;
+            ApplyPanel();
+            PublishReport();
+        }
+
+        /// <summary>
+        /// Writes the report the page reads, remembering the size it described. Silent where the menu
+        /// is not allowed at all — a release build publishes no dev-menu global. A shut panel cannot
+        /// report a control's position (`CampScreenRects` refuses an inactive transform, which is
+        /// honest: nothing there can be clicked), so the document appears when the panel opens.
+        /// </summary>
+        private void PublishReport()
+        {
+            if (!_allowed)
             {
                 return;
             }
@@ -257,9 +313,18 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
         private void ApplyVisible(bool visible)
         {
+            _allowed = visible;
+            ApplyPanel();
+        }
+
+        /// <summary>
+        /// The one place the panel's active state is set: cheats allowed <b>and</b> F1 pressed.
+        /// </summary>
+        private void ApplyPanel()
+        {
             if (_panel is not null)
             {
-                _panel.SetActive(visible);
+                _panel.SetActive(_allowed && _toggledOpen);
             }
         }
 

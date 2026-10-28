@@ -921,7 +921,6 @@ Tests: PlayMode: ค่าคูลดาวน์จาก frame ทำให�
 10 วินาทีของ battle ไม่มี exception และ viewsGrownDuringPlay = 0 เหมือนเดิม
 Acceptance: ภาพสองขนาดไม่มีการทับกัน, เทสต์ผ่าน, รายงานสั้น PASS / FAIL / NOT RUN
 
-
 ทำ Stage 08d เท่านั้น: ขยับย่ามจิ๋ว (MiniBagPanel) ของ Battle HUD ให้ชิดซ้ายบน ใต้ข้อความ "ย่าม"
 ขอบเขต: Presentation และการสร้างฉากเท่านั้น ห้ามแก้ Core, Simulation, data/ ห้ามเพิ่ม localization
 ตรวจด้วยภาพจาก Editor capture ที่ขนาดจริง ไม่ต้อง build Web
@@ -967,6 +966,54 @@ Tests:
 Acceptance: ภาพสองขนาดไม่มี element ทับกัน, ย่ามจิ๋วชิดซ้ายบนใต้ข้อความ "ย่าม",
 เทสต์ผ่าน, รายงานสั้น PASS / FAIL / NOT RUN (WebGL และ Playwright = NOT RUN ตามที่สั่ง)
 ```
+
+### Stage 08g: Look-dev ฉาก Battle ให้เข้าใกล้ภาพเป้าหมาย (Presentation เท่านั้น)
+ทำ Stage 08g เท่านั้น: Look-dev ฉาก Battle ให้เข้าใกล้ภาพเป้าหมาย (Presentation เท่านั้น)
+ห้ามแก้ Core, data/ หรือกติกาเกม ห้ามวาดหรือสร้างภาพ art แทน ตรวจด้วยภาพจาก Editor (-Suite Fast)
+ภาพเป้าหมาย: docs/art/target_keyart.png (ใช้เทียบโทนและองค์ประกอบเท่านั้น)
+
+1. สำรวจและรายงานก่อนแก้: รายการ asset ที่ฉากใช้จริง แยกเป็น art จริงจาก Incoming กับ placeholder,
+   ค่า Render Scale, Depth of Field, MSAA/FXAA, Max Size/Aniso/mipmap ของภาพการ์ด, Volume profile ที่ active
+   และสาเหตุที่ภาพเบลอ (ระบุพร้อมหลักฐาน ห้ามเดา)
+2. ความคม: Render Scale 1.0, ปิด Depth of Field, ตั้ง import ของการ์ดให้ความละเอียดบนจอที่ 1080p
+   ไม่ต่ำกว่าขนาดที่แสดงจริง, Aniso ≥ 4
+3. Night profile ใหม่ตามตารางค่าเริ่มต้นที่แนบ แล้วปรับให้ค่าเฉลี่ย hue/luminance ของภาพ
+   ใกล้ target_keyart มากขึ้น (บันทึกตัวเลขก่อน/หลัง); เปลี่ยนแอ่งแสงจากส้มนวลเป็นแดงชมพูจัด
+4. เงา: การ์ดต้นไม้/พุ่ม/landmark cast shadow ผ่าน alpha clip, แสงจันทร์เอียงให้เงาทอดยาว
+   ตัวละครยังใช้ blob shadow
+5. การจัดวาง: บังคับโซนจริง (กลางลานไม่มีการ์ดสูงกว่า grass), ขอบเป็นกำแพงต้นไม้แน่น
+   และสูง 3–5 เท่าของผู้เล่น, เพิ่มลำต้น foreground ที่ขอบล่างของจอพร้อม dither เมื่อบังผู้เล่น;
+   ปรับกล้องให้ผู้เล่นสูงประมาณ 8–10% ของความสูงจอ (บันทึกค่าใน CameraProfile)
+6. HUD Battle: ลบพาเนลย่ามออกจาก Battle, สถานะ HP/MP เหลือกรอบเล็กมุมซ้ายล่าง,
+   ไทม์ไลน์เป็นแถบบางด้านบน, Dev menu ซ่อนไว้หลังปุ่ม F1;
+   วัดพื้นที่ที่ UI บังจอ ต้อง ≤ 15% ที่ 1920×1080 (มีเทสต์)
+7. หลักฐาน: ภาพ 1920×1080 ก่อน/หลัง (Night ว่าง และ Night + 300 ศัตรู) วางเทียบกับ target_keyart
+   ลง artifacts/ui/battle-lookdev/ พร้อม batches และ ms/frame
+
+Acceptance:
+- ภาพไม่เบลอที่ Game view 1x และไม่มี Depth of Field
+- โทนกลางคืนตัวเลขใกล้เป้ากว่าเดิม (รายงาน hue/luminance เฉลี่ยก่อน/หลัง)
+- กลางลานผ่านเทสต์โซน; UI ≤ 15% ของจอ
+- รายงานรายการ placeholder ที่ยังเหลือแยกให้เห็นชัด; รายงานสั้น PASS / FAIL / NOT RUN
+
+
+## Stage 08h เท่านั้น: ผี กระสุน และ pickup ถูกพื้นตัดครึ่งล่าง (Presentation เท่านั้น)
+
+อาการ: เมื่อ arena-floor เปิด สไปรต์ของผี กระสุน และ pickup เห็นเฉพาะครึ่งบนเหมือนจมลงพื้น ปิด arena-floor แล้วเห็นครบ
+สมมติฐาน (ยังไม่ยืนยัน): พื้นเป็น mesh ทึบที่เขียน depth (Stage 08e) ขณะที่สไปรต์เป็น billboard เอียง 50° ที่ pivot ตรงกลาง
+ศูนย์กลางอยู่ที่ y = 0 ครึ่งล่างจึงอยู่ใต้ระนาบพื้นและตกการทดสอบ depth
+ขัดกับ ADR 0018 ที่ว่าการบังกันตัดสินด้วย sorting order ไม่ใช่ depth buffer
+
+A. วินิจฉัยก่อนแก้ → report: พิมพ์ shader, ZWrite, ZTest, render queue ของ material พื้น และของสไปรต์ผี/กระสุน/pickup;
+   pivot ของสไปรต์ และ y ของ view; ยืนยันด้วยการจับภาพเปิดและปิดพื้น ห้ามเดา
+B. แก้ที่ต้นเหตุเพียงจุดเดียว (เลือกวิธีที่ไม่ทำให้กติกาลำดับการวาดของ shadow, decal, telegraph, การ์ด และตัวละครเปลี่ยน):
+   พื้นไม่เขียน depth และวาดก่อนทุกอย่างบนพื้น หรือแก้ pivot/ตำแหน่ง y ของสไปรต์ให้ทั้งชิ้นอยู่เหนือระนาบ
+   เขียนเหตุผลที่เลือกใน ADR สั้นๆ
+C. ตรวจให้ครบทุกชนิด: ผี (รวม Elite/บอสที่ขยายขนาด), กระสุน, pickup, วงเตือน, ตัวเลขดาเมจ, ตัวละครผู้เล่น ทั้ง Dusk และ Night
+
+Tests: เทสต์ฉากจริงที่วางผีและกระสุนที่ตำแหน่งกำหนด แล้วจับภาพ ตรวจว่าครึ่งล่างของสไปรต์มีพิกเซลสีของมันไม่ต่ำกว่าเกณฑ์
+(ล้มก่อนแก้และผ่านหลังแก้ แนบทั้งสองผล); ถ้าเลือกวิธีแก้ที่ material ให้มีเทสต์ยืนยันว่าพื้นไม่เขียน depth
+Acceptance: ภาพ Editor 1920×1080 และ 1280×720 ที่มีผีหลายสิบตัวและกระสุนเห็นครบตัว, เทสต์ผ่าน, รายงานสั้น PASS / FAIL / NOT RUN
 
 ### Stage 09: ศาลาพัก (ร้าน และ UI จัดย่าม)
 
@@ -1670,6 +1717,8 @@ SpinePlayerView, SpinePlayerProfile (และ asset ที่สร้างไ
    - tools/test.ps1 -Suite Fast; PlayMode เฉพาะ fixture Camp/Battle; Editor capture ตามข้างบน
      -Suite Full และ build -ReleaseCandidate ตอนปิด ถ้ารันไม่ได้ให้ NOT RUN ตามจริง
    - commit `stage-17e: ...`   รายงานสั้น PASS / FAIL / NOT RUN
+
+
 
 ## Test harness และ Performance budget
 

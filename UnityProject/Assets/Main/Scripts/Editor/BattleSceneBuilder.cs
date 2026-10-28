@@ -53,14 +53,6 @@ namespace ProjectSurvive.Game.Editor
         /// </remarks>
         private const float UiMargin = 24f;
 
-        /// <summary>
-        /// Width of the mini ย่าม's caption's line box, in UI pixels ("ย่าม"). Wider than the word
-        /// needs today, so a translation of it does not clip; the grid's own left inset is
-        /// <see cref="BattleMiniBagView.LeftInset"/>, the same number, which is why the two left edges
-        /// line up.
-        /// </summary>
-        private const float MiniBagCaptionWidth = 240f;
-
         /// <summary>The panel background the battle HUD's four bordered panels share.</summary>
         private static readonly Color PanelBackdrop = new Color(0.07f, 0.08f, 0.11f, 0.92f);
 
@@ -126,7 +118,7 @@ namespace ProjectSurvive.Game.Editor
 
             Canvas canvas = ProjectSetup.CreateCanvas(out GameObject canvasObject);
             BattleHudView hud = BuildBattleHud(
-                canvas, canvasObject, font, scope, out BattleMiniBagView miniBag, out Button pauseButton);
+                canvas, canvasObject, font, scope, out Button pauseButton);
 
             var runnerObject = new GameObject("BattleRunner");
             BattleSimulationRunner runner = runnerObject.AddComponent<BattleSimulationRunner>();
@@ -138,7 +130,6 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(runner, "_viewSettings.ViewRoot", viewRoot.transform);
             ProjectSetup.SetObjectReference(runner, "_viewSettings.Camera", camera);
             ProjectSetup.SetObjectReference(runner, "_viewSettings.Hud", hud);
-            ProjectSetup.SetObjectReference(runner, "_viewSettings.MiniBag", miniBag);
             ProjectSetup.SetObjectReference(runner, "_viewSettings.Font", font);
             ProjectSetup.SetObjectReference(runner, "_viewSettings.PlayerFigure", playerFigure);
             ProjectSetup.SetEnum(runner, "_viewSettings.Projection", (int)BattleProjection.Orthographic);
@@ -369,21 +360,18 @@ namespace ProjectSurvive.Game.Editor
         /// height and the status panel ends at 30 %, so the band between them belongs to neither.
         /// </para>
         /// <para>
-        /// The mini ย่าม replaced the line of equipped spell names ("เอาข้อความรายการคาถาที่ติดตั้งออก"):
-        /// the bag itself now says which pieces are equipped, and the piece that can cast carries a
-        /// cooldown plate (Stage 08b's <c>IBattleFrame.Cooldowns</c>).
+        /// <b>The mini ย่าม is not here any more (Stage 08g-2).</b> It was added in Stage 08c and taken
+        /// out when the stage's sixth item asked for the Battle screen to give its space back to the
+        /// fight: the bag is drawn by the camp's จัดย่าม screen, where the player can actually edit it.
+        /// With it went the cooldown plates (Stage 08b's <c>IBattleFrame.Cooldowns</c> still fills the
+        /// frame; no view draws it today), so the HUD is now four panels and every one of them is text
+        /// or a bar.
         /// </para>
         /// <para>
         /// All text is at or above <see cref="ProjectSetup.UiFontSize"/> (22 px), which is the Thai floor the
-        /// project has held since Stage 09d; the mini bag's tier numbers are sized from its own cells
-        /// with the same floor (see <c>BattleMiniBagView</c>).
-        /// </para>
-        /// <para>
-        /// The mini bag is handed back through <paramref name="miniBag"/> because the HUD view does not
-        /// own it: it is wired straight into <c>BattleViewSettings.MiniBag</c>, which is the reference
-        /// <c>BattleViewScene</c> builds and plates the bag from. Without that one
-        /// <c>SetObjectReference</c> the panel draws its caption and nothing else — a defect the scene's
-        /// own PlayMode test caught ("the scene wired no mini bag").
+        /// project has held since Stage 09d, and the panels are sized so that the screen area they
+        /// cover stays under the 15 % the stage's sixth item allows (see
+        /// <see cref="BattleHudArea"/> and the test that measures the scene).
         /// </para>
         /// </remarks>
         /// <summary>
@@ -461,63 +449,34 @@ namespace ProjectSurvive.Game.Editor
 
         private static BattleHudView BuildBattleHud(
             Canvas canvas, GameObject canvasObject, TMP_FontAsset font, BattleSceneScope scope,
-            out BattleMiniBagView miniBag, out Button pauseButton)
+            out Button pauseButton)
         {
             var canvasRect = (RectTransform)canvas.transform;
 
-            // ---- top left: the mini ย่าม, at most a quarter of the canvas wide ----
-            RectTransform miniBagPanel = ProjectSetup.StretchUiRect(
-                canvasRect, UiLayoutCheck.MiniBag, new Vector2(0f, 0.45f), new Vector2(0.25f, 1f),
-                new Vector2(UiMargin, UiMargin), new Vector2(-UiMargin, -UiMargin));
-            ProjectSetup.AddPanelBackground(miniBagPanel, MiniBagPalette.Backdrop);
-
-            // The caption and the grid share one left inset, and the grid starts one caption line box
-            // plus `CaptionGap` below the caption's top (Stage 08d). The numbers are the view's named
-            // constants rather than literals here, so the scene, the layout and the layout test read
-            // the same definition of "under the caption".
-            TMP_Text bagCaption = ProjectSetup.CreateUiText(
-                miniBagPanel, "BagCaption",
-                new Vector2(BattleMiniBagView.LeftInset, -BattleMiniBagView.CaptionTop),
-                new Vector2(MiniBagCaptionWidth, BattleMiniBagView.CaptionHeight),
-                ProjectSetup.UiFontSize, font);
-
-            // The grid's own area: anchored at the panel's top-left corner, below the caption, and
-            // stretched to the panel's right and bottom edges. The view measures this rect and sizes
-            // its cells to it, so a canvas resize re-fits the bag rather than clipping it.
-            RectTransform miniBagContent = ProjectSetup.StretchUiRect(
-                miniBagPanel, "MiniBagContent", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            BattleMiniBagView.AnchorContent(miniBagContent);
-
-            miniBag = miniBagPanel.gameObject.AddComponent<BattleMiniBagView>();
-            ProjectSetup.SetObjectReference(miniBag, "_panel", miniBagPanel);
-            ProjectSetup.SetObjectReference(miniBag, "_content", miniBagContent);
-            ProjectSetup.SetObjectReference(miniBag, "_font", font);
-
-            // ---- top centre: the floor's name, its number in the run, and หยุด ----
+            // ---- top left: the floor's name, its number in the run, and หยุด ----
             //
-            // The panel is 176 reference pixels tall rather than 140 because Stage 13c-2b added the
-            // pause control in the band the two labels did not use: the index label ends 96 px below
-            // the top, and the control needs 38 px of its own below a 32 px gap. The alternative (a
-            // control crammed into the resource panel) would have put a third pressable thing inside
-            // the column that already holds the speed toggle.
+            // Stage 08g-2 moved this block from the top centre (576 x 152, 4.22 % of the screen) into
+            // the corner the mini ย่าม left, at 380 x 72 (1.32 %). The floor's identity is read once a
+            // floor, so it is two lines of text and a control rather than a panel in the middle of the
+            // fight. The pause control keeps its own band on the right of the block: cramming it into
+            // the resource panel would put a third pressable thing beside the speed toggle.
             RectTransform floorPanel = ProjectSetup.StretchUiRect(
-                canvasRect, UiLayoutCheck.FloorPanel, new Vector2(0.35f, 1f), new Vector2(0.65f, 1f),
-                new Vector2(0f, -176f), new Vector2(0f, -UiMargin));
+                canvasRect, UiLayoutCheck.FloorPanel, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(UiMargin, -96f), new Vector2(UiMargin + 380f, -UiMargin));
             ProjectSetup.AddPanelBackground(floorPanel, PanelBackdrop);
 
-            TMP_Text floorLabel = ProjectSetup.StretchUiText(
-                floorPanel, "FloorLabel", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(12f, -54f), new Vector2(-12f, -10f), 30f, font, TextAlignmentOptions.Center);
+            TMP_Text floorLabel = ProjectSetup.CreateUiText(
+                floorPanel, "FloorLabel", new Vector2(12f, -4f), new Vector2(250f, 32f), 30f, font);
 
-            TMP_Text floorIndexLabel = ProjectSetup.StretchUiText(
-                floorPanel, "FloorIndexLabel", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(12f, -96f), new Vector2(-12f, -58f), ProjectSetup.UiFontSize, font, TextAlignmentOptions.Center);
+            TMP_Text floorIndexLabel = ProjectSetup.CreateUiText(
+                floorPanel, "FloorIndexLabel", new Vector2(12f, -40f), new Vector2(250f, 28f),
+                ProjectSetup.UiFontSize, font);
 
             // Stage 13c-2b: the HUD's own หยุด control. Its caption is a localization row the pause
             // view assigns, so the button says what it does the moment the scene binds.
-            RectTransform pauseObject = ProjectSetup.StretchUiRect(
-                floorPanel, UiLayoutCheck.PauseButton, new Vector2(0f, 0f), new Vector2(1f, 0f),
-                new Vector2(12f, 10f), new Vector2(-12f, 48f));
+            RectTransform pauseObject = ProjectSetup.CreateUiRect(
+                floorPanel, UiLayoutCheck.PauseButton, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-16f, -16f), new Vector2(68f, 40f));
             Image pauseBackground = pauseObject.gameObject.AddComponent<Image>();
             pauseBackground.color = new Color(0.22f, 0.24f, 0.31f, 0.95f);
             pauseButton = pauseObject.gameObject.AddComponent<Button>();
@@ -528,34 +487,38 @@ namespace ProjectSurvive.Game.Editor
 
             // ---- top right: time, bia, kills, wave, the boss bar and the speed control ----
             //
-            // The panel is 276 reference pixels tall, and that number is measured rather than chosen:
-            // three stat rows (a caption over its value), the boss band and the speed control do not
-            // fit in the 220 the rows alone needed once the controls were moved in under them, and
-            // `ProjectSurvive/Tools/1. Capture UI` reports the collision ("SpeedButton overlaps
-            // KillsValue") rather than letting a player find it. Every band is separated by at least
-            // 2 reference pixels: two boxes that merely *touch* are not a collision, but at 1280×720
-            // the canvas scalar rounds a shared edge to different floats on each side and a tangent
-            // pair reads as an overlap.
+            // Stage 08g-2 took this panel from 648 x 276 (8.62 %) to 514 x 216 (5.35 %): the two
+            // numbers a player glances at — bia and the clock — keep their 30 px figures over a
+            // caption, while the wave and the kill count became one-line rows, which is all they ever
+            // needed. The boss band and the speed control still sit in their own bands under the rows,
+            // and every band is separated by at least 2 reference pixels: two boxes that merely
+            // *touch* are not a collision, but at 1280×720 the canvas scalar rounds a shared edge to
+            // different floats on each side and a tangent pair reads as an overlap.
             RectTransform resourcePanel = ProjectSetup.StretchUiRect(
-                canvasRect, UiLayoutCheck.ResourcePanel, new Vector2(0.65f, 1f), new Vector2(1f, 1f),
-                new Vector2(0f, -300f), new Vector2(-UiMargin, -UiMargin));
+                canvasRect, UiLayoutCheck.ResourcePanel, new Vector2(0.72f, 1f), new Vector2(1f, 1f),
+                new Vector2(0f, -312f), new Vector2(-UiMargin, -96f));
             ProjectSetup.AddPanelBackground(resourcePanel, PanelBackdrop);
 
-            TMP_Text biaCaption = ProjectSetup.CreateUiText(resourcePanel, "BiaCaption", new Vector2(0f, -8f), new Vector2(160f, 30f), ProjectSetup.UiFontSize, font);
-            TMP_Text biaValue = ProjectSetup.CreateUiText(resourcePanel, "BiaValue", new Vector2(0f, -40f), new Vector2(200f, 40f), 30f, font);
-            TMP_Text timeCaption = ProjectSetup.CreateUiText(resourcePanel, "TimeCaption", new Vector2(220f, -8f), new Vector2(160f, 30f), ProjectSetup.UiFontSize, font);
-            TMP_Text timeValue = ProjectSetup.CreateUiText(resourcePanel, "TimeValue", new Vector2(220f, -40f), new Vector2(200f, 40f), 30f, font);
-            TMP_Text waveCaption = ProjectSetup.CreateUiText(resourcePanel, "WaveCaption", new Vector2(0f, -86f), new Vector2(160f, 30f), ProjectSetup.UiFontSize, font);
-            TMP_Text waveValue = ProjectSetup.CreateUiText(resourcePanel, "WaveValue", new Vector2(220f, -86f), new Vector2(200f, 30f), ProjectSetup.UiFontSize, font);
-            TMP_Text killsCaption = ProjectSetup.CreateUiText(resourcePanel, "KillsCaption", new Vector2(0f, -120f), new Vector2(200f, 30f), ProjectSetup.UiFontSize, font);
-            TMP_Text killsValue = ProjectSetup.CreateUiText(resourcePanel, "KillsValue", new Vector2(220f, -120f), new Vector2(200f, 30f), ProjectSetup.UiFontSize, font);
+            TMP_Text biaCaption = ProjectSetup.CreateUiText(resourcePanel, "BiaCaption", new Vector2(12f, -8f), new Vector2(140f, 24f), ProjectSetup.UiFontSize, font);
+            TMP_Text biaValue = ProjectSetup.CreateUiText(resourcePanel, "BiaValue", new Vector2(12f, -32f), new Vector2(200f, 34f), 30f, font);
+            TMP_Text timeCaption = ProjectSetup.CreateUiText(resourcePanel, "TimeCaption", new Vector2(268f, -8f), new Vector2(140f, 24f), ProjectSetup.UiFontSize, font);
+            TMP_Text timeValue = ProjectSetup.CreateUiText(resourcePanel, "TimeValue", new Vector2(268f, -32f), new Vector2(200f, 34f), 30f, font);
+            TMP_Text waveCaption = ProjectSetup.CreateUiText(resourcePanel, "WaveCaption", new Vector2(12f, -74f), new Vector2(100f, 28f), ProjectSetup.UiFontSize, font);
+            TMP_Text waveValue = ProjectSetup.CreateUiText(resourcePanel, "WaveValue", new Vector2(116f, -74f), new Vector2(140f, 28f), ProjectSetup.UiFontSize, font);
+            // The kills caption needs the width of its own words: "ศัตรูที่กำจัด" measures 100.3 px and
+            // "Enemies slain" 129.7 px with Sarabun at 22 px, so the 100 px the first cut of this row
+            // used wrapped the Thai caption onto a second line the row has no band for (the capture's
+            // screenshot showed "ศัตรูที่กำจั / ด 360"). 136 px clears the English by 6 and the Thai by
+            // 36; the value starts 4 px after it, which is the rule every other pair in the HUD keeps.
+            TMP_Text killsCaption = ProjectSetup.CreateUiText(resourcePanel, "KillsCaption", new Vector2(268f, -74f), new Vector2(136f, 28f), ProjectSetup.UiFontSize, font);
+            TMP_Text killsValue = ProjectSetup.CreateUiText(resourcePanel, "KillsValue", new Vector2(408f, -74f), new Vector2(94f, 28f), ProjectSetup.UiFontSize, font);
 
             // The boss bar appears only on a boss floor; the presenter tells the view when. It is a
             // band inside the resource panel, never a panel of its own — the layout check holds a
             // control to its surface.
             RectTransform bossRoot = ProjectSetup.StretchUiRect(
                 resourcePanel, UiLayoutCheck.BossPanel, new Vector2(0f, 0f), new Vector2(1f, 0f),
-                new Vector2(0f, 70f), new Vector2(0f, 114f));
+                new Vector2(12f, 62f), new Vector2(-12f, 102f));
             TMP_Text bossCaption = ProjectSetup.CreateUiText(bossRoot, "BossCaption", new Vector2(0f, -4f), new Vector2(200f, 22f), ProjectSetup.UiFontSize, font);
             RectTransform bossBar = ProjectSetup.StretchUiBar(
                 bossRoot, "BossBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
@@ -563,7 +526,7 @@ namespace ProjectSurvive.Game.Editor
 
             RectTransform speedObject = ProjectSetup.StretchUiRect(
                 resourcePanel, UiLayoutCheck.SpeedButton, new Vector2(0f, 0f), new Vector2(1f, 0f),
-                new Vector2(0f, 8f), new Vector2(0f, 66f));
+                new Vector2(12f, 8f), new Vector2(-12f, 58f));
             Image speedBackground = speedObject.gameObject.AddComponent<Image>();
             speedBackground.color = new Color(0.16f, 0.17f, 0.22f, 0.9f);
             Button speedButton = speedObject.gameObject.AddComponent<Button>();
@@ -572,21 +535,25 @@ namespace ProjectSurvive.Game.Editor
                 speedObject, "SpeedLabel", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero,
                 28f, font, TextAlignmentOptions.Center);
 
-            // ---- bottom left: the status panel (figure, HP, MP) ----
+            // ---- bottom left: the status frame (figure, HP, MP) ----
+            //
+            // Stage 08g-2 made this "กรอบเล็กมุมซ้ายล่าง" as the item asks: 380 x 212 (3.89 %) instead
+            // of a quarter-wide 432 x 276 panel (5.75 %), with the figure, the two bars and the
+            // possession warning of Stage 11c all still inside it. Shrinking it was a placement
+            // exercise, not a deletion: the figure gave up 4 px of width and 6 of height, and the
+            // rows moved from an absolute grid to the bands the smaller frame has.
             RectTransform statusPanel = ProjectSetup.StretchUiRect(
-                canvasRect, UiLayoutCheck.StatusPanel, Vector2.zero, new Vector2(0.25f, 0.30f),
-                new Vector2(UiMargin, UiMargin), new Vector2(-UiMargin, -UiMargin));
+                canvasRect, UiLayoutCheck.StatusPanel, Vector2.zero, Vector2.zero,
+                new Vector2(UiMargin, UiMargin), new Vector2(UiMargin + 380f, UiMargin + 212f));
             ProjectSetup.AddPanelBackground(statusPanel, PanelBackdrop);
 
-            // The caption sits over the figure, not beside it: "สถานะ" is 200 px wide and the figure
-            // starts 46 px below the panel's top for exactly that reason — as first authored, the two
-            // shared their top-right corner and the capture command reported
-            // "Portrait overlaps StatusCaption".
-            // Stage 13 measured every label in the player (`UiTextFitReport`): 22 px Sarabun needs
-            // 28.61 px of line box, so a 28 px rectangle is 0.6 px short — the boxes here are 30 px,
-            // and the two the audit caught wrapping are widened below.
+            // The caption sits over the figure, not beside it — as first authored, the two shared
+            // their top-right corner and the capture command reported "Portrait overlaps
+            // StatusCaption". Stage 13 measured every label in the player (`UiTextFitReport`): 22 px
+            // Sarabun needs 28.61 px of line box, so a 28 px rectangle is 0.6 px short and the
+            // caption's box is 24 px wide by 24 high only because it sits alone on its line.
             TMP_Text statusCaption = ProjectSetup.CreateUiText(
-                statusPanel, "StatusCaption", new Vector2(10f, -8f), new Vector2(200f, 30f), ProjectSetup.UiFontSize, font);
+                statusPanel, "StatusCaption", new Vector2(10f, -4f), new Vector2(140f, 24f), ProjectSetup.UiFontSize, font);
 
             // Stage 17d: the figure is a Spine SkeletonGraphic drawn through the UI material
             // `ProjectSurvive/Spine/3` writes — never a placeholder sprite and never a shader looked
@@ -632,20 +599,20 @@ namespace ProjectSurvive.Game.Editor
             // A caption and its value are two boxes with 2 px between them (116..174 and 176..284):
             // sharing an edge exactly is what makes a tangent pair read as a collision once the canvas
             // scalar has rounded both sides differently.
-            TMP_Text hpCaption = ProjectSetup.CreateUiText(statusPanel, "HpCaption", new Vector2(92f, -46f), new Vector2(58f, 30f), ProjectSetup.UiFontSize, font);
-            TMP_Text hpValue = ProjectSetup.CreateUiText(statusPanel, "HpValue", new Vector2(152f, -46f), new Vector2(108f, 30f), ProjectSetup.UiFontSize, font);
+            TMP_Text hpCaption = ProjectSetup.CreateUiText(statusPanel, "HpCaption", new Vector2(100f, -30f), new Vector2(62f, 26f), ProjectSetup.UiFontSize, font);
+            TMP_Text hpValue = ProjectSetup.CreateUiText(statusPanel, "HpValue", new Vector2(166f, -30f), new Vector2(130f, 26f), ProjectSetup.UiFontSize, font);
             RectTransform hpBar = ProjectSetup.StretchUiBar(
                 statusPanel, "HpBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(92f, -92f), new Vector2(-10f, -78f), new Color(0.85f, 0.28f, 0.30f, 1f));
+                new Vector2(100f, -72f), new Vector2(-12f, -60f), new Color(0.85f, 0.28f, 0.30f, 1f));
 
             // Stage 13: "พลังอาคม" (MP) needs 89 px and the caption's box was 58, so it wrapped onto
             // a second line inside a 24 px box — the one genuinely clipped label the audit found.
             // The caption takes 104 px and the value moves right to clear it.
-            TMP_Text manaCaption = ProjectSetup.CreateUiText(statusPanel, "ManaCaption", new Vector2(92f, -96f), new Vector2(104f, 30f), ProjectSetup.UiFontSize, font);
-            TMP_Text manaValue = ProjectSetup.CreateUiText(statusPanel, "ManaValue", new Vector2(200f, -96f), new Vector2(100f, 30f), ProjectSetup.UiFontSize, font);
+            TMP_Text manaCaption = ProjectSetup.CreateUiText(statusPanel, "ManaCaption", new Vector2(100f, -78f), new Vector2(104f, 26f), ProjectSetup.UiFontSize, font);
+            TMP_Text manaValue = ProjectSetup.CreateUiText(statusPanel, "ManaValue", new Vector2(208f, -78f), new Vector2(130f, 26f), ProjectSetup.UiFontSize, font);
             RectTransform manaBar = ProjectSetup.StretchUiBar(
                 statusPanel, "ManaBar", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(92f, -144f), new Vector2(-10f, -130f), new Color(0.42f, 0.72f, 0.95f, 1f));
+                new Vector2(100f, -120f), new Vector2(-12f, -108f), new Color(0.42f, 0.72f, 0.95f, 1f));
 
             // Stage 11c: the one line the status panel gains — a boss's possession has the movement
             // input reversed, and the player has to be told in words. It is authored empty rather than
@@ -653,22 +620,28 @@ namespace ProjectSurvive.Game.Editor
             // writes the localized line into it only while the frame says the controls are reversed
             // (hud.possession). It sits in the band under the two bars, which nothing else uses.
             TMP_Text possessionLabel = ProjectSetup.CreateUiText(
-                statusPanel, "PossessionLabel", new Vector2(10f, -170f), new Vector2(400f, 56f), 24f, font);
+                statusPanel, "PossessionLabel", new Vector2(10f, -142f), new Vector2(358f, 52f), 22f, font);
             possessionLabel.color = new Color(1f, 0.55f, 0.45f, 1f);
 
-            // ---- bottom centre: the floor's timeline ----
+            // ---- top: the floor's timeline, as a thin bar (Stage 08g-2) ----
+            //
+            // It was a 928 x 176 panel along the bottom centre (7.88 % of the screen) with a caption
+            // band above a 26 px track. The item asks for "แถบบางด้านบน": one 48 px strip from the
+            // floor block's right edge to the screen's, the caption inline on the left and the track
+            // filling the rest. The windows, the elite and boss marks and the playhead are the same
+            // model drawn smaller, so nothing about what it says changed.
             RectTransform timelinePanel = ProjectSetup.StretchUiRect(
-                canvasRect, UiLayoutCheck.TimelinePanel, new Vector2(0.25f, 0f), new Vector2(0.75f, 0.20f),
-                new Vector2(16f, UiMargin), new Vector2(-16f, -16f));
+                canvasRect, UiLayoutCheck.TimelinePanel, new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(UiMargin + 380f + 24f, -72f), new Vector2(-UiMargin, -UiMargin));
             ProjectSetup.AddPanelBackground(timelinePanel, PanelBackdrop);
 
-            TMP_Text timelineCaption = ProjectSetup.StretchUiText(
-                timelinePanel, "TimelineCaption", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(12f, -36f), new Vector2(-12f, -6f), ProjectSetup.UiFontSize, font);
+            TMP_Text timelineCaption = ProjectSetup.CreateUiText(
+                timelinePanel, "TimelineCaption", new Vector2(12f, -12f), new Vector2(132f, 24f),
+                ProjectSetup.UiFontSize, font);
 
             RectTransform track = ProjectSetup.StretchUiRect(
-                timelinePanel, "TimelineTrack", new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(12f, -70f), new Vector2(-12f, -44f));
+                timelinePanel, "TimelineTrack", new Vector2(0f, 0.5f), new Vector2(1f, 0.5f),
+                new Vector2(156f, -10f), new Vector2(-12f, 10f));
             Image trackImage = track.gameObject.AddComponent<Image>();
             trackImage.color = new Color(0.12f, 0.13f, 0.17f, 0.85f);
 
@@ -708,7 +681,6 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(hud, "_waveValue", waveValue);
             ProjectSetup.SetObjectReference(hud, "_killsCaption", killsCaption);
             ProjectSetup.SetObjectReference(hud, "_killsValue", killsValue);
-            ProjectSetup.SetObjectReference(hud, "_bagCaption", bagCaption);
             ProjectSetup.SetObjectReference(hud, "_statusCaption", statusCaption);
             ProjectSetup.SetObjectReference(hud, "_possessionLabel", possessionLabel);
             ProjectSetup.SetObjectReference(hud, "_timelineCaption", timelineCaption);

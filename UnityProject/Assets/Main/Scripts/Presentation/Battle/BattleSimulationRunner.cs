@@ -187,7 +187,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
                 Audio.AudioDirector.Instance);
 
             _session = _view.Begin(
-                context.Factory, context.Setup, context.StartingBia, context.Backpack, context.Config);
+                context.Factory, context.Setup, context.StartingBia);
 
             StepsRun = 0;
             LastSteps = 0;

@@ -54,9 +54,6 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         [SerializeField] private TMP_Text _killsCaption;
         [SerializeField] private TMP_Text _killsValue;
 
-        [Tooltip("The mini ย่าม's caption, above the bag (Stage 08c).")]
-        [SerializeField] private TMP_Text _bagCaption;
-
         [Tooltip("The status panel's caption, over the figure and the two bars.")]
         [SerializeField] private TMP_Text _statusCaption;
 
@@ -106,13 +103,6 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         public int TimelineMarkerCount => _timeline is null ? 0 : _timeline.MarkerCount;
 
         /// <summary>
-        /// The "ย่าม" caption above the mini bag. Read by the layout check (the grid must start below
-        /// it and share its left edge, Stage 08d), so the rule and the scene agree on which line box
-        /// the bag's area is measured against.
-        /// </summary>
-        public TMP_Text BagCaption => _bagCaption;
-
-        /// <summary>
         /// Resolves the HUD's services from the scene scope and starts mirroring. Public and
         /// idempotent so the scene's driver (and a test) can call it without waiting for a
         /// particular <c>Start</c> order.
@@ -150,7 +140,6 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             Subscribe(_state.WaveValue, _waveValue);
             Subscribe(_state.KillsCaption, _killsCaption);
             Subscribe(_state.KillsValue, _killsValue);
-            Subscribe(_state.BagCaption, _bagCaption);
             Subscribe(_state.StatusCaption, _statusCaption);
             Subscribe(_state.PossessionText, _possessionLabel);
             Subscribe(_state.TimelineCaption, _timelineCaption);

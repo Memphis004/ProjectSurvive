@@ -334,7 +334,6 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 ("hud.boss", state.BossCaption.Value),
                 ("hud.elite", state.EliteCaption.Value),
                 ("hud.kills", state.KillsCaption.Value),
-                ("hud.bag", state.BagCaption.Value),
                 ("hud.status", state.StatusCaption.Value),
                 ("hud.timeline", state.TimelineCaption.Value),
             };
@@ -381,9 +380,11 @@ namespace ProjectSurvive.Game.Tests.EditMode
                     text.Get("hud.floor.format"), setup.FloorIndex)),
                 "the floor's number was not formatted from the tables");
 
-            // Stage 08c removed the equipped-spell line: the bag itself is on screen as the mini ย่าม,
-            // and what it draws — the pieces, their tiers and their cooldown plates — is asserted by
-            // BattleMiniBagTests against the same bag this setup was resolved from.
+            // Neither the equipped-spell line nor the mini ย่าม is on this screen any more: Stage 08c
+            // replaced the list with the bag, and Stage 08g-2 removed the bag from Battle altogether
+            // (the camp's จัดย่าม screen draws it, under its own `camp.bag.caption` row). The `hud.bag`
+            // row is therefore left in `data/` with nothing reading it — a data cleanup, not a scene
+            // one, and recorded as such in the stage's report.
 
             Assert.That(state.Timeline.Count, Is.EqualTo(1), "floor 1 has one spawn window");
 

@@ -61,7 +61,7 @@ hand-written page that **restates** a skill's numbers raises a `balance_numbers`
 | Shop / economy (wallet, `shop_pool`, stock per camp, re-roll ladder, clear reward) | [`systems/run-shop.md`](systems/run-shop.md) | 06, 07b | done |
 | Run & scene flow (phase machine, commands, settlement, `ReplayLog`) | [`systems/run-shop.md`](systems/run-shop.md) | 06 | done |
 | Battle simulation (EcsLite), bia from kills, the end-of-floor sweep | [`systems/battle-simulation.md`](systems/battle-simulation.md) | 07, 07b, 07c | done |
-| 2.5D battle presentation (scene, clocks, pools, HUD, camera, the mini ย่าม and its cooldown plates, the pause overlay and the retreat) | [`systems/battle-presentation.md`](systems/battle-presentation.md) | 08, 08c, 13c-2b | done |
+| 2.5D battle presentation (scene, clocks, pools, HUD — four panels inside a 15 % budget, the F1 dev menu, the timeline, the status frame — camera, the pause overlay and the retreat) | [`systems/battle-presentation.md`](systems/battle-presentation.md) | 08, 08c, 08g-2, 13c-2b | done |
 | Camp screen (ศาลาพัก: the sala, walkable, shelves as the shop, the จัดย่าม drag, the two published reports) | [`systems/camp.md`](systems/camp.md) | 09 | done |
 | The full loop: three scopes (App / Run / Scene), `SceneLoader`, the floor loop, the title's start control, the summary screen, dev cheats | [`systems/loop-and-scopes.md`](systems/loop-and-scopes.md) | 10, 10d | done |
 | Core foundation (RNG / clock / ticker / Result) | [ADR 0004](../docs/adr/0004-dotnet-layer-enforcement.md) + [`../docs/architecture/overview.md`](../docs/architecture/overview.md) | 01 | done |

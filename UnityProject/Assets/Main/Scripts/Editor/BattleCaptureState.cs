@@ -26,14 +26,8 @@ namespace ProjectSurvive.Game.Editor
         /// <summary>The first frame of the floor: nothing has happened yet.</summary>
         FloorStart = 0,
 
-        /// <summary>Six seconds in: HP spent, ghosts slain, the casters' cooldowns at several levels.</summary>
+        /// <summary>Six seconds in: HP spent, ghosts slain, the wave cursor moved.</summary>
         MidFight = 1,
-
-        /// <summary>
-        /// A caster that is ready and cannot pay for its cast — the frame's own
-        /// <c>LoadoutCooldownFlags.ManaShort</c>, which is what the faint blue plate means.
-        /// </summary>
-        ManaShort = 2,
 
         /// <summary>
         /// The last frame before Pob possesses the player: phase 2, the boss in reach, the controls
@@ -56,9 +50,9 @@ namespace ProjectSurvive.Game.Editor
     /// <para>
     /// Why this exists. <c>UiCaptureTool</c> photographs a scene's <i>authored</i> geometry, and that
     /// is enough for the camp, the title and the summary — but the Battle HUD is nearly all runtime
-    /// state: the mini ย่าม is the run's own bag, the cooldown plates come from a frame, and the
-    /// labels are written by the presenter. A shot of the authored scene would show empty panels and
-    /// prove nothing about Stage 08c. So this helper plays the screen the way the runner does:
+    /// state: the run's numbers and the boss band come from a frame, and the labels are written by
+    /// the presenter. A shot of the authored scene would show empty panels and prove nothing. So this
+    /// helper plays the screen the way the runner does:
     /// depart a real run on the real tables, create the dev session through
     /// <c>DevBattleSessionBinding</c> (the port, exactly as <c>BattleSceneScope</c> does — no Unity
     /// file may name the fake's type), step it to each state's tick, and hand the frame it published
@@ -74,14 +68,10 @@ namespace ProjectSurvive.Game.Editor
     /// scene is never saved.
     /// </para>
     /// <para>
-    /// <b>The MP-short state is authored, and says so.</b> Neither session reaches
-    /// <c>ManaShort</c> on floor 1's data: the dev session's pool never falls below a single cast's
-    /// cost (its MP is static), and the Editor assembly is not allowed to name the EcsLite session to
-    /// reach the one that spends MP. So for that one shot the tool hands the mini bag a real
-    /// <see cref="LoadoutCooldown"/> carrying the flag the simulation sets when a ready cast cannot
-    /// be paid for (<c>FramePublishSystem</c>). What the picture proves is that the tone is
-    /// <i>visible and distinguishable</i> at both sizes; that the flag reaches the plate is proved
-    /// by <c>BattleMiniBagTests</c> and by the PlayMode suite, and the report repeats this sentence.
+    /// <b>The MP-short shot is gone with its subject.</b> That state existed to photograph the mini
+    /// bag's faint blue plate, and Stage 08g-2 removed the bag from the Battle screen (the จัดย่าม
+    /// screen in the camp still shows the run's bag). Nothing here authors a frame any more: every
+    /// shot is a frame a session really published.
     /// </para>
     /// </remarks>
     public sealed class BattleCaptureState : IDisposable
@@ -91,20 +81,6 @@ namespace ProjectSurvive.Game.Editor
 
         /// <summary>Six seconds at 30 Hz: far enough into the floor to have taken and dealt damage.</summary>
         private const int MidFightTicks = 180;
-
-        /// <summary>
-        /// How long to keep looking for a mid-fight frame whose casters are at several different
-        /// cooldowns — the picture the stage asks for. The search is bounded so a floor that never
-        /// produces one still gets photographed rather than hanging.
-        /// </summary>
-        private const int MidFightCeiling = 1500;
-
-        /// <summary>
-        /// How many distinct cooldown levels the mid-fight search aims for, never more than the floor
-        /// has casters: two weapons can show two levels and no more, and a search that kept asking for
-        /// a third would walk a floor to its end chasing something that does not exist.
-        /// </summary>
-        private const int LevelsWanted = 3;
 
         /// <summary>
         /// Ticks the boss capture may play before it gives up: the boss floor is 90 s, and the boss has
@@ -132,7 +108,6 @@ namespace ProjectSurvive.Game.Editor
             ("_waveValue", state => state.WaveValue.Value),
             ("_killsCaption", state => state.KillsCaption.Value),
             ("_killsValue", state => state.KillsValue.Value),
-            ("_bagCaption", state => state.BagCaption.Value),
             ("_statusCaption", state => state.StatusCaption.Value),
             ("_timelineCaption", state => state.TimelineCaption.Value),
             ("_bossCaption", state => state.BossCaption.Value),
@@ -140,7 +115,6 @@ namespace ProjectSurvive.Game.Editor
             ("_speedLabel", state => state.SpeedLabel.Value),
         };
 
-        private readonly BattleMiniBagView _miniBag;
         private readonly BattleTimelineView _timeline;
         private readonly RectTransform _hpBar;
         private readonly RectTransform _manaBar;
@@ -159,7 +133,6 @@ namespace ProjectSurvive.Game.Editor
         private readonly BattleHudPresenter _presenter;
         private readonly BattleFrameSnapshot _first = new BattleFrameSnapshot();
         private readonly BattleFrameSnapshot _current = new BattleFrameSnapshot();
-        private readonly LoadoutCooldown[] _manaShort = new LoadoutCooldown[BattleConstants.MaxLoadoutEntries];
 
         private PlayerFigurePresenter _figure;
 
@@ -167,12 +140,10 @@ namespace ProjectSurvive.Game.Editor
         private Mesh _floorQuad;
 
         private int _steppedTo;
-        private int _manaShortIndex = -1;
         private bool _disposed;
 
         private BattleCaptureState(
             BattleHudView hud,
-            BattleMiniBagView miniBag,
             IGameConfig config,
             RunSession run,
             BattleSetup setup,
@@ -183,7 +154,6 @@ namespace ProjectSurvive.Game.Editor
             _config = config;
             _run = run;
             _setup = setup;
-            _miniBag = miniBag;
             _text = new LocalizationService(config);
 
             _timeline = _view.FindProperty("_timeline")?.objectReferenceValue as BattleTimelineView;
@@ -208,24 +178,21 @@ namespace ProjectSurvive.Game.Editor
             _presenter.Begin(setup, startingBia);
             _first.CopyFrom(_session.Frame);
             _current.CopyFrom(_session.Frame);
-
-            _miniBag.Build(run.Backpack, setup.Loadout, config);
         }
 
         /// <summary>Builds a capture state over a Battle scene, or explains why it cannot.</summary>
         /// <param name="hud">The scene's HUD view (its serialized fields are the labels).</param>
-        /// <param name="miniBag">The scene's mini ย่าม.</param>
         /// <param name="state">The prepared state, or null on failure.</param>
         /// <param name="error">Why it refused, or an empty string.</param>
         public static bool TryBuild(
-            BattleHudView hud, BattleMiniBagView miniBag, out BattleCaptureState state, out string error)
+            BattleHudView hud, out BattleCaptureState state, out string error)
         {
             state = null;
             error = string.Empty;
 
-            if (hud is null || miniBag is null)
+            if (hud is null)
             {
-                error = "the Battle scene is missing its HUD or its mini bag";
+                error = "the Battle scene has no HUD";
                 return false;
             }
 
@@ -241,7 +208,7 @@ namespace ProjectSurvive.Game.Editor
             }
 
             state = new BattleCaptureState(
-                hud, miniBag, config, run, setup, startingBia, DevBattleSessionBinding.CreateFactory(config));
+                hud, config, run, setup, startingBia, DevBattleSessionBinding.CreateFactory(config));
             return true;
         }
 
@@ -256,14 +223,14 @@ namespace ProjectSurvive.Game.Editor
         /// scenario's.
         /// </remarks>
         public static bool TryBuildRealFloorOne(
-            BattleHudView hud, BattleMiniBagView miniBag, out BattleCaptureState state, out string error)
+            BattleHudView hud, out BattleCaptureState state, out string error)
         {
             state = null;
             error = string.Empty;
 
-            if (hud is null || miniBag is null)
+            if (hud is null)
             {
-                error = "the Battle scene is missing its HUD or its mini bag";
+                error = "the Battle scene has no HUD";
                 return false;
             }
 
@@ -279,7 +246,7 @@ namespace ProjectSurvive.Game.Editor
             }
 
             state = new BattleCaptureState(
-                hud, miniBag, config, run, setup, startingBia, BattleFactoryBinding.Create(config));
+                hud, config, run, setup, startingBia, BattleFactoryBinding.Create(config));
             return true;
         }
 
@@ -295,14 +262,14 @@ namespace ProjectSurvive.Game.Editor
         /// the floor are the run's own rather than a scenario's.
         /// </remarks>
         public static bool TryBuildBoss(
-            BattleHudView hud, BattleMiniBagView miniBag, out BattleCaptureState state, out string error)
+            BattleHudView hud, out BattleCaptureState state, out string error)
         {
             state = null;
             error = string.Empty;
 
-            if (hud is null || miniBag is null)
+            if (hud is null)
             {
-                error = "the Battle scene is missing its HUD or its mini bag";
+                error = "the Battle scene has no HUD";
                 return false;
             }
 
@@ -357,7 +324,7 @@ namespace ProjectSurvive.Game.Editor
             }
 
             state = new BattleCaptureState(
-                hud, miniBag, config, run, setup, run.Wallet.Bia, BattleFactoryBinding.Create(config));
+                hud, config, run, setup, run.Wallet.Bia, BattleFactoryBinding.Create(config));
             return true;
         }
 
@@ -399,14 +366,11 @@ namespace ProjectSurvive.Game.Editor
         /// <summary>The boss's max HP, for the report's "x / y" line.</summary>
         public int BossMaxHp => _current.HasFrame ? _current.Hud.BossMaxHp : 0;
 
-        /// <summary>How many casters the loadout resolved (the pieces with a plate).</summary>
+        /// <summary>How many casters the loadout resolved.</summary>
         public int CasterCount => _current.CooldownCount;
 
         /// <summary>How many distinct cooldown levels the mid-fight frame showed (Stage 08c's "หลายระดับ").</summary>
         public int DistinctLevels { get; private set; }
-
-        /// <summary>The instance id whose plate the MP-short shot flags, or 0 when there was none to flag.</summary>
-        public int ManaShortInstanceId { get; private set; }
 
         /// <summary>
         /// Whether the floor shows the boss band. False for every floor the run departs on today, so the
@@ -431,30 +395,16 @@ namespace ProjectSurvive.Game.Editor
         }
 
         /// <summary>
-        /// Steps the floor until its casters sit at <see cref="LevelsWanted"/> different cooldown
-        /// levels (or the search's ceiling), and records where that landed.
+        /// Steps the floor six seconds in and records where that landed. The cooldown levels are
+        /// still reported, because they are what the frame said — nothing on the screen draws them
+        /// any more (Stage 08g-2 removed the mini bag and its plates).
         /// </summary>
         public void StepToMidFight()
         {
-            int casters = _current.CooldownCount;
-            int wanted = casters < LevelsWanted ? casters : LevelsWanted;
-
             StepTo(MidFightTicks);
-
-            while (_steppedTo < MidFightCeiling && _session.Phase == BattlePhase.Running)
-            {
-                if (DistinctCooldownLevels() >= wanted)
-                {
-                    break;
-                }
-
-                StepTo(_steppedTo + 1);
-            }
 
             MidFightTick = _steppedTo;
             DistinctLevels = DistinctCooldownLevels();
-
-            PickManaShortInstance();
         }
 
         /// <summary>
@@ -695,16 +645,6 @@ namespace ProjectSurvive.Game.Editor
             // snapshot, so the two pictures differ only by what the state itself changes.
             BattleFrameSnapshot frame = FrameOf(shot);
 
-            if (shot == BattleShot.ManaShort)
-            {
-                FillManaShortCooldowns();
-                _miniBag.ApplyCooldowns(_manaShort.AsSpan(0, frame.CooldownCount));
-            }
-            else
-            {
-                _miniBag.ApplyCooldowns(frame.Cooldowns);
-            }
-
             _presenter.Present(frame);
 
             if (_timeline is not null)
@@ -842,11 +782,6 @@ namespace ProjectSurvive.Game.Editor
 
                 text.Append("#").Append(entry.InstanceId).Append(' ')
                     .Append((entry.RemainingTicks / (double)entry.PeriodTicks).ToString("0.00"));
-
-                if (shot == BattleShot.ManaShort && i == _manaShortIndex)
-                {
-                    text.Append(" (mana-short)");
-                }
             }
 
             text.Append(']');
@@ -859,25 +794,6 @@ namespace ProjectSurvive.Game.Editor
             }
 
             return text.ToString();
-        }
-
-        /// <summary>
-        /// The mini bag's own objects, removed from the scene: the view builds its cells and boxes as
-        /// children of the content area when a floor starts, and this tool must not leave a scene
-        /// dirty with a duplicate pool behind it.
-        /// </summary>
-        public void ClearBagObjects()
-        {
-            RectTransform content = _miniBag is null ? null : _miniBag.Content;
-            if (content is null)
-            {
-                return;
-            }
-
-            for (int i = content.childCount - 1; i >= 0; i--)
-            {
-                UnityEngine.Object.DestroyImmediate(content.GetChild(i).gameObject);
-            }
         }
 
         private void WriteLabels()
@@ -958,36 +874,5 @@ namespace ProjectSurvive.Game.Editor
             return count;
         }
 
-        /// <summary>
-        /// The caster whose plate the MP-short shot flags: the last entry of the loadout, so the
-        /// picture shows a bag where one piece is blocked and the others are not.
-        /// </summary>
-        private void PickManaShortInstance()
-        {
-            ReadOnlySpan<LoadoutCooldown> cooldowns = _current.Cooldowns;
-            ManaShortInstanceId = cooldowns.Length == 0 ? 0 : cooldowns[cooldowns.Length - 1].InstanceId;
-            _manaShortIndex = cooldowns.Length == 0 ? -1 : cooldowns.Length - 1;
-        }
-
-        /// <summary>
-        /// The frame's own cooldown list with the chosen entry carrying the flag the simulation sets
-        /// when a ready cast cannot pay for itself. Every other entry is the frame's, untouched.
-        /// </summary>
-        private void FillManaShortCooldowns()
-        {
-            ReadOnlySpan<LoadoutCooldown> cooldowns = _current.Cooldowns;
-            for (int i = 0; i < cooldowns.Length && i < _manaShort.Length; i++)
-            {
-                LoadoutCooldown entry = cooldowns[i];
-
-                _manaShort[i] = i == _manaShortIndex
-                    ? new LoadoutCooldown(
-                        entry.InstanceId,
-                        entry.RemainingTicks < 1 ? 0 : entry.RemainingTicks,
-                        entry.PeriodTicks,
-                        LoadoutCooldownFlags.ManaShort)
-                    : entry;
-            }
-        }
     }
 }

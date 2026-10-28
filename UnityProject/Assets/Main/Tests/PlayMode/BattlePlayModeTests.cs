@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using Leopotam.EcsLite;
 using NUnit.Framework;
@@ -131,17 +131,6 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 Is.Zero,
                 "a view was created after warm-up, so the pool does not cover the floor");
 
-            // The same sentence for the mini bag (Stage 08c): its cells, its piece boxes and their
-            // plates are created when the floor starts and never again, so `viewsGrownDuringPlay` —
-            // the entity pool's counter — is only half the claim. The HUD's own pool is the other half.
-            BattleMiniBagView miniBag = runner.View.MiniBag;
-            Assert.That(miniBag, Is.Not.Null, "the scene wired no mini bag");
-            Assert.That(miniBag.IsBuilt, Is.True, "the mini bag was never built from the run's bag");
-            Assert.That(
-                miniBag.CreatedAfterBuild,
-                Is.Zero,
-                "the mini bag created a view while the floor ran");
-
             // Stage 17b: the doctor is the Spine figure, built once at the floor's start, and its
             // Play is not called per frame. Ten seconds at 2× is roughly 1 200 rendered frames.
             PlayerFigurePresenter figure = runner.View.PlayerFigure;
@@ -177,175 +166,85 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             Assert.That(runner.IsRunning, Is.True, "the floor stopped before its ten seconds were up");
         }
 
+        // -------------------------------------------------------------------
+        // Stage 08g-2: the HUD covers at most 15 % of the screen
+        // -------------------------------------------------------------------
+
         /// <summary>
-        /// Stage 08c in PlayMode: the mini ย่าม's plates are the frame's own cooldowns, on the pieces the
-        /// loadout resolved, and they move as the floor runs.
+        /// The battle HUD's four panels cover no more than 15 % of the screen, measured on the scene the
+        /// player gets rather than on a hand-made layout.
         /// </summary>
         /// <remarks>
-        /// The EditMode suite proves the arithmetic (a plate is <c>remaining / period</c>) against
-        /// hand-made frames; this proves the wiring — that the frame the runner copied is the frame the
-        /// mini bag was handed, on the same tick, and that a floor that is really running moves the
-        /// plates rather than a clock of the view's own. The <c>Snapshot</c> is read in the same
-        /// synchronous block as the plates, so the two cannot be one tick apart: the runner only ever
-        /// writes that snapshot immediately before it hands its cooldowns to the view.
+        /// <para>
+        /// The stage's sixth item states the number ("วัดพื้นที่ที่ UI บังจอ ต้อง ≤ 15 % ที่ 1920×1080
+        /// (มีเทสต์)"). Before it the same screen was five panels totalling 37.86 %: the mini ย่าม
+        /// 11.38, the run's numbers 8.62, the timeline 7.88, the status panel 5.75 and the floor block
+        /// 4.22. Those panels never overlapped, so moving them could not have met the target — the HUD
+        /// had to be rebuilt, which is what 08g-2 did.
+        /// </para>
+        /// <para>
+        /// The measure is each panel's rectangle as a fraction of the canvas, which is honest only
+        /// because the four rectangles are disjoint — asserted here as well. A screen of stacked
+        /// translucent panels would have to be measured by covered pixels instead.
+        /// </para>
+        /// <para>
+        /// The dev menu is not one of the four. Since 08g-2 it starts shut and opens on F1, so before
+        /// the key is pressed it covers nothing.
+        /// </para>
         /// </remarks>
         [UnityTest]
-        public IEnumerator The_mini_bags_plates_are_the_frames_cooldowns_on_the_loadouts_pieces()
+        public IEnumerator The_hud_covers_at_most_fifteen_percent_of_the_screen()
         {
             yield return LoadScene(BattleSceneName);
             yield return WaitForFloorToStart();
-
-            BattleSimulationRunner runner = Find<BattleSimulationRunner>();
-            BattleMiniBagView miniBag = runner.View.MiniBag;
-
-            Assert.That(miniBag, Is.Not.Null, "the scene wired no mini bag");
-            Assert.That(miniBag.IsBuilt, Is.True, "the mini bag was not built from the run's bag");
-            Assert.That(miniBag.PieceCount, Is.GreaterThan(0), "the floor departed with nothing on the board");
-            Assert.That(
-                miniBag.Layout.HasBag,
-                Is.True,
-                "the floor departed without a bag, so there is no box to draw");
-
-            // A second of floor, so at least one caster's cooldown has moved under us.
-            yield return WaitForTicks(runner, BattleConstants.TickRate);
-
-            BattleFrameSnapshot snapshot = runner.View.Snapshot;
-            Assert.That(snapshot.HasFrame, Is.True, "the runner copied no frame");
-            Assert.That(snapshot.CooldownCount, Is.GreaterThan(0), "the loadout resolved no caster");
-            Assert.That(
-                miniBag.CasterCount,
-                Is.EqualTo(snapshot.CooldownCount),
-                "the mini bag plates a different set of pieces than the loadout resolved");
-            Assert.That(
-                miniBag.PieceCount,
-                Is.GreaterThanOrEqualTo(miniBag.CasterCount),
-                "a caster that is not drawn on the bag cannot carry a plate");
-
-            ReadOnlySpan<LoadoutCooldown> cooldowns = snapshot.Cooldowns;
-            int tracked = cooldowns[0].InstanceId;
-
-            for (int i = 0; i < cooldowns.Length; i++)
-            {
-                LoadoutCooldown entry = cooldowns[i];
-
-                Assert.That(
-                    miniBag.TryGetPlate(entry.InstanceId, out float plate, out MiniBagPlateTone tone),
-                    Is.True,
-                    "instance " + entry.InstanceId + " casts but carries no plate");
-                Assert.That(
-                    plate,
-                    Is.EqualTo(entry.RemainingTicks / (float)entry.PeriodTicks).Within(0.0001f),
-                    "a plate is not the frame's own fraction");
-
-                MiniBagPlateTone expected = entry.ReadyButManaShort
-                    ? MiniBagPlateTone.ManaShort
-                    : (entry.IsReady ? MiniBagPlateTone.None : MiniBagPlateTone.Counting);
-
-                Assert.That(tone, Is.EqualTo(expected), "instance " + entry.InstanceId + " wears the wrong tone");
-            }
-
-            // The plates track the floor: the same caster, a dozen ticks later, is at a different point
-            // of its cooldown and the view has written it.
-            Assert.That(miniBag.TryGetPlate(tracked, out float before, out _), Is.True);
-            int writesBefore = miniBag.PlateUpdates;
-
-            yield return WaitForTicks(runner, runner.StepsRun + 12);
-
-            Assert.That(miniBag.TryGetPlate(tracked, out float after, out _), Is.True);
-            Assert.That(
-                miniBag.PlateUpdates,
-                Is.GreaterThan(writesBefore),
-                "the floor ran for a dozen ticks and no plate moved");
-            Assert.That(
-                after,
-                Is.Not.EqualTo(before).Within(0.0001f),
-                "the plate did not follow the frame's cooldown");
-            Assert.That(miniBag.CreatedAfterBuild, Is.Zero, "the mini bag created a view while the floor ran");
-
-            TestContext.WriteLine(
-                "mini bag: pieces=" + miniBag.PieceCount + " cells=" + miniBag.CellCount
-                + " casters=" + miniBag.CasterCount + " plateUpdates=" + miniBag.PlateUpdates
-                + " tracked=" + tracked + " " + before.ToString("0.00") + "->" + after.ToString("0.00"));
-        }
-
-        /// <summary>
-        /// Stage 08d in PlayMode: the mini ย่าม the scene really wires starts under its caption and
-        /// shares its left edge, and neither the bag's own pools nor the entity pool grow while the
-        /// floor runs.
-        /// </summary>
-        /// <remarks>
-        /// The EditMode cases prove the arithmetic on hand-built rects; this case proves the
-        /// <b>scene's</b> authored geometry — the rectangles the player actually sees. It is the same
-        /// distinction Stage 08c's own defect taught: a component that is correct in a harness and
-        /// unwired in the scene passes every EditMode assertion.
-        /// </remarks>
-        [UnityTest]
-        public IEnumerator The_mini_bag_starts_under_its_caption_and_never_grows()
-        {
-            yield return LoadScene(BattleSceneName);
-            yield return WaitForFloorToStart();
-
-            BattleSimulationRunner runner = Find<BattleSimulationRunner>();
-            BattleHudView hud = Find<BattleHudView>();
-            BattleMiniBagView miniBag = runner.View.MiniBag;
-
-            Assert.That(miniBag, Is.Not.Null, "the scene wired no mini bag");
-            Assert.That(miniBag.IsBuilt, Is.True, "the mini bag was never built from the run's bag");
-            Assert.That(miniBag.Panel, Is.Not.Null, "the mini bag has no panel");
-            Assert.That(miniBag.Content, Is.Not.Null, "the mini bag has no content area");
-            Assert.That(hud.BagCaption, Is.Not.Null, "the scene has no ย่าม caption");
-
             Canvas.ForceUpdateCanvases();
 
-            Rect panel = WorldRect(miniBag.Panel);
-            Rect content = WorldRect(miniBag.Content);
-            Rect caption = WorldRect((RectTransform)hud.BagCaption.transform);
-            MiniBagLayout layout = miniBag.Layout;
+            BattleHudView hud = Find<BattleHudView>();
+            Assert.That(hud, Is.Not.Null, "the Battle scene has no HUD");
 
-            Assert.That(layout.HasBag, Is.True, "there is no bag to draw");
+            // The HUD lives on the screen's canvas, so its own rectangle is the screen's own space.
+            Rect screen = WorldRect((RectTransform)hud.transform);
+            Assert.That(screen.width, Is.GreaterThan(0f), "the canvas has no size, so nothing can be measured");
 
-            // The grid's own rectangle: the content area's top-left corner and the bag's own box.
-            var grid = new Rect(content.xMin, content.yMax - layout.Height, layout.Width, layout.Height);
+            Rect[] panels =
+            {
+                PanelOf("FloorLabel"),
+                PanelOf("TimeCaption"),
+                PanelOf("HpCaption"),
+                PanelOf("TimelineCaption"),
+            };
 
             Assert.That(
-                content.xMin >= panel.xMin - 0.5f && content.xMax <= panel.xMax + 0.5f
-                    && content.yMin >= panel.yMin - 0.5f && content.yMax <= panel.yMax + 0.5f,
-                Is.True,
-                "the grid's area escaped the mini bag panel");
-            Assert.That(
-                grid.yMax,
-                Is.LessThanOrEqualTo(caption.yMin + 0.5f),
-                "the mini ย่าม is not below the ย่าม caption");
-            Assert.That(
-                grid.xMin,
-                Is.EqualTo(caption.xMin).Within(0.5f),
-                "the mini ย่าม does not share the caption's left edge");
-            Assert.That(
-                grid.xMin < caption.xMax && caption.xMin < grid.xMax
-                    && grid.yMin < caption.yMax && caption.yMin < grid.yMax,
+                BattleHudArea.AnyOverlap(panels),
                 Is.False,
-                "the mini ย่าม overlaps the caption");
+                "two HUD panels overlap, so their rectangles cannot be summed as the covered area");
 
-            Assert.That(miniBag.TryGetPieceTopLeft(0, out Vector2 topLeft), Is.True);
-            Assert.That(topLeft, Is.EqualTo(Vector2.zero), "the first box is not at the content's top-left");
+            float fraction = BattleHudArea.Fraction(panels, screen.size);
 
-            Assert.That(miniBag.CreatedAfterBuild, Is.Zero, "the mini bag created a view during its build");
+            DevMenuView devMenu = Find<DevMenuView>();
+            Assert.That(devMenu, Is.Not.Null, "the Battle scene has no dev menu");
             Assert.That(
-                runner.View.Pool.CreatedAfterWarmup,
-                Is.Zero,
-                "viewsGrownDuringPlay is not zero at the start of the floor");
-
-            yield return WaitForTicks(runner, runner.StepsRun + BattleConstants.TickRate);
-
-            Assert.That(miniBag.CreatedAfterBuild, Is.Zero, "the mini bag created a view while the floor ran");
-            Assert.That(
-                runner.View.Pool.CreatedAfterWarmup,
-                Is.Zero,
-                "viewsGrownDuringPlay is not zero after a second of ticks");
+                devMenu.PanelVisible, Is.False,
+                "the dev menu is on screen without F1, so it is part of the screen the player sees");
 
             TestContext.WriteLine(
-                "mini bag rect: panel=" + panel + " content=" + content + " caption=" + caption
-                + " grid=" + grid + " cell=" + layout.CellSize);
+                "hud area: canvas=" + screen.width + "x" + screen.height
+                + " floor=" + panels[0].size + " resources=" + panels[1].size
+                + " status=" + panels[2].size + " timeline=" + panels[3].size
+                + " covered=" + (fraction * 100f).ToString("0.00") + " %");
+
+            Assert.That(
+                fraction, Is.LessThanOrEqualTo(BattleHudArea.Budget),
+                "the HUD covers " + (fraction * 100f).ToString("0.00")
+                + " % of the screen; the stage allows " + (BattleHudArea.Budget * 100f) + " %");
+        }
+
+        /// <summary>The panel a label is drawn in: the label's own parent, measured the way the capture does.</summary>
+        private static Rect PanelOf(string labelName)
+        {
+            GameObject label = GameObject.Find(labelName);
+            Assert.That(label, Is.Not.Null, "the HUD has no " + labelName);
+            return WorldRect((RectTransform)label.transform.parent);
         }
 
         // -------------------------------------------------------------------

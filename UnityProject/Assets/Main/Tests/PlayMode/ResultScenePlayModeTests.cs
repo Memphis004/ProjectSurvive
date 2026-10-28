@@ -80,8 +80,24 @@ namespace ProjectSurvive.Game.Tests.PlayMode
 
             // What the browser check presses to reach this screen in reasonable time. The Editor is a
             // development environment exactly as the Development WebGL build the browser suite runs is,
-            // so the panel is on screen and every control is measurable; a release build publishes
+            // so the panel exists and every control's position is measurable; a release build publishes
             // nothing here, which is the state `DevMenuReportTests` asserts on the authored scene.
+            //
+            // Since Stage 08g-2 the menu starts shut behind F1, so nothing is published until it opens:
+            // a control on a hidden panel has no position a click could land on. The test opens it the
+            // way the key does (`TogglePanel`), then reads what a browser would.
+            var devMenu = SceneFlowHarness.Find<DevMenuView>();
+            Assert.That(devMenu, Is.Not.Null, "the Battle scene has no dev menu");
+            Assert.That(
+                devMenu.PanelVisible, Is.False,
+                "the dev panel is on screen before F1, so the item that hides it behind the key is not in effect");
+            Assert.That(
+                DevMenuReport.PublishCount, Is.Zero,
+                "a shut dev panel published a report of controls nobody can click");
+
+            devMenu.TogglePanel();
+            Assert.That(devMenu.PanelVisible, Is.True, "the dev panel refused to open");
+
             yield return SceneFlowHarness.WaitUntil(
                 () => DevMenuReport.PublishCount > 0, "the dev menu published no controls");
 

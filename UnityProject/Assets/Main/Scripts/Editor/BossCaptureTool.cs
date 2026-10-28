@@ -66,11 +66,10 @@ namespace ProjectSurvive.Game.Editor
 
             Camera camera = Camera.main;
             var hud = UnityEngine.Object.FindFirstObjectByType<BattleHudView>(FindObjectsInactive.Include);
-            var miniBag = UnityEngine.Object.FindFirstObjectByType<BattleMiniBagView>(FindObjectsInactive.Include);
 
-            if (camera == null || hud == null || miniBag == null)
+            if (camera == null || hud == null)
             {
-                Debug.LogError("[Stage 11c] the Battle scene is missing its camera, HUD or mini bag");
+                Debug.LogError("[Stage 11c] the Battle scene is missing its camera or HUD");
                 return;
             }
 
@@ -80,7 +79,7 @@ namespace ProjectSurvive.Game.Editor
 
             try
             {
-                if (!BattleCaptureState.TryBuildBoss(hud, miniBag, out state, out string error))
+                if (!BattleCaptureState.TryBuildBoss(hud, out state, out string error))
                 {
                     Debug.LogError("[Stage 11c] the boss floor could not be started: " + error);
                     return;
@@ -141,7 +140,6 @@ namespace ProjectSurvive.Game.Editor
                 before?.Image.DestroyNow();
                 flipped?.Image.DestroyNow();
 
-                state?.ClearBagObjects();
                 state?.Dispose();
             }
         }

@@ -229,7 +229,6 @@ namespace ProjectSurvive.Game.Editor
         {
             ("FloorLabel", "_floorLabel"),
             ("FloorIndexLabel", "_floorIndexLabel"),
-            (UiLayoutCheck.BagCaption, "_bagCaption"),
             ("StatusCaption", "_statusCaption"),
             ("PossessionLabel", "_possessionLabel"),
             ("HpCaption", "_hpCaption"),
@@ -761,6 +760,31 @@ namespace ProjectSurvive.Game.Editor
         /// report notes it instead of reporting a missing rectangle as a layout failure.
         /// </para>
         /// </remarks>
+        /// <summary>
+        /// The Battle scene's player figure, whichever backend built it.
+        /// </summary>
+        /// <remarks>
+        /// Found by the interface rather than by the Spine component's type: since Stage 17f the arena
+        /// carries a <c>GenericCutePlayerView</c> when the project builds the 2D Animation backend, and
+        /// looking for <c>SpinePlayerView</c> then reported "the Battle scene has no player figure to
+        /// photograph" about a scene standing one in plain sight.
+        /// </remarks>
+        private static MonoBehaviour FindPlayerFigure()
+        {
+            var candidates = Object.FindObjectsByType<MonoBehaviour>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                if (candidates[i] is IPlayerFigure)
+                {
+                    return candidates[i];
+                }
+            }
+
+            return null;
+        }
+
         private static void CaptureBattle(CaptureReport report)
         {
             if (!EnsureOpen(BattleScenePath, report))
@@ -778,15 +802,13 @@ namespace ProjectSurvive.Game.Editor
             ApplyAuthoredLighting();
 
             var hud = Object.FindFirstObjectByType<BattleHudView>(FindObjectsInactive.Include);
-            var miniBag = Object.FindFirstObjectByType<BattleMiniBagView>(FindObjectsInactive.Include);
             var devMenu = Object.FindFirstObjectByType<DevMenuView>(FindObjectsInactive.Include);
-            var playerFigure = Object.FindFirstObjectByType<SpinePlayerView>(FindObjectsInactive.Include);
+            MonoBehaviour playerFigure = FindPlayerFigure();
             var portrait = Object.FindFirstObjectByType<BattleHudPortrait>(FindObjectsInactive.Include);
 
-            if (hud == null || miniBag == null)
+            if (hud == null)
             {
-                report.Failures.Add(
-                    "the Battle scene is missing " + (hud == null ? "BattleHudView" : "BattleMiniBagView"));
+                report.Failures.Add("the Battle scene is missing BattleHudView");
                 return;
             }
 
@@ -821,7 +843,7 @@ namespace ProjectSurvive.Game.Editor
 
             try
             {
-                if (!BattleCaptureState.TryBuild(hud, miniBag, out state, out string error))
+                if (!BattleCaptureState.TryBuild(hud, out state, out string error))
                 {
                     report.Failures.Add("the Battle floor could not be started for the shots: " + error);
                     return;
@@ -835,33 +857,26 @@ namespace ProjectSurvive.Game.Editor
                     report.Failures.Add("the player figure could not be built for the shots: " + figureError);
                 }
 
-                // The mid-fight frame is found once and both later shots are taken from it, so the two
-                // pictures differ only by the flag the MP-short one adds.
+                // One mid-fight frame, two shots from it: nothing about a shot is authored any more.
                 state.StepToMidFight();
 
-                var regions = BattleRegionsOf(hud, miniBag, devMenu, devFields, state.HasVisibleBoss, report);
+                var regions = BattleRegionsOf(hud, devMenu, devFields, state.HasVisibleBoss, report);
 
                 report.Notes.Add(
                     "the Battle HUD is measured from a <b>running</b> floor: the run departs on the shipped "
-                    + "tables and the dev battle's own frames are handed to the scene's HUD, so the mini "
-                    + "ย่าม is the run's bag and every plate is the frame's number; the mid-fight shot is "
-                    + "tick " + state.MidFightTick + " with " + state.CasterCount + " caster(s) at "
-                    + state.DistinctLevels + " distinct cooldown level(s)");
+                    + "tables and the dev battle's own frames are handed to the scene's HUD; the mid-fight "
+                    + "shot is tick " + state.MidFightTick + " with " + state.CasterCount
+                    + " caster(s) at " + state.DistinctLevels + " distinct cooldown level(s)");
 
                 report.Notes.Add(
-                    "the MP-short shot is the <b>only</b> authored state: neither session reaches "
-                    + "`LoadoutCooldownFlags.ManaShort` on floor 1 (the dev session's MP pool never falls "
-                    + "below a single cast's cost, and the Editor assembly may not name the EcsLite session "
-                    + "to reach the one that spends MP), so that shot hands the mini ย่าม a real "
-                    + "`LoadoutCooldown` carrying the flag `FramePublishSystem` sets when a ready cast cannot "
-                    + "be paid for. The picture proves the tone is visible at both sizes; that the flag "
-                    + "reaches the plate is proved by `BattleMiniBagTests` and the PlayMode suite");
+                    "the Battle screen draws no bag since Stage 08g-2: the mini ย่าม and its cooldown plates "
+                    + "are gone, the run's bag is shown by the camp's จัดย่าม screen only, and every shot here is "
+                    + "a frame a session really published");
 
                 var shots = new[]
                 {
                     (BattleShot.FloorStart, "begin"),
                     (BattleShot.MidFight, "midfight"),
-                    (BattleShot.ManaShort, "manashort"),
                 };
 
                 for (int s = 0; s < shots.Length; s++)
@@ -875,15 +890,11 @@ namespace ProjectSurvive.Game.Editor
                     {
                         Vector2Int size = CapturedSizes[i];
 
-                        // Applied again after the canvas has been laid out at this size, and after the
-                        // mini bag has re-fitted its cells to it: the picture is of the size it claims.
+                        // Applied again after the canvas has been laid out at this size: the picture is
+                        // of the size it claims.
                         Capture(
                             SceneKind.Battle, "hud-" + shots[s].Item2, slug, camera, size, regions, report,
-                            afterLayout: () =>
-                            {
-                                miniBag.RefreshIfResized();
-                                state.Apply(shot);
-                            });
+                            afterLayout: () => state.Apply(shot));
                     }
                 }
 
@@ -894,7 +905,7 @@ namespace ProjectSurvive.Game.Editor
                 state.Dispose();
                 state = null;
 
-                if (!BattleCaptureState.TryBuildRealFloorOne(hud, miniBag, out state, out string realError))
+                if (!BattleCaptureState.TryBuildRealFloorOne(hud, out state, out string realError))
                 {
                     report.Failures.Add("floor 1 could not be started by the shipped simulation: " + realError);
                     return;
@@ -930,7 +941,6 @@ namespace ProjectSurvive.Game.Editor
             finally
             {
                 state?.DetachPlayerFigure();
-                state?.ClearBagObjects();
                 state?.Dispose();
 
                 if (devPanel != null)
@@ -952,7 +962,6 @@ namespace ProjectSurvive.Game.Editor
         /// </remarks>
         private static List<(string Name, UiRegionKind Kind, RectTransform Rect)> BattleRegionsOf(
             BattleHudView hud,
-            BattleMiniBagView miniBag,
             DevMenuView devMenu,
             SerializedObject devFields,
             bool bossVisible,
@@ -961,7 +970,6 @@ namespace ProjectSurvive.Game.Editor
             var fields = new SerializedObject(hud);
             var regions = new List<(string Name, UiRegionKind Kind, RectTransform Rect)>(40);
 
-            AddSurface(regions, UiLayoutCheck.MiniBag, miniBag.Panel);
             AddSurface(regions, UiLayoutCheck.FloorPanel, ParentOf(fields, "_floorLabel"));
             AddSurface(regions, UiLayoutCheck.ResourcePanel, ParentOf(fields, "_timeCaption"));
             AddSurface(regions, UiLayoutCheck.StatusPanel, ParentOf(fields, "_hpCaption"));
@@ -975,11 +983,6 @@ namespace ProjectSurvive.Game.Editor
 
             AddSerializedComponents(fields, BattleControls, UiRegionKind.Control, regions);
             AddSerializedComponents(fields, BattleLabels, UiRegionKind.Control, regions);
-
-            if (miniBag.Content != null)
-            {
-                regions.Add((UiLayoutCheck.MiniBagContent, UiRegionKind.Control, miniBag.Content));
-            }
 
             // The timeline's track lives on the timeline view rather than on the HUD, so it is reached
             // through the reference the HUD serializes.
@@ -1270,15 +1273,6 @@ namespace ProjectSurvive.Game.Editor
                     {
                         report.Failures.Add(state + " " + size.x + "x" + size.y + ": " + opacity[i]);
                         violations.Add(opacity[i]);
-                    }
-
-                    // Stage 08d: a grid disjoint from its caption but floating in the middle of the
-                    // panel is not an overlap, so the battle HUD's stacking rule is asked separately.
-                    var stacked = UiLayoutCheck.FindMiniBagStackViolations(measured);
-                    for (int i = 0; i < stacked.Count; i++)
-                    {
-                        report.Failures.Add(state + " " + size.x + "x" + size.y + ": " + stacked[i]);
-                        violations.Add(stacked[i]);
                     }
                 }
 

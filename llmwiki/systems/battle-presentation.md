@@ -153,43 +153,50 @@ frame, so fast-forward on a slow machine degrades to dropped ticks rather than t
 the boss) and hands the view normalized spans — the marker colours are the view's, the *meaning*
 is the model's.
 
-### 7b. The mini ย่าม (Stage 08c)
+### 7b. The battle HUD: four panels over 13.95 % of the screen (Stage 08g-2)
 
-The battle screen is six anchored panels: the **mini ย่าม** top left (≤ 25 % of the canvas width by
-`anchorMax.x`: 432 × 546 px at 1920 × 1080), the **floor** top centre, the run's numbers top right,
-the **status panel** bottom left (figure, red HP bar, blue MP bar, current/max), the **timeline**
-along the bottom middle, and the **dev column** bottom right on its own canvas (sorting order 200).
-The equipped-spell list is gone; the bag says what is equipped.
+The Battle screen is **four** anchored panels, and the stage that owns the number is Stage 08g's
+sixth item ("วัดพื้นที่ที่ UI บังจอ ต้อง ≤ 15 % ที่ 1920×1080 (มีเทสต์)"):
 
-`BattleMiniBagView` draws the bag **read-only**, and only the bounding box of the cells the bag
-covers — never the whole 9 × 7 board. Geometry comes from the `BagSnapshot` and the
-`CombatLoadoutSnapshot` the run already handed the battle (`BattleViewScene.Build`);
-`BattleMiniBagLayout` fits the cell size to the panel and decides nothing a rule owns.
+| Panel | Where | Size at 1920 × 1080 | Share |
+| --- | --- | --- | --- |
+| `FloorPanel` | top left | 380 × 72 | 1.32 % |
+| `TimelinePanel` | along the top | 1468 × 48 | 3.40 % |
+| `ResourcePanel` | top right | 514 × 216 | 5.35 % |
+| `StatusPanel` | bottom left | 380 × 212 | 3.89 % |
+| | | | **13.95 %** |
 
-**Stage 08d: the grid hangs from the caption's corner, not the panel's middle.** The grid's area
-(`MiniBagContent`) is anchored to the panel's top-left, one named `CaptionGap` (8 UI px) under the
-caption's own line box, with the caption's `LeftInset`; the cell size still fits the area it was
-handed, and the panel is still a quarter of the canvas wide. Inside that area the layout's origin is
-the **top-left corner** — the earlier version centred the bounding box, which put a 3 × 3 bag 110 px
-right and 151 px down at 1080p (27.6 / 45.8 screen px at 720p) from where it belonged. The rule is
-checked three ways: `BattleMiniBagTests` (both sizes, plus the L-shaped `bag.wicker_basket_l`),
-`UiLayoutCheck.FindMiniBagStackViolations` (below the caption, same left edge, no overlap — a rule
-an overlap check cannot express, because a centred grid is *disjoint* from the caption), and the
-battle PlayMode case that measures the real scene's rectangles.
+The **mini ย่าม is not here**. Stage 08c put a read-only bag in the top-left quarter of the screen
+(432 × 546 px, 11.38 %), and 08d hung its grid from the caption's corner; 08g-2 took it out because
+the item that asks for 15 % cannot be met with it (the five panels summed to 37.86 % and none of them
+overlapped, so moving them could not help). The bag is read and edited by the camp's จัดย่าม screen,
+where the player can actually change it. With the panel went the **cooldown plates**: `IBattleFrame`
+still copies `Cooldowns` every tick (08b's contract, and its tests still cover it), but no view draws
+it today. Synergy link lines are still deliberately not drawn.
 
-A piece that can cast wears a plate from `IBattleFrame.Cooldowns` (08b), read out of the snapshot
-the runner copied **in the same frame** — never from a clock of the view's own:
+`BattleHudArea` is the measure, and it is a rule rather than a report: `Fraction(panels, canvas)`
+sums the panels' rectangles as a share of the canvas and `Budget = 0.15` is the ceiling. The sum is
+honest only because the rectangles are disjoint, so the test asserts `AnyOverlap == false` before it
+believes the sum, and it measures the **shipped scene** (a PlayMode case, `The_hud_covers_at_most_
+fifteen_percent_of_the_screen`), not a hand-made layout. The dev menu is not one of the four: since
+08g-2 it starts shut and opens on **F1**, and the same test asserts it is closed — a menu that is on
+screen by default is a panel the player reads instead of the fight.
 
-| The frame says | The plate shows |
-| --- | --- |
-| `IsReady` | nothing — a ready entry has no plate |
-| `ReadyButManaShort` | the faint blue tone |
-| still counting down | dark, `RemainingTicks / PeriodTicks` of the box |
+What the four are, in the player's terms: the floor's name and number with the **หยุด** control (top
+left), the spawn-window timeline with its playhead (a thin bar along the top), the run's numbers —
+bia, the clock, wave, kills and the 1×/2× control, with the boss band on a boss floor (top right),
+and the status frame at the bottom left (the doctor's bust, the red HP bar, the blue MP bar with
+current/max, and the possession warning). Down from 648 × 276, the resource panel keeps its two 30 px
+readouts and turns wave and kills into one-line rows; every box is at least 2 reference pixels from
+its neighbour, because two rectangles that merely *touch* read as an overlap once the canvas scalar
+has rounded each side.
 
-"No plate" and "a plate at 0 %" are the same picture, which is why the tone is what separates them.
-Elements are built once at floor start and only values that changed are written; the view counts its
-own builds (`CreatedAfterBuild`) and writes (`PlateUpdates`), so a test can tell "the floor moved the
-plate" from "the view redrew everything". Synergy link lines are deliberately not drawn yet.
+**The label boxes are part of the layout, not an afterthought.** The first cut of the kills row gave
+its caption 100 px, and `ศัตรูที่กำจัด` measures **100.3 px** at 22 px (English `Enemies slain`
+**129.7**), so the caption wrapped onto a second line the row has no band for — the Editor capture's
+own screenshot showed `ศัตรูที่กำจัด / 360` broken across two lines. The box is 136 px now. The
+lesson is in the capture, not in a test: a label's box has to be measured against its localized
+string, not guessed from the panel's width.
 
 ## 8. The camera, and the one experiment the stage had to run
 
@@ -222,8 +229,8 @@ player sees is the hitbox the simulation uses.
 ProjectSurvive/Stage 08/4. Measure camera projection (ADR 0018)
 
 # Unity tests (Editor must be open; MCP or Test Runner)
-Editor:  ProjectSurvive.Game.Tests.EditMode    # BattlePresentationTests 15, BattleMiniBagTests 18
-PlayMode: ProjectSurvive.Game.Tests.PlayMode   # 6 battle scene tests
+Editor:  ProjectSurvive.Game.Tests.EditMode    # BattlePresentationTests 17, BattleHudPortraitTests 8
+PlayMode: ProjectSurvive.Game.Tests.PlayMode   # 10 battle scene tests, one per fixture run
 
 # The real player, in a real browser
 pwsh -NoProfile -File tools/build-web.ps1 -Configuration Release

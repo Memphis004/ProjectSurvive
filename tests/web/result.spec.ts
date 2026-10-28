@@ -228,15 +228,23 @@ test.describe("ProjectSurvive's summary screen in the browser", () => {
     console.log("battle report (start):", JSON.stringify(started));
     expect(started.phase).toBe("Running");
 
-    // The dev menu's own document. Its absence means the build does not allow dev cheats, which is a
-    // configuration this check cannot run in rather than a defect — `tools/build-web.ps1` builds
-    // Development by default, and that is what the suite's web steps run.
+    // The dev menu is behind F1 since Stage 08g-2, so the floor starts publishing nothing for it: a
+    // control on a hidden panel has no position a click could land on. Its absence also means the
+    // build does not allow dev cheats, which is a configuration this check cannot run in rather than
+    // a defect — `tools/build-web.ps1` builds Development by default.
+    expect(
+      await readGlobal(page, DEV_MENU),
+      "the dev panel published controls while it was still shut",
+    ).toBeUndefined();
+
+    await page.keyboard.press("F1");
+
     await waitForGlobal(page, DEV_MENU);
     const menu = await readGlobal<DevMenuReport>(page, DEV_MENU);
-    console.log("dev menu report:", JSON.stringify(menu));
+    console.log("dev menu report (after F1):", JSON.stringify(menu));
 
     expect(menu.scene).toBe("Battle");
-    expect(menu.visible, "the dev panel is on screen, so the report says where its controls are").toBe(true);
+    expect(menu.visible, "F1 opened the panel, so its controls are clickable").toBe(true);
     expect(menu.buttons.length).toBe(6);
 
     await clickUntil(page, menu, "loseNow", "the floor could never be ended on purpose");

@@ -190,9 +190,6 @@ namespace ProjectSurvive.Game.Presentation.Battle
         /// </summary>
         public BattlePlaceholderArt Art => _art;
 
-        /// <summary>The mini bag, when the scene wired one.</summary>
-        public BattleMiniBagView MiniBag => _settings.MiniBag;
-
         /// <summary>How many views are bound to an entity right now.</summary>
         public int BoundViews => _bridge.BoundCount;
 
@@ -217,8 +214,7 @@ namespace ProjectSurvive.Game.Presentation.Battle
         /// factory is the only thing that knows which implementation that is.
         /// </summary>
         public IBattleSession Begin(
-            IBattleSessionFactory factory, BattleSetup setup, int startingBia,
-            Backpack bag = null, IGameConfig config = null)
+            IBattleSessionFactory factory, BattleSetup setup, int startingBia)
         {
             if (factory is null)
             {
@@ -233,15 +229,6 @@ namespace ProjectSurvive.Game.Presentation.Battle
             _session?.Dispose();
             _session = factory.Create(setup);
             _telegraphs.Clear();
-
-            // The mini bag is the run's own bag, drawn once: the loadout the battle was handed is
-            // what says which pieces can cast, so the plates and the cooldown list cannot disagree
-            // (ADR 0024). A scene without a bag (a test's view, or ?scene=Battle before a run
-            // exists) simply has nothing to draw.
-            if (_settings.MiniBag is not null && bag is not null && config is not null)
-            {
-                _settings.MiniBag.Build(bag, setup.Loadout, config);
-            }
 
             _hud.Begin(setup, startingBia);
             if (_settings.Hud is not null)
@@ -271,12 +258,6 @@ namespace ProjectSurvive.Game.Presentation.Battle
             _hud.Present(_snapshot);
             _figure?.AcceptSnapshot(_snapshot);
 
-            // The plates come from the frame that was just copied, on this frame — the same span a
-            // HUD label is read from, and never a clock of the mini bag's own (Stage 08b/08c).
-            if (_settings.MiniBag is not null)
-            {
-                _settings.MiniBag.ApplyCooldowns(_snapshot.Cooldowns);
-            }
         }
 
         /// <summary>Drains this tick's events into the channels' own cursors.</summary>
@@ -307,7 +288,6 @@ namespace ProjectSurvive.Game.Presentation.Battle
 
             _damage.Tick(deltaSeconds);
             _telegraphs.Tick(deltaSeconds);
-            _settings.MiniBag?.RefreshIfResized();
         }
 
         /// <summary>Writes the end banner, parks the camera and lets a lost floor's doctor fall.</summary>

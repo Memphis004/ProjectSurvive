@@ -3,10 +3,11 @@
 Presentation และเครื่องมือ Editor เท่านั้น: ไม่มีการแก้ `lib/`, `data/` หรือกติกาเกม
 (`git status --porcelain lib data` ว่าง) ทุกการตรวจทำใน Editor ที่ 1920×1080 — ไม่มี WebGL build ใน Stage นี้
 
-> **สถานะสั้น: ทำได้ 5 จาก 7 ข้อ — ข้อ 1 (สำรวจ), 2 (ความคม), 3 (Night profile), 4 (เงา alpha clip
-> จริง), 5 (การจัดวาง + กล้อง + ลำต้น foreground) ปิดด้วยตัวเลขจริง. ข้อ 6 (HUD ≤ 15 %) **ยังไม่ได้ทำ**
-> และข้อ 3 เทียบกับ `docs/art/target_keyart.png` **ไม่ได้เพราะไฟล์เป้าหมายไม่มีใน repo** (§6, §7).
-> Acceptance ข้อ "UI ≤ 15 %" จึงเป็น **FAIL** — ปิด Stage เป็น PASS ไม่ได้**
+> **สถานะสั้น (หลังปิด 08g-2):** ข้อ 1 (สำรวจ), 2 (ความคม), 3 (Night profile), 4 (เงา alpha clip จริง),
+> 5 (การจัดวาง + กล้อง + ลำต้น foreground) และ **ข้อ 6 (HUD ≤ 15 %)** ปิดด้วยตัวเลขจริง — ข้อ 6 ทำใน
+> รอบที่แยกเป็น `08g-2` (§6) และ HUD วัดได้ **13.95 %** ที่ 1920 × 1080. ข้อ 3 เทียบกับ
+> `docs/art/target_keyart.png` **ยังไม่ได้เพราะไฟล์เป้าหมายไม่มีใน repo** (§7) — จึงเป็น **NOT RUN**
+> ไม่ใช่ FAIL; ที่เหลือของ Stage นี้ยังต้องให้เจ้าของงาน **ตรวจด้วยตา** ก่อนประกาศ PASS ด้านภาพ (§7.5)
 >
 > ข้อ 4 เข้ามาในรอบหลัง (2026-10-28): [ADR 0039](../adr/0039-the-arena-scenery-casts-a-shadow-map.md)
 > — พื้นที่ Battle เลิกใช้ decal ต่อการ์ด แล้วให้การ์ดฉายเงาผ่าน shadow map ของ main light แทน (§5.1)
@@ -55,7 +56,7 @@ Presentation และเครื่องมือ Editor เท่านั�
 |---|---|---|---|
 | 1 | ภาพไม่เบลอที่ Game view 1x และไม่มี Depth of Field | **PASS** | fog 55.5 %→12.1 %; การ์ด 256→512 px และการ์ดที่ใหญ่สุดถูกวาด 508 px ≤ 512 (เดิม 401 px จาก 256 px = ขยาย 1.57×); aniso 1→8; bloom 0.55/0.85→0.32/1.05; `ArenaSharpnessTests` 6/6 |
 | 2 | โทนกลางคืนตัวเลขใกล้เป้ากว่าเดิม | **NOT RUN** | วัดก่อน/หลังได้ (§4) แต่เทียบ `target_keyart` ไม่ได้ — ไฟล์เป้าหมายไม่มีใน repo (§7) |
-| 3 | กลางลานผ่านเทสต์โซน; UI ≤ 15 % ของจอ | **FAIL** | โซน **PASS** (`arena-report.json` → `problems: []`; กลาง 15 / ring 24 / foreground 8 / border 79); **UI 37.86 % → ยังไม่ได้รื้อ (ข้อ 6)** |
+| 3 | กลางลานผ่านเทสต์โซน; UI ≤ 15 % ของจอ | **PASS** | โซน **PASS** (`arena-report.json` → `problems: []`; กลาง 15 / ring 24 / foreground 8 / border 79); **UI 37.86 % → 13.95 %** หลัง `08g-2` (§6), เทสต์ `The_hud_covers_at_most_fifteen_percent_of_the_screen` เขียว, `ui-report.json` มี 0 violation ทั้งสองขนาด |
 | 4 | รายงาน placeholder ชัดเจน | **PASS** | §2 (0 อาร์ตจริง / 15 placeholder) |
 
 เกณฑ์ของ prompt ข้อ 4 ("การ์ดต้นไม้/พุ่ม/landmark cast shadow ผ่าน alpha clip, แสงจันทร์เอียงให้เงาทอดยาว,
@@ -225,7 +226,76 @@ cost (shipped)          —                2.36 ms             2.73 ms on / 2.51
 ลำต้น foreground 8 ต้นที่ฉายเงาเข้าด้านใน ถ้าต้องการเงาในเฟรมมากกว่านี้ต้องเพิ่มของที่ยืน *ใน* เฟรม
 (พุ่ม/ก้อนหินในโซน `Ring`/`Foreground`) หรือลด standoff ของกล้อง ซึ่งเป็นการตัดสินใจด้าน look ไม่ใช่ bug
 
-## 6. ข้อ 6 — ยังไม่ได้ทำ (และข้อเสนอแตก Stage)
+## 6. ข้อ 6 — HUD ไม่เกิน 15 % (ทำใน 08g-2, 2026-10-28)
+
+**รอบแรกของรายงานนี้สรุปว่าเป็นงานรื้อ ไม่ใช่การปรับค่า และไม่ลงมือเพราะรออนุมัติแตก Stage** — ตัวเลข
+ยืนยันเหตุผลนั้น และรอบนี้ลงมือตามที่อนุมัติ:
+
+```
+1920×1080 (artifacts/ui/ui-report.json)        ก่อน                 หลัง (08g-2)
+MiniBagPanel        432x546                 11.38 %               ลบทั้งพาเนล
+ResourcePanel       648x276                  8.62 %  514x216       5.35 %
+TimelinePanel       928x176                  7.88 % 1468x48       3.40 %   (แถบบางด้านบน)
+StatusPanel         432x276                  5.75 %  380x212      3.89 %   (กรอบเล็กมุมซ้ายล่าง)
+FloorPanel          576x152                  4.22 %  380x72       1.32 %   (ย้ายไปมุมซ้ายบน)
+-------------------------------------------------------------------------------
+ผลรวมที่บังจอจริง (ไม่รวม DevPanel)        37.86 %              13.95 %   (เป้า ≤ 15 %)
+DevPanel            440x440                  9.34 %  เดิม          แต่เริ่มปิด ⇒ ไม่ถูกนับ
+```
+
+ห้าพาเนลเดิมไม่ทับกันเลย (union = ผลรวม) ฉะนั้นการย้ายพาเนลอย่างเดียวไปไม่ถึงเป้า — ต้องลบพาเนลหนึ่ง
+และย่อที่เหลือ ซึ่งคือสิ่งที่ทำ:
+
+- **ลบ mini ย่าม ออกทั้งสาย:** `BattleMiniBagView` (622 บรรทัด), `BattleMiniBagLayout` (514),
+  `BattleMiniBagTests` (650) และ `.meta` ของทั้งสาม; `BattleHudView`/`BattleHudPresenter`/
+  `BattleHudState`/`BattleViewSettings` ไม่มี `MiniBag` แล้ว; `UiLayoutCheck` ไม่มี `MiniBag`,
+  `MiniBagContent`, `BagCaption` และ `FindMiniBagStackViolations` แล้ว (กติกาที่กำกับมันไม่มีที่ใช้)
+- **ย่ามยังอยู่ที่เดิมที่เดียวที่แก้มันได้** — จอ จัดย่าม ของ camp ไม่ถูกแตะเลย
+  แผ่นคูลดาวน์ของแต่ละชิ้น (`IBattleFrame.Cooldowns`) หยุดถูกวาด เพราะไม่มีที่ให้วาด; สัญญาและเทสต์ของ
+  08b ยังอยู่ครบ (`Cooldowns` ยังถูกเขียนทุก tick)
+- **`BattleHudArea` (ใหม่):** `Budget = 0.15f`, `Fraction(panels, canvas)` และ `AnyOverlap(panels)` — นิยาม
+  เดียวของ "UI บังจอ" ที่เทสต์อ่าน และเป็นกฎไม่ใช่รายงาน
+- **สี่พาเนลตามที่ prompt สั่ง:** `หยุด` อยู่ในบล็อกชั้นบนซ้าย (การ์ดหรือพาเนลอื่นไม่กินที่),
+  ไทม์ไลน์เป็นแถบสูง 48 px ตามขอบบน, พาเนลตัวเลขลดจาก 648×276 เป็น 514×216 (สองค่าหลัก 30 px คงเดิม,
+  wave/kills เป็นแถวบรรทัดเดียว), status frame 380×212 (พอร์เทรตย้ายขึ้น: `BattleHudPortrait.TopInset`
+  46 → **28** เพราะเฟรมเล็กลง — เลขเดียว ไม่มีค่าซ้ำใน builder แล้ว), และ **dev menu เริ่มปิด เปิดด้วย F1**
+  (`DevMenuView.Update` อ่าน `Keyboard.current.f1Key`, `ApplyPanel()` เป็นที่เดียวที่ตั้ง `SetActive`)
+- **เครื่องมือที่ถ่ายภาพต้องตามให้ทัน:** `BattleCaptureState`/`UiCaptureTool`/`BossCaptureTool`/
+  `TelegraphCaptureTool` ไม่รู้จักย่ามแล้ว และ shot `manashort` หายไปพร้อมแผ่นที่มันถ่าย
+
+**เทสต์:** ใหม่ `The_hud_covers_at_most_fifteen_percent_of_the_screen` (PlayMode, วัดฉากที่ส่งจริง) — assert ว่า
+พาเนลทั้งสี่ไม่ทับกันก่อนที่จะเชื่อผลรวม, วัดได้ **13.95 %** ที่จอที่เทสต์รันอยู่และ ≤ `Budget`, และ assert ว่า
+`DevMenuView.PanelVisible == false` ก่อนกด F1. EditMode **290/290** (เดิม 312 ลบ 22 ของ `BattleMiniBagTests`),
+`ui-report.json` **PASS 0 failure 0 violation** ทั้ง 1920×1080 และ 1280×720. ปิด Stage ด้วย:
+`-Suite Fast` **PASS 13 | FAIL 0 | NOT RUN 3 | WARN 0 (314.4 s)** (`logs/stage08g2-fast.log`) และ
+`-Suite Full` **PASS 24 | FAIL 0 | NOT RUN 3 | WARN 0 (535.8 s)** (`logs/stage08g2-full.log`) — PlayMode
+**11 fixture: Battle 10/10, ArenaSpriteFloorDepth 1/1, CampBagDrag 25/25, CampMergeChooser 4/4,
+CampShelfTooltip 5/5, CampSynergyLine 9/9, CampWorld 12/12, ResultScene 3/3, SceneFlow 6/6, Shell 5/5,
+TitleScene 5/5**; สามขั้น NOT RUN เป็นงาน WebGL (build / Playwright / hosting) ที่ต้องการให้ปิด Editor
+
+**สอง defect ที่เจอระหว่างทาง และแก้แล้ว:**
+
+1. **คำสั่ง `Tools/1. Capture UI` FAIL มาแต่ Stage 17f** — มันหา `SpinePlayerView` ตรง ๆ แต่โปรเจกต์
+   build backend **GenericCute** ⇒ รายงานว่า "the Battle scene has no player figure to photograph" ทั้งที่
+   ฉากมีตัวละครอยู่ (และภาพก็ถ่ายได้) แก้ที่ `FindPlayerFigure()` ซึ่งหา component ที่เป็น `IPlayerFigure`
+   แทนชนิดของ backend ตัวใดตัวหนึ่ง — หลังแก้ capture **PASS** (เดิม `passed: false` พร้อม failure 2 บรรทัด)
+2. **พาดหัว `ศัตรูที่กำจัด` ตัดขึ้นบรรทัดใหม่** ในแถวที่ย่อใหม่: กล่องกว้าง 100 px แต่ตัวอักษรวัดได้
+   **100.3 px** (อังกฤษ `Enemies slain` **129.7 px**) ⇒ ภาพ capture แสดง `ศัตรูที่กำจัด / 360` คนละบรรทัด
+   แก้เป็น 136 px และเลื่อน value ไป 408 (ช่องไฟ 4 px ≥ กฎ 2 px ของ HUD นี้) — เป็น defect ที่ *ภาพจับได้
+   แต่เทสต์ไม่จับ* เพราะไม่มีเทสต์ไหนวัดกล่องข้อความกับข้อความ localized
+3. **การซ่อน dev menu ทำ `ResultScenePlayModeTests` แดง 2 เคส** (และจะทำ browser suite แดงด้วย):
+   `DevMenuReport` เคยถูกเขียนทุกเฟรม **เฉพาะตอนพาเนลเปิด** และเทสต์รอ `PublishCount > 0` ตั้งแต่ก่อนกด F1
+   ⇒ timeout 65 s. ทางแก้ไม่ใช่ให้รายงานเขียนตอนพาเนลปิด (`CampScreenRects` refuse transform ที่ inactive
+   อย่างถูกต้อง — control ที่มองไม่เห็นไม่มีพิกัดให้คลิก) แต่คือ **`DevMenuView.TogglePanel()`** ที่สาธารณะ
+   (สถานะเดียวกับที่ F1 ตั้ง) ให้ PlayMode test เปิดพาเนลก่อนอ่านรายงาน และ `tests/web/result.spec.ts`
+   กด `F1` ก่อน `waitForGlobal` — เทสต์ยัง assert ต่อว่าก่อนกดไม่มีรายงานเลย (`PublishCount == 0`)
+   และ Playwright **NOT RUN** ใน Stage นี้
+
+**ข้อจำกัดของภาพชุดนี้:** dev column ถูกบังคับให้เปิดโดยเครื่องมือถ่ายภาพเพื่อวัดพื้นที่ของมัน (ในเกมมันปิด
+จนกว่าจะกด F1) และป้าย `หยุด` ว่างเปล่าเพราะ capture ไม่ได้รัน pause presenter (ข้อความมาจาก localization
+ตอน runtime); `BattlePauseTests` เป็นตัวยืนยันว่าปุ่มอยู่ใน floor panel และเปิด overlay ได้.
+
+## 6b. บันทึกเดิม: ทำไมรอบแรกจึงยังไม่ลงมือ
 
 - **ข้อ 4 เงา — ทำแล้วในรอบหลัง (2026-10-28),** ดู §5.1, §5.2 และ
   [ADR 0039](../adr/0039-the-arena-scenery-casts-a-shadow-map.md). รอบก่อนหน้าของรายงานนี้ประเมินว่า
@@ -259,7 +329,10 @@ cost (shipped)          —                2.36 ms             2.73 ms on / 2.51
 
 ตามกติกา AGENTS ข้อ 15: Stage นี้มี 7 ข้อ แตะ Unity scene + UI + เทสต์พร้อมกัน — **เหลือข้อ 6 (HUD)
 ข้อเดียวที่ยังไม่ทำ** จึงเสนอเป็น `08g-2` โดยไม่เพิ่ม Stage เองจนกว่าจะได้รับอนุมัติ (ข้อ 1–5 ปิดแล้ว;
-ข้อ 4 ที่รายงานรอบก่อนเสนอให้แยกเป็น `08g-3` ปิดในรอบนี้โดยไม่ต้องแยก — §6)
+ข้อ 4 ที่รายงานรอบก่อนเสนอให้แยกเป็น `08g-3` ปิดในรอบนี้โดยไม่ต้องแยก — §5.1)
+
+**ปิดแล้ว:** เจ้าของงานอนุมัติ `08g-2` และมันทำเสร็จในรอบเดียวกัน — ผลอยู่ใน §6 ด้านบน ตัวเลข 37.86 % →
+**13.95 %** พร้อมเทสต์ที่วัดจากฉากจริง
 
 ## 7. Blocker และสิ่งที่ยังไม่ได้ทดสอบ
 
@@ -338,4 +411,26 @@ powershell -File tools/test.ps1 -Suite Fast   → PASS 13 | FAIL 0 | NOT RUN 3 |
 powershell -File tools/test.ps1 -Suite Full   → PASS 24 | FAIL 0 | NOT RUN 3 | WARN 0  (677 s)
                                                 11 fixture PlayMode = 86/86 (2 fixture รันตามชื่อเต็ม)
                                                 [logs/stage08g-full-harness3.log]
+
+# 08g-2 (2026-10-28): ข้อ 6 — รื้อ HUD
+unity command --project-path UnityProject test run --mode editor        → 290/290
+unity command --project-path UnityProject test run --mode editor \
+       --filter BattleHudPortraitTests --filter_type testName          → 8/8 (หลัง TopInset 46→28)
+unity command --project-path UnityProject editor invoke_menu \
+       "ProjectSurvive/Stage 08/3. Create Battle scene"                  → scene rebuilt
+unity command --project-path UnityProject editor invoke_menu \
+       "ProjectSurvive/Stage 08e/1. Build arena (theme + seed)"         → arena rebuilt into that scene
+unity command --project-path UnityProject editor invoke_menu \
+       "ProjectSurvive/Tools/1. Capture UI (Title + Camp + Battle + Result, 1920x1080 + 1280x720)"
+                                                                        → PASS, 0 failure, 0 violation, 16 ภาพ
+unity command --project-path UnityProject test run --mode playmode \
+       --filter The_hud_covers_at_most_fifteen_percent_of_the_screen \
+       --filter_type testName --async_tests                             → 1/1 passed (13.95 %)
+unity command --project-path UnityProject script run \
+       --file AgentScripts/HudLabelFitProbe.cs --entry AgentScripts.HudLabelFitProbe.Run
+                                                                        → ศัตรูที่กำจัด 100.3 px / Enemies slain 129.7 px
+                                                                          (กล่องเดิม 100 ⇒ ขยายเป็น 136; ลบสคริปต์ทิ้งแล้ว)
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -Suite Fast
+                                                → PASS 13 | FAIL 0 | NOT RUN 3 | WARN 0 (314.4 s)
+                                                  unity: EditMode 290/290   [logs/stage08g2-fast.log]
 ```

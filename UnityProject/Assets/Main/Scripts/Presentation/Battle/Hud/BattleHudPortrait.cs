@@ -44,10 +44,11 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
     {
         /// <summary>How far below the status panel's top edge the figure starts, in UI pixels.</summary>
         /// <remarks>
-        /// The status panel's caption ("สถานะ") sits over the figure's column, so the two do not
-        /// share a line box: this is the gap the authored HUD has carried since Stage 08c.
+        /// The status panel's caption ("สถานะ") has its own 24 px line at the panel's top, so the
+        /// figure starts under it. Stage 08g-2 brought this down from 46 px when the panel became the
+        /// small corner frame of 380 × 212: at 46 the box would have hung off the bottom edge.
         /// </remarks>
-        public const float TopInset = 46f;
+        public const float TopInset = 28f;
 
         /// <summary>
         /// Width of the portrait's column, in UI pixels. The HP/MP captions start 92 px from the

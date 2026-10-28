@@ -103,8 +103,7 @@ namespace ProjectSurvive.Game.Editor
 
                 BattleSetup setup = BuildSetup(config);
                 IBattleSession session = view.Begin(
-                    BattleFactoryBinding.Create(config), setup, startingBia: 0,
-                    bag: null, config: config);
+                    BattleFactoryBinding.Create(config), setup, startingBia: 0);
 
                 int tick = StepUntilWarning(view, session);
                 if (tick < 0)
@@ -253,7 +252,6 @@ namespace ProjectSurvive.Game.Editor
                 Font = settings.Font,
                 Projection = settings.Projection,
                 Hud = null,
-                MiniBag = null,
             };
         }
 
