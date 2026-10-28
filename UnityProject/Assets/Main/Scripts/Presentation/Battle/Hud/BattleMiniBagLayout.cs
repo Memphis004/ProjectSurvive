@@ -24,13 +24,39 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         /// panels (0.92): the bag sits over the arena and must not hide the fight behind a fifth
         /// near-opaque slab, while still separating its cells from the floor (Stage 08i).
         /// </summary>
-        public static readonly Color Backdrop = new Color(0.07f, 0.08f, 0.11f, 0.72f);
+        /// <remarks>
+        /// Darker than the 08c value (0.07, 0.08, 0.11), and the reason is measured rather than
+        /// aesthetic: at 0.72 alpha the panel's own colour is only a third of the composite, so a
+        /// dark backdrop is what lets the cloth above it read. Over the arena's bright tone the first
+        /// capture of this stage put the cloth at **1.38 : 1** against the panel and 1.22 : 1 against
+        /// the floor — the bag was harder to see than the panel under it. See <see cref="Bag"/>.
+        /// </remarks>
+        public static readonly Color Backdrop = new Color(0.04f, 0.05f, 0.07f, 0.72f);
 
-        /// <summary>A bag cell: the rag the ย่าม is made of.</summary>
-        public static readonly Color Bag = new Color(0.30f, 0.28f, 0.22f, 0.95f);
+        /// <summary>
+        /// A bag cell: the rag the ย่าม is made of — a tan cloth, opaque, and the brightest surface
+        /// inside the panel so the bag's footprint is the first thing the eye finds.
+        /// </summary>
+        /// <remarks>
+        /// Chosen against four measurements the capture made on the first cut of this stage: cloth
+        /// against the panel **2.14 : 1**, cloth against an empty cell **2.05 : 1**, the weakest item
+        /// box against the cloth **1.64 : 1** (the offering's gold, the closest category colour to a
+        /// tan) and a cooldown plate against the item under it **3.7 : 1**. Lighter cloth buys the
+        /// first two numbers and spends the third: at 0.52 the offering box drops to 1.02 : 1, which
+        /// is why the cloth stops here. <code>The_bags_cloth_reads_against_its_panel_and_its_empty_cells</code>
+        /// holds all three.
+        /// </remarks>
+        public static readonly Color Bag = new Color(0.38f, 0.32f, 0.22f, 1f);
 
-        /// <summary>An empty cell inside a bag's own bounding box.</summary>
-        public static readonly Color EmptyCell = new Color(0.15f, 0.15f, 0.18f, 0.85f);
+        /// <summary>
+        /// A cell inside the bag's bounding box that the bag does not cover — the bite of an L-shaped
+        /// basket.
+        /// </summary>
+        /// <remarks>
+        /// Darker than the cloth but lighter than the composite panel, so the missing corner reads as
+        /// a <i>cell that is not cloth</i> rather than as a hole in the panel.
+        /// </remarks>
+        public static readonly Color EmptyCell = new Color(0.13f, 0.14f, 0.17f, 0.92f);
 
         /// <summary>The plate drawn over a piece whose cooldown is still running.</summary>
         public static readonly Color Cooldown = new Color(0.02f, 0.03f, 0.05f, 0.78f);

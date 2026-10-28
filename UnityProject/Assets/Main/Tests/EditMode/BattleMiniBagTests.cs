@@ -11,6 +11,7 @@ using ProjectSurvive.Game.Battle;
 using ProjectSurvive.Game.Editor;
 using ProjectSurvive.Game.Infrastructure;
 using ProjectSurvive.Game.Presentation.Battle;
+using ProjectSurvive.Game.Presentation.Battle.Environment;
 using ProjectSurvive.Game.Presentation.Battle.Hud;
 using UnityEngine;
 using UnityEngine.UI;
@@ -571,6 +572,71 @@ namespace ProjectSurvive.Game.Tests.EditMode
             Assert.That(view.PieceCount, Is.EqualTo(pieces));
             Assert.That(view.CellCount, Is.EqualTo(cells));
         }
+
+        /// <summary>
+        /// The cloth reads against the panel it sits in, against its own empty cells, and does not
+        /// swallow the item boxes drawn on it (Stage 08i's second pass at the bag).
+        /// </summary>
+        /// <remarks>
+        /// A photograph is what showed the first cut's problem — a tan cloth at (0.30, 0.28, 0.22) on
+        /// a (0.07, 0.08, 0.11) panel at 0.72 alpha measured **1.38 : 1** against its own panel and
+        /// 1.22 : 1 against the floor, so the bag was harder to find than the slab under it. The
+        /// numbers here are WCAG ratios of the <b>composited</b> pixels: each palette colour over the
+        /// panel, and the panel over the arena, blended as the UI blends them (straight sRGB, which
+        /// under-states the separation in a linear framebuffer rather than flattering it). Two arena
+        /// tones stand in for the floor the bag is photographed over: the capture's own bright tone
+        /// and a night-dusk one, because the panel is transparent and the floor is what changes.
+        /// </remarks>
+        [Test]
+        public void The_bags_cloth_reads_against_its_panel_and_its_empty_cells()
+        {
+            var arenaTones = new[]
+            {
+                new Color(0.314f, 0.337f, 0.169f), // the dusk arena, sampled from the 1920x1080 capture
+                new Color(0.13f, 0.15f, 0.08f), // its night tone
+            };
+
+            for (int i = 0; i < arenaTones.Length; i++)
+            {
+                Color panel = Over(MiniBagPalette.Backdrop, arenaTones[i]);
+                Color cloth = Over(MiniBagPalette.Bag, panel);
+                Color empty = Over(MiniBagPalette.EmptyCell, panel);
+
+                Assert.That(
+                    Contrast(cloth, panel), Is.GreaterThanOrEqualTo(1.8f),
+                    "the bag's cloth is not separable from its own panel over arena tone " + i);
+                Assert.That(
+                    Contrast(cloth, empty), Is.GreaterThanOrEqualTo(1.8f),
+                    "a cell the bag covers and one it does not look the same over arena tone " + i);
+
+                // The closest category colour to the cloth is the offering's gold; if that box still
+                // reads, the four cooler ones do too. A box that vanishes on the cloth is a piece the
+                // player cannot see, which is the whole reason the bag came back.
+                Color offering = Over(new Color(0.70f, 0.62f, 0.32f, 0.95f), cloth);
+                Assert.That(
+                    Contrast(offering, cloth), Is.GreaterThanOrEqualTo(1.4f),
+                    "the offering's box is lost on the cloth over arena tone " + i);
+            }
+        }
+
+        /// <summary>Composites a UI colour over an opaque one, the way the canvas blends it.</summary>
+        private static Color Over(Color colour, Color behind) => new Color(
+            (colour.r * colour.a) + (behind.r * (1f - colour.a)),
+            (colour.g * colour.a) + (behind.g * (1f - colour.a)),
+            (colour.b * colour.a) + (behind.b * (1f - colour.a)),
+            1f);
+
+        /// <summary>The WCAG contrast ratio of two composited colours (the measure the arena uses).</summary>
+        private static float Contrast(Color first, Color second) =>
+            ArenaContrast.Ratio(
+                ArenaContrast.RelativeLuminance(Rgb(first)),
+                ArenaContrast.RelativeLuminance(Rgb(second)));
+
+        private static Color32 Rgb(Color colour) => new Color32(
+            (byte)Mathf.RoundToInt(Mathf.Clamp01(colour.r) * 255f),
+            (byte)Mathf.RoundToInt(Mathf.Clamp01(colour.g) * 255f),
+            (byte)Mathf.RoundToInt(Mathf.Clamp01(colour.b) * 255f),
+            255);
 
         // -------------------------------------------------------------------
         // helpers

@@ -84,6 +84,7 @@ running both, EditMode went 312/312 and the capture showed the arena again. Reco
 | --- | --- | --- | --- |
 | 1 | mini ย่าม back at the bottom-right, caption top-left, grid under it | **PASS** | `artifacts/ui/battle-begin-1920x1080.png`, `battle-lbag-1920x1080.png`, `battle-begin-1280x720.png` |
 | 2 | cooldown plates follow `IBattleFrame.Cooldowns` | **PASS** | `artifacts/ui/battle-midfight-1920x1080-bagcrop.png` (plate at 1/3 of its period); `BattlePlayModeTests.The_mini_bags_plates_are_the_frames_cooldowns` |
+| 2b | the cloth reads against its panel, its empty cells and the item boxes (second pass) | **PASS** | 1.38 → **1.80 : 1** measured on the capture, 2.14 / 2.05 / 1.64 in `The_bags_cloth_reads_against_its_panel_and_its_empty_cells` |
 | 3 | built once; nothing created during play | **PASS** | `…Ten_seconds_of_ticks_raise_no_exception_and_bind_no_new_view` (`CreatedAfterBuild == 0`, `Pool.CreatedAfterWarmup == 0`, `PlateUpdates > 0`) |
 | 4 | HUD ≤ 18 % at both sizes, panels disjoint | **PASS** | 16.95 % / 16.95 %; `…The_hud_covers_at_most_eighteen_percent_of_the_screen_at_both_sizes` |
 | 5 | bag inside the screen, never over another panel or the open dev panel | **PASS** | `ui-report.json` `violations: []`, `UiLayoutCheckTests` stacking cases 23/23 |
@@ -91,6 +92,31 @@ running both, EditMode went 312/312 and the capture showed the arena again. Reco
 | 7 | no exception in the Console during a floor | **PASS** | 12/12 PlayMode; `console get` clean of test-time errors after the runs |
 | 8 | WebGL build + Playwright | **NOT RUN** | ordered NOT RUN by the stage brief; the browser reserves F12 (see risks) |
 | 9 | PlayMode screenshot of F12 at 1920 × 1080 | **NOT RUN** | the Editor's Game View renders at 1280 × 720 on this machine; the 1080p proof is the capture tool's photograph (dev panel visible, `battle-begin-1920x1080.png`) plus the PlayMode test |
+
+## The second pass on legibility (same stage, after the screenshots were reviewed)
+
+The first cut of the restored bag was the 08c palette unchanged, and the photograph showed why that
+was not good enough: the cloth (0.30, 0.28, 0.22 at 0.95) sat on a panel (0.07, 0.08, 0.11 at 0.72)
+over a lit arena, and the measured WCAG ratio of the <b>composited pixels</b> was **1.38 : 1** cloth
+against panel and **1.22 : 1** cloth against the floor — the panel under the bag was easier to see than
+the bag. Three colours moved, each for a measured reason:
+
+| colour | before | after | why |
+| --- | --- | --- | --- |
+| `MiniBagPalette.Backdrop` | (0.07, 0.08, 0.11, 0.72) | **(0.04, 0.05, 0.07, 0.72)** | at 0.72 alpha the panel contributes a third of the composite; a darker one is what the cloth is read against |
+| `MiniBagPalette.Bag` | (0.30, 0.28, 0.22, 0.95) | **(0.38, 0.32, 0.22, 1.00)** | brightest surface in the panel, so the footprint is the first thing the eye finds |
+| `MiniBagPalette.EmptyCell` | (0.15, 0.15, 0.18, 0.85) | **(0.13, 0.14, 0.17, 0.92)** | darker than the cloth, lighter than the panel: an L basket's bite reads as *a cell that is not cloth*, not as a hole |
+
+Measured on the re-run capture (`artifacts/ui/battle-begin-1920x1080.png`): cloth **1.80 : 1** against
+its panel (was 1.38), and in the model the test uses — palette composited over the arena's dusk and
+night tones — cloth 2.14 / 2.05, cloth against empty cell 2.05, the weakest item box (the offering's
+gold) 1.64 against the cloth, a cooldown plate 3.7 against the item under it. Lighter cloth was tried
+and rejected: at 0.52 the offering's box falls to 1.02 : 1 against the cloth, i.e. one of the five
+categories disappears. `BattleMiniBagTests.The_bags_cloth_reads_against_its_panel_and_its_empty_cells`
+holds the three numbers, so a later tweak cannot quietly undo them.
+
+The scene's own panel image carries the new backdrop (`m_Color` on `/UI/MiniBagPanel`, set through the
+Editor API and saved), so what the capture photographs and what the runtime paints are the same value.
 
 ## Not tested, and the risks
 
@@ -109,6 +135,12 @@ running both, EditMode went 312/312 and the capture showed the arena again. Reco
   against.
 - **A player with twelve items** gets a grid of boxes and tier numbers, not icons — the placeholder art
   the camp's จัดย่าม uses. Unchanged from 08c; no art was added.
+- **One flaky PlayMode run.** After the palette change, the first whole-class run of
+  `BattlePlayModeTests` reported 11/12; the same class was 12/12 immediately before it and 12/12 on the
+  re-run, and the five cases this stage touches (floor start, ten ticks, HUD area, plates, dev menu)
+  each passed on their own. The failing case could not be named: the pipeline reports counts, not
+  names, and the Editor log carries no assertion text for it. Recorded as unexplained rather than
+  passed.
 
 ## Commands actually run
 
