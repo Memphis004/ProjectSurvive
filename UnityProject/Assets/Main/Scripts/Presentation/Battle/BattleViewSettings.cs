@@ -28,6 +28,9 @@ namespace ProjectSurvive.Game.Presentation.Battle
         [Tooltip("The HUD the frame is mirrored into.")]
         public Hud.BattleHudView Hud;
 
+        [Tooltip("The mini ย่าม at the bottom right: the bag's own box, one box per piece, and the cooldown plates (Stage 08c; restored by Stage 08i).")]
+        public Hud.BattleMiniBagView MiniBag;
+
         [Tooltip("Font used by the world-space damage numbers. Must be the baked Thai font.")]
         public TMP_FontAsset Font;
 

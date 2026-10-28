@@ -1,0 +1,129 @@
+# Stage 08i — the mini ย่าม and the cooldown plates come back, behind F12
+
+## Summary
+
+Stage 08g-2 met its 15 % HUD budget by deleting the mini ย่าม, and with it the only surface that showed
+`IBattleFrame.Cooldowns`; the player could no longer see which item was ready and which was still
+recharging. This stage restores the bag as a fifth panel at the bottom-right corner (288 × 216 at
+1080p, its panel more transparent than the other four), leaves the four panels 08g cut exactly where
+they were, and moves the ceiling to a named **18 %** — measured **16.95 %** at 1920 × 1080 and at
+1280 × 720, five disjoint rectangles. The dev menu's key moves from F1 to **F12**, still starting shut,
+with the key a single constant in `DevMenuView`.
+
+## A. Diagnosis (from the repository, not from memory)
+
+**What 08g (`1747be2`, parent `0382aa0`) did to the bag.** Deleted
+`BattleMiniBagLayout.cs`, `BattleMiniBagView.cs` and `BattleMiniBagTests.cs` (with their `.meta`s —
+`BattleMiniBagLayout.cs` −514, `BattleMiniBagView.cs` −622, `BattleMiniBagTests.cs` −650 lines); and
+edited the places that referenced them: `BattleViewSettings` (the `MiniBag` field −3), `BattleViewCaps`
+(the cell/piece pool sizes −17), `BattleViewScene` (the `MiniBag` property −22), `BattleSimulationRunner`
+(one line: the per-frame `ApplyCooldowns` call), `BattleHudView`/`BattleHudState`/`BattleHudPresenter`
+(the caption and the wiring), `BattleSceneBuilder` (−202 net, the panel and its builder method),
+`UiCaptureTool` (−88, the region and the "bag" shot), `UiLayoutCheck` (−110, `MiniBag*` regions and the
+stacking rule), `UiLayoutCheckTests` (−65), `BattlePlayModeTests` (−215, three cases), and the docs
+(`08g-report.md`, `test-suites.md`, `knowledge.md`, `llmwiki/systems/battle-presentation.md`,
+`llmwiki/index.md`, `stage-log.md`).
+
+**What the bag was (`0382aa0`), and what is therefore kept.** `BattleMiniBagView.Build(Backpack,
+CombatLoadoutSnapshot, IGameConfig)` read the run's own board and its resolved loadout — never the
+frame — and `ApplyCooldowns(ReadOnlySpan<LoadoutCooldown>)` was handed the list the runner copied out of
+`IBattleFrame.Cooldowns`, keyed by board instance id. Readiness was drawn three ways, all from that one
+list: a plate only on a piece that **can cast** (`Loadout`-resolved, so plate and cooldown entry cannot
+disagree), its tone `None` when ready, `Counting` (dark, covering the remaining `RemainingTicks /
+PeriodTicks`) while recharging, and `ManaShort` (faint blue) when ready but the pool cannot pay. Pieces
+and cells were created once at floor start from the board's own maximum (9 × 7), and the grid hugged
+the content area's top-left under the "ย่าม" caption (Stage 08d).
+
+**The dev menu before this stage.** `DevMenuView` (`ToggleKey = Key.F1`), `_toggledOpen = false`, so
+`Start → Bind` left the panel shut; `Update` read `Keyboard.current[ToggleKey].wasPressedThisFrame`.
+F1 was named in: `ResultScenePlayModeTests` (which had to open the panel before the report exists — it
+calls `TogglePanel`, the same path the key takes), `tests/web/result.spec.ts` (pressed F1),
+`docs/testing/test-suites.md`, `knowledge.md`, `llmwiki/systems/battle-presentation.md`, the stage plan
+document, and the "dev: on (Development build or Editor)" status string in `DevMenuPresenter`.
+
+## B. What changed
+
+- **Files restored from `0382aa0`** (`git checkout 0382aa0 -- …`, `.meta`s included so the GUIDs
+  survive): `BattleMiniBagLayout.cs`, `BattleMiniBagView.cs`, `BattleMiniBagTests.cs`. Then adapted:
+  `PanelWidth = 288f` / `PanelHeight = 216f` as named ceilings, `MiniBagPalette.Backdrop` at **0.72**
+  alpha against the other panels' 0.92, `BattleHudArea.Budget = 0.18f`, and the scene/HUD wiring.
+- **Scene** (`BattleSceneBuilder`): the bag is anchored to the screen's right and bottom edges with the
+  same `UiMargin = 24` the status panel uses (`1608 → 1896` × `24 → 240` at 1080p); the dev menu keeps
+  its 440 × 440 and now starts 16 px above the bag (`MiniBagGap`), so pressing F12 can never cover it.
+- **HUD ledger** (`BattleHudArea`): 0.15 → **0.18**, with the reasoning in
+  [ADR 0040](../adr/0040-the-hud-budget-moves-to-eighteen-percent.md). The four old panels are
+  unchanged: floor 380 × 72, resources 513.6 × 216, status 380 × 212, timeline 1468 × 48 (13.95 %).
+- **Dev menu**: `ToggleKey = Key.F12`, one constant; F1 is not read anywhere. The status string now ends
+  "— F12". Everything that named F1 was updated, including the Playwright spec (renamed key only;
+  **NOT RUN**), `test-suites.md` and the wiki.
+- **Capture tool**: the Battle states now photograph the bag (`hud-begin`, `mid-fight`, `lbags`), and
+  `UiLayoutCheck` carries the `MiniBagPanel` / `MiniBagContent` / `BagCaption` regions and the stacking
+  rule again.
+
+### Numbers
+
+| thing | value | where |
+| --- | --- | --- |
+| mini ย่าม panel | 288 × 216 = **3.00 %** of 1920 × 1080 | `ui-report.json` region `MiniBagPanel` |
+| five HUD panels | **16.95 %** at 1920 × 1080 **and** at 1280 × 720 | `ui-report.json`; `BattleHudArea.Fraction` in the PlayMode test |
+| largest bag in `data/tables/bag.csv` | 3 × 3 (`bag.raw_cotton_bag`), L-shape `bag.wicker_basket_l` is 2 × 3 | the table |
+| cell size for that bag | **54 px** (content 268 × 162 at 1080p; floor 16 px, cap 64 px) | `MiniBagLayoutBuilder.Fit` |
+| dev panel | 440 × 440, bottom edge 256 px up, bag top edge 240 px | capture report |
+| overlap violations | **0** at both sizes, bag vs the four panels and vs the open dev panel | `ui-report.json` |
+
+**The scene rebuild bit once, and the tests caught it.** Re-running
+`ProjectSurvive/Stage 08/3. Create Battle scene` (which starts from `NewScene`) leaves the Battle scene
+without the arena, which is added by a separate menu item; four `ArenaEnvironmentTests` cases failed
+("the arena has no screen band at all"). The shipped scene is the pair **08/3 → 08e/1**, and after
+running both, EditMode went 312/312 and the capture showed the arena again. Recorded here because the
+`.unity` diff of a rebuilt scene is otherwise unreadable.
+
+## Acceptance
+
+| # | item | verdict | evidence |
+| --- | --- | --- | --- |
+| 1 | mini ย่าม back at the bottom-right, caption top-left, grid under it | **PASS** | `artifacts/ui/battle-begin-1920x1080.png`, `battle-lbag-1920x1080.png`, `battle-begin-1280x720.png` |
+| 2 | cooldown plates follow `IBattleFrame.Cooldowns` | **PASS** | `artifacts/ui/battle-midfight-1920x1080-bagcrop.png` (plate at 1/3 of its period); `BattlePlayModeTests.The_mini_bags_plates_are_the_frames_cooldowns` |
+| 3 | built once; nothing created during play | **PASS** | `…Ten_seconds_of_ticks_raise_no_exception_and_bind_no_new_view` (`CreatedAfterBuild == 0`, `Pool.CreatedAfterWarmup == 0`, `PlateUpdates > 0`) |
+| 4 | HUD ≤ 18 % at both sizes, panels disjoint | **PASS** | 16.95 % / 16.95 %; `…The_hud_covers_at_most_eighteen_percent_of_the_screen_at_both_sizes` |
+| 5 | bag inside the screen, never over another panel or the open dev panel | **PASS** | `ui-report.json` `violations: []`, `UiLayoutCheckTests` stacking cases 23/23 |
+| 6 | dev menu starts hidden, F12 shows, F12 again hides, F1 does nothing | **PASS** | `artifacts/ui/battle-devmenu-f12-1280x720.png`, `battle-devmenu-f12-closed-1280x720.png`; `…The_dev_menu_starts_hidden_and_toggles_on_F12_not_F1`; `ResultScenePlayModeTests` 3/3 |
+| 7 | no exception in the Console during a floor | **PASS** | 12/12 PlayMode; `console get` clean of test-time errors after the runs |
+| 8 | WebGL build + Playwright | **NOT RUN** | ordered NOT RUN by the stage brief; the browser reserves F12 (see risks) |
+| 9 | PlayMode screenshot of F12 at 1920 × 1080 | **NOT RUN** | the Editor's Game View renders at 1280 × 720 on this machine; the 1080p proof is the capture tool's photograph (dev panel visible, `battle-begin-1920x1080.png`) plus the PlayMode test |
+
+## Not tested, and the risks
+
+- **F12 in a browser.** Chrome uses F12 for its own DevTools, so a WebGL player cannot rely on the key;
+  the Playwright spec presses it but the browser may swallow it. The key is one constant
+  (`DevMenuView.ToggleKey`) precisely so a WebGL-safe binding can be chosen later; the browser spec is
+  NOT RUN, as ordered.
+- **A 1920 × 1080 Play-mode screenshot of the F12 panel** could not be taken: the Editor's Game View is
+  fixed at 1280 × 720 here and there is no public API to change it from a script. The 1080p evidence is
+  the Edit-mode photograph, which draws the authored panel.
+- **The Edit-mode capture always shows the dev panel**, because the panel is authored active and the
+  view hides it in `Start` — the capture never runs Play Mode. It is evidence of layout, not of the
+  key.
+- **The largest bag is 3 × 3 today.** A 4 × 4 bag would fit at 40 px cells and still meet the 16 px
+  floor, but `BattleViewCaps.MiniBagCells` (9 × 7) is what a bigger board would have to be re-checked
+  against.
+- **A player with twelve items** gets a grid of boxes and tier numbers, not icons — the placeholder art
+  the camp's จัดย่าม uses. Unchanged from 08c; no art was added.
+
+## Commands actually run
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -Suite Fast   # EditMode step FAILED first (see below)
+unity command test run --mode editor   --async_tests                              # 312/312
+unity command test run --mode playmode --filter BattlePlayModeTests --filter_type testName   # 12/12
+unity command test run --mode playmode --filter ResultScenePlayModeTests --filter_type testName  # 3/3
+unity command editor invoke_menu --path "ProjectSurvive/Stage 08/3. Create Battle scene"
+unity command editor invoke_menu --path "ProjectSurvive/Stage 08e/1. Build arena (theme + seed)"
+unity command editor invoke_menu --path "ProjectSurvive/Tools/1. Capture UI (Title + Camp + Battle + Result, 1920x1080 + 1280x720)"
+```
+
+The first `-Suite Fast` run reported `unity: EditMode` **308/312**: four `ArenaEnvironmentTests` cases
+failed because the scene had been rebuilt without the arena (the `08e/1` step above). That is the
+failure the rebuilt scene produced, not a flake; after the arena was re-added the same run is 312/312.
+The console also carried `ExecuteMenuItem failed … no menu named 'ProjectSurvive/Tools/1. Capture UI'`
+from an earlier invocation with the short name; the menu's real title is the long one above.

@@ -11,6 +11,8 @@ using ProjectSurvive.Game.Presentation.Figure;
 using ProjectSurvive.Game.Presentation.SpineActors;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 
@@ -90,6 +92,16 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 LabelText("FloorLabel"),
                 Is.EqualTo(floorName),
                 "the presenter's floor name never reached the view's label");
+
+            // Stage 08i: the bag came back to the HUD, and the scene really wired it — the wiring
+            // bug Stage 08c's own PlayMode test caught (a built panel no settings reference reach).
+            BattleMiniBagView miniBag = runner.View.MiniBag;
+            Assert.That(miniBag, Is.Not.Null, "the scene wired no mini bag into BattleViewSettings");
+            Assert.That(miniBag.IsBuilt, Is.True, "the mini bag was never built at the floor's start");
+            Assert.That(miniBag.PieceCount, Is.GreaterThan(0), "the run departed with no piece on its bag");
+            Assert.That(
+                LabelText("BagCaption"), Is.EqualTo(hud.State.BagCaption.Value),
+                "the mini bag's caption is not the localized \"ย่าม\"");
         }
 
         [UnityTest]
@@ -131,6 +143,15 @@ namespace ProjectSurvive.Game.Tests.PlayMode
                 Is.Zero,
                 "a view was created after warm-up, so the pool does not cover the floor");
 
+            // Stage 08i: the mini bag is built once, too — its cells and boxes are created by the
+            // floor's first build and never while it runs, and its plates moved with the frames.
+            BattleMiniBagView miniBag = runner.View.MiniBag;
+            Assert.That(miniBag, Is.Not.Null, "the scene wired no mini bag");
+            Assert.That(miniBag.CreatedAfterBuild, Is.Zero, "the mini bag created a view after its build");
+            Assert.That(
+                miniBag.PlateUpdates, Is.GreaterThan(0),
+                "ten seconds of floor wrote no cooldown plate");
+
             // Stage 17b: the doctor is the Spine figure, built once at the floor's start, and its
             // Play is not called per frame. Ten seconds at 2× is roughly 1 200 rendered frames.
             PlayerFigurePresenter figure = runner.View.PlayerFigure;
@@ -167,33 +188,32 @@ namespace ProjectSurvive.Game.Tests.PlayMode
         }
 
         // -------------------------------------------------------------------
-        // Stage 08g-2: the HUD covers at most 15 % of the screen
+        // Stage 08i: five HUD panels cover at most 18 % of the screen
         // -------------------------------------------------------------------
 
         /// <summary>
-        /// The battle HUD's four panels cover no more than 15 % of the screen, measured on the scene the
-        /// player gets rather than on a hand-made layout.
+        /// The battle HUD's five panels cover no more than 18 % of the screen at 1920×1080 and at
+        /// 1280×720, and no two of them share pixels.
         /// </summary>
         /// <remarks>
         /// <para>
-        /// The stage's sixth item states the number ("วัดพื้นที่ที่ UI บังจอ ต้อง ≤ 15 % ที่ 1920×1080
-        /// (มีเทสต์)"). Before it the same screen was five panels totalling 37.86 %: the mini ย่าม
-        /// 11.38, the run's numbers 8.62, the timeline 7.88, the status panel 5.75 and the floor block
-        /// 4.22. Those panels never overlapped, so moving them could not have met the target — the HUD
-        /// had to be rebuilt, which is what 08g-2 did.
+        /// Stage 08g-2's 15 % budget was priced for four panels (13.95 %). Stage 08i returns the mini
+        /// ย่าม at a measured 288 × 216 (3.00 %), so 13.95 + 3.00 = 16.95 % needs an 18 % ceiling; the
+        /// four existing panels keep their 08g size and position, as the stage requires. The reason
+        /// is recorded in <c>docs/adr/0040-the-hud-budget-holds-five-panels.md</c>.
         /// </para>
         /// <para>
-        /// The measure is each panel's rectangle as a fraction of the canvas, which is honest only
-        /// because the four rectangles are disjoint — asserted here as well. A screen of stacked
-        /// translucent panels would have to be measured by covered pixels instead.
+        /// The rectangles are read from the scene's own anchors and offsets and evaluated at both
+        /// canvas sizes. They are disjoint at each size, which is what makes their sum the covered
+        /// area; the test asserts that before it trusts the fraction.
         /// </para>
         /// <para>
-        /// The dev menu is not one of the four. Since 08g-2 it starts shut and opens on F1, so before
-        /// the key is pressed it covers nothing.
+        /// The dev menu is not one of the five. It starts shut and opens on F12; when open it sits
+        /// above the bag, and the same size sweep proves the two do not share pixels.
         /// </para>
         /// </remarks>
         [UnityTest]
-        public IEnumerator The_hud_covers_at_most_fifteen_percent_of_the_screen()
+        public IEnumerator The_hud_covers_at_most_eighteen_percent_of_the_screen_at_both_sizes()
         {
             yield return LoadScene(BattleSceneName);
             yield return WaitForFloorToStart();
@@ -202,49 +222,219 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             BattleHudView hud = Find<BattleHudView>();
             Assert.That(hud, Is.Not.Null, "the Battle scene has no HUD");
 
-            // The HUD lives on the screen's canvas, so its own rectangle is the screen's own space.
+            BattleSimulationRunner runner = Find<BattleSimulationRunner>();
+            BattleMiniBagView miniBag = runner.View.MiniBag;
+            Assert.That(miniBag, Is.Not.Null, "the scene wired no mini bag");
+
+            // The HUD lives on the screen's canvas, so the canvas scale is measured once and the
+            // same scene rectangles are evaluated at both sizes below.
             Rect screen = WorldRect((RectTransform)hud.transform);
             Assert.That(screen.width, Is.GreaterThan(0f), "the canvas has no size, so nothing can be measured");
-
-            Rect[] panels =
-            {
-                PanelOf("FloorLabel"),
-                PanelOf("TimeCaption"),
-                PanelOf("HpCaption"),
-                PanelOf("TimelineCaption"),
-            };
-
-            Assert.That(
-                BattleHudArea.AnyOverlap(panels),
-                Is.False,
-                "two HUD panels overlap, so their rectangles cannot be summed as the covered area");
-
-            float fraction = BattleHudArea.Fraction(panels, screen.size);
 
             DevMenuView devMenu = Find<DevMenuView>();
             Assert.That(devMenu, Is.Not.Null, "the Battle scene has no dev menu");
             Assert.That(
                 devMenu.PanelVisible, Is.False,
-                "the dev menu is on screen without F1, so it is part of the screen the player sees");
+                "the dev menu is on screen without F12, so it is part of the screen the player sees");
+
+            RectTransform[] authoredPanels =
+            {
+                PanelOf("FloorLabel"),
+                PanelOf("TimeCaption"),
+                PanelOf("HpCaption"),
+                PanelOf("TimelineCaption"),
+                miniBag.Panel,
+            };
+
+            RectTransform devPanel = devMenu.Panel;
+            Assert.That(devPanel, Is.Not.Null, "the dev menu has no panel rectangle");
+
+            var sizes = new[] { new Vector2(1920f, 1080f), new Vector2(1280f, 720f) };
+            float[] fractions = new float[sizes.Length];
+
+            for (int s = 0; s < sizes.Length; s++)
+            {
+                var panels = new Rect[authoredPanels.Length];
+                for (int i = 0; i < authoredPanels.Length; i++)
+                {
+                    panels[i] = PanelRectAt(authoredPanels[i], sizes[s]);
+                }
+
+                Assert.That(
+                    BattleHudArea.AnyOverlap(panels),
+                    Is.False,
+                    "two HUD panels overlap at " + sizes[s].x + "x" + sizes[s].y
+                    + ", so their rectangles cannot be summed as the covered area");
+
+                fractions[s] = BattleHudArea.Fraction(panels, sizes[s]);
+
+                // The bag and the dev menu coexist when the menu is open: the menu was moved above
+                // the bag in Stage 08i precisely so this pair is disjoint at both sizes.
+                Assert.That(
+                    UiRectOverlaps(panels[4], PanelRectAt(devPanel, sizes[s])),
+                    Is.False,
+                    "the mini bag and the dev menu overlap at " + sizes[s].x + "x" + sizes[s].y);
+            }
 
             TestContext.WriteLine(
                 "hud area: canvas=" + screen.width + "x" + screen.height
-                + " floor=" + panels[0].size + " resources=" + panels[1].size
-                + " status=" + panels[2].size + " timeline=" + panels[3].size
-                + " covered=" + (fraction * 100f).ToString("0.00") + " %");
+                + " 1920x1080=" + (fractions[0] * 100f).ToString("0.00") + " %"
+                + " 1280x720=" + (fractions[1] * 100f).ToString("0.00") + " %"
+                + " budget=" + (BattleHudArea.Budget * 100f) + " %"
+                + " panels=floor,resources,status,timeline,bag");
 
-            Assert.That(
-                fraction, Is.LessThanOrEqualTo(BattleHudArea.Budget),
-                "the HUD covers " + (fraction * 100f).ToString("0.00")
-                + " % of the screen; the stage allows " + (BattleHudArea.Budget * 100f) + " %");
+            for (int s = 0; s < sizes.Length; s++)
+            {
+                Assert.That(
+                    fractions[s], Is.LessThanOrEqualTo(BattleHudArea.Budget),
+                    "the HUD covers " + (fractions[s] * 100f).ToString("0.00")
+                    + " % of the " + sizes[s].x + "x" + sizes[s].y + " screen; Stage 08i allows "
+                    + (BattleHudArea.Budget * 100f) + " %");
+            }
         }
 
         /// <summary>The panel a label is drawn in: the label's own parent, measured the way the capture does.</summary>
-        private static Rect PanelOf(string labelName)
+        private static RectTransform PanelOf(string labelName)
         {
             GameObject label = GameObject.Find(labelName);
             Assert.That(label, Is.Not.Null, "the HUD has no " + labelName);
-            return WorldRect((RectTransform)label.transform.parent);
+            return (RectTransform)label.transform.parent;
+        }
+
+        /// <summary>
+        /// A panel's rectangle at an arbitrary screen size, from the anchors and offsets the scene
+        /// authored. Every HUD panel is a direct child of its canvas, which uses
+        /// <c>ScaleWithScreenSize</c> at a 1920×1080 reference, so the offsets are reference pixels:
+        /// the canvas-space rectangle is the same at every size and the canvas scalar shrinks the
+        /// whole of it by one factor. Both sizes the stage names are 16:9, so that factor is simply
+        /// width ÷ 1920.
+        /// </summary>
+        private static Rect PanelRectAt(RectTransform rect, Vector2 screen)
+        {
+            const float referenceWidth = 1920f;
+            const float referenceHeight = 1080f;
+            float scale = Mathf.Min(screen.x / referenceWidth, screen.y / referenceHeight);
+
+            var canvas = new Vector2(referenceWidth, referenceHeight);
+            float xMin = (rect.anchorMin.x * canvas.x) + rect.offsetMin.x;
+            float yMin = (rect.anchorMin.y * canvas.y) + rect.offsetMin.y;
+            float xMax = (rect.anchorMax.x * canvas.x) + rect.offsetMax.x;
+            float yMax = (rect.anchorMax.y * canvas.y) + rect.offsetMax.y;
+
+            return new Rect(xMin * scale, yMin * scale, (xMax - xMin) * scale, (yMax - yMin) * scale);
+        }
+
+        private static bool UiRectOverlaps(Rect a, Rect b) =>
+            a.xMin < b.xMax && b.xMin < a.xMax && a.yMin < b.yMax && b.yMin < a.yMax;
+
+        // -------------------------------------------------------------------
+        // Stage 08i: the mini bag's cooldown plates, on the real scene
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// Every plate the scene draws equals the frame's own <c>RemainingTicks / PeriodTicks</c>,
+        /// with the tone its flags ask for, and the plates move as the floor runs.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator The_mini_bags_plates_are_the_frames_cooldowns()
+        {
+            yield return LoadScene(BattleSceneName);
+            yield return WaitForFloorToStart();
+
+            BattleSimulationRunner runner = Find<BattleSimulationRunner>();
+            BattleMiniBagView miniBag = runner.View.MiniBag;
+            Assert.That(miniBag, Is.Not.Null, "the scene wired no mini bag");
+            Assert.That(miniBag.IsBuilt, Is.True, "the mini bag never built");
+            Assert.That(miniBag.CasterCount, Is.GreaterThan(0), "the floor has no caster to draw a plate on");
+
+            yield return WaitForTicks(runner, runner.StepsRun + (BattleConstants.TickRate * 2));
+
+            ReadOnlySpan<LoadoutCooldown> cooldowns = runner.View.Snapshot.Cooldowns;
+            Assert.That(cooldowns.Length, Is.GreaterThan(0), "the frame published no cooldown list");
+
+            for (int i = 0; i < cooldowns.Length; i++)
+            {
+                LoadoutCooldown entry = cooldowns[i];
+                Assert.That(
+                    miniBag.TryGetPlate(entry.InstanceId, out float fraction, out MiniBagPlateTone tone),
+                    Is.True,
+                    "the frame's caster " + entry.InstanceId + " has no plate on the bag");
+
+                float expected = entry.PeriodTicks <= 0
+                    ? 0f
+                    : Mathf.Clamp01(entry.RemainingTicks / (float)entry.PeriodTicks);
+                Assert.That(fraction, Is.EqualTo(expected).Within(0.0001f));
+
+                MiniBagPlateTone wanted = entry.ReadyButManaShort
+                    ? MiniBagPlateTone.ManaShort
+                    : (entry.IsReady ? MiniBagPlateTone.None : MiniBagPlateTone.Counting);
+                Assert.That(tone, Is.EqualTo(wanted));
+            }
+
+            // A floor that is running moves at least one plate; a still floor would not.
+            int updates = miniBag.PlateUpdates;
+            yield return WaitForTicks(runner, runner.StepsRun + BattleConstants.TickRate);
+            Assert.That(miniBag.PlateUpdates, Is.GreaterThan(updates), "a second of floor moved no plate");
+            Assert.That(miniBag.CreatedAfterBuild, Is.Zero, "the plates created a view while the floor ran");
+        }
+
+        // -------------------------------------------------------------------
+        // Stage 08i: the dev menu's one key
+        // -------------------------------------------------------------------
+
+        /// <summary>
+        /// The menu starts shut, F12 opens and closes it, and F1 does nothing.
+        /// </summary>
+        /// <remarks>
+        /// The key is driven as a real Input System event, not by calling the toggle: the stage's
+        /// claim is about the binding, so a test that called <c>TogglePanel</c> would pass with the
+        /// old F1 binding still in place. A browser reserves F12 for its own developer tools, which
+        /// is why the browser spec is NOT RUN for this check; the Editor is where it is proved.
+        /// </remarks>
+        [UnityTest]
+        public IEnumerator The_dev_menu_starts_hidden_and_toggles_on_F12_not_F1()
+        {
+            yield return LoadScene(BattleSceneName);
+            yield return WaitForFloorToStart();
+
+            DevMenuView menu = Find<DevMenuView>();
+            Assert.That(menu, Is.Not.Null, "the Battle scene has no dev menu");
+            Assert.That(menu.PanelVisible, Is.False, "the dev menu is on screen before any key");
+            Assert.That(DevMenuView.ToggleKey, Is.EqualTo(Key.F12), "the toggle key is not F12");
+
+            Keyboard keyboard = InputSystem.AddDevice<Keyboard>();
+
+            try
+            {
+                // F1 is no longer bound: a press must leave the panel exactly where it was.
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.F1));
+                yield return null;
+                yield return null;
+                Assert.That(menu.PanelVisible, Is.False, "F1 opened the dev menu");
+
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                yield return null;
+                yield return null;
+
+                // F12 opens it.
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.F12));
+                yield return null;
+                yield return null;
+                Assert.That(menu.PanelVisible, Is.True, "F12 did not open the dev menu");
+
+                // Release, then F12 again closes it.
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                yield return null;
+                yield return null;
+                InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.F12));
+                yield return null;
+                yield return null;
+                Assert.That(menu.PanelVisible, Is.False, "a second F12 did not close the dev menu");
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(keyboard);
+            }
         }
 
         // -------------------------------------------------------------------

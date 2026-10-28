@@ -175,12 +175,15 @@ still copies `Cooldowns` every tick (08b's contract, and its tests still cover i
 it today. Synergy link lines are still deliberately not drawn.
 
 `BattleHudArea` is the measure, and it is a rule rather than a report: `Fraction(panels, canvas)`
-sums the panels' rectangles as a share of the canvas and `Budget = 0.15` is the ceiling. The sum is
+sums the panels' rectangles as a share of the canvas and `Budget = 0.18` is the ceiling (15 % until
+Stage 08i, see [ADR 0040](../../docs/adr/0040-the-hud-budget-moves-to-eighteen-percent.md)). The sum is
 honest only because the rectangles are disjoint, so the test asserts `AnyOverlap == false` before it
 believes the sum, and it measures the **shipped scene** (a PlayMode case, `The_hud_covers_at_most_
-fifteen_percent_of_the_screen`), not a hand-made layout. The dev menu is not one of the four: since
-08g-2 it starts shut and opens on **F1**, and the same test asserts it is closed — a menu that is on
-screen by default is a panel the player reads instead of the fight.
+eighteen_percent_of_the_screen_at_both_sizes`), not a hand-made layout. The dev menu is not one of the
+five: since 08g-2 it starts shut and since 08i it opens on **F12** (one constant, `DevMenuView.ToggleKey`
+— a browser reserves F12 for its own developer tools, so the browser half of the suite cannot press it),
+and the same test asserts it is closed — a menu that is on screen by default is a panel the player reads
+instead of the fight.
 
 What the four are, in the player's terms: the floor's name and number with the **หยุด** control (top
 left), the spawn-window timeline with its playhead (a thin bar along the top), the run's numbers —

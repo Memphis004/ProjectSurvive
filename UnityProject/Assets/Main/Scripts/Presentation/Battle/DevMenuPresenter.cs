@@ -152,8 +152,8 @@ namespace ProjectSurvive.Game.Presentation.Battle
         /// <summary>The lose-now control's caption.</summary>
         public const string LoseNow = "แพ้ทันที / lose now";
 
-        /// <summary>Status when the menu is available.</summary>
-        public const string Enabled = "dev: on (Development build or Editor)";
+        /// <summary>Status when the menu is available, naming the one key that opens it (Stage 08i).</summary>
+        public const string Enabled = "dev: on (Development build or Editor) — F12";
 
         /// <summary>Status when the build does not allow cheats.</summary>
         public const string Disabled = "dev: off (release build — DevCheats.Allowed is false)";

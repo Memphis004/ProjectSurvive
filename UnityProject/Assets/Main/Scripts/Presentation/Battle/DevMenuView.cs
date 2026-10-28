@@ -67,9 +67,16 @@ namespace ProjectSurvive.Game.Presentation.Battle
         private bool _allowed;
 
         /// <summary>
-        /// Whether the F1 key has been pressed since the floor started (Stage 08g-2). The panel starts
-        /// shut even where cheats are allowed: the item asks for the dev menu to be "ซ่อนไว้หลังปุุม F1",
-        /// and a menu that is on screen by default is a panel the player reads instead of the fight.
+        /// The one key that opens and closes the panel (Stage 08i: F12, not F1). A browser uses F12
+        /// for its own developer tools, so the browser half of the suite will not press it; the Editor
+        /// and a development player can. Changing the key is this constant and nothing else.
+        /// </summary>
+        public const Key ToggleKey = Key.F12;
+
+        /// <summary>
+        /// Whether the toggle key has been pressed since the floor started (Stage 08g-2). The panel
+        /// starts shut even where cheats are allowed, and a menu that is on screen by default is a
+        /// panel the player reads instead of the fight.
         /// </summary>
         private bool _toggledOpen;
 
@@ -110,6 +117,9 @@ namespace ProjectSurvive.Game.Presentation.Battle
         /// <summary>Whether the panel is on screen right now.</summary>
         public bool PanelVisible => _panel is not null && _panel.activeSelf;
 
+        /// <summary>The panel's own rectangle (null when the scene did not wire one).</summary>
+        public RectTransform Panel => _panel is null ? null : (RectTransform)_panel.transform;
+
         private void Start() => Bind();
 
         /// <summary>
@@ -120,18 +130,19 @@ namespace ProjectSurvive.Game.Presentation.Battle
         /// It is the view that knows this, and the page has no other way to learn it: a browser test
         /// can press a control it can name only if something tells it where that control is (the camp
         /// publishes the same thing for the same reason). Since Stage 08g-2 the menu starts hidden
-        /// behind F1, so <b>the first document appears when the panel opens</b> — a browser presses the
-        /// key and then reads it. Nothing is published before that, because a control on a shut panel
+        /// behind the toggle key, so <b>the first document appears when the panel opens</b> — a browser
+        /// presses the key and then reads it. Nothing is published before that, because a control on a shut panel
         /// has nowhere to click and no position worth reporting, and nothing at all is published where
         /// cheats are not allowed, which is every release build.
         /// </remarks>
         private void Update()
         {
-            // Stage 08g-2: F1 is the only way in or out of the menu where cheats are allowed. The key
+            // Stage 08i: F12 is the only way in or out of the menu where cheats are allowed. The key
             // is read from the Input System the rest of the project uses, and the press is a UI toggle
-            // rather than a command — nothing here decides whether a cheat may run.
+            // rather than a command — nothing here decides whether a cheat may run. F1 is not bound:
+            // it no longer does anything on this screen.
             Keyboard keyboard = Keyboard.current;
-            if (_allowed && keyboard != null && keyboard.f1Key.wasPressedThisFrame)
+            if (_allowed && keyboard != null && keyboard[ToggleKey].wasPressedThisFrame)
             {
                 TogglePanel();
             }
@@ -144,9 +155,9 @@ namespace ProjectSurvive.Game.Presentation.Battle
         }
 
         /// <summary>
-        /// Opens or closes the panel, exactly as F1 does, and publishes the report of where its
-        /// controls now are. Public so a PlayMode test can reach the menu in a process with no
-        /// keyboard device; nothing here decides whether a cheat may run.
+        /// Opens or closes the panel, exactly as the toggle key does, and publishes the report of
+        /// where its controls now are. Public so a PlayMode test can reach the menu in a process
+        /// with no keyboard device; nothing here decides whether a cheat may run.
         /// </summary>
         public void TogglePanel()
         {
@@ -318,7 +329,8 @@ namespace ProjectSurvive.Game.Presentation.Battle
         }
 
         /// <summary>
-        /// The one place the panel's active state is set: cheats allowed <b>and</b> F1 pressed.
+        /// The one place the panel's active state is set: cheats allowed <b>and</b> the toggle key
+        /// pressed.
         /// </summary>
         private void ApplyPanel()
         {

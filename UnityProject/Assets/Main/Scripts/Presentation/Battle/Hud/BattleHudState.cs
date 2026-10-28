@@ -50,6 +50,9 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
 
         public ReactiveProperty<string> KillsCaption { get; } = new ReactiveProperty<string>(string.Empty);
 
+        /// <summary>The mini ย่าม's caption ("ย่าม"), written once per floor from the localization table.</summary>
+        public ReactiveProperty<string> BagCaption { get; } = new ReactiveProperty<string>(string.Empty);
+
         public ReactiveProperty<string> StatusCaption { get; } = new ReactiveProperty<string>(string.Empty);
 
         public ReactiveProperty<string> TimelineCaption { get; } = new ReactiveProperty<string>(string.Empty);
@@ -176,6 +179,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             BossCaption.Dispose();
             EliteCaption.Dispose();
             KillsCaption.Dispose();
+            BagCaption.Dispose();
             StatusCaption.Dispose();
             TimelineCaption.Dispose();
             HpValue.Dispose();

@@ -83,14 +83,15 @@ namespace ProjectSurvive.Game.Tests.PlayMode
             // so the panel exists and every control's position is measurable; a release build publishes
             // nothing here, which is the state `DevMenuReportTests` asserts on the authored scene.
             //
-            // Since Stage 08g-2 the menu starts shut behind F1, so nothing is published until it opens:
-            // a control on a hidden panel has no position a click could land on. The test opens it the
-            // way the key does (`TogglePanel`), then reads what a browser would.
+            // Since Stage 08g-2 the menu starts shut, and since Stage 08i its key is F12, so nothing
+            // is published until it opens: a control on a hidden panel has no position a click could
+            // land on. The test opens it the way the key does (`TogglePanel`), then reads what a
+            // browser would.
             var devMenu = SceneFlowHarness.Find<DevMenuView>();
             Assert.That(devMenu, Is.Not.Null, "the Battle scene has no dev menu");
             Assert.That(
                 devMenu.PanelVisible, Is.False,
-                "the dev panel is on screen before F1, so the item that hides it behind the key is not in effect");
+                "the dev panel is on screen before F12, so the item that hides it behind the key is not in effect");
             Assert.That(
                 DevMenuReport.PublishCount, Is.Zero,
                 "a shut dev panel published a report of controls nobody can click");

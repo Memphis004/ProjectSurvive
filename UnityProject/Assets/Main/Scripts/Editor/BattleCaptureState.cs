@@ -5,6 +5,7 @@ using ProjectSurvive.Core.Application.Run;
 using ProjectSurvive.Core.Application.Text;
 using ProjectSurvive.Core.Domain.Combat.Battle;
 using ProjectSurvive.Core.Domain.Config;
+using ProjectSurvive.Core.Domain.Inventory;
 using ProjectSurvive.Core.Domain.Run;
 using ProjectSurvive.Core.Infrastructure.Save;
 using ProjectSurvive.Core.Shared;
@@ -108,6 +109,7 @@ namespace ProjectSurvive.Game.Editor
             ("_waveValue", state => state.WaveValue.Value),
             ("_killsCaption", state => state.KillsCaption.Value),
             ("_killsValue", state => state.KillsValue.Value),
+            ("_bagCaption", state => state.BagCaption.Value),
             ("_statusCaption", state => state.StatusCaption.Value),
             ("_timelineCaption", state => state.TimelineCaption.Value),
             ("_bossCaption", state => state.BossCaption.Value),
@@ -115,6 +117,7 @@ namespace ProjectSurvive.Game.Editor
             ("_speedLabel", state => state.SpeedLabel.Value),
         };
 
+        private readonly BattleMiniBagView _miniBag;
         private readonly BattleTimelineView _timeline;
         private readonly RectTransform _hpBar;
         private readonly RectTransform _manaBar;
@@ -144,6 +147,7 @@ namespace ProjectSurvive.Game.Editor
 
         private BattleCaptureState(
             BattleHudView hud,
+            BattleMiniBagView miniBag,
             IGameConfig config,
             RunSession run,
             BattleSetup setup,
@@ -154,6 +158,7 @@ namespace ProjectSurvive.Game.Editor
             _config = config;
             _run = run;
             _setup = setup;
+            _miniBag = miniBag;
             _text = new LocalizationService(config);
 
             _timeline = _view.FindProperty("_timeline")?.objectReferenceValue as BattleTimelineView;
@@ -178,26 +183,58 @@ namespace ProjectSurvive.Game.Editor
             _presenter.Begin(setup, startingBia);
             _first.CopyFrom(_session.Frame);
             _current.CopyFrom(_session.Frame);
+
+            _miniBag.Build(run.Backpack, setup.Loadout, config);
         }
 
         /// <summary>Builds a capture state over a Battle scene, or explains why it cannot.</summary>
         /// <param name="hud">The scene's HUD view (its serialized fields are the labels).</param>
+        /// <param name="miniBag">The scene's mini ย่าม.</param>
         /// <param name="state">The prepared state, or null on failure.</param>
         /// <param name="error">Why it refused, or an empty string.</param>
         public static bool TryBuild(
-            BattleHudView hud, out BattleCaptureState state, out string error)
+            BattleHudView hud, BattleMiniBagView miniBag, out BattleCaptureState state, out string error,
+            bool addLShapedBag = false)
         {
             state = null;
             error = string.Empty;
 
-            if (hud is null)
+            if (hud is null || miniBag is null)
             {
-                error = "the Battle scene has no HUD";
+                error = "the Battle scene is missing its HUD or its mini bag";
                 return false;
             }
 
             IGameConfig config = ResourcesGameConfigLoader.Load();
             var run = new RunSession(config, new MessagePackBackpackSnapshotCodec(), Seed);
+
+            // Stage 08i's L-shape evidence: the starting 3 x 3 bag cannot show the rule that a bag
+            // is drawn as the cells it covers. The extra wicker basket is placed beside it before
+            // departure, where the camp would place it, and the screenshot is of the HUD drawing
+            // that shape (the view skips the bag's bounding box).
+            if (addLShapedBag)
+            {
+                Result started = run.StartRun();
+                if (started.IsFailure)
+                {
+                    error = "the run refused to start: " + started.Error;
+                    return false;
+                }
+
+                Result<PieceRef> added = run.Backpack.AddBag("bag.wicker_basket_l");
+                if (added.IsFailure)
+                {
+                    error = "the L-shaped bag could not be added: " + added.Error;
+                    return false;
+                }
+
+                Result placed = run.MovePiece(added.Value, new CellOffset(3, 0), Rotation.Degrees0);
+                if (placed.IsFailure)
+                {
+                    error = "the L-shaped bag could not be placed: " + placed.Error;
+                    return false;
+                }
+            }
 
             if (!BattleRunSource.TryStartFrom(
                     run, config, equipSecondWeapon: true,
@@ -208,7 +245,8 @@ namespace ProjectSurvive.Game.Editor
             }
 
             state = new BattleCaptureState(
-                hud, config, run, setup, startingBia, DevBattleSessionBinding.CreateFactory(config));
+                hud, miniBag, config, run, setup, startingBia,
+                DevBattleSessionBinding.CreateFactory(config));
             return true;
         }
 
@@ -223,14 +261,14 @@ namespace ProjectSurvive.Game.Editor
         /// scenario's.
         /// </remarks>
         public static bool TryBuildRealFloorOne(
-            BattleHudView hud, out BattleCaptureState state, out string error)
+            BattleHudView hud, BattleMiniBagView miniBag, out BattleCaptureState state, out string error)
         {
             state = null;
             error = string.Empty;
 
-            if (hud is null)
+            if (hud is null || miniBag is null)
             {
-                error = "the Battle scene has no HUD";
+                error = "the Battle scene is missing its HUD or its mini bag";
                 return false;
             }
 
@@ -246,7 +284,7 @@ namespace ProjectSurvive.Game.Editor
             }
 
             state = new BattleCaptureState(
-                hud, config, run, setup, startingBia, BattleFactoryBinding.Create(config));
+                hud, miniBag, config, run, setup, startingBia, BattleFactoryBinding.Create(config));
             return true;
         }
 
@@ -262,14 +300,14 @@ namespace ProjectSurvive.Game.Editor
         /// the floor are the run's own rather than a scenario's.
         /// </remarks>
         public static bool TryBuildBoss(
-            BattleHudView hud, out BattleCaptureState state, out string error)
+            BattleHudView hud, BattleMiniBagView miniBag, out BattleCaptureState state, out string error)
         {
             state = null;
             error = string.Empty;
 
-            if (hud is null)
+            if (hud is null || miniBag is null)
             {
-                error = "the Battle scene has no HUD";
+                error = "the Battle scene is missing its HUD or its mini bag";
                 return false;
             }
 
@@ -324,7 +362,7 @@ namespace ProjectSurvive.Game.Editor
             }
 
             state = new BattleCaptureState(
-                hud, config, run, setup, run.Wallet.Bia, BattleFactoryBinding.Create(config));
+                hud, miniBag, config, run, setup, run.Wallet.Bia, BattleFactoryBinding.Create(config));
             return true;
         }
 
@@ -645,6 +683,7 @@ namespace ProjectSurvive.Game.Editor
             // snapshot, so the two pictures differ only by what the state itself changes.
             BattleFrameSnapshot frame = FrameOf(shot);
 
+            _miniBag.ApplyCooldowns(frame.Cooldowns);
             _presenter.Present(frame);
 
             if (_timeline is not null)
@@ -794,6 +833,29 @@ namespace ProjectSurvive.Game.Editor
             }
 
             return text.ToString();
+        }
+
+        /// <summary>
+        /// The mini bag's own objects, removed from the scene: the view builds its cells and boxes as
+        /// children of the content area when a floor starts, and this tool must not leave a scene
+        /// dirty with a duplicate pool behind it.
+        /// </summary>
+        public void ClearBagObjects()
+        {
+            RectTransform content = _miniBag is null ? null : _miniBag.Content;
+            if (content is null)
+            {
+                return;
+            }
+
+            for (int i = content.childCount - 1; i >= 0; i--)
+            {
+                UnityEngine.Object.DestroyImmediate(content.GetChild(i).gameObject);
+            }
+
+            // The view's pools still name the objects that were just destroyed; the next state's
+            // build must create them again rather than write into destroyed Images.
+            _miniBag.ForgetBuiltObjects();
         }
 
         private void WriteLabels()

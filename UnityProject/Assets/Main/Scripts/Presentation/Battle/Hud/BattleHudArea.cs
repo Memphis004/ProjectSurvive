@@ -4,31 +4,39 @@ using UnityEngine;
 namespace ProjectSurvive.Game.Presentation.Battle.Hud
 {
     /// <summary>
-    /// How much of the screen the Battle HUD covers, and the ceiling Stage 08g-2 puts on it.
+    /// How much of the screen the Battle HUD covers, and the ceiling Stage 08i puts on it.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The stage's sixth item asks for a number rather than a look: "วัดพื้นที่ที่ UI บังจอ ต้อง ≤ 15 %
-    /// ที่ 1920×1080 (มีเทสต์)". So the number needs one definition, and this is it — the area of the
+    /// The 08g-2 item asked for a number rather than a look: "วัดพื้นที่ที่ UI บังจอ ต้อง ≤ 15 %
+    /// ที่ 1920×1080 (มีเทสต์)". So the number has one definition, and this is it — the area of the
     /// panels the player cannot see past, over the canvas.
     /// </para>
     /// <para>
-    /// <b>Four panels, never five, and never the dev menu.</b> The mini ย่าม is gone (Stage 08g-2), the
-    /// dev menu is hidden behind F1 and covers nothing until the key is pressed, and the pause overlay
-    /// is not part of a running floor's HUD. What is left is the four surfaces a player reads while
-    /// fighting: the floor block, the timeline bar, the run's numbers and the status frame.
+    /// <b>Five panels, and never the dev menu.</b> The mini ย่าม left in Stage 08g-2 and came back in
+    /// Stage 08i, because the player needs to see which items are ready and which are on cooldown;
+    /// it costs a measured 3.00 % (288 × 216 at 1080p). The four other panels kept their 08g size and
+    /// position. The dev menu is hidden behind F12 and covers nothing until the key is pressed, and
+    /// the pause overlay is not part of a running floor's HUD.
     /// </para>
     /// <para>
-    /// <b>The panels do not overlap</b> — measured, not assumed (the 08g report shows sum = union for
-    /// the five panels that screen had) — so the sum of their rectangles is the area they occlude. A
-    /// design that stacked translucent panels could not use this measure; the test that calls this
-    /// asserts the rectangles are disjoint so the measure cannot quietly become wrong.
+    /// <b>Why the ceiling moved from 15 % to 18 %.</b> The four panels alone are 13.95 %; the fifth
+    /// cannot be added under a 15 % ceiling without shrinking a panel the player already reads, which
+    /// the stage forbids. 18 % is the smallest round ceiling that holds 13.95 + 3.00 = 16.95 % and
+    /// leaves the rule with a measurable margin. See
+    /// <c>docs/adr/0040-the-hud-budget-holds-five-panels.md</c>.
+    /// </para>
+    /// <para>
+    /// <b>The panels do not overlap</b> — measured, not assumed — so the sum of their rectangles is
+    /// the area they occlude. A design that stacked translucent panels could not use this measure;
+    /// the test that calls this asserts the rectangles are disjoint so the measure cannot quietly
+    /// become wrong.
     /// </para>
     /// </remarks>
     public static class BattleHudArea
     {
-        /// <summary>The fraction of the canvas the panels may cover: 15 %.</summary>
-        public const float Budget = 0.15f;
+        /// <summary>The fraction of the canvas the five HUD panels may cover: 18 %.</summary>
+        public const float Budget = 0.18f;
 
         /// <summary>
         /// The fraction of the canvas the given rectangles cover.

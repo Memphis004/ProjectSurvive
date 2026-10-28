@@ -371,6 +371,63 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 Is.Empty);
         }
 
+        // ------------------------------------------------------------------
+        // Stage 08d / 08i: the mini ย่าม's grid is stacked under its caption
+        // ------------------------------------------------------------------
+
+        /// <summary>The battle HUD's mini bag at 1920×1080, as the capture command measures it.</summary>
+        private static List<UiRegion> MiniBagLayoutAt1080() => new List<UiRegion>
+        {
+            // Bottom-right corner, 24 px from the screen's edges: x 1608..1896, y 24..240.
+            Surface(UiLayoutCheck.MiniBag, 1608f, 24f, 288f, 216f),
+            Control(UiLayoutCheck.BagCaption, 1618f, 204f, 258f, 30f),
+            Control(UiLayoutCheck.MiniBagContent, 1618f, 34f, 258f, 162f),
+        };
+
+        [Test]
+        public void A_grid_below_the_caption_and_on_its_left_edge_passes()
+        {
+            Assert.That(
+                UiLayoutCheck.FindMiniBagStackViolations(MiniBagLayoutAt1080()), Is.Empty,
+                "the grid starts under the caption, at the caption's left edge, inside the panel");
+        }
+
+        [Test]
+        public void A_grid_that_reaches_up_over_the_caption_is_reported()
+        {
+            List<UiRegion> layout = MiniBagLayoutAt1080();
+
+            // The content's top edge lifted 20 px, so it crosses the caption's bottom edge.
+            layout[2] = Control(UiLayoutCheck.MiniBagContent, 1618f, 34f, 258f, 182f);
+
+            List<string> violations = UiLayoutCheck.FindMiniBagStackViolations(layout);
+
+            // Two lines, two facts: the rectangles share pixels *and* the grid is not below the
+            // caption. Both are true of the same lift, and the rule reports each on its own line.
+            Assert.That(violations, Has.Count.EqualTo(2));
+            for (int i = 0; i < violations.Count; i++)
+            {
+                Assert.That(violations[i], Does.Contain(UiLayoutCheck.MiniBagContent));
+                Assert.That(violations[i], Does.Contain(UiLayoutCheck.BagCaption));
+            }
+        }
+
+        [Test]
+        public void A_grid_whose_left_edge_drifts_off_the_caption_is_reported()
+        {
+            List<UiRegion> layout = MiniBagLayoutAt1080();
+
+            // Disjoint from the caption and below it, but inset by 40 px: the ย่าม would not line up
+            // under its own caption. This is the case an overlap rule cannot express at all.
+            layout[2] = Control(UiLayoutCheck.MiniBagContent, 1658f, 34f, 218f, 162f);
+
+            List<string> violations = UiLayoutCheck.FindMiniBagStackViolations(layout);
+
+            Assert.That(violations, Has.Count.EqualTo(1));
+            Assert.That(violations[0], Does.Contain(UiLayoutCheck.MiniBagContent));
+            Assert.That(violations[0], Does.Contain(UiLayoutCheck.BagCaption));
+        }
+
         private static UiRegion Overlay(string name, float x, float y, float w, float h) =>
             new UiRegion(name, new Rect(x, y, w, h), UiRegionKind.Overlay, 0.95f);
 

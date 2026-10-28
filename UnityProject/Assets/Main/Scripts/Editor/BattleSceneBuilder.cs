@@ -57,6 +57,16 @@ namespace ProjectSurvive.Game.Editor
         private static readonly Color PanelBackdrop = new Color(0.07f, 0.08f, 0.11f, 0.92f);
 
         /// <summary>
+        /// Gap between the mini ย่าม and the dev menu above it, in reference pixels (Stage 08i).
+        /// </summary>
+        /// <remarks>
+        /// The bag owns the bottom-right corner; the dev menu keeps its size and is anchored above
+        /// the bag instead, so opening it can never cover the bag or the fight's own corner. Both
+        /// stay in the right-hand column the 08c layout gave the dev menu.
+        /// </remarks>
+        private const float MiniBagGap = 16f;
+
+        /// <summary>
         /// How dark the pause overlay's dim sheet is (Stage 13c-2b). The arena stays visible behind the
         /// menu — the player has to recognise the floor they are about to leave — while the HUD's small
         /// labels are dark enough not to compete with the card's own text.
@@ -118,7 +128,7 @@ namespace ProjectSurvive.Game.Editor
 
             Canvas canvas = ProjectSetup.CreateCanvas(out GameObject canvasObject);
             BattleHudView hud = BuildBattleHud(
-                canvas, canvasObject, font, scope, out Button pauseButton);
+                canvas, canvasObject, font, scope, out BattleMiniBagView miniBag, out Button pauseButton);
 
             var runnerObject = new GameObject("BattleRunner");
             BattleSimulationRunner runner = runnerObject.AddComponent<BattleSimulationRunner>();
@@ -130,6 +140,7 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(runner, "_viewSettings.ViewRoot", viewRoot.transform);
             ProjectSetup.SetObjectReference(runner, "_viewSettings.Camera", camera);
             ProjectSetup.SetObjectReference(runner, "_viewSettings.Hud", hud);
+            ProjectSetup.SetObjectReference(runner, "_viewSettings.MiniBag", miniBag);
             ProjectSetup.SetObjectReference(runner, "_viewSettings.Font", font);
             ProjectSetup.SetObjectReference(runner, "_viewSettings.PlayerFigure", playerFigure);
             ProjectSetup.SetEnum(runner, "_viewSettings.Projection", (int)BattleProjection.Orthographic);
@@ -177,11 +188,14 @@ namespace ProjectSurvive.Game.Editor
             Canvas canvas = ProjectSetup.CreateCanvas(out GameObject canvasObject, sortingOrder: 200, withRaycaster: true);
             var canvasRect = (RectTransform)canvas.transform;
 
-            // Bottom-right band: a quarter of the width at the canvas edge, tall enough for the
-            // heading, six 44 px rows and the status line (24 + 416 + 12 = 452 px at the reference).
+            // Bottom-right column, above the mini ย่าม (Stage 08i). It keeps the size 08c gave it —
+            // a quarter of the width, tall enough for the heading, six 44 px rows and the status
+            // line — but its bottom edge starts one bag-plus-gap up, so the panel the player always
+            // sees owns the corner and the test panel cannot cover it.
+            float bottom = UiMargin + BattleMiniBagView.PanelHeight + MiniBagGap;
             RectTransform panel = ProjectSetup.StretchUiRect(
                 canvasRect, UiLayoutCheck.DevPanel, new Vector2(0.75f, 0f), new Vector2(1f, 0f),
-                new Vector2(16f, UiMargin), new Vector2(-UiMargin, UiMargin + DevMenuHeight));
+                new Vector2(16f, bottom), new Vector2(-UiMargin, bottom + DevMenuHeight));
 
             var background = panel.gameObject.AddComponent<Image>();
             background.color = new Color(0.08f, 0.10f, 0.13f, 0.88f);
@@ -344,10 +358,10 @@ namespace ProjectSurvive.Game.Editor
         private static Camera CreateBattleCamera() => BattleCameraProbe.CreateAuthoredCamera();
 
         /// <summary>
-        /// The battle HUD as Stage 08c lays it out: the mini ย่าม at the top left, the floor's name
-        /// and number at the top centre, its stats and the speed control at the top right, the
-        /// status panel (figure, HP, MP) at the bottom left, the timeline along the bottom and the
-        /// dev menu in the bottom-right column.
+        /// The battle HUD as Stage 08i lays it out: the floor's name and number at the top left, its
+        /// stats and the speed control at the top right, the status panel (figure, HP, MP) at the
+        /// bottom left, the timeline along the top, the mini ย่าม at the bottom right and the dev
+        /// menu above it.
         /// </summary>
         /// <remarks>
         /// <para>
@@ -360,17 +374,17 @@ namespace ProjectSurvive.Game.Editor
         /// height and the status panel ends at 30 %, so the band between them belongs to neither.
         /// </para>
         /// <para>
-        /// <b>The mini ย่าม is not here any more (Stage 08g-2).</b> It was added in Stage 08c and taken
-        /// out when the stage's sixth item asked for the Battle screen to give its space back to the
-        /// fight: the bag is drawn by the camp's จัดย่าม screen, where the player can actually edit it.
-        /// With it went the cooldown plates (Stage 08b's <c>IBattleFrame.Cooldowns</c> still fills the
-        /// frame; no view draws it today), so the HUD is now four panels and every one of them is text
-        /// or a bar.
+        /// <b>The mini ย่าม came back in Stage 08i, at the bottom right.</b> Stage 08g-2 had removed it
+        /// to meet a 15 % HUD budget; the player could no longer see which items were ready or on
+        /// cooldown. It returns at a measured 288 × 216 (3.00 %), with its cooldown plates read from
+        /// <c>IBattleFrame.Cooldowns</c>, and the ceiling moved to 18 % so the fifth panel fits
+        /// without shrinking any of the four (see <see cref="BattleHudArea"/>). Its panel is more
+        /// transparent than the others so the fight stays visible behind it.
         /// </para>
         /// <para>
         /// All text is at or above <see cref="ProjectSetup.UiFontSize"/> (22 px), which is the Thai floor the
         /// project has held since Stage 09d, and the panels are sized so that the screen area they
-        /// cover stays under the 15 % the stage's sixth item allows (see
+        /// cover stays under the 18 % the Stage 08i budget allows (see
         /// <see cref="BattleHudArea"/> and the test that measures the scene).
         /// </para>
         /// </remarks>
@@ -449,9 +463,47 @@ namespace ProjectSurvive.Game.Editor
 
         private static BattleHudView BuildBattleHud(
             Canvas canvas, GameObject canvasObject, TMP_FontAsset font, BattleSceneScope scope,
-            out Button pauseButton)
+            out BattleMiniBagView miniBag, out Button pauseButton)
         {
             var canvasRect = (RectTransform)canvas.transform;
+
+            // ---- bottom right: the mini ย่าม (Stage 08c, restored by Stage 08i) ----
+            //
+            // The player has to see which item is ready and which is on cooldown while fighting,
+            // so the bag is back — but as a small corner panel, not the quarter-screen block 08g
+            // removed. It is anchored to the screen's right and bottom edges with the same 24 px
+            // margin as the status panel at the bottom left, and is never wider than 288 px or
+            // taller than 216 px at 1080p (the view's named constants). Its background is 0.72
+            // opaque instead of 0.92, so the arena still reads through it.
+            RectTransform miniBagPanel = ProjectSetup.StretchUiRect(
+                canvasRect, UiLayoutCheck.MiniBag, new Vector2(1f, 0f), new Vector2(1f, 0f),
+                new Vector2(-UiMargin - BattleMiniBagView.PanelWidth, UiMargin),
+                new Vector2(-UiMargin, UiMargin + BattleMiniBagView.PanelHeight));
+            ProjectSetup.AddPanelBackground(miniBagPanel, MiniBagPalette.Backdrop);
+
+            // The caption and the grid share one left inset, and the grid starts one caption line box
+            // plus `CaptionGap` below the caption's top (Stage 08d). The numbers are the view's named
+            // constants rather than literals here, so the scene, the layout and the layout test read
+            // the same definition of "under the caption".
+            TMP_Text bagCaption = ProjectSetup.CreateUiText(
+                miniBagPanel, "BagCaption",
+                new Vector2(BattleMiniBagView.LeftInset, -BattleMiniBagView.CaptionTop),
+                new Vector2(
+                    BattleMiniBagView.PanelWidth - BattleMiniBagView.LeftInset - BattleMiniBagView.RightInset,
+                    BattleMiniBagView.CaptionHeight),
+                ProjectSetup.UiFontSize, font);
+
+            // The grid's own area: anchored at the panel's top-left corner, below the caption, and
+            // stretched to the panel's right and bottom edges. The view measures this rect and sizes
+            // its cells to it, so a canvas resize re-fits the bag rather than clipping it.
+            RectTransform miniBagContent = ProjectSetup.StretchUiRect(
+                miniBagPanel, "MiniBagContent", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            BattleMiniBagView.AnchorContent(miniBagContent);
+
+            miniBag = miniBagPanel.gameObject.AddComponent<BattleMiniBagView>();
+            ProjectSetup.SetObjectReference(miniBag, "_panel", miniBagPanel);
+            ProjectSetup.SetObjectReference(miniBag, "_content", miniBagContent);
+            ProjectSetup.SetObjectReference(miniBag, "_font", font);
 
             // ---- top left: the floor's name, its number in the run, and หยุด ----
             //
@@ -681,6 +733,7 @@ namespace ProjectSurvive.Game.Editor
             ProjectSetup.SetObjectReference(hud, "_waveValue", waveValue);
             ProjectSetup.SetObjectReference(hud, "_killsCaption", killsCaption);
             ProjectSetup.SetObjectReference(hud, "_killsValue", killsValue);
+            ProjectSetup.SetObjectReference(hud, "_bagCaption", bagCaption);
             ProjectSetup.SetObjectReference(hud, "_statusCaption", statusCaption);
             ProjectSetup.SetObjectReference(hud, "_possessionLabel", possessionLabel);
             ProjectSetup.SetObjectReference(hud, "_timelineCaption", timelineCaption);

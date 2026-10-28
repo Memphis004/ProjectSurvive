@@ -126,11 +126,16 @@ builds it itself), and the layout work is judged by the existing overlap rule ra
 `UiLayoutCheck` gained the battle HUD's six surfaces and the controls inside them, and the capture
 command reports **0 overlaps over 36 battle regions per state per size** at 1920 × 1080 and 1280 × 720.
 **Stage 08g-2** then gave that screen's space back to the fight (the look-dev stage's sixth item): the
-mini ย่าม is **not on the Battle screen any more** — the camp's จัดย่าม is where the bag is read and
-edited — and the HUD is four panels over **13.95 %** of a 1920 × 1080 screen (floor block 1.32,
-resources 5.35, status frame 3.89, timeline bar 3.40) against the ≤ 15 % the item asks for, with the
-dev menu shut until F1 is pressed. The rule is a test over the shipped scene
-(`BattleHudArea.Fraction`, PlayMode) rather than a number in a report.
+mini ย่าม left the Battle screen and the HUD became four panels over **13.95 %** of a 1920 × 1080 screen.
+**Stage 08i** brought the bag back — without it nothing drew `IBattleFrame.Cooldowns`, so the player
+could not see which item was ready — as a fifth panel, 288 × 216 at the bottom right (3.00 %, and its
+backdrop is the most transparent surface on the screen at 0.72), leaving those four panels exactly where
+08g cut them. The HUD therefore measures **16.95 %** at both 1920 × 1080 and 1280 × 720 over five
+disjoint rectangles, against a ceiling this stage moved from 15 % to a named **18 %**
+(`BattleHudArea.Budget`, [ADR 0040](docs/adr/0040-the-hud-budget-moves-to-eighteen-percent.md)): the
+rule is a test over the shipped scene (`BattleHudArea.Fraction`, PlayMode) rather than a number in a
+report. The dev menu is not one of the five — it starts shut and opens on **F12**, one constant in
+`DevMenuView`, because a browser keeps F1 free but reserves F12 for its own developer tools.
 **571 xUnit tests pass** (57 Stage 01, 73
 Stage 02, 42 Stage 02b incl. that amendment, 10 Stage 03, 12 Stage 04, 147 Stage 05,
 44 Stage 06, 28 Stage 07, 11 Stage 09, the 8 the carried-item rule added in Stage 09f, the 33

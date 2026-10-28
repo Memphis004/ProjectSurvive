@@ -228,23 +228,27 @@ test.describe("ProjectSurvive's summary screen in the browser", () => {
     console.log("battle report (start):", JSON.stringify(started));
     expect(started.phase).toBe("Running");
 
-    // The dev menu is behind F1 since Stage 08g-2, so the floor starts publishing nothing for it: a
-    // control on a hidden panel has no position a click could land on. Its absence also means the
-    // build does not allow dev cheats, which is a configuration this check cannot run in rather than
-    // a defect — `tools/build-web.ps1` builds Development by default.
+    // The dev menu starts shut, and since Stage 08i its key is F12, so the floor starts publishing
+    // nothing for it: a control on a hidden panel has no position a click could land on. Its absence
+    // also means the build does not allow dev cheats, which is a configuration this check cannot run
+    // in rather than a defect — `tools/build-web.ps1` builds Development by default.
+    //
+    // NOTE: a browser reserves F12 for its own developer tools, so this press is deliberately not
+    // relied on for a browser gate (Stage 08i records it as NOT RUN). The spec is changed only to
+    // name the new button; the Editor's PlayMode suite is where the binding is proved.
     expect(
       await readGlobal(page, DEV_MENU),
       "the dev panel published controls while it was still shut",
     ).toBeUndefined();
 
-    await page.keyboard.press("F1");
+    await page.keyboard.press("F12");
 
     await waitForGlobal(page, DEV_MENU);
     const menu = await readGlobal<DevMenuReport>(page, DEV_MENU);
-    console.log("dev menu report (after F1):", JSON.stringify(menu));
+    console.log("dev menu report (after F12):", JSON.stringify(menu));
 
     expect(menu.scene).toBe("Battle");
-    expect(menu.visible, "F1 opened the panel, so its controls are clickable").toBe(true);
+    expect(menu.visible, "F12 opened the panel, so its controls are clickable").toBe(true);
     expect(menu.buttons.length).toBe(6);
 
     await clickUntil(page, menu, "loseNow", "the floor could never be ended on purpose");

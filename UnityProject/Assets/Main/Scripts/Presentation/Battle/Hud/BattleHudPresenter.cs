@@ -123,6 +123,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             BattleHudState.Set(_state.BossCaption, Lookup("hud.boss"));
             BattleHudState.Set(_state.EliteCaption, Lookup("hud.elite"));
             BattleHudState.Set(_state.KillsCaption, Lookup("hud.kills"));
+            BattleHudState.Set(_state.BagCaption, Lookup("hud.bag"));
             BattleHudState.Set(_state.StatusCaption, Lookup("hud.status"));
             _possessionLine = Lookup("hud.possession");
             BattleHudState.Set(_state.PossessionText, string.Empty);

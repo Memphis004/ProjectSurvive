@@ -84,6 +84,23 @@ namespace ProjectSurvive.Game.Presentation.Battle
         /// <summary>Pulse rate of a warning, in radians per second (cosmetic).</summary>
         public const float TelegraphPulseRadiansPerSecond = 7f;
 
+        /// <summary>
+        /// Pooled mini-bag cells: the board's own maximum (Stage 08c, restored in Stage 08i).
+        /// </summary>
+        /// <remarks>
+        /// <c>constant.board_width</c> × <c>constant.board_height</c> = 9 × 7 = 63, read from the
+        /// tables: a bag cannot cover a cell the board does not have, so a pool this size cannot be
+        /// outgrown by a floor. It is the second copy of a number the tables own, and a test asserts
+        /// the pair — the same treatment <see cref="ArenaRadius"/> and the entity pools get.
+        /// </remarks>
+        public const int MiniBagCells = 63;
+
+        /// <summary>
+        /// Pooled mini-bag piece boxes. A piece occupies at least one board cell, so no floor can
+        /// hold more pieces than the board has cells.
+        /// </summary>
+        public const int MiniBagPieces = MiniBagCells;
+
         /// <summary>How long a floating damage number lives, in seconds (cosmetic).</summary>
         public const float DamageNumberLifetimeSeconds = 0.75f;
 
