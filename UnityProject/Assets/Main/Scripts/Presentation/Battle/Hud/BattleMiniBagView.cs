@@ -124,6 +124,12 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         [Tooltip("Share of the shorter side of a box the category mark takes (Stage 08i).")]
         [SerializeField] private float _glyphShare = 0.62f;
 
+        [Tooltip("Inset of an item's tier pips from the box's bottom-right corner, in pixels.")]
+        [SerializeField] private float _pipInset = 2f;
+
+        [Tooltip("Width of the tier pip strip as a share of the box's shorter side.")]
+        [SerializeField] private float _pipShare = 0.45f;
+
         [Tooltip("Ceiling for the tier number's size, in pixels.")]
         [SerializeField] private float _tierFontCeiling = 30f;
 
@@ -131,6 +137,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         private readonly List<Image> _boxes = new List<Image>(BattleViewCaps.MiniBagPieces);
         private readonly List<Image> _plates = new List<Image>(BattleViewCaps.MiniBagPieces);
         private readonly List<Image> _glyphs = new List<Image>(BattleViewCaps.MiniBagPieces);
+        private readonly List<Image> _pips = new List<Image>(BattleViewCaps.MiniBagPieces);
         private readonly List<TMP_Text> _tiers = new List<TMP_Text>(BattleViewCaps.MiniBagPieces);
         private readonly List<MiniBagPlateTone> _tones = new List<MiniBagPlateTone>(BattleViewCaps.MiniBagPieces);
         private readonly List<bool> _hasPlate = new List<bool>(BattleViewCaps.MiniBagPieces);
@@ -309,6 +316,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             _boxes.Clear();
             _plates.Clear();
             _glyphs.Clear();
+            _pips.Clear();
             _tiers.Clear();
             _tones.Clear();
             _hasPlate.Clear();
@@ -468,6 +476,42 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             return false;
         }
 
+        /// <summary>Whether the <paramref name="index"/>-th drawn piece shows its tier pips (items only).</summary>
+        public bool TryGetPiecePipsVisible(int index, out bool visible)
+        {
+            if (index >= 0 && index < _pieceCount)
+            {
+                visible = _pips[index].gameObject.activeSelf;
+                return true;
+            }
+
+            visible = false;
+            return false;
+        }
+
+        /// <summary>
+        /// The pip strip the <paramref name="index"/>-th piece shows (null where it shows none), and
+        /// where it sits in its box's own pixels. The strip is anchored to the box's bottom-right
+        /// corner, so its offset from that corner runs left (negative x) and up (positive y).
+        /// </summary>
+        public bool TryGetPieceTierPips(int index, out Sprite pips, out Vector2 centre, out Vector2 size)
+        {
+            if (index >= 0 && index < _pieceCount)
+            {
+                Image image = _pips[index];
+                pips = image.gameObject.activeSelf ? image.sprite : null;
+                var rect = (RectTransform)image.transform;
+                centre = rect.anchoredPosition;
+                size = rect.sizeDelta;
+                return true;
+            }
+
+            pips = null;
+            centre = Vector2.zero;
+            size = Vector2.zero;
+            return false;
+        }
+
         /// <summary>
         /// The top-left corner of the <paramref name="index"/>-th drawn box, in the content area's
         /// own pixels (x rightwards, y downwards). The first box of a bag at the origin is
@@ -583,6 +627,22 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
                 _tiers[i].text = piece.TierText;
                 _tiers[i].fontSize = TierFontSize();
 
+                // An item's tier is a strip of dots in the corner (one per level); a bag's stays the
+                // number in the middle, because a bag has no category mark to make room for.
+                Image pips = _pips[i];
+                pips.gameObject.SetActive(isItem);
+                if (isItem)
+                {
+                    float shortest = Mathf.Min(
+                        (piece.Columns * _layout.CellSize) - _cellGap,
+                        (piece.Rows * _layout.CellSize) - _cellGap);
+                    float width = Mathf.Min(shortest * _pipShare, shortest * _glyphShare);
+                    var pipRect = (RectTransform)pips.transform;
+                    pipRect.sizeDelta = new Vector2(
+                        width, width * MiniBagGlyphs.PipStripHeight / MiniBagGlyphs.PipStripWidth);
+                    pips.sprite = _glyphArt.TierPips(piece.Tier);
+                }
+
                 if (!piece.Casts)
                 {
                     continue;
@@ -638,7 +698,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             }
 
             // Five 32 × 32 masks, made once with the pools and destroyed with this view.
-            _glyphArt ??= new MiniBagGlyphs();
+            _glyphArt ??= new MiniBagGlyphs(MaxTier());
 
             _poolsCreated = true;
         }
@@ -712,6 +772,23 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
                 plate.color = MiniBagPalette.Cooldown;
                 plateObject.SetActive(false);
 
+                // The tier strip: one dot per level, in the box's bottom-right corner (Stage 08i). It
+                // is created before the label so the label draws on top of it, and after the plate so a
+                // recharging item's plate cannot hide it.
+                var pipObject = new GameObject("MiniBagTierPips" + index, typeof(RectTransform), typeof(Image));
+                var pipRect = (RectTransform)pipObject.transform;
+                pipRect.SetParent(boxRect, worldPositionStays: false);
+                pipRect.anchorMin = new Vector2(1f, 0f);
+                pipRect.anchorMax = new Vector2(1f, 0f);
+                pipRect.pivot = new Vector2(1f, 0f);
+                pipRect.anchoredPosition = new Vector2(-_pipInset, _pipInset);
+
+                Image pips = pipObject.GetComponent<Image>();
+                pips.raycastTarget = false;
+                pips.preserveAspect = true;
+                pips.color = MiniBagGlyphs.Ink;
+                pipObject.SetActive(false);
+
                 var labelObject = new GameObject("MiniBagTier" + index, typeof(RectTransform));
                 var labelRect = (RectTransform)labelObject.transform;
                 labelRect.SetParent(boxRect, worldPositionStays: false);
@@ -733,6 +810,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
                 _boxes.Add(box);
                 _glyphs.Add(glyph);
                 _plates.Add(plate);
+                _pips.Add(pips);
                 _tiers.Add(label);
                 _tones.Add(MiniBagPlateTone.None);
                 _hasPlate.Add(false);
@@ -763,6 +841,12 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             _glyphArt = null;
             _glyphs.Clear();
         }
+
+        /// <summary>
+        /// The run's own tier ceiling (<c>data/tables/constant.csv</c>), which is how many pip strips
+        /// the view generates: a tier above it is drawn as the highest strip there is.
+        /// </summary>
+        private int MaxTier() => _config is null ? MiniBagGlyphs.MaxPips : _config.Constant.MaxTier;
 
         private void CountCreation()
         {

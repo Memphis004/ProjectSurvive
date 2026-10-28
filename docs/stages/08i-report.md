@@ -85,7 +85,7 @@ running both, EditMode went 312/312 and the capture showed the arena again. Reco
 | 1 | mini ย่าม back at the bottom-right, caption top-left, grid under it | **PASS** | `artifacts/ui/battle-begin-1920x1080.png`, `battle-lbag-1920x1080.png`, `battle-begin-1280x720.png` |
 | 2 | cooldown plates follow `IBattleFrame.Cooldowns` | **PASS** | `artifacts/ui/battle-midfight-1920x1080-bagcrop.png` (plate at 1/3 of its period); `BattlePlayModeTests.The_mini_bags_plates_are_the_frames_cooldowns` |
 | 2b | the cloth reads against its panel, its empty cells and the item boxes (second pass) | **PASS** | 1.38 → **1.80 : 1** measured on the capture, 2.14 / 2.05 / 1.64 in `The_bags_cloth_reads_against_its_panel_and_its_empty_cells` |
-| 2c | an item is told apart by its category's mark, not its tier number (third pass) | **PASS** | `artifacts/ui/glyphs-sheet.png` (the six masks), `battle-begin-1280x720-bagcrop.png` (a dagger at 720p); `An_items_box_shows_its_categorys_mark_and_not_its_tier` and `Every_category_has_its_own_mark_and_none_of_them_is_blank` |
+| 2c | an item is told apart by its category's mark, and its tier comes back as small pips in the box's corner (third and fourth passes) | **PASS** | `artifacts/ui/glyphs-sheet.png` (the six masks), `battle-begin-1920x1080-bagcrop.png` and `battle-begin-1280x720-bagcrop.png` (a dagger with its tier-1 dot at both sizes); `An_items_box_shows_its_categorys_mark_and_a_corner_tier`, `The_tier_pips_grow_one_dot_per_level_and_stop_at_the_runs_ceiling` and `Every_category_has_its_own_mark_and_none_of_them_is_blank` |
 | 3 | built once; nothing created during play | **PASS** | `…Ten_seconds_of_ticks_raise_no_exception_and_bind_no_new_view` (`CreatedAfterBuild == 0`, `Pool.CreatedAfterWarmup == 0`, `PlateUpdates > 0`) |
 | 4 | HUD ≤ 18 % at both sizes, panels disjoint | **PASS** | 16.95 % / 16.95 %; `…The_hud_covers_at_most_eighteen_percent_of_the_screen_at_both_sizes` |
 | 5 | bag inside the screen, never over another panel or the open dev panel | **PASS** | `ui-report.json` `violations: []`, `UiLayoutCheckTests` stacking cases 23/23 |
@@ -134,9 +134,21 @@ clears **3.5 : 1** on all five category colours; and a two-pixel edge disappears
 blade is six pixels wide (its opaque share is 0.17 of the mask, the lowest of the six). **A bag keeps its
 tier number** — it has no category, and its cloth cells are already its shape.
 
-What is lost: the tier of an item is no longer readable on the battle screen (it remains on the bag's own
-cells and in the camp's จัดย่าม). That is the trade the brief asked for; if tier has to come back, the
-honest place is a corner pip, not the middle of the box.
+### The tier comes back as corner pips (fourth pass)
+
+Dropping the tier number left one gap: a player could not see that an item was a tier 1 or a tier 3 without
+opening the camp. A **strip of dots in the box's bottom-right corner** fills it — one dot per tier, three
+at the most (`data/tables/constant.csv` caps `MaxTier` at 3), drawn in the same dark ink as the mark.
+
+The dots are generated, not a digit, for a measured reason: at a ~60 px box the project's 22 px type floor
+is a third of the box, and a 22 px numeral in a corner either wears a light chip — which hides the category
+mark — or has nowhere to sit. The strip is anchored to the corner, so it never takes the mark's centre:
+one dot is 6 px of a 26 px sprite (`MiniBagGlyphs.PipStripWidth`), drawn at 27 px wide on a 1080p box and
+16 px at 720p, where a 6/3 dot/gap still resolves into separate dots (measured by downscaling the mask:
+1, 2 and 3 dots come back as 1, 2 and 3 runs at both sizes). On the shipped captures the tier-1 dot is
+**4 × 5 px** at 1920 × 1080 and **3 × 3 px** at 1280 × 720. A bag keeps its number in the middle — it has no
+category mark to make room for — and an item whose tier is above the run's ceiling is drawn with the
+highest strip there is, never a strip that does not exist.
 
 ## Not tested, and the risks
 
@@ -153,8 +165,11 @@ honest place is a corner pip, not the middle of the box.
 - **The largest bag is 3 × 3 today.** A 4 × 4 bag would fit at 40 px cells and still meet the 16 px
   floor, but `BattleViewCaps.MiniBagCells` (9 × 7) is what a bigger board would have to be re-checked
   against.
-- **A player with twelve items** gets a grid of boxes and tier numbers, not icons — the placeholder art
-  the camp's จัดย่าม uses. Unchanged from 08c; no art was added.
+- **A player with twelve items** gets a grid of boxes with a category mark and a tier strip, not item
+  icons — the placeholder art the camp's จัดย่าม uses. Unchanged from 08c; no art was added.
+- **Tier 2 and 3 have no screenshot.** The starting items are tier 1 and no floor reached a merge during
+  the capture, so the two- and three-dot strips are proved by the mask test and by downscaling the mask
+  (1/2/3 runs at both sizes), not by a photograph. Recorded as measured-but-not-photographed.
 - **One flaky PlayMode run.** After the palette change, the first whole-class run of
   `BattlePlayModeTests` reported 11/12; the same class was 12/12 immediately before it and 12/12 on the
   re-run, and the five cases this stage touches (floor start, ten ticks, HUD area, plates, dev menu)
@@ -172,6 +187,11 @@ unity command test run --mode playmode --filter ResultScenePlayModeTests --filte
 unity command editor invoke_menu --path "ProjectSurvive/Stage 08/3. Create Battle scene"
 unity command editor invoke_menu --path "ProjectSurvive/Stage 08e/1. Build arena (theme + seed)"
 unity command editor invoke_menu --path "ProjectSurvive/Tools/1. Capture UI (Title + Camp + Battle + Result, 1920x1080 + 1280x720)"
+
+# fourth pass (the tier pips)
+unity command test run --mode editor   --filter BattleMiniBag                     # 23/23
+unity command test run --mode playmode --filter <test name> --filter_type testName --async_tests
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/test.ps1 -Suite Fast    # PASS 13 | FAIL 0 | NOT RUN 3 | WARN 0
 ```
 
 The first `-Suite Fast` run reported `unity: EditMode` **308/312**: four `ArenaEnvironmentTests` cases

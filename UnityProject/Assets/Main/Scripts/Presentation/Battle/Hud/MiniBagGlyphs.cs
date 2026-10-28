@@ -37,12 +37,35 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
         /// <summary>The ink every glyph is tinted with: dark enough for all five category colours.</summary>
         public static readonly Color Ink = new Color(0.10f, 0.09f, 0.12f, 1f);
 
+        /// <summary>Height of a tier-pip strip in pixels: one 6 px dot inside a 1 px margin.</summary>
+        public const int PipStripHeight = 8;
+
+        /// <summary>Width of a tier-pip strip in pixels (three 6 px dots, 3 px gaps, 1 px margins).</summary>
+        public const int PipStripWidth = 26;
+
+        /// <summary>How many dots a tier strip can hold before it saturates on a full strip.</summary>
+        public const int MaxPips = 3;
+
         private readonly Sprite[] _byCategory = new Sprite[7];
+        private readonly Sprite[] _pips = new Sprite[4];
         private readonly Sprite _fallback;
 
-        /// <summary>Builds every glyph once. Call from a floor's first build, never per frame.</summary>
-        public MiniBagGlyphs()
+        /// <summary>
+        /// Builds every glyph once. Call from a floor's first build, never per frame.
+        /// </summary>
+        /// <param name="maxTier">
+        /// The run's own <c>MaxTier</c> (<c>data/tables/constant.csv</c>, 3 today), so the strips cover
+        /// every tier a merge can reach and a higher one can only saturate the last strip.
+        /// </param>
+        public MiniBagGlyphs(int maxTier)
         {
+            int tiers = maxTier < 1 ? 1 : (maxTier > MaxPips ? MaxPips : maxTier);
+            for (int tier = 1; tier <= tiers; tier++)
+            {
+                int dots = tier;
+                _pips[tier] = Create("ps-minibag-tier" + tier, (x, y) => Pip(x, y, dots), PipStripHeight);
+            }
+
             _byCategory[(int)ItemCategory.ArcaneWeapon] = Create("ps-minibag-arcane-weapon", Blade);
             _byCategory[(int)ItemCategory.Charm] = Create("ps-minibag-charm", Diamond);
             _byCategory[(int)ItemCategory.SpellTome] = Create("ps-minibag-spell-tome", Book);
@@ -64,6 +87,22 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             }
 
             return _fallback;
+        }
+
+        /// <summary>
+        /// The strip of dots that shows an item's tier: one dot per tier, saturating at the highest
+        /// strip this floor built.
+        /// </summary>
+        /// <remarks>
+        /// A dot per level rather than a digit: at a 54 px box the number has to be 22 px to clear the
+        /// project's type floor, and a 22 px digit in a corner either wears a light chip that hides the
+        /// category mark or has nowhere to sit. Three dots are countable at a glance, take eight pixels of
+        /// the corner's height, and stay clear of the mark (`data/tables/constant.csv` caps a tier at 3).
+        /// </remarks>
+        public Sprite TierPips(int tier)
+        {
+            int capped = tier < 1 ? 1 : (tier > MaxPips ? MaxPips : tier);
+            return _pips[capped] ?? _pips[1] ?? _fallback;
         }
 
         /// <summary>How many distinct marks exist (the five categories plus the fallback).</summary>
@@ -91,6 +130,12 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             {
                 Destroy(_byCategory[i]);
                 _byCategory[i] = null;
+            }
+
+            for (int i = 0; i < _pips.Length; i++)
+            {
+                Destroy(_pips[i]);
+                _pips[i] = null;
             }
 
             Destroy(_fallback);
@@ -122,7 +167,33 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             }
         }
 
-        private static Sprite Create(string name, System.Func<int, int, bool> mask)
+        /// <summary>One dot per tier, left to right, in a strip one dot tall.</summary>
+        private static bool Pip(int x, int y, int dots)
+        {
+            // A 6 px dot with a 3 px gap: the strip is drawn at ~26 px on a 1080p box and at ~16 px on
+            // the same box at 720p, where a 6/3 dot/gap still resolves into separate dots after the
+            // bilinear minification (an 8/2 pair does not — it blurs into one bar).
+            const int dot = 6;
+            const int gap = 3;
+
+            if (y < 1 || y >= PipStripHeight - 1)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < dots; i++)
+            {
+                int left = 1 + (i * (dot + gap));
+                if (x >= left && x < left + dot)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static Sprite Create(string name, System.Func<int, int, bool> mask, int height = Size)
         {
             var texture = new Texture2D(Size, Size, TextureFormat.RGBA32, mipChain: false)
             {
@@ -152,7 +223,7 @@ namespace ProjectSurvive.Game.Presentation.Battle.Hud
             texture.Apply(updateMipmaps: false, makeNoLongerReadable: false);
 
             return Sprite.Create(
-                texture, new Rect(0f, 0f, Size, Size), new Vector2(0.5f, 0.5f), 100f,
+                texture, new Rect(0f, 0f, Size, height), new Vector2(0.5f, 0.5f), 100f,
                 extrude: 0, SpriteMeshType.FullRect);
         }
 

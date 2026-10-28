@@ -157,7 +157,7 @@ namespace ProjectSurvive.Game.Tests.EditMode
         /// a 1280 × 720 screenshot soften into each other. A silhouette survives all three.
         /// </remarks>
         [Test]
-        public void An_items_box_shows_its_categorys_mark_and_not_its_tier()
+        public void An_items_box_shows_its_categorys_mark_and_a_corner_tier()
         {
             // Four items of four categories beside the starting weapon (ArcaneWeapon). The familiar
             // is left out on purpose: the starting ย่าม is 3 x 3 and this case needs the tome's four
@@ -180,18 +180,34 @@ namespace ProjectSurvive.Game.Tests.EditMode
                 MiniBagPiece piece = view.Layout.Pieces[i];
                 Assert.That(view.TryGetPieceGlyph(i, out Sprite mark), Is.True);
                 Assert.That(view.TryGetPieceTierVisible(i, out bool tierVisible), Is.True);
+                Assert.That(view.TryGetPiecePipsVisible(i, out bool pipsVisible), Is.True);
+                Assert.That(view.TryGetPieceRect(i, out Rect box), Is.True);
 
                 if (piece.Kind == PieceKind.Bag)
                 {
                     bagsSeen++;
                     Assert.That(mark, Is.Null, "a bag shows a category mark it does not have");
-                    Assert.That(tierVisible, Is.True, "a bag lost its tier number (it has no mark to replace it)");
+                    Assert.That(pipsVisible, Is.False, "a bag carries tier pips it has no category for");
+                    Assert.That(tierVisible, Is.True, "a bag lost its tier number");
                     continue;
                 }
 
                 itemsSeen++;
                 Assert.That(mark, Is.Not.Null, piece.DefId + " shows no category mark");
-                Assert.That(tierVisible, Is.False, piece.DefId + " still shows its tier number instead of its mark");
+                Assert.That(tierVisible, Is.False, piece.DefId + " still shows a digit over its mark");
+                Assert.That(pipsVisible, Is.True, piece.DefId + " lost its tier");
+
+                // The tier is a small strip in the corner, not the middle of the box: the mark owns
+                // the centre. The strip is anchored to the box's bottom-right corner, so its offset
+                // from that corner runs left (negative x) and up (positive y).
+                Assert.That(view.TryGetPieceTierPips(i, out Sprite pips, out Vector2 centre, out Vector2 size), Is.True);
+                Assert.That(pips, Is.Not.Null, piece.DefId + " has pips that draw nothing");
+                Assert.That(
+                    size.x, Is.LessThan(box.width * 0.5f),
+                    piece.DefId + "'s tier strip is not a small corner mark");
+                Assert.That(size.y, Is.LessThan(size.x), "the pip strip is not wider than it is tall");
+                Assert.That(centre.x, Is.LessThan(0f), piece.DefId + "'s tier strip is not against the right edge");
+                Assert.That(centre.y, Is.GreaterThan(0f), piece.DefId + "'s tier strip is not against the bottom edge");
 
                 if (marksByCategory.TryGetValue(piece.Category, out Sprite known))
                 {
@@ -212,13 +228,67 @@ namespace ProjectSurvive.Game.Tests.EditMode
         }
 
         /// <summary>
+        /// The pip strip says the tier: one dot per level, a different strip for every tier the run
+        /// allows, and a strip with no dots is not shipped.
+        /// </summary>
+        [Test]
+        public void The_tier_pips_grow_one_dot_per_level_and_stop_at_the_runs_ceiling()
+        {
+            var glyphs = new MiniBagGlyphs(maxTier: 3);
+
+            try
+            {
+                var seen = new HashSet<Sprite>();
+
+                for (int tier = 1; tier <= 3; tier++)
+                {
+                    Sprite pips = glyphs.TierPips(tier);
+                    Assert.That(pips, Is.Not.Null, "tier " + tier + " has no pip strip");
+                    Assert.That(seen.Add(pips), Is.True, "tier " + tier + " shares a strip with another tier");
+
+                    // One dot per level, left to right, is what the sprite's own mask has to show.
+                    Assert.That(DotCount(pips), Is.EqualTo(tier), "tier " + tier + "'s strip has the wrong dot count");
+                }
+
+                // Above the ceiling the strip saturates instead of inventing a stage the game cannot reach.
+                Assert.That(glyphs.TierPips(9), Is.SameAs(glyphs.TierPips(3)), "a tier above the ceiling drew a new strip");
+            }
+            finally
+            {
+                glyphs.Dispose();
+            }
+        }
+
+        /// <summary>Counts the runs of drawn pixels across a pip strip's middle row.</summary>
+        private static int DotCount(Sprite strip)
+        {
+            Color32[] pixels = strip.texture.GetPixels32();
+            int row = (MiniBagGlyphs.PipStripHeight / 2) * MiniBagGlyphs.Size;
+            int dots = 0;
+            bool inside = false;
+
+            for (int x = 0; x < MiniBagGlyphs.Size; x++)
+            {
+                bool drawn = pixels[row + x].a > 0;
+                if (drawn && !inside)
+                {
+                    dots++;
+                }
+
+                inside = drawn;
+            }
+
+            return dots;
+        }
+
+        /// <summary>
         /// Every category has its own mark, the fallback is its own too, and no mark is blank: a mark
         /// that draws nothing is a box with no way to tell what it holds.
         /// </summary>
         [Test]
         public void Every_category_has_its_own_mark_and_none_of_them_is_blank()
         {
-            var glyphs = new MiniBagGlyphs();
+            var glyphs = new MiniBagGlyphs(maxTier: 3);
 
             try
             {
